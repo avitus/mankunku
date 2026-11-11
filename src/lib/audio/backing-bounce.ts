@@ -1,3 +1,4 @@
+import { connectBackingOutput } from './backing-output';
 /**
  * Offline WAV bounce of the backing engine for the listening lab.
  *
@@ -221,7 +222,7 @@ export async function renderEventsToWav(
 			busCompressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 			busCompressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 			busCompressor.release.value = BACKING_BUS_COMPRESSOR.release;
-			busCompressor.connect(context.destination);
+			connectBackingOutput(busCompressor, context.destination, mix.master);
 
 			const backingGain = context.createGain();
 			backingGain.gain.value = volume;

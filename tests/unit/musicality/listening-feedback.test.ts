@@ -175,3 +175,12 @@ it('captures seeded arc and proxy-backed monitoring as honest portable feedback'
   expect(restoreListeningFeedback(JSON.stringify({...saved,monitoring}))).toBeNull();
  }
 });
+
+it('keeps pre-Master listening notes readable without rewriting captured settings', () => {
+ const saved = JSON.parse(serializeListeningFeedback(createListeningFeedback(input(), options)));
+ delete saved.settings.mix.master;
+ saved.monitoring = { adjusted: true, mix: { ...saved.settings.mix } };
+ expect(restoreListeningFeedback(JSON.stringify(saved))).toEqual(saved);
+ saved.settings.mix.master = -1;
+ expect(restoreListeningFeedback(JSON.stringify(saved))).toBeNull();
+});

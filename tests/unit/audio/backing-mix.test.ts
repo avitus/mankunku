@@ -53,9 +53,9 @@ describe('normalizeBackingMix', () => {
 	});
 
 	it('ignores unknown keys', () => {
-		const mix = normalizeBackingMix({ bass: 0.5, master: 9 });
+		const mix = normalizeBackingMix({ bass: 0.5, unknownVoice: 9 });
 		expect(mix).toEqual({ ...DEFAULT_BACKING_MIX, bass: 0.5 });
-		expect('master' in mix).toBe(false);
+		expect('unknownVoice' in mix).toBe(false);
 	});
 
 	it('fills the room key with its default for pre-room persisted mixes', () => {
@@ -72,6 +72,7 @@ describe('load/save round-trip', () => {
 	it('round-trips through localStorage', () => {
 		stubStorage();
 		const tuned: BackingMixLevels = {
+            master: 0.8,
 			bass: 0.7,
 			comp: 1.4,
 			drums: 1.1,
@@ -200,3 +201,9 @@ describe('voiceVelocity', () => {
 		expect(voiceVelocity(0.4, 0)).toBe(0);
 	});
 });
+
+ it('restores legacy mixes at unity master and bounds master independently', () => {
+  expect(normalizeBackingMix({ bass: .7 }).master).toBe(1);
+  expect(normalizeBackingMix({ master: 0, bass: .7 })).toMatchObject({ master: 0, bass: .7 });
+  expect(normalizeBackingMix({ master: 9 }).master).toBe(3);
+ });

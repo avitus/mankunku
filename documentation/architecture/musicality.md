@@ -4,6 +4,12 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](/docs/contributing/musicality-progress) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Band output and listening Master — 10 November 2026
+
+The shared rhythm-section output now adds exactly +6 dB after its glue compressor. `backing-output.ts` supplies the same stage to live playback and offline WAV rendering; `mix.master` scales that output independently of instrument trims, reverb balance and compressor input. It defaults to 1, including older persisted mixes. This applies to every style and both Original/Coordinated playback; generated notes and melody gain are unchanged. The listening desk and blind test put a fourth vertical Master fader/mute to the right of Drums. Its adjacent meter samples actual post-Master PCM; instrument meters remain before Master. The under-fader signal-status text is removed.
+
+Captured mixes include Master, so changing it during blind playback requires a fixed-mix replay before rating. Archived notes and comparisons without the new key remain readable without rewriting their historical evidence. The new +6 dB reference applies to current playback, not to historical rendered audio. Native full-tune checks measure default-output headroom; elevated faders are user-controlled gain and are not a limiter.
+
 ## Phrase expression across the band — 10 November 2026
 
 The **0.11.0** listening policy adds one scoped improvement per player: B49 walking backbeat emphasis, P14 keyboard short/held contrast, and D37 ghosted snare expression. `phraseExpression: true` creates an independent version-1 fingerprint only for explicit Coordinated Swing/Straight with keyboard phrasing enabled. Omission preserves all 48 captured 0.10 full-performance event/trace/checkpoint hashes from `f25fc763`. Bossa and Ballad ignore the option and retain byte-identical 0.10 output; Original stays unchanged. This milestone does not force Swing articulation onto native styles.

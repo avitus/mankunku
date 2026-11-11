@@ -59,3 +59,13 @@ describe('post-mix backing PCM evidence', () => {
 		expect(bass.analyser.disconnect).toHaveBeenCalledOnce();
 	});
 });
+
+it('measures Master independently of the instrument taps, including master mute', () => {
+ const bass = source([.25]), master = source([.5]);
+ const monitor = createSignalMonitor({ bass: bass.node, master: master.node })!;
+ expect(monitor.read()?.master?.peak).toBe(.5);
+ master.mute();
+ expect(monitor.read()).toMatchObject({ bass: { peak: .25 }, master: { peak: 0, peakSoFar: .5 } });
+ monitor.dispose();
+ expect(master.disconnect).toHaveBeenCalledExactlyOnceWith(master.analyser);
+});

@@ -241,7 +241,7 @@
   {#if mode === 'coordinated'}<div class="energy-choice"><button onclick={newEnergyArc} disabled={busy} data-testid="listening-new-arc">New energy arc ↗</button><small>Clears the current take and notes.</small></div>{/if}
   <div class="musicians">{#each ['bass','piano','drums'] as name,i}{@const decision=decisions.find(d=>d.instrument===name)}<article class={name} data-testid={`musician-${name}`} data-bar-index={displayBarIndex ?? ''}><div class="player-title"><h3><span aria-hidden="true">{['♩','▥','◌'][i]}</span>{name==='bass'?'Bass':name==='piano'?keyboardLabel:'Drums'}</h3><small>{decision?.role ?? 'Ready'}</small></div><h4>{decision?.action ?? 'Waiting for the first bar'}</h4>{#if decision}<p>{decision.detail}</p>{/if}{#if decision}<details class="evidence"><summary>{decision.eventCount} scheduled {decision.eventCount===1?'event':'events'} · Why this choice</summary><ul>{#each decision.evidence as evidence}<li>{evidence}</li>{/each}</ul></details>{/if}</article>{/each}</div>
   {#if selectedReviewBar!==null}<p class="evidence-note">Reviewing bar {selectedReviewBar+1} · Scheduled evidence</p>{/if}
-  <ListeningMixer {keyboardLabel} mix={monitorMix} onchange={changeMix} disabled={snapshot.status === 'loading'} signal={snapshot.outputSignal} playing={snapshot.status==='playing'} elapsedBeats={snapshot.elapsedBeats} dark compact />
+  <ListeningMixer {keyboardLabel} mix={monitorMix} onchange={changeMix} disabled={snapshot.status === 'loading'} signal={snapshot.outputSignal} playing={snapshot.status==='playing'} dark compact />
 
  </section>
 </div>

@@ -1,3 +1,4 @@
+import { backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
  * Jazz backing track engine.
@@ -147,10 +148,10 @@ let currentInstrumentType: BackingInstrument | null = null;
 
 // The backing bus (increment 9). Everything backing — bass, panned comp,
 // the split drum kit and the room return — flows through `backingGain`
-// (the volume fader) into a gentle glue compressor and only then into
-// master, which itself stays untouched (it carries the melody):
+// (the backing setting) into a gentle glue compressor, then the +6 dB band
+// Master fader. The app master stays untouched (it also carries the melody):
 //
-//   bassGain ──────────────────────► backingGain ─► busCompressor ─► master
+//   bassGain ──────────────────────► backingGain ─► busCompressor ─► backingOutput ─► app master
 //   compGain ─► compPan ───────────►      ▲
 //   drum samplers ─► pans ─► drumBus ─────┤
 //   sends ─► roomConvolver ─► roomReturn ─┘
@@ -159,6 +160,7 @@ let currentInstrumentType: BackingInstrument | null = null;
 // balance track the dry signal; drum-family sends are scaled by the kit
 // trim in `applyMixGains` because `drumBus` sits downstream of the taps.
 let backingGain: GainNode | null = null;
+let backingOutput: GainNode | null = null;
 let busCompressor: DynamicsCompressorNode | null = null;
 let bassGain: GainNode | null = null;
 let compGain: GainNode | null = null;
@@ -181,7 +183,7 @@ const signalMonitors = new Set<BackingSignalMonitor>();
 /** Measure actual post-mix instrument PCM; scheduled notes alone are not audio evidence. */
 export function createBackingSignalMonitor(): BackingSignalMonitor | null {
 	const epoch = graphEpoch;
-	const monitor = createSignalMonitor({ bass: bassGain, comp: compGain, drums: drumBus }, () => graphEpoch === epoch);
+	const monitor = createSignalMonitor({ bass: bassGain, comp: compGain, drums: drumBus, master: backingOutput }, () => graphEpoch === epoch);
 	if (!monitor) return null;
 	const owned: BackingSignalMonitor = {
 		read: () => monitor.read(),
@@ -194,6 +196,7 @@ export function createBackingSignalMonitor(): BackingSignalMonitor | null {
 /** Push the current volume + base trims + mix levels onto every live gain node. */
 function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
+	if (backingOutput) backingOutput.gain.value = backingOutputGain(mixLevels.master);
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
 	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType) * mixLevels.comp;
 	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
@@ -209,7 +212,7 @@ function applyMixGains(): void {
 }
 
 /**
- * Create the shared backing bus (volume fader → glue compressor → master)
+ * Create the shared backing bus (backing volume → glue compressor → band output → app master)
  * and the bass/comp branches, idempotently. Both `loadBackingInstruments`
  * and `ensureDrums` call this, so whichever runs first builds the bus.
  */
@@ -221,7 +224,7 @@ function ensureBackingGraph(audioCtx: AudioContext): void {
 		compressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 		compressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 		compressor.release.value = BACKING_BUS_COMPRESSOR.release;
-		compressor.connect(getMasterGain());
+		backingOutput = connectBackingOutput(compressor, getMasterGain(), mixLevels.master);
 		const gain = audioCtx.createGain();
 		gain.gain.value = currentBackingVolume;
 		gain.connect(compressor);
@@ -1397,6 +1400,7 @@ export function disposeBackingTrack(): void {
 		backingGain.disconnect();
 		backingGain = null;
 	}
+	if (backingOutput) { backingOutput.disconnect(); backingOutput = null; }
 	if (busCompressor) {
 		busCompressor.disconnect();
 		busCompressor = null;

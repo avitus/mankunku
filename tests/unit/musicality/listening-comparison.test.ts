@@ -262,3 +262,10 @@ it('clears accepted evidence and ratings before replaying a label while retainin
  expect(pair.snapshot()).toMatchObject({ completed: { A: false, B: true }, ratings: { A: {} }, preference: null, notes: 'Keep my observations', canReveal: false });
  expect(() => pair.rate('A', 'groove', 5)).toThrow(/complete/i);
 });
+
+it('restores blind comparisons saved before the Master control existed', () => {
+ const record = JSON.parse(serializeListeningComparison(finish(create())));
+ delete record.inputs.mix.master;
+ for (const take of Object.values(record.takes) as any[]) { delete take.params.mix.master; if (take.monitoring) delete take.monitoring.mix.master; }
+ expect(restoreListeningComparison(JSON.stringify(record))).toEqual(record);
+});

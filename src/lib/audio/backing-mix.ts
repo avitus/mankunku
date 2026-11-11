@@ -13,6 +13,8 @@
  */
 
 export interface BackingMixLevels {
+	/** Band output after compression; 1 is the +6 dB reference level. */
+	master: number;
 	bass: number;
 	comp: number;
 	drums: number;
@@ -30,6 +32,7 @@ export interface BackingMixLevels {
 }
 
 export const DEFAULT_BACKING_MIX: BackingMixLevels = {
+	master: 1,
 	bass: 1,
 	comp: 1,
 	drums: 1,
@@ -66,7 +69,7 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
  * the generator barely emits yet start at family-matched estimates for
  * the milestone listening pass.
  */
-export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room'>, number> = {
+export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room' | 'master'>, number> = {
 	bass: 0.05,
 	// Piano reference; live/bounce use backingKeyboardTrim for organ calibration.
 	comp: 0.1,

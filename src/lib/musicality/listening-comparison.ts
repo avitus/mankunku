@@ -86,7 +86,7 @@ function validInputs(value: unknown): value is ListeningComparisonInputs {
   !['swing', 'straight', 'bossa-nova', 'ballad'].includes(String(value.style)) ||
   !['piano', 'organ'].includes(String(value.instrument)) || !object(value.mix)) return false;
  const mix = value.mix;
- if (!Object.keys(DEFAULT_BACKING_MIX).every(key => finite(mix[key]) && mix[key] >= 0 && mix[key] <= 3)) return false;
+ if (!Object.keys(DEFAULT_BACKING_MIX).every(key => (key === 'master' && mix[key] === undefined) || (finite(mix[key]) && mix[key] >= 0 && mix[key] <= 3))) return false;
  for (const segment of phrase.harmony) {
   if (!object(segment) || !object(segment.chord) || !Array.isArray(segment.startOffset) || !Array.isArray(segment.duration)) return false;
   const start = segment.startOffset; const duration = segment.duration;

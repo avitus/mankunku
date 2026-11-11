@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test('shows compact accessible mixer controls and changes the planned arc without playing', async ({ page }) => {
  const mixer = page.getByTestId('listening-mixer');
- for (const label of ['Bass', 'Piano', 'Drums']) {
+ for (const label of ['Bass', 'Piano', 'Drums', 'Master']) {
   await expect(mixer.getByRole('slider', { name: `${label} volume` })).toBeVisible();
   const fader = mixer.getByRole('slider', { name: `${label} volume` });
   await expect(fader).toHaveAttribute('aria-orientation', 'vertical');
@@ -45,6 +45,10 @@ test('shows compact accessible mixer controls and changes the planned arc withou
  await expect(mixer.getByRole('meter', { name: 'Organ audio signal' })).toBeVisible();
  await expect(page.getByTestId('musician-piano').getByRole('heading', { name: 'Organ' })).toBeVisible();
  await page.getByTestId('listening-keyboard').selectOption('piano');
+ await expect(mixer).not.toContainText('Signal observed');
+ const masterBox = await mixer.getByRole('slider', { name: 'Master volume' }).boundingBox();
+ const drumsBox = await mixer.getByRole('slider', { name: 'Drums volume' }).boundingBox();
+ expect(masterBox!.x).toBeGreaterThan(drumsBox!.x);
  const curve = page.getByTestId('listening-arc-curve');
  const original = await curve.getAttribute('points');
  await page.getByTestId('listening-new-arc').click();
@@ -58,7 +62,7 @@ test('shows compact accessible mixer controls and changes the planned arc withou
  await page.screenshot({ path: test.info().outputPath('mixer-blind-mobile.png'), fullPage: true });
 });
 
-for (const mode of ['coordinated', 'original']) test(`mutes all three real output buses during ${mode} playback and saves the changed mix`, async ({ page }) => {
+for (const mode of ['coordinated', 'original']) test(`mutes the three instrument buses and Master output during ${mode} playback and saves the changed mix`, async ({ page }) => {
  requireRealtimeAudio(page);
  const keyboard = mode === 'coordinated' ? 'Organ' : 'Piano';
  await page.getByTestId('listening-keyboard').selectOption(keyboard.toLowerCase());
@@ -68,7 +72,7 @@ for (const mode of ['coordinated', 'original']) test(`mutes all three real outpu
  await page.getByTestId('listening-play').click();
  await expect.poll(async () => Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'))).toBeGreaterThanOrEqual(1);
  await expect(page.getByTestId('listening-keyboard')).toBeDisabled();
- for (const [label, level] of [['Bass', .05], [keyboard, backingKeyboardTrim(keyboard === 'Organ' ? 'organ' : 'piano')], ['Drums', 1.8]] as const) {
+ for (const [label, level] of [['Bass', .05], [keyboard, backingKeyboardTrim(keyboard === 'Organ' ? 'organ' : 'piano')], ['Drums', 1.8], ['Master', 10 ** (6 / 20)]] as const) {
   // Identify the actual mix bus by its baseline trim before changing it.
   const index = await page.evaluate(value => (window as unknown as { __monitorGains: GainNode[] }).__monitorGains.findIndex(node => Math.abs(node.gain.value - value) < 1e-6), level);
   expect(index).toBeGreaterThanOrEqual(0);
@@ -80,6 +84,7 @@ for (const mode of ['coordinated', 'original']) test(`mutes all three real outpu
   expect(await page.evaluate(i => (window as unknown as { __monitorGains: GainNode[] }).__monitorGains[i].gain.value, index)).toBeCloseTo(level);
  }
  await page.getByRole('slider', { name: `${keyboard} volume` }).fill('0.5');
+ await page.getByRole('slider', { name: 'Master volume' }).fill('0.5');
  const before = Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'));
  await expect.poll(async () => Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'))).toBeGreaterThan(before);
  await page.getByText('Listening notes & take export', { exact: false }).click();
@@ -90,7 +95,8 @@ for (const mode of ['coordinated', 'original']) test(`mutes all three real outpu
  const record = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
  expect(record.playback.params.instrument).toBe(keyboard.toLowerCase());
  expect(record.playback.params.mix.comp).toBe(1);
- expect(record.playback.monitoring).toMatchObject({ adjusted: true, mix: { comp: .5 } });
+ expect(record.playback.params.mix.master).toBe(1);
+ expect(record.playback.monitoring).toMatchObject({ adjusted: true, mix: { comp: .5, master: .5 } });
  await page.getByTestId('listening-stop').click();
  expect(await page.evaluate(() => localStorage.getItem('backing-mix-levels-v2'))).toBe(stored);
  await page.getByRole('button', { name: /Saved feedback/ }).click();

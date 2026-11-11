@@ -8,11 +8,13 @@ import { vi } from 'vitest';
  */
 export function fakeAudioContext() {
 	const param = () => ({ value: 0 });
+	const nodeContext = { createGain: () => ({ gain: param(), connect: vi.fn(), disconnect: vi.fn() }) };
 	return {
+		...nodeContext,
 		currentTime: 0,
-		createGain: () => ({ gain: param(), connect: vi.fn(), disconnect: vi.fn() }),
 		createStereoPanner: () => ({ pan: param(), connect: vi.fn(), disconnect: vi.fn() }),
 		createDynamicsCompressor: () => ({
+			context: nodeContext,
 			threshold: param(),
 			knee: param(),
 			ratio: param(),

@@ -1,10 +1,11 @@
-/** Read-only PCM taps after instrument mix gains, before the backing/master buses. */
+/** Read-only PCM taps after instrument gains, plus the post-compressor band Master. */
 export interface BackingSignalLevel {
 	readonly peak: number;
 	/** Largest peak observed by read(), not a continuous recording of the take. */
 	readonly peakSoFar: number;
 }
 export interface BackingSignalSnapshot {
+	readonly master?: BackingSignalLevel | null;
 	readonly bass: BackingSignalLevel | null;
 	readonly comp: BackingSignalLevel | null;
 	readonly drums: BackingSignalLevel | null;
@@ -14,7 +15,7 @@ export interface BackingSignalMonitor {
 	dispose(): void;
 }
 type Instrument = keyof BackingSignalSnapshot;
-const instruments: readonly Instrument[] = ['bass', 'comp', 'drums'];
+const instruments: readonly Instrument[] = ['bass', 'comp', 'drums', 'master'];
 
 /**
  * An unconnected analyser output observes its input without rerouting it.
@@ -56,7 +57,7 @@ export function createSignalMonitor(sources: Partial<Record<Instrument, AudioNod
 		read() {
 			if (disposed) return null;
 			if (!isCurrent()) { dispose(); return null; }
-			const snapshot: { -readonly [K in Instrument]: BackingSignalLevel | null } = { bass: null, comp: null, drums: null };
+			const snapshot: { -readonly [K in keyof BackingSignalSnapshot]: BackingSignalSnapshot[K] } = { bass: null, comp: null, drums: null, ...('master' in sources ? { master: null } : {}) };
 			for (const [instrument, tap] of taps) {
 				if (tap.source.context.state !== 'running') continue;
 				try {

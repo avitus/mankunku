@@ -247,7 +247,7 @@
 		</details>
 	{/if}
 	{#if error || playback?.error}<p class="error" role="alert">{error || playback?.error}</p>{/if}
-</div><aside class="blind-mixer"><ListeningMixer keyboardLabel={keyboard === 'organ' ? 'Organ' : 'Piano'} mix={monitorMix} onchange={changeMix} signal={playback?.outputSignal} playing={playback?.status==='playing'} elapsedBeats={playback?.elapsedBeats ?? 0} disabled={!!review && (playback?.status !== 'playing' || !!review.record)} /><p>{review ? 'Both takes start at the fixed mix. Adjust during playback to explore; replay unchanged to rate. Start a new comparison to choose another shared mix.' : 'Choose a balance for both takes before starting. You can also mute parts while listening.'}</p></aside></div>
+</div><aside class="blind-mixer"><ListeningMixer keyboardLabel={keyboard === 'organ' ? 'Organ' : 'Piano'} mix={monitorMix} onchange={changeMix} signal={playback?.outputSignal} playing={playback?.status==='playing'} disabled={!!review && (playback?.status !== 'playing' || !!review.record)} /><p>{review ? 'Both takes start at the fixed mix. Adjust during playback to explore; replay unchanged to rate. Start a new comparison to choose another shared mix.' : 'Choose a balance for both takes before starting. You can also mute parts while listening.'}</p></aside></div>
 </section>
 
 <style>

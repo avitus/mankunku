@@ -78,7 +78,7 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  await expect.poll(async () => Number(await page.getByRole('meter', { name: `${keyboard === 'organ' ? 'Organ' : 'Piano'} audio signal` }).getAttribute('aria-valuenow')), { timeout: 15_000 }).toBeGreaterThan(-60);
  const signal = await page.evaluate(async (keyboardTrim) => {
   const gains = (window as unknown as { __nativeGains: GainNode[] }).__nativeGains;
-  const sources = [0.05, keyboardTrim, 1.8].map(trim => gains.find(node => Math.abs(node.gain.value - trim) < 1e-6));
+  const sources = [0.05, keyboardTrim, 1.8, 10 ** (6 / 20)].map(trim => gains.find(node => Math.abs(node.gain.value - trim) < 1e-6));
   if (sources.some(source => !source)) throw new Error('Missing actual instrument bus');
   const meters = sources.map(source => {
    const analyser = source!.context.createAnalyser(); analyser.fftSize = 2048;
@@ -188,17 +188,19 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  expect(signal.meters[0].active, 'bass should retain measurable signal through the tune').toBeGreaterThan(.6);
  const measuredBars = Object.entries(signal.bars).filter(([bar]) => bar !== 'none');
  expect(measuredBars.filter(([,levels]) => levels[1] > .0001).length / measuredBars.length, 'ordinary accompaniment must reach the piano bus across most bars').toBeGreaterThan(.8);
- for (const name of ['bass','piano','drums']) await expect(page.getByTestId(`signal-${name}`)).toContainText('Signal observed');
+ expect(signal.meters[3].peak, 'actual post-compressor Master output is silent').toBeGreaterThan(.005);
+ expect(signal.meters[3].peak, 'default +6 dB Master output clips').toBeLessThan(1);
+ await expect(page.getByTestId('listening-mixer')).not.toContainText('Signal observed');
  // Reuse the loaded bank after coordinated teardown and isolate bass in the
  // Original renderer. A cold-session success must not hide a disconnected reuse.
  await page.getByTestId('listening-mode').getByRole('button', { name: 'Original', exact: true }).click();
- await expect(page.getByTestId('signal-bass')).toHaveCount(0);
+ await expect(page.getByRole('meter', { name: 'Bass audio signal' })).toHaveAttribute('aria-valuenow', '-60');
  await page.getByRole('slider', { name: keyboard === 'organ' ? 'Organ volume' : 'Piano volume' }).fill('0');
  await page.getByRole('slider', { name: 'Drums volume' }).fill('0');
  await page.getByTestId('listening-play').click();
  await expect.poll(async () => Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'))).toBeGreaterThanOrEqual(3);
- await expect(page.getByTestId('signal-bass')).toContainText('Signal observed');
- await expect(page.getByTestId('signal-piano')).toContainText('Muted');
- await expect(page.getByTestId('signal-drums')).toContainText('Muted');
+ await expect.poll(async () => Number(await page.getByRole('meter', { name: 'Bass audio signal' }).getAttribute('aria-valuenow'))).toBeGreaterThan(-60);
+ await expect(page.getByRole('meter', { name: `${keyboard === 'organ' ? 'Organ' : 'Piano'} audio signal` })).toHaveAttribute('aria-valuenow', '-60');
+ await expect(page.getByRole('meter', { name: 'Drums audio signal' })).toHaveAttribute('aria-valuenow', '-60');
  await page.getByTestId('listening-stop').click();
 });
