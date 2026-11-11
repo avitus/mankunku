@@ -53,13 +53,13 @@ export function contrastKeyboardPair(events: readonly CompEvent[], context: {
  return events.map((e,i)=>({...e,duration:durations[i],expression:Object.freeze({kind:'short-held' as const,originalVelocity:e.velocity,originalDuration:e.duration,part:i?'answer' as const:'statement' as const})}));
 }
 
-export function ghostSnareAnswer(hits: readonly Readonly<DrumHitSpec>[]): DrumHitSpec[] {
+export function ghostSnareAnswer(hits: readonly Readonly<DrumHitSpec>[], setup = false): DrumHitSpec[] {
  if(hits.length===3 && hits.every(h=>h.role==='commentary' && h.velocity>0 && h.velocity<=.6) &&
   hits[0].drum==='snare' && hits[1].drum==='snare' && ['snare','kick'].includes(hits[2].drum) &&
   hits[1].beatOffset-hits[0].beatOffset>=1/6 && hits[2].beatOffset-hits[1].beatOffset>=1/6) {
   return hits.map((h,i)=>i!==1?{...h}:{...h,velocity:h.velocity*.5,expression:Object.freeze({kind:'ghost-answer' as const,originalVelocity:h.velocity,part:'answer' as const})});
  }
- if(hits.length!==2 || hits.some(h=>h.drum!=='snare' || h.role!=='commentary' || h.velocity<=0 || h.velocity>.6) ||
+ if(setup || hits.length!==2 || hits.some(h=>h.drum!=='snare' || h.role!=='commentary' || h.velocity<=0 || h.velocity>.6) ||
   hits[1].beatOffset-hits[0].beatOffset<.5) return hits.map(h=>({...h}));
  return hits.map((h,i)=>({...h,velocity:h.velocity*(i?.5:1.08),expression:Object.freeze({kind:'ghost-answer' as const,originalVelocity:h.velocity,part:i?'answer' as const:'statement' as const})}));
 }

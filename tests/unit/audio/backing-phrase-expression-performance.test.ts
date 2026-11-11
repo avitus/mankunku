@@ -66,6 +66,9 @@ for(const style of styles) it(`${style}: expresses full performances without los
     expect(shaped.reduce((n,e)=>n+e.duration,0)+1e-8).toBeGreaterThanOrEqual(shaped.reduce((n,e)=>n+e.expression!.originalDuration!,0));
     expect(bar.ensembleDevelopment.pianoVoicings?.filter(v=>v.decision.keyboardSuspension)).toHaveLength(0);
    }
+   if(bar.ensembleDevelopment.drumPhrases[0].commentary.transform==='setup'){
+    const hits=bar.ensembleDevelopment.drumPhrases[0].commentary.hits,prior=before[i].ensembleDevelopment.drumPhrases[0].commentary.hits;expect(hits[0]).toEqual(prior[0]);expect(hits.at(-1)).toEqual(prior.at(-1));
+   }
    const ghosted=bar.drumEvents.filter(e=>e.expression?.kind==='ghost-answer');
    if(ghosted.length){expect([1,2]).toContain(ghosted.length);if(ghosted.length===2)expect(ghosted[1].velocity).toBeLessThan(ghosted[0].velocity);for(const e of ghosted)expect(bar.ensembleDevelopment.drumPhrases[0].hits.some(h=>h.expression && h.drum===e.drum && h.velocity===e.velocity && Math.abs(h.beatOffset-(e.absBeat-i*4))<1e-8)).toBe(true);}
   }

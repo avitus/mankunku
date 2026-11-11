@@ -48,6 +48,10 @@ describe('phrase expression on accepted native gestures',()=>{
   const after=ghostSnareAnswer(hits);expect(after.map(h=>h.velocity)).toEqual([.3,.15,.3]);
   expect(after[0]).toEqual(hits[0]);expect(after[2]).toEqual(hits[2]);
  });
+ it('preserves both ends of a two-hit setup',()=>{
+  const hits=[0,1].map(beatOffset=>({drum:'snare' as const,beatOffset,velocity:.3,role:'commentary' as const}));
+  expect(ghostSnareAnswer(hits,true)).toEqual(hits);
+ });
  it('never ghosts a reserved accent, kick or single commentary hit',()=>{
   for(const hits of [[{drum:'snare' as const,beatOffset:1,velocity:.4}], [{drum:'kick' as const,beatOffset:1,velocity:.3},{drum:'snare' as const,beatOffset:2,velocity:.3}], [{drum:'snare' as const,beatOffset:1,velocity:.3,role:'accent' as const},{drum:'snare' as const,beatOffset:2,velocity:.3}]]) expect(ghostSnareAnswer(hits)).toEqual(hits);
  });

@@ -524,7 +524,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 	let bar = cushionPhrase(input, realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []));
  if (input.phraseExpression && selectsPhraseExpression(input.info, input.phraseId, 'drums') && !bar.cushioning &&
   bar.commentary.transform !== 'space') {
-  const shaped = ghostSnareAnswer(bar.commentary.hits);
+  const shaped = ghostSnareAnswer(bar.commentary.hits, bar.commentary.transform === 'setup');
   if (shaped.some(hit => hit.expression)) {
    bar = { ...bar, commentary: { ...bar.commentary, hits: shaped }, hits: bar.hits.map(hit => {
     const index = bar.commentary.hits.indexOf(hit);
