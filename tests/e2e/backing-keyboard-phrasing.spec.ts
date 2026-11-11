@@ -20,7 +20,7 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const release of ['0.7', '0.8', '0.9', '0.10'] as const) for (const seed of release === '0.7' ? [42] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
+for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const seed of release === '0.7' ? [42] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
 	const releaseEight = release !== '0.7';
 	test(`${release} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
@@ -42,7 +42,8 @@ for (const release of ['0.7', '0.8', '0.9', '0.10'] as const) for (const seed of
 				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
 				keyboardTexture: true, keyboardPhrasing: instrument,
-				...(release === '0.9' ? { keyboardSuspensions: true } as const : release === '0.10' ? { keyboardSuspensions: 'developed' } as const : {}),
+                ...(release === '0.11' ? { phraseExpression: true } as const : {}),
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11') ? { keyboardSuspensions: 'developed' } as const : {}),
 				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
@@ -52,6 +53,9 @@ for (const release of ['0.7', '0.8', '0.9', '0.10'] as const) for (const seed of
 				checkpoint = bar.checkpoint;
 				return bar;
 			});
+			if (release === '0.11' && seed === 42 && ['swing','straight'].includes(style)) {
+                for (const field of ['bassEvents','compEvents','drumEvents'] as const) expect(bars.some(b => b[field].some(e => e.expression))).toBe(true);
+            }
 			if (release === '0.10' && seed === 42) expect(bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []).some(v => v.decision.keyboardSuspension?.kind)).toBe(true);
 			if (release === '0.9' && seed === 42) expect(bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []).some(v => v.decision.keyboardSuspension)).toBe(true);
 			const events = bars.flatMap(bar => bar.compEvents).map(event => ({

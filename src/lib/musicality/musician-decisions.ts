@@ -546,6 +546,31 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			}
 		}
 	}
+	if (development && walking) {
+  const close=(a:number,b:number)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<1e-8;
+  if(bass.length===4 && bass.every((e,i)=>e.absBeat===barIndex*4+i && e.expression?.kind==='walking-backbeats' &&
+   e.expression.part===(i%2?'answer':'statement') && e.expression.originalVelocity>0 && close(e.velocity,e.expression.originalVelocity*(i%2?1.1:.9)))) {
+   bassCard.action='Buoyant walking';
+   bassCard.detail+=' Beats two and four have a little more weight; one and three stay lighter.';
+   bassCard.evidence.push('Walking expression: lighter 1 / 3 · stronger 2 / 4');
+  }
+  if(piano.length===2 && piano.every((e,i)=>e.expression?.kind==='short-held' && e.expression.part===(i?'answer':'statement') &&
+   e.expression.originalDuration!>0 && close(e.velocity,e.expression.originalVelocity)) &&
+   piano[1].duration>=2*piano[0].duration && piano[0].duration+piano[1].duration+1e-8>=piano.reduce((n,e)=>n+e.expression!.originalDuration!,0) && parseInt(piano[0].time)<parseInt(piano[1].time)) {
+   pianoCard.action='Short chord → held answer';
+   pianoCard.detail='A detached first chord leads to longer harmonic support on the next existing attack.';
+   pianoCard.evidence.push(`Short/held contrast: ${piano[0].duration.toFixed(2)} s → ${piano[1].duration.toFixed(2)} s`);
+  }
+  const ghosted=drums.filter(e=>e.expression?.kind==='ghost-answer');
+  if(ghosted.length && ghosted.every(e=>e.drum==='snare' && e.role==='commentary' && e.expression!.originalVelocity>0 && ['statement','answer'].includes(e.expression!.part) &&
+   close(e.velocity,e.expression!.originalVelocity*(e.expression!.part==='answer'?.5:1.08)) &&
+   drumPhrase?.commentary.hits.some(h=>h.expression?.kind==='ghost-answer' && h.expression.part===e.expression!.part &&
+    h.drum===e.drum && close(h.beatOffset,e.absBeat-barIndex*4) && close(h.velocity,e.velocity)))) {
+   drumCard.action=drumPhrase?.commentary.transform==='setup'?'Shape the fill':'Ghosted snare answer';
+   drumCard.detail=drumPhrase?.commentary.transform==='setup'?'A softer inner snare stroke gives the fill shape; its launch and landing stay strong.':'The snare statement has a softer answering stroke, while the cymbal pulse continues.';
+   drumCard.evidence.push('Snare expression: ghosted inner stroke / answer');
+  }
+ }
 	if (keyboardTextures.length) pianoCard.detail += ` ${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

@@ -1,3 +1,4 @@
+import { selectsPhraseExpression, contrastKeyboardPair } from './backing-phrase-expression';
 /** Stateful one-bar piano realization. Multi-bar source cells are proposals, not future budgets. */
 import type { RollingBackingDefinition } from './backing-rolling';
 import { clavePhaseFor, type BarInfo, type BassEvent, type CompEvent, type CoordinatedPianoVoicing, type PianoAnswerDecision, type PianoFeedbackDecision } from './backing-generation';
@@ -389,6 +390,22 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			}
 		}
 	}
+	if (score.phraseExpressionVersion && selectsPhraseExpression(info, score.phraseId, 'piano') &&
+  !backgroundHarmony && !arrival && !proposal && !nativeLatePad && !guideTones &&
+  events.length === 2 && voicingTrace.length === 2 && !voicingTrace.some(v => v.decision.keyboardSuspension)) {
+  const endTicks = events.map(event => {
+   const beat = event.absBeat;
+   const segment = score.harmony.find(s => beat >= fractionToFloat(s.startOffset)*4 && beat < (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4);
+   return segment ? Math.min(barEnd, (fractionToFloat(segment.startOffset)+fractionToFloat(segment.duration))*4*score.ppq) : parseInt(event.time);
+  });
+  const shaped = contrastKeyboardPair(events, { style: score.style ?? 'swing', instrument: score.keyboardPhrasing!.instrument,
+   tempo: score.tempo, ppq: score.ppq, endTicks });
+  for (const [i,event] of shaped.entries()) if (event.expression) {
+   events[i] = event;
+   const { keyboardArticulation: _articulation, ...decision } = voicingTrace[i].decision;
+   voicingTrace[i] = Object.freeze({ ...voicingTrace[i], decision: Object.freeze(decision) });
+  }
+ }
 	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
 	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; development = undefined; answerFigureId = undefined; }
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),

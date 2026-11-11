@@ -1,3 +1,4 @@
+import type { PhraseExpression } from './backing-phrase-expression';
 /**
  * Backing track style definitions.
  *
@@ -116,6 +117,7 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+	readonly expression?: PhraseExpression;
 	/** Retained in the event ledger for ensemble metrics and replay evidence. */
 	role?: 'timekeeping' | 'commentary' | 'accent';
 	drum: DrumVoice;

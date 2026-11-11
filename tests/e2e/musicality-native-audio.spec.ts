@@ -121,6 +121,11 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  expect(take.playback.elapsedBeats).toBe(208);
  expect(take.playback.provenance.committedBars).toBe(52);
  const generated = take.playback.generated as GeneratedBacking;
+ for (const [field, card, label] of [['bassEvents','musician-bass','Buoyant walking'],['compEvents','musician-piano','Short chord → held answer'],['drumEvents','musician-drums','ghosted inner stroke']] as const) {
+  const expressed=generated[field].find(event=>event.expression);expect(expressed).toBeTruthy();
+  await page.getByTestId('listening-review').fill(String(Math.floor(expressed!.absBeat/4)));
+  await expect(page.getByTestId(card)).toContainText(label);
+ }
  const suspension = generated.ensembleDevelopment!.pianoVoicings!.find(voicing => voicing.decision.keyboardSuspension?.phase === 'suspension' && voicing.decision.keyboardSuspension.kind === '13-5');
  expect(suspension).toBeTruthy();
  await page.getByTestId('listening-review').fill(String(Math.floor(suspension!.absBeat / 4)));

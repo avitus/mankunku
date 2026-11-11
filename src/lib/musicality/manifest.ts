@@ -378,6 +378,17 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+	if (['B49','P14','D37'].includes(entry.id)) return {
+  ...entry, status: 'partial',
+  assessment: entry.id === 'B49'
+   ? 'Musicality 0.11.0 shapes selected walking phrases with lighter beats 1/3 and stronger 2/4. Pitches, attack times, gates and pulse count stay intact. Two-feel, ornaments and reserved launches keep their original dynamics.'
+   : entry.id === 'P14'
+    ? 'Musicality 0.11.0 adds deliberate short-chord / held-answer contrast to eligible existing two-attack keyboard cells. Piano and Organ use different gate lengths. A complete pair must fit the actual harmony and bar boundaries without reducing total gated support.'
+    : 'Musicality 0.11.0 can soften an existing inner snare stroke in a three-hit fill while retaining its launch and landing, or shape an eligible two-snare commentary pair into a stronger statement and ghosted answer. No new hit is inserted and timekeeping remains intact.',
+  remaining: 'Scoped to selected explicit Coordinated Swing/Straight solo passages. Bossa, Ballad and Original retain their prior policy. Dense solo evidence and joint endings take priority. Velocity/gate shaping uses existing sample articulations; human listening acceptance and native-style expansion remain pending.',
+  scope: '0.11.0 phrase-expression policy, separately fingerprinted. Omission preserves complete 0.10 event, trace and checkpoint baselines.',
+  evidence: [...entry.evidence, source('backing-phrase-expression'), source('backing-rolling'), test('backing-phrase-expression'), test('backing-phrase-expression-performance')]
+ };
 	if (entry.id === 'P47') return {
 		...entry, status: 'partial',
 		assessment: 'Musicality 0.10.0 adds ninth-to-root and thirteenth-to-fifth resolutions to the 0.9 fourth-to-third vocabulary. Existing lower/inner color tones resolve on the next native attack; both defining tones and the top voice stay in place. The actual resolved chord becomes the next voice-leading memory. Bass conflicts at either attack can decline the complete pair, and only an accepted gesture spends the three-bar cooldown.',

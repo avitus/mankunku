@@ -1,3 +1,4 @@
+import { selectsPhraseExpression, ghostSnareAnswer } from './backing-phrase-expression';
 /** Phrase development for swing/straight, protected native grooves for bossa/ballad. */
 import { BACKING_STYLES } from './backing-styles';
 import type { BackingStyle } from '$lib/types/instruments';
@@ -77,6 +78,7 @@ export interface DrumPhraseInput {
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
 	readonly phraseCushioning?: true;
+	readonly phraseExpression?: true;
 	/** Actual current keyboard gates paired with accepted compOnsets. */
 	readonly compAttacks?: readonly DrumKeyboardAttack[];
 	readonly style?: BackingStyle;
@@ -407,7 +409,8 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
-	if ((input.phraseCushioning !== undefined && input.phraseCushioning !== true) ||
+	if ((input.phraseExpression !== undefined && input.phraseExpression !== true) ||
+		(input.phraseCushioning !== undefined && input.phraseCushioning !== true) ||
 		(input.compAttacks !== undefined && (!Array.isArray(input.compAttacks) || input.compAttacks.length > 32 ||
 			input.compAttacks.some(attack => !Number.isFinite(attack.beatOffset) || attack.beatOffset < 0 || attack.beatOffset >= 4 ||
 				!Number.isFinite(attack.durationBeats) || attack.durationBeats <= 0 || attack.durationBeats > 8 ||
@@ -518,7 +521,18 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 			firstTransform: previous.motif.firstTransform, gapAfterStatement: previous.motif.gapAfterStatement
 		} } : {})
 	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive, previous);
-	const bar = cushionPhrase(input, realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []));
+	let bar = cushionPhrase(input, realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []));
+ if (input.phraseExpression && selectsPhraseExpression(input.info, input.phraseId, 'drums') && !bar.cushioning &&
+  bar.commentary.transform !== 'space') {
+  const shaped = ghostSnareAnswer(bar.commentary.hits);
+  if (shaped.some(hit => hit.expression)) {
+   bar = { ...bar, commentary: { ...bar.commentary, hits: shaped }, hits: bar.hits.map(hit => {
+    const index = bar.commentary.hits.indexOf(hit);
+    return index < 0 ? hit : shaped[index];
+   }) };
+   freezeDrumPhraseTrace([bar]);
+  }
+ }
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,

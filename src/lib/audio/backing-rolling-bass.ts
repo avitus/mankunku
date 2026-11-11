@@ -1,3 +1,4 @@
+import { selectsPhraseExpression, shapeBassPulse } from './backing-phrase-expression';
 /** Current-bar walking decisions with retained pitch history and committed launches. */
 import { allowsBassScalarContinuation, selectBassScalarContinuation, bassScalarTrace, type BassScalarContinuation, type BassScalarHistory } from './backing-bass-continuation';
 import type { RollingBackingDefinition } from './backing-rolling';
@@ -73,6 +74,15 @@ export function prepareRollingBass(score: RollingBackingDefinition): PreparedRol
 
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
+ const result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+ if (!score.phraseExpressionVersion || !selectsPhraseExpression(info, score.phraseId, 'bass') ||
+  result.memory.feel !== 'four' || result.memory.pendingLaunch || previous?.pendingLaunch ||
+  info.ensemble?.bass.role !== 'time' || !info.ensemble.bass.keepPulse) return result;
+ return { ...result, events: shapeBassPulse(result.events, bar, score.style ?? 'swing') };
+}
+
+function realizeBassPitch(score: RollingBackingDefinition, bar: number, info: BarInfo,
+ timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
 	const ordinary = realizeBassWithHandoff(score, bar, info, timing, previous, prepared);
 	const plan = info.ensemble;
 	if (!score.bassDelayedRootVersion || !plan?.performanceEnergy || !previous || previous.previousMidi === null ||
