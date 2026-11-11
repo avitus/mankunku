@@ -170,7 +170,7 @@ import {
 	DEFAULT_PROGRESSION,
 	type UpcomingLickEntry
 } from './lick-practice-picker';
-import { buildNextStep, type RecommendationContext, type NextStep } from './lick-practice-next-steps';
+import { buildNextSteps, type RecommendationContext, type NextStep } from './lick-practice-next-steps';
 import { placeLickInProgression, lickBarsInProgression, progressionHarmonyForLick } from './lick-practice-phrase';
 import { concertKeyToWritten } from '$lib/music/transposition';
 
@@ -524,9 +524,17 @@ export function getNextStep(
 	currentSessionId: string,
 	recommendationContext?: RecommendationContext
 ): NextStep | null {
+	return getNextSteps(report, currentSessionId, recommendationContext)[0] ?? null;
+}
+
+export function getNextSteps(
+	report: SessionReport,
+	currentSessionId: string,
+	recommendationContext?: RecommendationContext
+): NextStep[] {
 	const instrument = getInstrument();
 	const plan = recommendationContext?.plan ?? lickPractice.plan;
-	return buildNextStep({
+	return buildNextSteps({
 		report,
 		plan,
 		recommendationContext,

@@ -40,15 +40,15 @@ test.describe('lick-practice session flow', () => {
 		// follow-up moves the recommendation to a lick not yet drilled.
 		const recommended = new Set<string>();
 		for (let i = 0; i < ids.length; i++) {
-			const next = page.getByText(/^Drill D on Follow-up \d\.$/);
+			const next = page.getByRole('button', { name: /^Start deep practice: D on Follow-up \d$/ }).last();
 			await expect(next).toBeVisible();
-			const name = (await next.textContent())!.replace(/^Drill D on |\.$/g, '');
+			const name = (await next.getAttribute('aria-label'))!.replace(/^Start deep practice: D on /, '');
 			expect(recommended.has(name), `${name} was recommended twice`).toBe(false);
 			recommended.add(name);
 			const previousIds = await page.evaluate(() =>
 				JSON.parse(localStorage.getItem('mankunku:lick-practice-sessions') ?? '[]')
 					.map((entry: { id: string }) => entry.id) as string[]);
-			await page.getByRole('button', { name: /start deep practice/i }).click();
+			await page.getByRole('button', { name: /start deep practice/i }).last().click();
 			await expect(page.getByTestId('focus-ramp')).toBeVisible();
 			// End only after an actual scored attempt, not during the opening demo.
 			await expect.poll(() => page.evaluate((prior) =>
@@ -83,15 +83,15 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByText('D-', { exact: true }).first()).toBeVisible();
 		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({ timeout: 60_000 });
 		await expect(page.getByText('D-', { exact: true }).first()).toBeVisible();
-		await expect(page.getByText('Drill D- on Sonny Stitt - Indiana.', { exact: true })).toBeVisible();
-		await page.getByRole('button', { name: /start deep practice/i }).click();
+		await expect(page.getByRole('button', { name: 'Start deep practice: D- on Sonny Stitt - Indiana', exact: true })).toBeVisible();
+		await page.getByRole('button', { name: /start deep practice/i }).last().click();
 		await expect(page.getByTestId('focus-ramp')).toContainText('Focus · D- ·');
 		await expect(page.getByText('D-', { exact: true }).first()).toBeVisible();
 		await page.getByRole('button', { name: /end session/i }).click();
 	});
 
-	/** The report's progression buttons start Focused practice, including its sheet preparation. */
-	test('starting a progression from a Daily report restores Focused sheet preparation', async ({ page, browserName }) => {
+	/** A map cell carries its concert focus key and resolved user phrase into Deep Practice. */
+	test('a key-map cell starts Deep Practice and stays usable on mobile', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 		test.setTimeout(60_000);
@@ -107,10 +107,24 @@ test.describe('lick-practice session flow', () => {
 		await page.getByRole('button', { name: /start daily practice/i }).click();
 		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
 		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({ timeout: 45_000 });
-		await page.getByText('Upcoming Licks', { exact: false }).click();
-		await page.locator('details[open]').getByRole('button', { name: 'Short ii-V-I (Maj)', exact: true }).click();
-		await expect(page.getByTestId('lead-sheet-placeholder')).toHaveCount(1);
-		await expect(page.getByTestId('lead-sheet-row')).toBeHidden();
-		await expect(page.locator('.phase-tab[data-kind="read"]')).toHaveText('Read', { timeout: 20_000 });
+		await expect(page.getByText('Upcoming Licks', { exact: false })).toHaveCount(0);
+		const map = page.getByRole('region', { name: 'Scores by lick and key' });
+		await expect(map).toBeVisible();
+		const cell = map.getByRole('button', { name: /^Practice .*this session.*rolling score/ }).first();
+		await expect(cell).toBeVisible();
+		const rolling = await page.evaluate(() => {
+			const progress = JSON.parse(localStorage.getItem('mankunku:lick-practice-progress') ?? '{}');
+			return Math.round(progress['e2e-user-lick-bebop'].Bb.rollingScore * 100);
+		});
+		await expect(map.getByRole('button', { name: /^Practice C on / }).locator('.history')).toHaveText(`${rolling}% rolling`);
+
+		await page.screenshot({ path: test.info().outputPath('report-desktop.png'), fullPage: true });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+		await page.screenshot({ path: test.info().outputPath('report-mobile.png'), fullPage: true });
+		await cell.click();
+		await expect(page.getByTestId('focus-ramp')).toBeVisible();
+		await expect(page.getByRole('heading', { name: /session report/i })).toHaveCount(0);
+		await page.getByRole('button', { name: /end session/i }).click();
 	});
 });
