@@ -378,6 +378,18 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if(['B32','P25','D47'].includes(entry.id))return {
+  ...entry,status:'partial',
+  assessment:entry.id==='B32'
+   ? 'Musicality 0.15.0 can reuse the actual previous walking bar’s opening contour on beat two. The interval can adjust by one semitone to fit the current scale; the entrance and final two approach notes remain. Recalled openings cannot seed another immediate recall.'
+   :entry.id==='P25'
+    ? 'Musicality 0.15.0 can place a 9–5–root stack of perfect fourths above the chord’s defining 3/7 shell. This colors settled plain major, minor and dominant harmony on an existing attack; accepted pitches enter voice-leading memory.'
+    : 'Musicality 0.15.0 can move the last stroke of a complete two- or three-snare figure to the kick. Existing middle ghost notes, onsets and snare timing remain; both nominal and scheduled foot clearance are checked.',
+  remaining:'These are bounded gestures, not unrestricted improvisation. Bass and drums apply to Swing/Straight; keyboard color also respects Bossa/Ballad rhythm. Human listening acceptance remains pending.',
+  scope:'Independent phrase-dialogue policy. Omission preserves 48 complete 0.14 event baselines; Original note generation remains unchanged. Shared Organ trim gains 0.51 dB in Bossa and loses 0.40 dB in Ballad for balance. Source-backed live cards and the repeatable 0.15 example support full-tune listening.',
+  evidence:[...entry.evidence,source('backing-phrase-dialogue'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-rolling'),test('backing-phrase-dialogue'),test('backing-phrase-dialogue-performance')]
+ };
+
  if(['B27','P24','D32'].includes(entry.id))return {
   ...entry,status:'partial',
   assessment:entry.id==='B27'

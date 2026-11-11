@@ -1,3 +1,4 @@
+import { snareKickDialogue } from './backing-phrase-dialogue';
 import { crossStickUnderChord } from './backing-ensemble-colors';
 import { allowsTrioConversation } from './backing-trio-conversation';
 import { prepareCoordinatedVoicings } from './coordinated-voicing';
@@ -51,6 +52,7 @@ export interface RollingBackingOptions {
 	readonly phraseExpression?: true;
 	readonly trioConversation?: true;
 	readonly phraseColors?: true;
+	readonly phraseDialogue?: true;
 	readonly ensembleColors?: true;
 	/** Listening 0.8 policies; omission preserves earlier event streams. */
 	readonly bassDelayedRoot?: true;
@@ -97,6 +99,7 @@ export interface RollingBackingDefinition {
 	readonly phraseExpressionVersion?: 1;
 	readonly trioConversationVersion?: 1;
 	readonly phraseColorsVersion?: 1;
+	readonly phraseDialogueVersion?: 1;
 	readonly ensembleColorsVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
 	readonly drumPhraseCushioningVersion?: 1;
@@ -235,6 +238,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+        ...(keyboardPhrasing && options.phraseDialogue === true ? { phraseDialogueVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.ensembleColors === true ? { ensembleColorsVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.phraseColors === true ? { phraseColorsVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.trioConversation === true ? { trioConversationVersion: 1 as const } : {}),
@@ -348,6 +352,12 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		const lastBar = score.bars[contour!.lastBarIndex];
 		if (lastBar.chorusIndex !== contour!.chorusIndex || contour!.lastBarIndex - lastBar.phrase4.barIndex !== contour!.phraseStartBar) invalid();
 	} else if (contour !== undefined) invalid();
+ const opening=checkpoint.bass.openingMotif;
+ const openingPolicy=!!score.phraseDialogueVersion && ['swing','straight'].includes(score.style??'swing');
+ if(opening!==undefined&&!openingPolicy || openingPolicy&&checkpoint.nextBar<score.totalBars&&opening===undefined)invalid();
+ if(opening!==undefined && opening!==null && (Object.keys(opening).sort().join(',')!=='barIndex,notes' || opening.barIndex!==checkpoint.nextBar-1 ||
+  !Array.isArray(opening.notes)||opening.notes.length!==2||opening.notes.some(n=>!Number.isInteger(n)||n<28||n>55)||
+  !Math.abs(opening.notes[1]-opening.notes[0])||Math.abs(opening.notes[1]-opening.notes[0])>5))invalid();
 	const scalar = checkpoint.bass.scalarHistory;
 	if (scalar !== undefined && (!score.bassScalarContinuation || !scalar || typeof scalar.ornamentAfterPulse !== 'boolean' ||
 		!scalar.pulse || !Number.isInteger(scalar.pulse.absBeat) || Math.floor(scalar.pulse.absBeat / 4) !== checkpoint.nextBar - 1 ||
@@ -429,17 +439,25 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		compOnsets: pianoResult.events.map((event) => event.absBeat - bar * 4), bassOnsets: bass.events.map((event) => event.absBeat - bar * 4),
 		acceptsOnset: (absBeat, hit) => (hit.role === 'accent' && absBeat === bar * 4 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.drum)) < endTick
 	}, checkpoint?.drums);
-  if(!definition.ensembleColorsVersion || !['swing','straight'].includes(definition.style??'swing') || !allowsTrioConversation(info) || planned.bar.cushioning || pianoResult.answer || pianoResult.trace.reason==='native_drum_reply')return planned;
-  const hits=crossStickUnderChord(planned.bar.hits,pianoResult.events,bar,definition.tempo,definition.ppq,beat=>timing.place(beat,'snare'));
-  if(!hits.some(hit=>hit.ensembleColor))return planned;
+  if(!['swing','straight'].includes(definition.style??'swing') || planned.bar.cushioning || pianoResult.answer || pianoResult.trace.reason==='native_drum_reply')return planned;
+  let hits=definition.ensembleColorsVersion&&allowsTrioConversation(info)?crossStickUnderChord(planned.bar.hits,pianoResult.events,bar,definition.tempo,definition.ppq,beat=>timing.place(beat,'snare')):[...planned.bar.hits];
+  if(definition.phraseDialogueVersion && !info.isFinalBar && !ensemble.terminalArrangement && !ensemble.coordinatedAccent &&
+   ['nobody','drums'].includes(ensemble.responseOwner) && ['solo_build','solo_peak'].includes(ensemble.performanceEnergy?.phase??'') &&
+   !['active_soloist','dense_soloist','under_response'].includes(ensemble.piano.rootlessTexture?.reason??'') &&
+   (allowsTrioConversation(info)||planned.bar.commentary.transform==='setup')) {
+   const candidate=snareKickDialogue(hits,pianoResult.events,bar);
+   const answer=candidate.find(h=>h.phraseDialogue?.kind==='kick-answer');
+   if(answer && candidate.filter(h=>h!==answer&&h.drum==='kick').every(h=>Math.abs(timing.place(bar*4+h.beatOffset,'kick')-timing.place(bar*4+answer.beatOffset,'snare'))>=.2*definition.ppq))hits=candidate;
+  }
+  if(!hits.some(hit=>hit.ensembleColor||hit.phraseDialogue))return planned;
   const commentary={...planned.bar.commentary,hits:planned.bar.commentary.hits.map(hit=>
-   hits.find(candidate=>candidate.beatOffset===hit.beatOffset && candidate.ensembleColor?.kind==='cross-stick' && hit.drum==='snare')??hit)};
+   hits.find(candidate=>candidate.beatOffset===hit.beatOffset && (candidate.ensembleColor||candidate.phraseDialogue) && hit.drum==='snare')??hit)};
   return {...planned,bar:freezeDrumPhraseTrace([{...planned.bar,hits,commentary}])[0]};
  };
 	const scheduleDrums = (result: ReturnType<typeof realizeDrums>): DrumEvent[] => result.bar.hits.map((hit) => {
 		const absBeat = bar * 4 + hit.beatOffset;
-		const tick = hit.role === 'accent' && hit.beatOffset === 0 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.ensembleColor?.kind === 'cross-stick' ? 'snare' : result.bar.ride.voice === 'hihat' && hit.drum === 'hihat' && hit.role === 'timekeeping' ? 'ride' : hit.drum);
-		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}), ...(hit.ensembleColor ? { ensembleColor: hit.ensembleColor } : {}) };
+		const tick = hit.role === 'accent' && hit.beatOffset === 0 ? timing.arrivalTick(bar) : timing.place(absBeat, (hit.ensembleColor?.kind === 'cross-stick' || hit.phraseDialogue?.kind === 'kick-answer') ? 'snare' : result.bar.ride.voice === 'hihat' && hit.drum === 'hihat' && hit.role === 'timekeeping' ? 'ride' : hit.drum);
+		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}), ...(hit.ensembleColor ? { ensembleColor: hit.ensembleColor } : {}), ...(hit.phraseDialogue ? { phraseDialogue: hit.phraseDialogue } : {}) };
 	});
 	let drums = realizeDrums(piano);
 	let drumEvents = scheduleDrums(drums);

@@ -1,3 +1,4 @@
+import { buildNativeAabaFixture } from '../fixtures/musicality-native-aaba';
 import { test, expect } from './fixtures/test';
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
@@ -20,9 +21,9 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14'] as const) for (const seed of release === '0.7' ? [42] : ['0.12','0.13','0.14'].includes(release) ? [42,7,19] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
+for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14', '0.15'] as const) for (const seed of release === '0.15' ? [42,7,19,147,243] : release === '0.7' ? [42] : ['0.12','0.13','0.14', '0.15'].includes(release) ? [42,7,19] : [42, 19]) for (const style of (release==='0.15'&&seed===243?['swing'] as const:['swing', 'straight', 'bossa-nova', 'ballad'] as const)) for(const tune of release==='0.15'&&style==='ballad'&&seed===7?['blues','aaba']:['blues']) {
 	const releaseEight = release !== '0.7';
-	test(`${release} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
+	test(`${release} seed ${seed} ${style}${tune==='aaba'?' AABA':''}: full tune keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
 		test.setTimeout(240_000);
 		// Keep native network/load/render stalls distinguishable from a musical
@@ -30,23 +31,24 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.1
 		page.on('console', message => {
 			if (message.text().startsWith('native-keyboard-stage ')) console.log(message.text());
 		});
-		const phrase = buildNativeBluesFixture();
+		const phrase = tune==='aaba'?buildNativeAabaFixture():buildNativeBluesFixture();
 		const tempo = style === 'ballad' ? 80 : 140;
 		const ppq = 192;
 		const performances = (['piano', 'organ'] as const).map(instrument => {
 			const score = createRollingBacking(phrase.harmony!, BACKING_STYLES[style], {
 				phraseId: phrase.id, tempo, ppq, beatsPerBar: 4,
-				swing: resolveBackingSwing(.67, BACKING_STYLES[style], tempo),
+				swing: resolveBackingSwing(seed===243?.62:.67, BACKING_STYLES[style], tempo),
 				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
 			}, {
 				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
 				keyboardTexture: true, keyboardPhrasing: instrument,
-                ...(['0.11','0.12','0.13','0.14'].includes(release) ? { phraseExpression: true } as const : {}),
-                ...(release === '0.14' ? { ensembleColors: true } as const : {}),
-                ...(['0.13','0.14'].includes(release) ? { phraseColors: true } as const : {}),
-                ...(['0.12','0.13','0.14'].includes(release) ? { trioConversation: true } as const : {}),
-				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13' || release === '0.14') ? { keyboardSuspensions: 'developed' } as const : {}),
+                ...(['0.11','0.12','0.13','0.14', '0.15'].includes(release) ? { phraseExpression: true } as const : {}),
+                ...(['0.14','0.15'].includes(release) ? { ensembleColors: true } as const : {}),
+                ...(['0.13','0.14', '0.15'].includes(release) ? { phraseColors: true } as const : {}),
+                ...(['0.12','0.13','0.14', '0.15'].includes(release) ? { trioConversation: true } as const : {}),
+				...(release === '0.15' ? { phraseDialogue: true } as const : {}),
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13' || release === '0.14' || release === '0.15') ? { keyboardSuspensions: 'developed' } as const : {}),
 				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
@@ -56,6 +58,7 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.1
 				checkpoint = bar.checkpoint;
 				return bar;
 			});
+			if(tune==='aaba')expect(bars.some(b=>b.compEvents.some(e=>e.phraseDialogue?.kind==='fourth-stack'))).toBe(true);
 			if (release === '0.13' && (style==='bossa-nova'?seed!==42:style==='ballad'?seed!==7:seed!==7)) expect(bars.some(b=>b.compEvents.some(e=>e.phraseColor?.kind==='upper-structure'))).toBe(true);
 			if (release === '0.12' && (style==='ballad'?seed!==42:style==='bossa-nova'?seed!==19:true)) expect(bars.some(b=>b.compEvents.some(e=>e.conversation?.kind==='dominant-b9'))).toBe(true);
             if (release === '0.11' && seed === 42 && ['swing','straight'].includes(style)) {
@@ -124,9 +127,9 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.1
 				player.disconnect(); gain.disconnect();
 			}
 			return output;
-		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13','0.14'].includes(release) ? style : undefined });
+		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13','0.14', '0.15'].includes(release) ? style : undefined });
 		const differenceDb = 20 * Math.log10(measurements[1].rms / measurements[0].rms);
-		const report = { browserName, style, seed, tempo, durationSeconds, differenceDb, measurements };
+		const report = { browserName, style, seed, tune, tempo, durationSeconds, differenceDb, measurements };
 		console.log('Full Blues keyboard phrasing levels', JSON.stringify(report));
 		await test.info().attach(`keyboard-phrasing-${style}`, { body: JSON.stringify(report, null, 2), contentType: 'application/json' });
 		for (const measurement of measurements) {

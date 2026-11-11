@@ -1,3 +1,4 @@
+import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
 import type { TrioConversation } from './backing-trio-conversation';
 import type { PhraseExpression } from './backing-phrase-expression';
@@ -119,6 +120,7 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+ readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
 	readonly expression?: PhraseExpression;
 	readonly conversation?: TrioConversation;

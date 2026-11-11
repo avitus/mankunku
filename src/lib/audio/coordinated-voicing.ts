@@ -1,3 +1,4 @@
+import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
 import type { PhraseColor } from './backing-phrase-colors';
 import type { TrioConversation } from './backing-trio-conversation';
@@ -14,6 +15,7 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+ readonly fourthStack?: Extract<PhraseDialogue,{kind:'fourth-stack'}>;
  readonly spreadVoicing?: Extract<EnsembleColor,{kind:'drop3'}>;
  readonly upperStructure?: Extract<PhraseColor,{kind:'upper-structure'}>;
 	readonly keyboardColor?: Extract<TrioConversation, {kind: 'dominant-b9'}>;

@@ -1,3 +1,4 @@
+import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
 import type { PhraseColor } from './backing-phrase-colors';
 import type { TrioConversation } from './backing-trio-conversation';
@@ -90,6 +91,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+ readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
  readonly phraseColor?: PhraseColor;
 	readonly expression?: PhraseExpression;
@@ -106,6 +108,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
  readonly phraseColor?: PhraseColor;
 	readonly expression?: PhraseExpression;
@@ -118,6 +121,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+ readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
 	readonly expression?: PhraseExpression;
 	readonly conversation?: TrioConversation;

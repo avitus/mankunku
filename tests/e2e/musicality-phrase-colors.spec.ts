@@ -16,7 +16,7 @@ test('0.13 full Blues sounds all three phrase colors and shows their actual live
   }) as typeof crypto.getRandomValues;
  });
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText('0.14.0');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('0.15.0');
  await page.getByTestId('listening-style').selectOption('swing');
  await page.getByTestId('listening-keyboard').selectOption('piano');
  await page.getByTestId('listening-tempo').fill('140');
@@ -44,7 +44,7 @@ test('0.13 full Blues sounds all three phrase colors and shows their actual live
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByTestId('listening-export').click()]);
  const path=(await download.path())!;
  const take=JSON.parse(await readFile(path,'utf8'));
- expect(take.playback.musicalityRelease.version).toBe('0.14.0');
+ expect(take.playback.musicalityRelease.version).toBe('0.15.0');
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
  const generated=take.playback.generated as GeneratedBacking;

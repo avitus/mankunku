@@ -8,13 +8,22 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
  requireRealtimeAudio(page);
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
+ await page.addInitScript(()=>{
+  const random=crypto.getRandomValues.bind(crypto);
+  crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{
+   if(array instanceof Uint32Array&&array.length===1){array[0]=9;return array;}
+   return random(array);
+  }) as typeof crypto.getRandomValues;
+ });
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText('0.14.0');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('0.15.0');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-style').selectOption('ballad');
  await page.getByTestId('listening-tempo').fill('80');
  await page.getByTestId('listening-choruses').selectOption('1');
- await page.getByTestId('listening-release-example').click();
+ await page.getByTestId('listening-style').selectOption('swing');
+ await page.getByTestId('listening-tempo').fill('140');
+ await page.getByTestId('listening-choruses').selectOption('2');
  await expect(page.getByTestId('listening-keyboard')).toHaveValue(keyboard);
  await expect(page.getByTestId('listening-style')).toHaveValue('swing');
  await expect(page.getByTestId('listening-tempo')).toHaveValue('140');
@@ -45,7 +54,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByTestId('listening-export').click()]);
  const path=(await download.path())!;
  const take=JSON.parse(await readFile(path,'utf8'));
- expect(take.playback.musicalityRelease.version).toBe('0.14.0');
+ expect(take.playback.musicalityRelease.version).toBe('0.15.0');
  expect(take.playback.params.performanceEnergySeed).toBe(9);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);

@@ -1,3 +1,4 @@
+import { fourthStack } from './backing-phrase-dialogue';
 import { dropThirdVoice, spreadFitsBass } from './backing-ensemble-colors';
 import { upperStructureTriad, upperStructureFitsBass } from './backing-phrase-colors';
 import { pitchClassToNumber } from './voicings';
@@ -481,6 +482,32 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
    const {keyboardLine:_line,keyboardContraryMotion:_contrary,keyboardTexture:_texture,rootlessTexture:_rootless,spacing:_spacing,...decision}=trace.decision;
    voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:Object.freeze([...cell.notes]),decision:Object.freeze({...decision,
     ...describeCoordinatedPlacement(segment.chord,cell.notes,decision.resolvedFamily,Math.round(58+8*info.intensity),lastVoicingPredecessor),spreadVoicing:receipt})});
+  }
+ }
+ // A settled harmony can carry a fourth-stacked upper color above its defining shell.
+ if(score.phraseDialogueVersion && allowsDominantColor(info) && !backgroundHarmony && !arrival && !proposal && !nativeLatePad && !guideTones &&
+  events.length && voicingTrace.length===events.length && !voicingTrace.some(v=>v.decision.keyboardSuspension) &&
+  createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'fourth-stack')).chance(.8)) {
+  const event=events.at(-1)!,trace=voicingTrace.at(-1)!;
+  const lookup=event.absBeat+(event.absBeat%1?0.5:0);
+  const at=(beat:number)=>score.harmony.find(s=>beat>=fractionToFloat(s.startOffset)*4&&beat<(fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4);
+  const segment=at(lookup),prior=at(bar*4-.001);
+  if(!event.conversation && !event.phraseColor && !event.ensembleColor && segment && prior &&
+   ((segment.chord.root===prior.chord.root && segment.chord.quality===prior.chord.quality) ||
+    (fractionToFloat(segment.startOffset)*4<=bar*4 && (fractionToFloat(segment.startOffset)+fractionToFloat(segment.duration))*4>=(bar+1)*4 && event.absBeat>=bar*4+1))) {
+   const rootPc=pitchClassToNumber(segment.chord.root),notes=fourthStack(event.notes,rootPc,segment.chord.quality);
+   if(notes && spreadFitsBass(event,notes[0],bassEvents,score.tempo,score.ppq)) {
+    const velocityScale=Math.sqrt(event.notes.length/notes.length);
+    const receipt=Object.freeze({kind:'fourth-stack' as const,originalVelocity:event.velocity,velocityScale,rootPc,third:segment.chord.quality==='min7'?3 as const:4 as const,seventh:segment.chord.quality==='maj7'?11 as const:10 as const,originalNotes:Object.freeze([...event.notes]),notes:Object.freeze([...notes])});
+    events[events.length-1]={...event,notes,velocity:event.velocity*velocityScale,phraseDialogue:receipt};
+    if(contourEnabled && contourMemory)contourMemory=Object.freeze({...contourMemory,lastTopMidi:notes.at(-1)!});
+    lastVoicing=notes;segmentVoicing=notes;
+    voicingMemory=Object.freeze({version:1,chord:Object.freeze({...segment.chord}),notes:Object.freeze([...notes])});
+    const {keyboardLine:_line,keyboardContraryMotion:_contrary,keyboardTexture:_texture,rootlessTexture:_rootless,spacing:_spacing,...decision}=trace.decision;
+    voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:receipt.notes,decision:Object.freeze({...decision,
+     resolvedFamily:'quartal' as const,...describeCoordinatedPlacement(segment.chord,notes,'quartal',Math.round(58+8*info.intensity),lastVoicingPredecessor),
+     ...(decision.topLine?{topLine:Object.freeze({...decision.topLine,actualMidi:notes.at(-1)!,distance:Math.abs(notes.at(-1)!-decision.topLine.targetMidi)})}:{}),fourthStack:receipt})});
+   }
   }
  }
 	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;

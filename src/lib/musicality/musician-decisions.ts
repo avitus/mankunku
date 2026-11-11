@@ -1,3 +1,4 @@
+import type { PhraseDialogue } from '$lib/audio/backing-phrase-dialogue';
 /** Compact, literal explanations of generated decisions; never an imagined musician monologue. */
 import type { GeneratedBacking } from '$lib/audio/backing-generation';
 import type { BackingStyle } from '$lib/types/instruments';
@@ -110,6 +111,14 @@ export function describePerformanceArc(generated: GeneratedBacking, context: Mus
 		head_return: 'Head return · Return to the melody', ending: 'Ending · Release the energy'
 	};
 	return { phase: arc.phase, label: labels[arc.phase], targetEnergy: arc.targetEnergy };
+}
+
+/** Shared proof for color and articulation: level normalization is not lost support. */
+function acceptedFourthStack(event: GeneratedBacking['compEvents'][number], development: GeneratedBacking['ensembleDevelopment']): Extract<PhraseDialogue,{kind:'fourth-stack'}>|undefined {
+ const c=event.phraseDialogue,trace=development?.pianoVoicings?.find(v=>v.time===event.time&&v.absBeat===event.absBeat&&JSON.stringify(v.notes)===JSON.stringify(event.notes));
+ if(c?.kind==='fourth-stack' && event.velocity===c.originalVelocity*c.velocityScale && c.velocityScale===Math.sqrt(c.originalNotes.length/5) && event.notes.length===5 && event.notes[3]-event.notes[2]===5 && event.notes[4]-event.notes[3]===5 &&
+  event.notes.slice(0,2).some(n=>(n-c.rootPc+120)%12===c.third) && event.notes.slice(0,2).some(n=>(n-c.rootPc+120)%12===c.seventh) &&
+  JSON.stringify(event.notes)===JSON.stringify(c.notes) && JSON.stringify(trace?.decision.fourthStack)===JSON.stringify(c))return c;
 }
 
 /** Read the committed score for one sounding bar, counting actual jittered onset ticks. */
@@ -555,7 +564,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
    bassCard.evidence.push('Walking expression: lighter 1 / 3 · stronger 2 / 4');
   }
   if(piano.length===2 && piano.every((e,i)=>e.expression?.kind==='short-held' && e.expression.part===(i?'answer':'statement') &&
-   e.expression.originalDuration!>0 && close(e.velocity,e.expression.originalVelocity)) &&
+   e.expression.originalDuration!>0 && close(acceptedFourthStack(e,development)?.originalVelocity??e.velocity,e.expression.originalVelocity)) &&
    piano[1].duration>=2*piano[0].duration && piano[0].duration+piano[1].duration+1e-8>=piano.reduce((n,e)=>n+e.expression!.originalDuration!,0) && parseInt(piano[0].time)<parseInt(piano[1].time)) {
    pianoCard.action='Short chord → held answer';
    pianoCard.detail='A detached first chord leads to longer harmonic support on the next existing attack.';
@@ -670,6 +679,40 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   }
  }
 
-	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+
+ if(development) {
+  for(const event of bass) {
+   const c=event.phraseDialogue;
+   const source=c?.kind==='opening-recall'?generated.bassEvents.filter(e=>Math.floor(e.absBeat/4)===c.sourceBar).slice(0,2):[];
+   if(c?.kind==='opening-recall' && walking && event.absBeat===barIndex*4+1 && c.sourceBar===barIndex-1 &&
+    event.midi===c.toMidi && bass[0]?.midi===c.rootMidi && source.length===2 && source.every((e,i)=>e.midi===c.sourceNotes[i]) &&
+    Math.sign(c.toMidi-c.rootMidi)===Math.sign(c.sourceNotes[1]-c.sourceNotes[0]) && Math.abs((c.toMidi-c.rootMidi)-(c.sourceNotes[1]-c.sourceNotes[0]))<=1) {
+    bassCard.action='Carry the bass idea';
+    bassCard.detail='The opening shape from the previous bar returns against this harmony, adjusted by at most a semitone to fit its scale. The final approach stays intact.';
+    bassCard.evidence.push(`Opening recall: bar ${c.sourceBar+1} · ${source.map(e=>noteName(e.midi)).join(' → ')} becomes ${noteName(c.rootMidi)} → ${noteName(c.toMidi)}`);
+   }
+  }
+  for(const event of piano) {
+   const c=acceptedFourthStack(event,development);
+   if(c) {
+    const articulation=pianoCard.action==='Short chord → held answer'?' Short chord → held answer: the existing detached-to-held articulation continues.':'';
+    pianoCard.action='Fourth-stack color';
+    pianoCard.detail='Three upper voices stack in fourths above the defining third and seventh. The chord keeps its harmonic support and native rhythm.'+articulation;
+    pianoCard.evidence.push(`Fourth stack: ${event.notes.slice(-3).map(noteName).join(' → ')}`);
+   }
+  }
+  for(const event of drums) {
+   const c=event.phraseDialogue,source=c?.kind==='kick-answer'?drums.find(e=>e.drum==='snare'&&e.absBeat===barIndex*4+c.sourceOffset&&e.velocity===c.sourceVelocity):undefined;
+   if(c?.kind==='kick-answer' && event.drum==='kick' && event.role==='commentary' && source && parseInt(source.time)<parseInt(event.time) &&
+    event.velocity===c.originalVelocity*.9 && drumPhrase?.hits.some(h=>h.drum==='kick'&&barIndex*4+h.beatOffset===event.absBeat&&h.velocity===event.velocity&&JSON.stringify(h.phraseDialogue)===JSON.stringify(c))) {
+    const ghostedMiddle=drums.some(h=>h.expression?.kind==='ghost-answer'&&h.absBeat>source.absBeat&&h.absBeat<event.absBeat);
+    drumCard.action='Snare → kick answer';
+    drumCard.detail='The last stroke of an existing snare figure moves to the bass drum. Its timing remains, and the right foot has room for the answer.'+(ghostedMiddle?' The quiet middle snare remains.':'');
+    drumCard.evidence.push(`Snare/kick dialogue: ${Math.floor(c.sourceOffset)===Math.floor(event.absBeat-barIndex*4)?`within beat ${Math.floor(c.sourceOffset)+1}`:`beats ${Math.floor(c.sourceOffset)+1}–${Math.floor(event.absBeat-barIndex*4)+1}`}`);
+   }
+  }
+ }
+
+	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

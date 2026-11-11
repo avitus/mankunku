@@ -1,3 +1,4 @@
+import { recallBassOpening, type BassOpening } from './backing-phrase-dialogue';
 import { arpeggiateWalk } from './backing-ensemble-colors';
 import { rootSeventhPulse } from './backing-phrase-colors';
 import { allowsTrioConversation, repeatBassPulse } from './backing-trio-conversation';
@@ -28,6 +29,7 @@ export interface RollingBassMemory {
 	readonly approach: BassApproachDevice;
 	readonly feel: 'two' | 'four';
 	readonly pendingLaunch: BassTurnaroundTrace | null;
+	readonly openingMotif?: BassOpening | null;
 	readonly scalarHistory?: BassScalarHistory;
 }
 const pc = (midi: number) => (midi % 12 + 12) % 12;
@@ -113,10 +115,28 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
     previousPreviousMidi:events[2].midi,direction:Math.sign(events[3].midi-events[2].midi)}};
   }
  }
- if (!score.phraseExpressionVersion || !selectsPhraseExpression(info, score.phraseId, 'bass') ||
-  result.memory.feel !== 'four' || result.memory.pendingLaunch || previous?.pendingLaunch ||
-  info.ensemble?.bass.role !== 'time' || !info.ensemble.bass.keepPulse) return result;
- return { ...result, events: shapeBassPulse(result.events, bar, score.style ?? 'swing') };
+ if (score.phraseExpressionVersion && selectsPhraseExpression(info, score.phraseId, 'bass') &&
+  result.memory.feel === 'four' && !result.memory.pendingLaunch && !previous?.pendingLaunch &&
+  info.ensemble?.bass.role === 'time' && info.ensemble.bass.keepPulse) result={...result,events:shapeBassPulse(result.events,bar,score.style??'swing')};
+ if(score.phraseDialogueVersion && ['swing','straight'].includes(score.style??'swing')) {
+  let openingMotif:BassOpening|null=null;
+  if(allowsTrioConversation(info) && !info.isChorusFirstBar && result.memory.feel==='four' &&
+   !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+   info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+   const segments=(prepared??prepareRollingBass(score))!.segments.filter(s=>s.start<bar*4+4&&s.start+s.length>bar*4);
+   if(segments.length===1) {
+    const segment=segments[0];
+    if(createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'bass-opening')).chance(.8))
+     result={...result,events:recallBassOpening(result.events,bar,segment.root,segment.scalePcs,previous?.openingMotif)};
+   }
+  }
+  const e=result.events;
+  if(['solo_build','solo_peak'].includes(info.ensemble?.performanceEnergy?.phase??'') && !info.isChorusFinalBar &&
+   e.length===4&&e.every((n,i)=>n.absBeat===bar*4+i&&!n.phraseDialogue)&&Math.abs(e[1].midi-e[0].midi)>0&&Math.abs(e[1].midi-e[0].midi)<=5)
+   openingMotif={barIndex:bar,notes:[e[0].midi,e[1].midi]};
+  result={...result,memory:{...result.memory,openingMotif}};
+ }
+ return result;
 }
 
 function realizeBassPitch(score: RollingBackingDefinition, bar: number, info: BarInfo,

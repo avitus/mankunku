@@ -88,7 +88,7 @@ it('balances sustained Ballad organ without changing its fader or other styles',
  const track=await import('$lib/audio/backing-track');
  track.setBackingMix({...DEFAULT_BACKING_MIX,comp:.75},{persist:false});
  await track.loadBackingInstruments('organ','ballad');
- const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.14715);
+ const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.14061);
  await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635);
  track.setBackingMix({comp:0},{persist:false});
  await track.loadBackingInstruments('organ','ballad');expect(organ.destination.gain.value).toBe(0);
@@ -97,6 +97,21 @@ it('uses the same Ballad organ trim in WAV rendering without changing note dynam
  const {renderEventsToWav}=await import('$lib/audio/backing-bounce');
  await renderEventsToWav({bassEvents:[],drumEvents:[],compEvents:[{absBeat:0,time:'0i',notes:[57,60,63],duration:1.4,velocity:72}]},{},
   {tempo:80,volume:.7,mix:{...DEFAULT_BACKING_MIX,comp:.75},durationSeconds:3,instrument:'organ',style:'ballad'});
- const player=bank('Soundfont');expect(player.destination.gain.value).toBeCloseTo(.14715);
+ const player=bank('Soundfont');expect(player.destination.gain.value).toBeCloseTo(.14061);
  expect(player.start.mock.calls.map(([event])=>event)).toEqual([57,60,63].map(note=>({note,time:0,velocity:72,duration:1.4})));
+});
+
+it('balances short Bossa organ in live reuse and bounce while preserving mute, fader and event velocity',async()=>{
+ const track=await import('$lib/audio/backing-track');
+ track.setBackingMix({...DEFAULT_BACKING_MIX,comp:.75},{persist:false});
+ await track.loadBackingInstruments('organ','bossa-nova');
+ const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.1635*1.06,6);
+ await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635,6);
+ track.setBackingMix({comp:0},{persist:false});
+ await track.loadBackingInstruments('organ','bossa-nova');expect(organ.destination.gain.value).toBe(0);
+ const {renderEventsToWav}=await import('$lib/audio/backing-bounce');
+ await renderEventsToWav({bassEvents:[],drumEvents:[],compEvents:[{absBeat:0,time:'0i',notes:[57,60,63],duration:.4,velocity:72}]},{},
+  {tempo:140,volume:.7,mix:{...DEFAULT_BACKING_MIX,comp:.75},durationSeconds:1,instrument:'organ',style:'bossa-nova'});
+ expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.1635*1.06,6);
+ expect(bank('Soundfont').start.mock.calls.map(([event])=>event.velocity)).toEqual([72,72,72]);
 });
