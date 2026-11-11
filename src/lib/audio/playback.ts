@@ -1065,7 +1065,6 @@ export async function scheduleNextPhrase(
 		currentPart = null;
 	}
 	disposeFormLoopParts();
-	disposeBackingParts();
 	stopNotes();
 
 	// Find the next bar downbeat with at least 1 beat of lead time.
@@ -1117,6 +1116,10 @@ export async function scheduleNextPhrase(
 			opts.boundaryTime
 		);
 		if (scheduleId !== currentScheduleId) return;
+	} else {
+		// The scheduler owns the outgoing band's handoff when backing is on.
+		// Only an explicitly silent continuation should remove it immediately.
+		disposeBackingParts();
 	}
 
 	// The continuation opens its recording windows only once the new backing
