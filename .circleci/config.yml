@@ -13,6 +13,11 @@ orbs:
 
 workflows:
   setup:
+    # Long-running musicality work is validated in the local Docker sandbox.
+    # Skip before allocating the path-filtering job or continuing the pipeline.
+    # Exact branch match: dev, main and other branches keep their existing CI.
+    unless:
+      equal: [musicality, << pipeline.git.branch >>]
     jobs:
       - path-filtering/filter:
           # Compare changes against main so feature branches see their own

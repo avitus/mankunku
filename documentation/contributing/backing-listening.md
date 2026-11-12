@@ -58,10 +58,20 @@ one WAV per events JSON:
 
 ```sh
 RENDER_DIR=tests/fixtures/backing/milestone-a \
-  npm run test:sandbox -- diagnostics backing-milestone-render
+  npm run test:sandbox -- diagnostics backing-milestone-render --project=chromium
 ```
 
 This explicit diagnostic command uses Chromium in Linux. `RENDER_DIR` must be repository-relative. Generated WAVs are saved under the run's recovered test artifacts, never to an arbitrary desktop directory. The recording tool is excluded from ordinary E2E discovery. The committed Milestone A set lives at `tests/fixtures/backing/milestone-a/` (old/new × blues at 90/160/240 + AABA at 160).
+
+## Full-tune blind reviews
+
+On `/musicality`, choose **Try a blind comparison**. Pick a real tune, concert key, style, tempo and one to four solo choruses, then start the comparison. The page locks those inputs and assigns the two arrangements to A/B without showing their identities or musician decisions.
+
+Listen to each full take. Stopping is allowed, but an interrupted take must be replayed completely before it qualifies. Rate each version on the seven musical dimensions, then choose A, B or no preference before revealing the arrangements. For listening ease, a higher rating means less tiring. Include specific moments in the notes, especially crowding, timing, form arrivals or a convincing response. The ordinary listening view remains useful for inspecting each musician's evidence after the blind judgment.
+
+Export the revealed review to retain both exact generated scores, settings and judgments. **Save review locally** keeps a compact summary in this browser (latest 20); its history offers summary exports. Export the current full review before leaving if the actual score traces are needed. A saved verdict is listening evidence, not automatic acceptance or a production rollout decision.
+
+Use the same headphones and listening level for a pair. Repeat across Swing, Straight, Bossa Nova and Ballad at appropriate playing tempos, and preserve ties and unfavorable results. The A/B mapping is randomized per comparison; deliberately vary which label is heard first when assembling a review set. This compares the two modes of the current engine. Historical-engine WAV comparisons and microphone-feature replay remain in the advanced lab.
 
 ## Milestone procedure
 
@@ -86,6 +96,103 @@ item that a previous milestone flipped to ✅ has regressed to ❌.
 ## Listening log
 
 <!-- Paste listening reports below, newest first. -->
+
+### Sample timing audit — 2026-10-20
+
+The listener confirmed the pedal hi-hat correction with “That sounds much better.”
+This accepts that specific timing improvement, not the complete musicality specification.
+
+The follow-up measured actual recordings and isolated WAV output, separately from
+the musical offsets in `backing-timing.ts`. Bass uses the Smolken Pizzicato bank;
+piano uses Splendid Grand Piano with PPP/PP/MP/MF/FF bands (PPP filters the PP
+recordings), not the previously documented 16-layer Salamander bank.
+
+| Recording audit | Scope | Measured attack before correction |
+| --- | --- | --- |
+| Bass | All 91 samples mapped to MIDI 28–55 | 0–4 ms; median 1 ms |
+| Piano | All 226 unique loaded recordings, source anchors MIDI 23–108 | 0–39 ms; median 1 ms |
+
+These measurements use 1 ms stereo RMS windows and the first crossing of 10% of
+the early peak (first 300 ms for bass, 250 ms for piano). They identify recorded
+lead-in; a later body peak or 50% crossing is not by itself unwanted latency.
+Native isolated bass rendering also starts promptly, within 0–5 ms, so no bass
+trim or global timing advance was applied.
+
+The source piano SFZ specifies start offsets for ten recordings that the player
+omits. Their original 44.1 kHz frame counts are now restored by
+`backing-piano-samples.ts`, with a short fade at each new sample edge based on the
+source's 0.5 ms attack setting. Offsets are converted through seconds, not applied as frame counts to the
+48 kHz decoded OGGs. The remaining natural attack is retained: the soft D sample
+still has about 15 ms of buildup after its declared 23.72 ms offset. Other piano
+recordings, bass, musical timestamps, and mix gains are unchanged.
+
+The calibrated raw piano bank now measures 0–16 ms across all 226 recordings,
+and 0–15 ms for the 128 source anchors in MIDI 36–84, using the same 250 ms
+measurement window. The declared offsets come from the pinned source
+[PP mapping](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Data/PP.txt),
+[MP mapping](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Data/MP.txt),
+[FF mapping](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Data/FF.txt),
+and [global attack setting](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Splendid%20Grand%20Piano.sfz#L45).
+The converted library's mappings at revision
+`009793ebf849aee57f9a213aeaf8f2d1e2178f4f` match those source definitions.
+
+`tests/e2e/backing-pitched-timing.diagnostic.ts` exercises the public events-JSON WAV
+renderer with real CDN samples, a dry mix, and isolated notes: bass MIDI
+28/36/43/48/55 at three velocities and piano MIDI 35/38/48/60/72 across all five
+velocity bands. It measures 10%/50%/peak timing in the first 150 ms, checks that
+the lead-in stays below 1% of the attack's peak, and guards against delayed
+attacks. Each note gets its own WAV render because a combined render retained
+residual audio in Firefox; a fresh graph prevents earlier notes from influencing
+another note's measurement. The exact cause of that residual audio remains
+unresolved. The test fetches each real recording once and reuses its downloaded
+bytes across renders, avoiding repeated full-bank CDN requests. Before the fix,
+soft piano MIDI 35 and 38 attacked at 28 ms and 45 ms respectively, including the
+shared mixer delay, and failed the 25 ms onset guard. This is a local diagnostic
+with real network samples; it skips hosted CI. Human listening of the piano
+correction remains pending.
+
+The final independent renders passed in Chromium, Firefox and WebKit: all 40
+notes per engine had silent lead-ins, bass attacks measured 6–11 ms, and the
+corrected soft low piano notes measured 14–21 ms through the mixer. The broader
+local checks passed 6,387 unit tests (40 expected failures), type checking,
+the production build and 24 focused browser checks including this diagnostic,
+the drum timing regression, mixer controls and `/musicality`. No hosted CI ran.
+
+**Bass selection repair — 25 October 2026:** the installed Smolken preset conversion dropped
+one-sided velocity limits and region-level round-robin lengths. Native rendering
+confirmed 7–12 sample voices per note where the source preset selects one.
+The shared loader now restores the pinned Pizzicato bank’s velocity bands
+(0–74, 75–120 and 121–127) and three/four-take round robins for MIDI 28–55,
+before the sampler constructs its matcher. The complete active signature must
+match; foreign, partial or modified banks stay untouched. Ten other source groups
+remain unchanged. The source fixture is SHA-256
+`0aea1def56753b0dcc89914b1ac24054200bacc01dd696572745c70787eaec4f`.
+
+This applies to live playback and offline bounce, in Original and Coordinated
+modes and all styles. It changes sample selection, level and timbre, not generated
+notes, onset trims or envelopes. The existing bass bus trim stays at 0.05. Unit tests use the
+installed converter and region matcher against all supported keys/velocities and
+complete cycles; native tests count actual AudioBufferSourceNode starts and check
+recording identity, finite signal and onset. Source `amp_velcurve_*` opcodes remain
+unsupported. Sampler counters retain their existing per-group behavior; exact
+counter parity with a separate SFZ engine is not claimed.
+
+Raw same-gain full-tune bass stems and before/after RMS/peak measurements are
+retained for audition. Removing accidental layers reduced reference RMS by 17.2–19.2 dB.
+The shared bass constructor adds a linear gain of 7.74 only after a recognized bank
+loads successfully. This is the rounded geometric mean of the four style-specific
+before/after RMS ratios, restoring these raw reference levels within about 1.4 dB.
+It preserves velocity dynamics and user faders; unknown banks get no boost.
+The insert belongs to the instrument channel and is disconnected with it.
+
+The public WAV exporter peak-normalizes its output. Raw pre-normalization mix
+measurements are therefore retained separately; normalized isolated bounces cannot
+establish relative balance. Full-tune artifacts live at
+`/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-selection/listen.html`;
+the calibrated public-app comparison is at
+`/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-calibration/listen.html`.
+This measured reference-level preservation still needs human ensemble listening;
+see the [development log](/docs/contributing/musicality-progress).
 
 ### Milestone B — 2026-08-06 — verdict: NEW preferred at all three tempi
 
@@ -131,3 +238,41 @@ shipped without one); Milestone A heard it only as the "old" side of the blind p
 The failures expected of it at the time: fixed swing ratio at all tempi,
 mutually-quantized instruments, comping loops on short forms, no snare (so no fills),
 and the synthesized metronome doubling the kit when enabled.
+
+## Structural-energy listening focus — 24 October 2026
+
+In the listening studio, choose Coordinated and play the whole tune with at least two solo choruses. Compare the opening head, early and later solo choruses, the return to the head and the ending. The **Planned arc** cue and instrument details show the structural intention used for the sounding bar, not an assertion that the result sounds convincing.
+
+Listen for development without an endless rise in busyness, useful room for the melody on returning heads, and a release that preserves pulse. Check especially that Bossa keeps its clave and bass pattern and Ballad keeps its spacious two-feel. Use the blind full-tune comparison to record preference without the stage labels influencing it. Retain regressions such as an overly quiet head, a sudden transition, an indistinct peak or a lifeless ending. No human acceptance results have been recorded for this increment.
+
+## Rootless-texture listening focus — 25 October 2026
+
+Explicit Coordinated forms can now use three-note rootless A/B shapes on ordinary major-seventh, minor-seventh and dominant-seventh chords. Heads, returning heads and releases request support; solo development retains the selected shape, while qualified active-soloist evidence takes priority. This changes selected chord density and subsequent causal voice-leading without adding attacks. Bossa and Ballad retain their native rhythms.
+
+Five matched full-tune comparisons are retained at `/Users/avitus/.codex/artifacts/musicality-2026-10-25/rootless-texture/listen.html`: Saints in all four styles and Blues in Swing. The ten stereo WAVs preserve raw PCM before export normalization, at one common gain. They contain the rhythm section only; play along or imagine the melody, and compare whether the lighter voicings leave useful space without becoming thin. Listen through the solo and returning head, including connections after rests. Use the same-time A/B cues without changing volume between versions.
+
+The live piano details distinguish **Planned rootless texture** from an actual emitted **three-note rootless support** chord. Silence, ineligible chord families and unsupported qualities cannot acquire that played claim. Whole-mix RMS changes in these five examples are below 0.013 dB; these measurements verify matched rendering, not a musical improvement. Human preference and acceptance remain unrecorded.
+
+## Drum-to-piano space listening focus — 25 October 2026
+
+This increment applies to explicit-form Coordinated rolling playback in the full-tune studio, blind comparison and advanced lab. A previous accepted independent drum phrase can prompt a seeded one-bar piano breath. Timekeeping is not commentary; arrivals, endings, reserved responses and existing silence remain protected. The pianist does not echo a drum rhythm in this increment.
+
+Matched full-tune rolling comparisons are retained at `/Users/avitus/.codex/artifacts/musicality-2026-10-25/drum-piano-feedback/listen.html`. For the default Saints example in Swing and Straight, listen to human bar 35's drum phrase and the piano breathing in bar 36. Compare the whole take as well as that cue: the response should feel like room in an ongoing conversation, without a hole in the pulse. Bossa and Ballad are unchanged controls in this reference; do not expect a manufactured response in every style or every take.
+
+Compare at one common volume. Retain adverse judgments such as a late reaction, too much silence or interrupted piano phrasing. The event export identifies source hits, the planned breath and actual accepted piano attacks; it does not establish that a naturally silent counterfactual would have sounded. Human preference and acceptance remain pending.
+
+
+### Audition causal full-tune playback
+
+On `/musicality`, choose Coordinated and listen through the head, two solo choruses, returning head and ending. No microphone is requested. The musician cards follow the sounding bar; exported events can include a small committed lookahead, and an export before completion is marked partial. Stop and replay should begin a fresh performance. A browser suspension or missed scheduling deadline ends the take with an error rather than granting a complete listen.
+
+For a reproducible reciprocal cue, use Mankunku Blues, Swing, 180 BPM and the default swing setting: listen across human bars 21–22 for independent drum commentary followed by piano space. Compare the full performance with Original, then repeat in Straight, Bossa and Ballad. Bossa's clave is timekeeping, not a call requiring a piano answer. Judge continuity, stylistic character and whether the occasional space is useful; the decision text and passing tests cannot answer those questions.
+
+Blind comparison uses these same fixed Original and causal Coordinated players. Wait through each entire tune and its 2.5-second release tail before rating and revealing. A complete exported score is scheduler evidence, not proof of audible quality or human acceptance. Fixed offline bounce still uses its earlier generation path and should not be treated as an exact reproduction of a causal Coordinated studio take.
+
+
+### Audition shared piano arrivals
+
+Choose Mankunku Blues in F-sharp, two solo choruses, 140 BPM, Coordinated Swing, then Straight. Listen through the full form, starting with the reserved arrival at human bar 5: piano can now catch the existing bass/drum downbeat with one short chord. Later selected arrivals retain space when the current silence or soloist priorities require it. The musician details distinguish planned admission from matching actual piano, bass and drum events.
+
+Compare the matched raw before/after full-tune recordings retained with the piano-arrivals milestone, at one common gain. Judge whether catches clarify the form or make it too heavy; avoid evaluating only the isolated hit. Bossa and Ballad remain native-pattern controls. A joint arrangement hit must not be mistaken for an independent piano call that invites another drummer reply. Human acceptance remains pending.

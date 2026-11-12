@@ -1,0 +1,147 @@
+/** Causal clock-driven coordinator for a finite rolling listening-lab take. */
+import type { SoloObservationWindow } from './solo-observer';
+import type { SoloFeature } from './ensemble-plan';
+import type { RollingBackingBar, RollingBackingCheckpoint, RollingBackingDefinition } from './backing-rolling';
+
+export interface RollingSessionPort {
+	horizon(): { audioNow: number; dispatchThrough: number; renderSafeFrom: number };
+	commit(bar: RollingBackingBar, timing: { renderStartedAt: number; renderElapsedSeconds: number }): { accepted: boolean; reason?: string };
+	snapshot(): { status: string; dispatches: readonly { status: string }[] };
+	stop(): void;
+}
+export interface RollingSessionOptions {
+	definition: RollingBackingDefinition;
+	startAudioTime: number;
+	observationSessionId: string;
+	renderer: RollingSessionPort;
+	generate(definition: RollingBackingDefinition, checkpoint?: RollingBackingCheckpoint, features?: readonly SoloFeature[]): RollingBackingBar;
+	/** Monotonic wall clock, seconds; measures computation even while audio is suspended. */
+	measureNow(): number;
+	/** Keep accepted final voices ringing after verified dispatch; diagnostics default to zero. */
+	releaseTailSeconds?: number;
+ /** Opt-in, bounded by the finite form; reuses measurements already needed by the guard. */
+ captureRenderTiming?: boolean;
+	onCommit?(bar: RollingBackingBar): void;
+	onError?(reason: string): void;
+	onComplete?(): void;
+}
+export interface RollingObservationReceipt {
+	readonly windowBar: number;
+	readonly availableAtSeconds: number;
+	readonly receivedAtSeconds: number;
+	readonly nextBarAtReceipt: number;
+	readonly feature: SoloFeature;
+}
+export interface RollingRenderTiming {
+ readonly barIndex: number;
+ readonly renderStartedAt: number;
+ readonly renderElapsedSeconds: number;
+ readonly accepted: boolean;
+ readonly reason?: string;
+}
+export interface RollingSessionSnapshot {
+	readonly status: 'ready' | 'running' | 'complete' | 'stopped' | 'failed';
+	readonly nextBar: number;
+	readonly error: string | null;
+	readonly receipts: readonly RollingObservationReceipt[];
+ readonly renderTimings?: readonly RollingRenderTiming[];
+}
+
+/**
+ * Prime two bars, then commit just before the measured scheduling horizon.
+ * A 250 ms preparation allowance tolerates bounded main-thread timer stalls.
+ * This commits decisions up to 175 ms earlier than the original 75 ms margin;
+ * observations arriving afterwards apply only to a subsequent uncommitted bar.
+ * Renderer compute, publication and native-source deadlines remain unchanged.
+ * A stalled clock stops the take: there is never a burst of overdue notes.
+ */
+export function createRollingSession(options: RollingSessionOptions) {
+	const { definition, renderer } = options;
+	const releaseTailSeconds = options.releaseTailSeconds ?? 0;
+	if (!Number.isFinite(releaseTailSeconds) || releaseTailSeconds < 0 || releaseTailSeconds > 5) {
+		throw new RangeError('Rolling release tail must be between 0 and 5 seconds');
+	}
+	const barSeconds = 240 / definition.tempo;
+	let status: RollingSessionSnapshot['status'] = 'ready';
+	let error: string | null = null;
+	let checkpoint: RollingBackingCheckpoint | undefined;
+	let nextBar = 0;
+	const receipts: RollingObservationReceipt[] = [];
+ const renderTimings: RollingRenderTiming[] = [];
+	const seen = new Set<number>();
+	function fail(reason: string): void {
+		if (status !== 'running') return;
+		status = 'failed'; error = reason;
+		renderer.stop(); options.onError?.(reason);
+	}
+	function commit(): void {
+		let horizon: ReturnType<RollingSessionPort['horizon']>;
+		try { horizon = renderer.horizon(); } catch { fail('audio_clock'); return; }
+		const barStart = options.startAudioTime + nextBar * barSeconds;
+		if (!Number.isFinite(horizon.audioNow) || !Number.isFinite(horizon.renderSafeFrom) || barStart <= horizon.renderSafeFrom) {
+			fail('deadline'); return;
+		}
+		try {
+			const before = options.measureNow();
+			const bar = options.generate(definition, checkpoint, receipts.map((receipt) => receipt.feature));
+			const timing = { renderStartedAt: horizon.audioNow, renderElapsedSeconds: options.measureNow() - before };
+   const result = renderer.commit(bar, timing);
+   if (options.captureRenderTiming) renderTimings.push(Object.freeze({ barIndex: nextBar, ...timing, accepted: result.accepted,
+    ...(result.reason ? { reason: result.reason } : {}) }));
+			if (!result.accepted) { fail(result.reason ?? 'commit_rejected'); return; }
+			if (renderer.snapshot().status !== 'active') { fail('committed_playback_failed'); return; }
+			checkpoint = bar.checkpoint; nextBar = bar.toBarExclusive;
+			options.onCommit?.(bar);
+		} catch (cause) { fail(cause instanceof Error ? cause.message : String(cause)); }
+	}
+	function pump(): void {
+		if (status !== 'running') return;
+		let horizon: ReturnType<RollingSessionPort['horizon']>;
+		try { horizon = renderer.horizon(); } catch { fail('audio_clock'); return; }
+		const formEnd = options.startAudioTime + definition.totalBars * barSeconds;
+		if (horizon.audioNow >= formEnd) {
+			if (nextBar !== definition.totalBars) { fail('deadline'); return; }
+			const playback = renderer.snapshot();
+			if (playback.status !== 'active' || playback.dispatches.some((entry) => entry.status !== 'played')) { fail('incomplete_playback'); return; }
+			// Verify the final dispatch at the form boundary, not after the tail:
+			// delayed or cancelled callbacks must never become a completed take.
+			if (horizon.audioNow < formEnd + releaseTailSeconds) return;
+			status = 'complete'; renderer.stop(); options.onComplete?.(); return;
+		}
+		if (nextBar < definition.totalBars && options.startAudioTime + nextBar * barSeconds <= horizon.renderSafeFrom + 0.250) commit();
+	}
+	return {
+		start(): void {
+			if (status !== 'ready') return;
+			status = 'running';
+			for (let n = 0; n < Math.min(2, definition.totalBars) && status === 'running'; n++) commit();
+		},
+		pump,
+		observe(window: SoloObservationWindow): boolean {
+			let receivedAtSeconds: number;
+			try { receivedAtSeconds = renderer.horizon().audioNow - options.startAudioTime; } catch { return false; }
+			const feature = window.feature;
+			if (status !== 'running' || window.sessionId !== options.observationSessionId || !feature ||
+				window.source !== 'microphone' || feature.source !== 'microphone' ||
+				!Number.isInteger(window.barIndex) || window.barIndex < 0 || window.barIndex >= definition.totalBars || seen.has(window.barIndex) ||
+				!Number.isFinite(receivedAtSeconds) || !Number.isFinite(window.availableAtSeconds) ||
+				window.availableAtSeconds < (window.barIndex + 1) * barSeconds || window.availableAtSeconds > receivedAtSeconds + 1e-6 ||
+				!Number.isInteger(feature.barIndex) || feature.barIndex < Math.ceil(window.availableAtSeconds / barSeconds) || feature.barIndex >= definition.totalBars ||
+				feature.observedAtBar !== Math.floor(window.availableAtSeconds / barSeconds) ||
+				!Number.isFinite(feature.confidence) || feature.confidence < 0.7 || feature.confidence > 1 ||
+				!Number.isFinite(feature.noteDensity) || feature.noteDensity < 0 || feature.noteDensity > 1 ||
+				!Number.isFinite(feature.restBeats) || feature.restBeats < 0) return false;
+			seen.add(window.barIndex);
+			receipts.push(Object.freeze({ windowBar: window.barIndex, availableAtSeconds: window.availableAtSeconds,
+				receivedAtSeconds, nextBarAtReceipt: nextBar, feature: Object.freeze({ ...feature }) }));
+			return true;
+		},
+		stop(): void {
+			if (status === 'complete' || status === 'failed' || status === 'stopped') return;
+			status = 'stopped'; renderer.stop();
+		},
+		snapshot(): RollingSessionSnapshot { return Object.freeze({ status, nextBar, error, receipts: Object.freeze([...receipts]), ...(options.captureRenderTiming ? {renderTimings:Object.freeze([...renderTimings])} : {}) }); }
+	};
+}
+
+export type RollingSession = ReturnType<typeof createRollingSession>;

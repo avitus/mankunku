@@ -1,0 +1,619 @@
+{
+  "baseline": "06cb6b74",
+  "cases": [
+    {
+      "tuneId": "ls-when-the-saints",
+      "key": "D",
+      "tempo": 70,
+      "bar": 17,
+      "phraseId": "musicality-ls-when-the-saints-D-2",
+      "source": {
+        "absBeat": 66.5,
+        "time": "12778i",
+        "drum": "snare",
+        "velocity": 0.1375045185163617,
+        "role": "commentary"
+      },
+      "ordinary": {
+        "absBeat": 68,
+        "time": "13060i",
+        "notes": [
+          59,
+          66,
+          69,
+          74
+        ],
+        "duration": 3.085714285714286,
+        "velocity": 48
+      },
+      "sourceEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 64,
+            "midi": 38,
+            "velocity": 88,
+            "time": "12288i",
+            "duration": 1.457142857142857
+          },
+          {
+            "absBeat": 66,
+            "midi": 33,
+            "velocity": 78,
+            "time": "12672i",
+            "duration": 1.457142857142857
+          }
+        ],
+        "compEvents": [
+          {
+            "absBeat": 64,
+            "time": "12292i",
+            "notes": [
+              59,
+              66,
+              69,
+              74
+            ],
+            "duration": 3.085714285714286,
+            "velocity": 49
+          }
+        ],
+        "drumEvents": [
+          {
+            "absBeat": 64,
+            "time": "12288i",
+            "drum": "ride",
+            "velocity": 0.22847989498302343,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 65,
+            "time": "12480i",
+            "drum": "ride",
+            "velocity": 0.2527338381736619,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 66,
+            "time": "12672i",
+            "drum": "ride",
+            "velocity": 0.2173442769716095,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 67,
+            "time": "12864i",
+            "drum": "ride",
+            "velocity": 0.24477669712205022,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 65,
+            "time": "12480i",
+            "drum": "hihat-pedal",
+            "velocity": 0.26072815161231905,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 67,
+            "time": "12864i",
+            "drum": "hihat-pedal",
+            "velocity": 0.2550421868099485,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 64,
+            "time": "12288i",
+            "drum": "kick",
+            "velocity": 0.15950700264912632,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 66.5,
+            "time": "12778i",
+            "drum": "snare",
+            "velocity": 0.1375045185163617,
+            "role": "commentary"
+          }
+        ]
+      },
+      "recipientEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 68,
+            "midi": 38,
+            "velocity": 84,
+            "time": "13056i",
+            "duration": 1.457142857142857
+          },
+          {
+            "absBeat": 70,
+            "midi": 33,
+            "velocity": 85,
+            "time": "13440i",
+            "duration": 1.457142857142857
+          }
+        ],
+        "compEvents": [
+          {
+            "absBeat": 68,
+            "time": "13060i",
+            "notes": [
+              59,
+              66,
+              69,
+              74
+            ],
+            "duration": 3.085714285714286,
+            "velocity": 48
+          }
+        ],
+        "drumEvents": [
+          {
+            "absBeat": 68,
+            "time": "13056i",
+            "drum": "ride",
+            "velocity": 0.1964354953562761,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 69,
+            "time": "13248i",
+            "drum": "ride",
+            "velocity": 0.2638651711651394,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 70,
+            "time": "13440i",
+            "drum": "ride",
+            "velocity": 0.21055191898658884,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 71,
+            "time": "13632i",
+            "drum": "ride",
+            "velocity": 0.2560582561017372,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 69,
+            "time": "13248i",
+            "drum": "hihat-pedal",
+            "velocity": 0.2698395455132443,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 71,
+            "time": "13632i",
+            "drum": "hihat-pedal",
+            "velocity": 0.2590131465510432,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 68,
+            "time": "13056i",
+            "drum": "kick",
+            "velocity": 0.14602727831290316,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "tuneId": "ls-mankunku-blues",
+      "key": "E",
+      "tempo": 80,
+      "bar": 30,
+      "phraseId": "musicality-ls-mankunku-blues-E-2",
+      "source": {
+        "absBeat": 118.5,
+        "time": "22763i",
+        "drum": "snare",
+        "velocity": 0.15292811307124793,
+        "role": "commentary"
+      },
+      "ordinary": {
+        "absBeat": 120,
+        "time": "23045i",
+        "notes": [
+          56,
+          62,
+          64,
+          71
+        ],
+        "duration": 2.7,
+        "velocity": 54
+      },
+      "sourceEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 116,
+            "midi": 33,
+            "velocity": 82,
+            "time": "22272i",
+            "duration": 1.275
+          },
+          {
+            "absBeat": 118,
+            "midi": 28,
+            "velocity": 90,
+            "time": "22656i",
+            "duration": 1.275
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 116,
+            "time": "22272i",
+            "drum": "ride",
+            "velocity": 0.20572937732776056,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 117,
+            "time": "22464i",
+            "drum": "ride",
+            "velocity": 0.25508971224538146,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 118,
+            "time": "22656i",
+            "drum": "ride",
+            "velocity": 0.20212626079039098,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 119,
+            "time": "22848i",
+            "drum": "ride",
+            "velocity": 0.24296680614479052,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 117,
+            "time": "22464i",
+            "drum": "hihat-pedal",
+            "velocity": 0.265331067850401,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 119,
+            "time": "22848i",
+            "drum": "hihat-pedal",
+            "velocity": 0.2666583386656518,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 116,
+            "time": "22273i",
+            "drum": "kick",
+            "velocity": 0.15218802136713075,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 118.5,
+            "time": "22763i",
+            "drum": "snare",
+            "velocity": 0.15292811307124793,
+            "role": "commentary"
+          }
+        ]
+      },
+      "recipientEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 120,
+            "midi": 40,
+            "velocity": 87,
+            "time": "23040i",
+            "duration": 1.275
+          },
+          {
+            "absBeat": 122,
+            "midi": 35,
+            "velocity": 83,
+            "time": "23424i",
+            "duration": 1.275
+          }
+        ],
+        "compEvents": [
+          {
+            "absBeat": 120,
+            "time": "23045i",
+            "notes": [
+              56,
+              62,
+              64,
+              71
+            ],
+            "duration": 2.7,
+            "velocity": 54
+          }
+        ],
+        "drumEvents": [
+          {
+            "absBeat": 120,
+            "time": "23040i",
+            "drum": "ride",
+            "velocity": 0.21706561075349143,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 121,
+            "time": "23232i",
+            "drum": "ride",
+            "velocity": 0.2555314451308254,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 122,
+            "time": "23424i",
+            "drum": "ride",
+            "velocity": 0.2312956407978203,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 123,
+            "time": "23616i",
+            "drum": "ride",
+            "velocity": 0.24789430717378613,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 121,
+            "time": "23232i",
+            "drum": "hihat-pedal",
+            "velocity": 0.2681135407305095,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 123,
+            "time": "23616i",
+            "drum": "hihat-pedal",
+            "velocity": 0.25296676837339055,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 120,
+            "time": "23041i",
+            "drum": "kick",
+            "velocity": 0.15911277149032996,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 122,
+            "time": "23425i",
+            "drum": "kick",
+            "velocity": 0.1241675335594559,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "tuneId": "ls-when-the-saints",
+      "key": "D",
+      "tempo": 80,
+      "bar": 18,
+      "phraseId": "musicality-ls-when-the-saints-D-2",
+      "source": {
+        "absBeat": 71,
+        "time": "13634i",
+        "drum": "crossstick",
+        "velocity": 0.2928502825112082,
+        "role": "commentary"
+      },
+      "ordinary": {
+        "absBeat": 72,
+        "time": "13829i",
+        "notes": [
+          52,
+          57,
+          62
+        ],
+        "duration": 2.7,
+        "velocity": 44
+      },
+      "sourceEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 68,
+            "midi": 38,
+            "velocity": 89,
+            "time": "13056i",
+            "duration": 1.275
+          },
+          {
+            "absBeat": 70,
+            "midi": 33,
+            "velocity": 89,
+            "time": "13439i",
+            "duration": 1.275
+          }
+        ],
+        "compEvents": [
+          {
+            "absBeat": 68,
+            "time": "13061i",
+            "notes": [
+              52,
+              57,
+              62
+            ],
+            "duration": 2.7,
+            "velocity": 47
+          }
+        ],
+        "drumEvents": [
+          {
+            "absBeat": 68,
+            "time": "13056i",
+            "drum": "ride",
+            "velocity": 0.2067959370390861,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 69,
+            "time": "13248i",
+            "drum": "ride",
+            "velocity": 0.2614821042180511,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 70,
+            "time": "13440i",
+            "drum": "ride",
+            "velocity": 0.22688800478671564,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 71,
+            "time": "13633i",
+            "drum": "ride",
+            "velocity": 0.23940823671392883,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 69,
+            "time": "13248i",
+            "drum": "hihat-pedal",
+            "velocity": 0.25633895772724724,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 71,
+            "time": "13632i",
+            "drum": "hihat-pedal",
+            "velocity": 0.23779447308970686,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 68,
+            "time": "13057i",
+            "drum": "kick",
+            "velocity": 0.13186732572681267,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 71,
+            "time": "13634i",
+            "drum": "crossstick",
+            "velocity": 0.2928502825112082,
+            "role": "commentary"
+          }
+        ]
+      },
+      "recipientEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 72,
+            "midi": 38,
+            "velocity": 91,
+            "time": "13824i",
+            "duration": 1.275
+          },
+          {
+            "absBeat": 74,
+            "midi": 33,
+            "velocity": 89,
+            "time": "14207i",
+            "duration": 1.275
+          }
+        ],
+        "compEvents": [
+          {
+            "absBeat": 72,
+            "time": "13829i",
+            "notes": [
+              52,
+              57,
+              62
+            ],
+            "duration": 2.7,
+            "velocity": 44
+          }
+        ],
+        "drumEvents": [
+          {
+            "absBeat": 72,
+            "time": "13824i",
+            "drum": "ride",
+            "velocity": 0.22145079939695111,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 73,
+            "time": "14016i",
+            "drum": "ride",
+            "velocity": 0.2633805728979559,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 74,
+            "time": "14208i",
+            "drum": "ride",
+            "velocity": 0.21747322086334347,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 75,
+            "time": "14400i",
+            "drum": "ride",
+            "velocity": 0.24227452582808748,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 73,
+            "time": "14016i",
+            "drum": "hihat-pedal",
+            "velocity": 0.24772587082340955,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 75,
+            "time": "14400i",
+            "drum": "hihat-pedal",
+            "velocity": 0.2474549315756858,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 72,
+            "time": "13825i",
+            "drum": "kick",
+            "velocity": 0.1410983340067634,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    }
+  ],
+  "historicalCompatibility": {
+    "baseline": "06cb6b74",
+    "tuneId": "ls-when-the-saints",
+    "key": "F#",
+    "tempo": 140,
+    "bar": 18,
+    "ordinary": {
+      "absBeat": 72,
+      "time": "13832i",
+      "notes": [
+        49,
+        58,
+        63,
+        68
+      ],
+      "duration": 1.542857142857143,
+      "velocity": 44
+    },
+    "source": {
+      "absBeat": 70.5,
+      "time": "13548i",
+      "drum": "snare",
+      "velocity": 0.1325413255020976,
+      "role": "commentary"
+    }
+  }
+}

@@ -10,7 +10,6 @@
       "run": "npm test",
       "role": "gate",
       "timeout": 300,
-      "limit": 3,
       "remote": true
     }
   ],
@@ -19,18 +18,15 @@
     "repo": "mankunku"
   },
   "validation": {
-    "sidecarImage": "d9c39423-a63c-4a3e-9c3f-114a48ab222e"
+    "sidecarImage": "da5307a5-1da3-461a-9c5f-33e11d025241"
   },
+  "orgID": "033101c2-ad4f-4e6f-bc5b-276d1c9b7635",
   "environment": {
     "stack": "javascript",
     "setup": [
       {
         "name": "install",
         "command": "npm install"
-      },
-      {
-        "name": "test",
-        "command": "npm test"
       }
     ],
     "image": "cimg/node",

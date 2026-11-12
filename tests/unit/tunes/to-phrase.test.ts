@@ -45,6 +45,12 @@ describe('tuneToPhrase', () => {
 		expect(phrase.notes).toHaveLength(2);
 		expect(phrase.notes[1].offset).toEqual([2, 1]);
 		expect(phrase.difficulty.lengthBars).toBe(4);
+		expect(phrase.performanceForm?.choruses).toEqual([
+			{ index: 0, role: 'head', startBar: 0, endBarExclusive: 4 }
+		]);
+		expect(phrase.performanceForm?.sections.map((s) => [s.sourceSection, s.occurrenceIndex, s.chorusIndex])).toEqual([
+			[0, 0, 0], [0, 1, 0]
+		]);
 	});
 
 	it('prefers the sheet difficulty when present but keeps the flattened bar count', () => {

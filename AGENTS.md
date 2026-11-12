@@ -193,4 +193,4 @@ A uv-managed Python 3.12 project (own `pyproject.toml`/`uv.lock`/`.venv`) that t
 
 ## Maintenance audit (2026-11-08)
 
-See `docs/maintenance/2026-11-08-audit.md` for skipped coverage, package limitations, branch cleanup and validation evidence. `*.diagnostic.ts` browser recording tools run only with `npm run test:sandbox -- diagnostics <name>`; their outputs are recovered artifacts. They are not test-suite passes. Retain migration/backfill paths needed by returning devices and `static/sw.js`'s unregistering worker.
+See `docs/maintenance/2026-11-08-audit.md` for skipped coverage, package limitations, branch cleanup and validation evidence. `*.diagnostic.ts` browser recording tools run only with `npm run test:sandbox -- diagnostics <name> --project=<engine>` (without `--project` every engine runs); their outputs are recovered artifacts. They are not test-suite passes. Retain migration/backfill paths needed by returning devices and `static/sw.js`'s unregistering worker.

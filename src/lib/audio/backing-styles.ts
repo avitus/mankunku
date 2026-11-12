@@ -1,3 +1,8 @@
+import type { InnerMotion } from './backing-inner-motion';
+import type { PhraseDialogue } from './backing-phrase-dialogue';
+import type { EnsembleColor } from './backing-ensemble-colors';
+import type { TrioConversation } from './backing-trio-conversation';
+import type { PhraseExpression } from './backing-phrase-expression';
 /**
  * Backing track style definitions.
  *
@@ -55,6 +60,10 @@ export type DrumVoice =
  * undefined and patterns fall back to position-free choices.
  */
 export interface GenerationContext {
+	/** Shared role assignment, present only for coordinated 4/4. */
+	ensemble?: import('./ensemble-plan').EnsembleBarPlan;
+	/** Whole coordinated drummer bar, already admitted against roles and kit limbs. */
+	plannedDrums?: import('./backing-drum-phrases').DrumPhraseBarPlan;
 	/** 0-based bar index on the phrase timeline. */
 	barIndex: number;
 	beatsPerBar: number;
@@ -92,7 +101,7 @@ export interface GenerationContext {
 	 * resolved to concrete hits by the planner: the pattern function only
 	 * realizes velocity/articulation.
 	 */
-	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean };
+	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean; articulation?: 'written' };
 	/**
 	 * Which clave side even-indexed bars carry — drawn ONCE per phrase from
 	 * the `clave` stream, constant across bars (a clave that flips
@@ -112,6 +121,13 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+ readonly innerMotion?: InnerMotion;
+ readonly phraseDialogue?: PhraseDialogue;
+ readonly ensembleColor?: EnsembleColor;
+	readonly expression?: PhraseExpression;
+	readonly conversation?: TrioConversation;
+	/** Retained in the event ledger for ensemble metrics and replay evidence. */
+	role?: 'timekeeping' | 'commentary' | 'accent';
 	drum: DrumVoice;
 	/** Offset within the bar in beats; x.5 offsets are eighth off-beats (swung late). */
 	beatOffset: number;
@@ -121,6 +137,8 @@ export interface DrumHitSpec {
 
 export interface StyleDefinition {
 	name: string;
+	/** Opt-in to shared 4/4 coordination with this built-in vocabulary. */
+	coordinatedStyle?: BackingStyle;
 	/**
 	 * The style's own eighth-note ratio. For a 'fixed' style this IS the
 	 * grid — for both the band and the soloist — regardless of the user's
@@ -196,6 +214,7 @@ export interface StyleDefinition {
  * form-marking fills, coupling kicks, or the snare's chatter.
  */
 function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = []): DrumHitSpec[] {
+	if (ctx.ensemble) return coordinatedSwingBar(ctx);
 	const { rng, beatsPerBar } = ctx;
 	const mode = chooseRideMode(rng, ctx.intensity);
 	const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
@@ -219,8 +238,50 @@ function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = 
 	return capAdditionsPerOffset(ostinato, [...fills, ...coupling, ...snare, ...extraColor]);
 }
 
+/**
+ * Realize one drummer's assigned role. Timekeeping has its own protected
+ * layer; complete commentary figures compete for the shared bar allowance.
+ * A fill belongs to an agreed arrival, never to every section automatically.
+ */
+function coordinatedSwingBar(ctx: GenerationContext): DrumHitSpec[] {
+	if (ctx.plannedDrums) return ctx.plannedDrums.hits.map((hit) => ({ ...hit }));
+	const plan = ctx.ensemble!;
+	const { rng, beatsPerBar } = ctx;
+	const mode = chooseRideMode(rng, ctx.intensity);
+	const arrival = plan.coordinatedAccent?.participants.includes('drums');
+	const ostinato: DrumHitSpec[] = [
+		...rideBar(mode, ctx.barIndex, beatsPerBar, rng).filter((hit) => !arrival || hit.beatOffset !== 0),
+		// Swing time is played with the foot while the hands remain available.
+		...hihatBar(beatsPerBar, rng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
+		...featherBar(beatsPerBar, rng, ctx.intensity)
+	].map((hit) => ({ ...hit, role: 'timekeeping' }));
+	const accents: DrumHitSpec[] = arrival
+		? [
+			{ drum: 'crash', beatOffset: 0, velocity: 0.42 + 0.12 * plan.coordinatedAccent!.strength, role: 'accent' },
+			{ drum: 'kick', beatOffset: 0, velocity: 0.32, role: 'accent' }
+		] : [];
+	if (plan.drums.maxCommentaryHits === 0) return [...ostinato, ...accents];
+
+	const fill = plan.drums.allowFill
+		? fillBar({ ...ctx, isSectionFirstBar: false, isSectionFinalBar: true, isChorusFinalBar: false }, ctx.fillRng ?? rng).hits
+		: [];
+	const groups = [fill, snareBar(ctx, rng), couplingBar(ctx, rng)];
+	const commentary: DrumHitSpec[] = [];
+	const occupied = new Set<number>();
+	for (const group of groups) {
+		if (group.length === 0 || group.length + commentary.length > plan.drums.maxCommentaryHits) continue;
+		if (group.some((hit) => occupied.has(hit.beatOffset))) continue;
+		for (const hit of group) {
+			occupied.add(hit.beatOffset);
+			commentary.push({ ...hit, role: 'commentary' });
+		}
+	}
+	return [...ostinato, ...accents, ...commentary];
+}
+
 const swing: StyleDefinition = {
 	name: 'Swing',
+	coordinatedStyle: 'swing',
 	defaultSwing: 0.67,
 	swingModel: 'tempo',
 	timing: SWING_TIMING,
@@ -252,7 +313,7 @@ const swing: StyleDefinition = {
 				// length to audibly tie across the barline, everything else
 				// stabs short.
 				let d = h.d * (0.9 + rng.float() * 0.2);
-				if (!isPad && offBeat && !isPush) d = Math.min(d, 0.7);
+				if (!isPad && offBeat && !isPush && planned.articulation !== 'written') d = Math.min(d, 0.7);
 				if (isPush && h.b >= beatsPerBar - 0.5) d = Math.max(d, 1.1);
 				return {
 					beatOffset: h.b,
@@ -290,6 +351,7 @@ function bossaClaveSide(barIndex: number, phase: '32' | '23'): 'three' | 'two' {
 
 const bossaNova: StyleDefinition = {
 	name: 'Bossa Nova',
+	coordinatedStyle: 'bossa-nova',
 	defaultSwing: 0.5,
 	swingModel: 'fixed',
 	timing: BOSSA_TIMING,
@@ -355,7 +417,7 @@ const bossaNova: StyleDefinition = {
 						{ b: 2.5, d: 1.1 }
 					];
 		const hits: CompHitSpec[] = [];
-		for (const { b, d } of figure) {
+		for (const { b, d } of (ctx.ensemble ? figure.slice(0, ctx.ensemble.piano.maxAttacks) : figure)) {
 			// Breathe: occasionally thin a non-anchor hit.
 			if (b !== figure[0].b && rng.chance(0.12)) continue;
 			hits.push({
@@ -373,6 +435,7 @@ const bossaNova: StyleDefinition = {
 
 const ballad: StyleDefinition = {
 	name: 'Ballad',
+	coordinatedStyle: 'ballad',
 	defaultSwing: 0.53,
 	swingModel: 'fixed',
 	timing: BALLAD_TIMING,
@@ -440,12 +503,13 @@ const ballad: StyleDefinition = {
 		const anchor = ctx.barIndex === 0 || ctx.isSectionFirstBar;
 		const figure = rng.weighted<Figure>([
 			{ value: 'pad-whole', weight: 3 },
-			{ value: 'pads-halves', weight: 2 },
+			{ value: 'pads-halves', weight: ctx.ensemble && ctx.ensemble.piano.maxAttacks < 2 ? 0 : 2 },
 			{ value: 'late-pad', weight: anchor ? 0 : 1 },
-			{ value: 'rest', weight: anchor ? 0 : 1.2 }
+			{ value: 'rest', weight: anchor || ctx.ensemble?.piano.harmonicSupport || ctx.ensemble?.piano.presence === 'reentry' ? 0 : ctx.ensemble?.piano.texture === 'steady' ? .2 : 1.2 }
 		]);
 		const vel = (): number => rng.int(42, 54) + Math.round(lerp(-2, 4, ctx.intensity));
 		const hits: CompHitSpec[] = [];
+		if (ctx.ensemble?.piano.maxAttacks === 0) return [];
 		if (figure === 'pad-whole') {
 			hits.push({ beatOffset: 0, velocity: vel(), durationBeats: 3.6 });
 		} else if (figure === 'pads-halves') {
@@ -459,7 +523,7 @@ const ballad: StyleDefinition = {
 		// anchor pad re-attacks it on the downbeat — so the lean must
 		// release before the barline (a tied push would flam against that
 		// re-attack at ballad tempi).
-		if (ctx.isSectionFinalBar && !ctx.isFinalBar && rng.chance(0.35)) {
+		if (ctx.isSectionFinalBar && !ctx.isFinalBar && (!ctx.ensemble || hits.length < ctx.ensemble.piano.maxAttacks) && rng.chance(0.35)) {
 			hits.push({ beatOffset: 3.5, velocity: vel() - 4, durationBeats: 0.45 });
 		}
 		return hits;
@@ -471,6 +535,7 @@ const ballad: StyleDefinition = {
 
 const straight: StyleDefinition = {
 	name: 'Straight',
+	coordinatedStyle: 'straight',
 	defaultSwing: 0.5,
 	swingModel: 'fixed',
 	timing: STRAIGHT_TIMING,

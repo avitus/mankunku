@@ -1,0 +1,1085 @@
+{
+  "head": "0c4ed4c0",
+  "controls": [
+    {
+      "style": "swing",
+      "mode": "original",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "96f6e5d43f06dcc74d982f09632c09414f00da443f2365b1a508982c0acf2d2d",
+        "compNonPitches": "0df6ee4c9d1986eea5c52c93e80d62d842feed0338a00409043f9f4a3d174ca8",
+        "bassEvents": "ee8e2388aa0ece77e19f785e82e04291d9e30c9bb4da4e8b89c0621c8f0cecf6",
+        "drumEvents": "d2139d8f73e701d3d9c468b40e3852e2b41f3f9c2064b05845bbd8c12b979cc1",
+        "compCount": 89
+      }
+    },
+    {
+      "style": "swing",
+      "mode": "coordinated-implicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "c30b4eb9bc28b9ea13e5bfe18605fc075de2cd5ca3ce85c953396b78e0f895e6",
+        "compNonPitches": "c7d80e96481e1499d1f318d7e826bbc08cc08a8336c95a2de928c9c72eb9c2eb",
+        "bassEvents": "f5a08b2849014baba5139d343aacfb3d2a18741252e467069499723579236ef2",
+        "drumEvents": "a75c00eab439c74bd9f3f8b2332a2166beea3b59d87ed04c263b082c20b424e0",
+        "compCount": 34
+      }
+    },
+    {
+      "style": "swing",
+      "mode": "coordinated-implicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "b4edeb81956c843650b1b114433e3d5a6beac34037b9525e83f4ee4cf2fc918a",
+        "compNonPitches": "86d8128766f1771b9ac3f79cae35006b89ebaf9c7ad9d71249c24f43bb7207c5",
+        "bassEvents": "7ea3761d8587bc11818a0eabcdf023d1ca18f82bac9043e462ba7cc6db2ea921",
+        "drumEvents": "85f07012bd868d1dd54d31f4dab0d3e8cba6f0fcffb00ef8e4b0fd06e525d2e8",
+        "compCount": 37
+      }
+    },
+    {
+      "style": "swing",
+      "mode": "coordinated-explicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "8afe2efc5db84e56fafa33e38a557269d956296d657e68dd2d61ea151768007c",
+        "compNonPitches": "b013bd1c22d5999e3dc6f3532188f6e5bb854b47b1a98581080ea73c8951f6e6",
+        "bassEvents": "49613bdf43510fbd455d35ecf138aa40b480ecb4e40c9d3f0b591ea502469c9c",
+        "drumEvents": "c32d6f9d0b91bf77e076f099498d435d43ae5b2e9efebbb71ab9b6d77a73344e",
+        "compCount": 31
+      }
+    },
+    {
+      "style": "swing",
+      "mode": "coordinated-explicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "9702a13d7382f89ccfb1b92fc96d9a8b62280524b1a31a0ad4c62af04e5b7acf",
+        "compNonPitches": "eb9182ffe387610a21dd5f538d95ae271114a33ef0347111dfbfc4e0cae67aad",
+        "bassEvents": "0fee3cc2a60d79324ea8b64485529e41a35739fd0ccfde96eace29d03dff28d0",
+        "drumEvents": "2be417b3e8f71026b0c49be259b6dbe1d929b240e95886398b9471f8f85cafc3",
+        "compCount": 33
+      }
+    },
+    {
+      "style": "straight",
+      "mode": "original",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "2e39ebbffac21be4ed962f0e9a23357b07c0338d68bd4742f81520f90cd59665",
+        "compNonPitches": "d1a281340ea3e6cd85b183098590e44b78541c8e871489bdc459563ac1b76dd3",
+        "bassEvents": "8833734118f5d0b8dc8a443d37dda524c4f5eff7c2f851796cc0eb37caa5d6f3",
+        "drumEvents": "1585d0b6c5effb7c09c2fb8e776123103ea82a4bbbab0becd9e591b67fcd89ba",
+        "compCount": 85
+      }
+    },
+    {
+      "style": "straight",
+      "mode": "coordinated-implicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "96439e041debaa3bb63061471a38c37b928bb4aa1dab35d2ed58fae359344430",
+        "compNonPitches": "fe181b411369da85c9426338fb9d2c8009f441422c54945322f3f6a52c8c8a9d",
+        "bassEvents": "6a42bf473ef155fc0193550cf7f8cd7e656d0d0f77095f0e1b19ffd74cfbc337",
+        "drumEvents": "b450f79e8b414c3b013853eb364b25e9144b1450f2c917315d8465ead88bd77f",
+        "compCount": 34
+      }
+    },
+    {
+      "style": "straight",
+      "mode": "coordinated-implicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "d968df83923eca093f9e20794d51d4c35ae91ea0b346567a151e78362fa6b319",
+        "compNonPitches": "19eeea2755fb7eff67999a8f24b8489ae7192ed4a40d65f136e54f78913752df",
+        "bassEvents": "25c0e1279b0642fad4063e63a217b62590da303c4bc01ff71dc716c833d6822d",
+        "drumEvents": "63097b4f2abe7436538ccd3d18a3152413a57b409e54d61a3119b916608a1875",
+        "compCount": 35
+      }
+    },
+    {
+      "style": "straight",
+      "mode": "coordinated-explicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "f07b594eff7e21a59678f8687ba83d49ee2fce8ab317950c26bc78b32e34ef05",
+        "compNonPitches": "f0c81744c58951b7ebf5cabe66db6cb2eecedbb91a27108402361ea61d30fe09",
+        "bassEvents": "a68380ef1d90fc7b3938a1c9bc61d141dbe4a06d76cf8bde904d31ad98034f27",
+        "drumEvents": "64cb335808fc44a672376a4a2c6714c66e3549aeb264f0310770727e0b5f6deb",
+        "compCount": 30
+      }
+    },
+    {
+      "style": "straight",
+      "mode": "coordinated-explicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "56090dccda54da625f0d76a39ed4bbb573b399f51b695c34235e38df9a30007a",
+        "compNonPitches": "4494f2039f7dc02fdec9eae3b15decf4e2c502446b0e5b2b353b699af44422a0",
+        "bassEvents": "544f7a0cfb1fb93034f1e667f3710546a9cff38b8722240d48df425b625fba92",
+        "drumEvents": "e2869d170ce56a9d6c019ba4b7a48620c2845d8f9d979e650f3709a6acdf6ce5",
+        "compCount": 32
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "mode": "original",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "b2a9ba34b5a2508529fe8c8003c1b69cb391097a8d76b18c6138cd11be650872",
+        "compNonPitches": "422dbad8bbb23c99b3e0e73521a939442a3a9465d9ec63f3970bed9d6176a793",
+        "bassEvents": "f7648d88326a0aa1a614e4fc952eafe3aff63cf065a60ad3a8c7e88db0a1247c",
+        "drumEvents": "30039ced9b5f7cb946780186760626f9da4ed3a4a050997814c87576b8f74cdb",
+        "compCount": 122
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "mode": "coordinated-implicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "3c69c4d7c06cfe6082dbd28d02687ad795d68dbd1c8b62ea917b82c97a0cfd03",
+        "compNonPitches": "6c85d84c2fda352a3b5d45cbbc71fc2d272a8d647b60ebde4c060a42ce3f585f",
+        "bassEvents": "7a006fa592acf2c5cc2538ab42f7fec8c17fcb14c32304f7c217fd2540c997cf",
+        "drumEvents": "0f3c6770b245b9df9217133222081eb411e243d76b7bda31fb5183c067313a79",
+        "compCount": 49
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "mode": "coordinated-implicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "f44246555ba83600684006fbe7dbbdc0dd6cf48d2d3171ad4035908efa681094",
+        "compNonPitches": "086141fcaf6c2284092e1b402ffac3625a024e824474c58207ff9b0fbb7c7f25",
+        "bassEvents": "d301b2ddfcc0d3c922e1641e58bab8b53fb2978553e1d1c8dac01af8e2c4d036",
+        "drumEvents": "bf7cdccccd6544f376b0ec685df9d36455655553c0f174480fb0c8092658348b",
+        "compCount": 49
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "mode": "coordinated-explicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "07f01bdc0cfd73da67d31c57c996ec818879e4208b7af910a550c66a60d5639a",
+        "compNonPitches": "64bab922d4bc23039fc039f4af47e774a2e95aa27b49e89ae34e20f3c2478cac",
+        "bassEvents": "46782c7b410988911a3b4655c953602b35d1e5e62ccee402a421abdf8dd7fab7",
+        "drumEvents": "1e7edff506584968365bc2c76eb8c9cabb2aff82d9cbd779ce676baa5e64cedf",
+        "compCount": 45
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "mode": "coordinated-explicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "d68b043963d7c0b789e9ad10ee08f53bf0b963d7b5e961d9651d0ae71740c97c",
+        "compNonPitches": "a6731101161ea2a3e642a74adf1137b1dc20ef4f0d434eb91b1dbb41cdc44667",
+        "bassEvents": "4c2bf42c1f801ec338c3af569cab75e8918b8dfef5688ee91b74583e36b773b0",
+        "drumEvents": "0fee21206903272e98513c1b9a930c3b2c8112ee402804e48115e5ab03f23eea",
+        "compCount": 45
+      }
+    },
+    {
+      "style": "ballad",
+      "mode": "original",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "3f3305deb7a926ba4590707c2cd10cf1c631815e7bb9df1532dcd7d30070f2e0",
+        "compNonPitches": "f526e7cda52f8e02e02c11708891d09ea4f33554a8aa7f0ff873c3e4142b4e35",
+        "bassEvents": "09ea4737a05043b9e20096c5378c287cd632ec1a84ba0a1cc3326d72ba883d53",
+        "drumEvents": "4bb310d1a3105899126ea21587ab3add0c9ae1115c42869988d92d89734df4ed",
+        "compCount": 60
+      }
+    },
+    {
+      "style": "ballad",
+      "mode": "coordinated-implicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "5b6e1ed03826836f49fa0fffee276960623d13f488a6e9f449086fd6c5d3a189",
+        "compNonPitches": "f50a9284305ba5b99b702366937754cf5c900c8a74f731b9939fbfc90d1a366e",
+        "bassEvents": "583f9084d8423d7d545fdd2d0ef11ce3201df75490e456cb4384caab4e1cb418",
+        "drumEvents": "e770a8ed6a9d2afd5f7fd1d12cbe326f93354f835437d07043b4680423f4cffd",
+        "compCount": 33
+      }
+    },
+    {
+      "style": "ballad",
+      "mode": "coordinated-implicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "f90aa54d9fb18b2b25ecae06df411cf1c449ccf3ed5500aaa88c9ce5bb55a76d",
+        "compNonPitches": "64f865b41aa0295fc760b1366fcdd0579b2785c9962703e030ef87579bfebced",
+        "bassEvents": "7513e34a839ebbf4dd626de1d982cf171bba89046b45344d5f0eb86198c0a54f",
+        "drumEvents": "6d06a74f3c7b7614e6f2a948cea1fe7d957c617d0b9a655c4e3de6391afc717d",
+        "compCount": 33
+      }
+    },
+    {
+      "style": "ballad",
+      "mode": "coordinated-explicit",
+      "engine": "fixed",
+      "expected": {
+        "compEvents": "a3e47eb61c886461406dd1be5a79a07a6e5ad36c1e27efc1b8ddc6b810534e9f",
+        "compNonPitches": "8e21b8c25d93fbcce18ff24bbd57114cef724aef8afe3ac1cd56ea9c18e28413",
+        "bassEvents": "14241326116ee4f8e0ae8ba972835b4c92f882ab74cde1f260b9123b1ddd375d",
+        "drumEvents": "85bb107bff81a8f32e2429ca75cd56ef741fc5c9f2f9a5cc2fb89882f8e02f06",
+        "compCount": 30
+      }
+    },
+    {
+      "style": "ballad",
+      "mode": "coordinated-explicit",
+      "engine": "rolling",
+      "expected": {
+        "compEvents": "c8ae42b95596651ebf8505799479d52dd54f0bcaa4db4b062a7c0758e74edf80",
+        "compNonPitches": "891001771ca26937ee447f6365dc94ffe335cceb124b22a985a684708bfe3e1d",
+        "bassEvents": "854e000588927cb45e2e59316aab852a924b8f9169c63728a12f58ef0c1984be",
+        "drumEvents": "7bbe6f080b94402ccff9ddc1d2cc1394bc0e5a626239d1bb3d3f02a1438f0df6",
+        "compCount": 30
+      }
+    }
+  ],
+  "finalBars": [
+    {
+      "style": "swing",
+      "fixed": {
+        "bassEvents": [
+          {
+            "time": "39166i",
+            "midi": 36,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 204
+          },
+          {
+            "time": "39550i",
+            "midi": 31,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.36622570497673007,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.4759062209134921,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.36782099721031264,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.47872205796847117,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39297i",
+            "drum": "ride",
+            "velocity": 0.30065458853859456,
+            "absBeat": 204.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39489i",
+            "drum": "ride",
+            "velocity": 0.2635808774227277,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39873i",
+            "drum": "ride",
+            "velocity": 0.3534527962053195,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.4310068742930889,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.5379123292583972,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39170i",
+            "drum": "kick",
+            "velocity": 0.0750120883760974,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39361i",
+            "drum": "kick",
+            "velocity": 0.10594255222938956,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "kick",
+            "velocity": 0.07822404002770782,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39745i",
+            "drum": "kick",
+            "velocity": 0.10827902577351779,
+            "absBeat": 207,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "rolling": {
+        "bassEvents": [
+          {
+            "absBeat": 204,
+            "midi": 36,
+            "velocity": 84,
+            "time": "39168i",
+            "duration": 0.7285714285714285
+          },
+          {
+            "absBeat": 206,
+            "midi": 31,
+            "velocity": 81,
+            "time": "39550i",
+            "duration": 0.7285714285714285
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.36622570497673007,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.4759062209134921,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.36782099721031264,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.47872205796847117,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204.5,
+            "time": "39297i",
+            "drum": "ride",
+            "velocity": 0.30065458853859456,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39489i",
+            "drum": "ride",
+            "velocity": 0.2635808774227277,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39873i",
+            "drum": "ride",
+            "velocity": 0.3534527962053195,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.4310068742930889,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.5379123292583972,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39170i",
+            "drum": "kick",
+            "velocity": 0.0750120883760974,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39361i",
+            "drum": "kick",
+            "velocity": 0.10594255222938956,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "kick",
+            "velocity": 0.07822404002770782,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39745i",
+            "drum": "kick",
+            "velocity": 0.10827902577351779,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "style": "straight",
+      "fixed": {
+        "bassEvents": [
+          {
+            "time": "39167i",
+            "midi": 36,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 204
+          },
+          {
+            "time": "39551i",
+            "midi": 31,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.36622570497673007,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.4759062209134921,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.36782099721031264,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.47872205796847117,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39264i",
+            "drum": "ride",
+            "velocity": 0.30065458853859456,
+            "absBeat": 204.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "ride",
+            "velocity": 0.2635808774227277,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39840i",
+            "drum": "ride",
+            "velocity": 0.3534527962053195,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.4310068742930889,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.5379123292583972,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39169i",
+            "drum": "kick",
+            "velocity": 0.0750120883760974,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "kick",
+            "velocity": 0.10594255222938956,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39552i",
+            "drum": "kick",
+            "velocity": 0.07822404002770782,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "kick",
+            "velocity": 0.10827902577351779,
+            "absBeat": 207,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "rolling": {
+        "bassEvents": [
+          {
+            "absBeat": 204,
+            "midi": 36,
+            "velocity": 84,
+            "time": "39168i",
+            "duration": 0.7285714285714285
+          },
+          {
+            "absBeat": 206,
+            "midi": 31,
+            "velocity": 81,
+            "time": "39551i",
+            "duration": 0.7285714285714285
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.36622570497673007,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.4759062209134921,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.36782099721031264,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.47872205796847117,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204.5,
+            "time": "39264i",
+            "drum": "ride",
+            "velocity": 0.30065458853859456,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "ride",
+            "velocity": 0.2635808774227277,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39840i",
+            "drum": "ride",
+            "velocity": 0.3534527962053195,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.4310068742930889,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.5379123292583972,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "kick",
+            "velocity": 0.0750120883760974,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "kick",
+            "velocity": 0.10594255222938956,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39552i",
+            "drum": "kick",
+            "velocity": 0.07822404002770782,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "kick",
+            "velocity": 0.10827902577351779,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "fixed": {
+        "bassEvents": [
+          {
+            "time": "39168i",
+            "midi": 36,
+            "duration": 0.6,
+            "velocity": 79,
+            "absBeat": 204
+          },
+          {
+            "time": "39552i",
+            "midi": 31,
+            "duration": 0.6857142857142857,
+            "velocity": 64,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "39169i",
+            "drum": "kick",
+            "velocity": 0.31282802997704967,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "kick",
+            "velocity": 0.19469550780227315,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39552i",
+            "drum": "kick",
+            "velocity": 0.28488299300900477,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39840i",
+            "drum": "kick",
+            "velocity": 0.20834546377811491,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39168i",
+            "drum": "hihat",
+            "velocity": 0.25541362886035074,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39264i",
+            "drum": "hihat",
+            "velocity": 0.2050174571581632,
+            "absBeat": 204.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "hihat",
+            "velocity": 0.28980017822822185,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "hihat",
+            "velocity": 0.20389789304146544,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39552i",
+            "drum": "hihat",
+            "velocity": 0.28773655536405746,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39648i",
+            "drum": "hihat",
+            "velocity": 0.20343029033818472,
+            "absBeat": 206.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat",
+            "velocity": 0.2655031946716681,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39840i",
+            "drum": "hihat",
+            "velocity": 0.2044144821854718,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39168i",
+            "drum": "crossstick",
+            "velocity": 0.37124039802877884,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "crossstick",
+            "velocity": 0.4002175236005588,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "crossstick",
+            "velocity": 0.37802493970750556,
+            "absBeat": 207,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "rolling": {
+        "bassEvents": [
+          {
+            "time": "39168i",
+            "midi": 36,
+            "duration": 0.6,
+            "velocity": 79,
+            "absBeat": 204
+          },
+          {
+            "time": "39552i",
+            "midi": 31,
+            "duration": 0.6857142857142857,
+            "velocity": 64,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "kick",
+            "velocity": 0.31282802997704967,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "kick",
+            "velocity": 0.19469550780227315,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39552i",
+            "drum": "kick",
+            "velocity": 0.28488299300900477,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39840i",
+            "drum": "kick",
+            "velocity": 0.20834546377811491,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39168i",
+            "drum": "hihat",
+            "velocity": 0.25541362886035074,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204.5,
+            "time": "39264i",
+            "drum": "hihat",
+            "velocity": 0.2050174571581632,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "hihat",
+            "velocity": 0.28980017822822185,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "hihat",
+            "velocity": 0.20389789304146544,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39552i",
+            "drum": "hihat",
+            "velocity": 0.28773655536405746,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206.5,
+            "time": "39648i",
+            "drum": "hihat",
+            "velocity": 0.20343029033818472,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat",
+            "velocity": 0.2655031946716681,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39840i",
+            "drum": "hihat",
+            "velocity": 0.2044144821854718,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39168i",
+            "drum": "crossstick",
+            "velocity": 0.37124039802877884,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "crossstick",
+            "velocity": 0.4002175236005588,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "crossstick",
+            "velocity": 0.37802493970750556,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "style": "ballad",
+      "fixed": {
+        "bassEvents": [
+          {
+            "time": "39166i",
+            "midi": 36,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 204
+          },
+          {
+            "time": "39550i",
+            "midi": 31,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.21186279507773104,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.22956155743663811,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.21304453309588933,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.2474403799710524,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.23181798193580178,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.24912299752471917,
+            "absBeat": 207,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "rolling": {
+        "bassEvents": [
+          {
+            "absBeat": 204,
+            "midi": 36,
+            "velocity": 84,
+            "time": "39168i",
+            "duration": 0.7285714285714285
+          },
+          {
+            "absBeat": 206,
+            "midi": 31,
+            "velocity": 81,
+            "time": "39550i",
+            "duration": 0.7285714285714285
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.21186279507773104,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.22956155743663811,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.21304453309588933,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.2474403799710524,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.23181798193580178,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.24912299752471917,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    }
+  ]
+}

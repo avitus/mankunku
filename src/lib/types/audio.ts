@@ -41,8 +41,14 @@ export interface PlaybackOptions {
 	backingInstrument?: BackingInstrument;
 	/** Backing track volume (0-1) */
 	backingTrackVolume?: number;
-	/** Post-compressor backing gain; defaults to unity for accompaniment. */
+	/** Post-compressor reference gain; ordinary practice defaults to unity, tunes/lab supply +6 dB. */
 	backingOutputLevel?: number;
 	/** Backing track musical style */
 	backingStyle?: BackingStyle;
+	/** Explicit arrangement override; omitted uses the device preference (Musicality by default). */
+	backingOrchestration?: 'original' | 'coordinated';
+	/** Reproducible variation for this playback session. */
+	backingPerformanceSeed?: number;
+	/** Captured/scripted lab observations for fixed playback; rolling playback owns its live observation windows. */
+	backingSoloFeatures?: readonly import('../audio/ensemble-plan').SoloFeature[];
 }

@@ -13,6 +13,7 @@
  */
 
 import type { Phrase, HarmonicSegment } from '$lib/types/music';
+import { buildPerformanceForm, type PerformanceForm } from './performance-form';
 
 /** Tempi the listening protocol samples: ballad-ish, medium, burner. */
 export const LAB_TEMPO_PRESETS = [90, 160, 240] as const;
@@ -32,7 +33,8 @@ function labPhrase(
 	key: Phrase['key'],
 	bars: number,
 	harmony: HarmonicSegment[],
-	sectionMap?: Phrase['sectionMap']
+	sectionMap?: Phrase['sectionMap'],
+	performanceForm?: PerformanceForm
 ): Phrase {
 	return {
 		id,
@@ -42,6 +44,10 @@ function labPhrase(
 		notes: [],
 		harmony,
 		sectionMap,
+		performanceForm: performanceForm ?? buildPerformanceForm({
+			totalBars: bars, sectionMap: sectionMap ?? [],
+			choruses: [{ role: 'solo', startBar: 0, endBarExclusive: bars }]
+		}),
 		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: bars },
 		category: 'user',
 		tags: [],
@@ -66,7 +72,7 @@ function shiftSegments(segments: HarmonicSegment[], barOffset: number): Harmonic
 export function buildChorusedForm(
 	sections: Array<{ harmony: HarmonicSegment[]; bars: number }>,
 	choruses: number
-): { harmony: HarmonicSegment[]; sectionMap: NonNullable<Phrase['sectionMap']>; bars: number } {
+): { harmony: HarmonicSegment[]; sectionMap: NonNullable<Phrase['sectionMap']>; bars: number; performanceForm: PerformanceForm } {
 	const harmony: HarmonicSegment[] = [];
 	const sectionMap: NonNullable<Phrase['sectionMap']> = [];
 	let barOffset = 0;
@@ -77,7 +83,13 @@ export function buildChorusedForm(
 			barOffset += sections[s].bars;
 		}
 	}
-	return { harmony, sectionMap, bars: barOffset };
+	const barsPerChorus = sections.reduce((sum, section) => sum + section.bars, 0);
+	return { harmony, sectionMap, bars: barOffset, performanceForm: buildPerformanceForm({
+		totalBars: barOffset, sectionMap,
+		choruses: Array.from({ length: choruses }, (_, index) => ({
+			role: 'solo', startBar: index * barsPerChorus, endBarExclusive: (index + 1) * barsPerChorus
+		}))
+	}) };
 }
 
 // ── ii-V-I-VI loop (the original mixer loop) ─────────────────
@@ -194,7 +206,7 @@ export const BACKING_LAB_PRESETS: BackingLabPreset[] = [
 		id: 'lab-aaba-c',
 		label: 'AABA in C — 3 choruses (96 bars)',
 		hint: 'Full form with sectionMap: hears setups, fills and chorus arc',
-		phrase: labPhrase('lab-aaba-c', 'Lab AABA 3 Choruses', 'C', AABA_FORM.bars, AABA_FORM.harmony, AABA_FORM.sectionMap),
+		phrase: labPhrase('lab-aaba-c', 'Lab AABA 3 Choruses', 'C', AABA_FORM.bars, AABA_FORM.harmony, AABA_FORM.sectionMap, AABA_FORM.performanceForm),
 		bars: AABA_FORM.bars
 	}
 ];

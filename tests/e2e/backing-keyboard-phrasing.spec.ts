@@ -1,0 +1,146 @@
+import { buildNativeAabaFixture } from '../fixtures/musicality-native-aaba';
+import { test, expect } from './fixtures/test';
+import { readFile } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import ts from 'typescript';
+import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '../../src/lib/audio/backing-rolling';
+import { BACKING_STYLES } from '../../src/lib/audio/backing-styles';
+import { resolveBackingSwing } from '../../src/lib/audio/backing-generation';
+import { buildNativeBluesFixture } from '../fixtures/musicality-native-blues';
+
+// Keep the real sample-loader and trim implementation in the browser. The pure
+// arrangement is generated in Node; no Web Audio mocks or synthetic oscillators.
+async function browserModule(path: string): Promise<string> {
+	let source = ts.transpileModule(await readFile(path, 'utf8'), {
+		compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
+	}).outputText;
+	for (const match of [...source.matchAll(/from ['"](\.\/[^'"]+)['"]/g)]) {
+		const dependency = await browserModule(resolve(dirname(path), `${match[1]}.ts`));
+		source = source.replace(match[0], `from 'data:text/javascript;base64,${Buffer.from(dependency).toString('base64')}'`);
+	}
+	return source;
+}
+
+for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14', '0.15', '0.16'] as const) for (const seed of release === '0.16' ? [42,7,19,256,1,2] : release === '0.15' ? [42,7,19,147,243] : release === '0.7' ? [42] : ['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? [42,7,19] : [42, 19]) for (const style of ((release==='0.15'&&seed===243||release==='0.16'&&seed===256)?['swing'] as const:release==='0.16'&&seed===1?['ballad'] as const:release==='0.16'&&seed===2?['bossa-nova'] as const:['swing', 'straight', 'bossa-nova', 'ballad'] as const)) for(const tune of release==='0.15'&&style==='ballad'&&seed===7?['blues','aaba']:['blues']) {
+	const releaseEight = release !== '0.7';
+	test(`${release} seed ${seed} ${style}${tune==='aaba'?' AABA':''}: full tune keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
+		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
+		test.setTimeout(240_000);
+		// Keep native network/load/render stalls distinguishable from a musical
+		// assertion failure. These diagnostics do not alter clocks or deadlines.
+		page.on('console', message => {
+			if (message.text().startsWith('native-keyboard-stage ')) console.log(message.text());
+		});
+		const phrase = tune==='aaba'?buildNativeAabaFixture():buildNativeBluesFixture();
+		const tempo = style === 'ballad' ? 80 : 140;
+		const ppq = 192;
+		const performances = (['piano', 'organ'] as const).map(instrument => {
+			const score = createRollingBacking(phrase.harmony!, BACKING_STYLES[style], {
+				phraseId: phrase.id, tempo, ppq, beatsPerBar: 4,
+				swing: resolveBackingSwing(seed===243||release==='0.16'?.62:.67, BACKING_STYLES[style], tempo),
+				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
+			}, {
+				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
+				keyboardVariety: 'developed', chorusBoundaryPriority: true,
+				keyboardTexture: true, keyboardPhrasing: instrument,
+                ...(['0.11','0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? { phraseExpression: true } as const : {}),
+                ...(['0.14','0.15','0.16'].includes(release) ? { ensembleColors: true } as const : {}),
+                ...(['0.13','0.14', '0.15', '0.16'].includes(release) ? { phraseColors: true } as const : {}),
+                ...(['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? { trioConversation: true } as const : {}),
+				...(release === '0.16' ? { innerMotion:true } as const : {}),
+                ...(['0.15','0.16'].includes(release) ? { phraseDialogue: true } as const : {}),
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13' || release === '0.14' || release === '0.15' || release === '0.16') ? { keyboardSuspensions: 'developed' } as const : {}),
+				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
+			});
+			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
+			let checkpoint: RollingBackingCheckpoint | undefined;
+			const bars = Array.from({ length: score.totalBars }, () => {
+				const bar = advanceRollingBacking(score, checkpoint);
+				checkpoint = bar.checkpoint;
+				return bar;
+			});
+			if(tune==='aaba')expect(bars.some(b=>b.compEvents.some(e=>e.phraseDialogue?.kind==='fourth-stack'))).toBe(true);
+			if (release === '0.13' && (style==='bossa-nova'?seed!==42:style==='ballad'?seed!==7:seed!==7)) expect(bars.some(b=>b.compEvents.some(e=>e.phraseColor?.kind==='upper-structure'))).toBe(true);
+			if (release === '0.12' && (style==='ballad'?seed!==42:style==='bossa-nova'?seed!==19:true)) expect(bars.some(b=>b.compEvents.some(e=>e.conversation?.kind==='dominant-b9'))).toBe(true);
+            if (release === '0.11' && seed === 42 && ['swing','straight'].includes(style)) {
+                for (const field of ['bassEvents','compEvents','drumEvents'] as const) expect(bars.some(b => b[field].some(e => e.expression))).toBe(true);
+            }
+			if (release === '0.10' && seed === 42) expect(bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []).some(v => v.decision.keyboardSuspension?.kind)).toBe(true);
+			if (release === '0.9' && seed === 42) expect(bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []).some(v => v.decision.keyboardSuspension)).toBe(true);
+			const events = bars.flatMap(bar => bar.compEvents).map(event => ({
+				// Actual swung and humanized event ticks, rather than the nominal beat.
+				time: .25 + parseInt(event.time, 10) / ppq * 60 / tempo,
+				duration: event.duration, velocity: event.velocity, notes: [...event.notes]
+			}));
+			expect(score.totalBars).toBeGreaterThanOrEqual(48);
+			expect(events.length).toBeGreaterThan(score.totalBars);
+			return { instrument, totalBars: score.totalBars, events, formSeconds: score.totalBars * 4 * 60 / tempo + .25 };
+		});
+		// Instrument choice changes the release envelope, not the underlying rhythm.
+		expect(performances[1].events.map(({ time }) => time)).toEqual(performances[0].events.map(({ time }) => time));
+		const durationSeconds = Math.max(...performances.map(p => Math.max(p.formSeconds, ...p.events.map(e => e.time + e.duration)))) + 5;
+		const [smplr, loader, levels] = await Promise.all([
+			readFile(resolve('node_modules/smplr/dist/index.mjs'), 'utf8'),
+			browserModule(resolve('src/lib/audio/backing-sample-loader.ts')),
+			browserModule(resolve('src/lib/audio/backing-keyboard-level.ts'))
+		]);
+		const measurements = await page.evaluate(async ({ smplr, loader, levels, performances, durationSeconds, calibrationStyle }) => {
+			const load = async (source: string) => {
+				const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+				try { return await import(url); } finally { URL.revokeObjectURL(url); }
+			};
+			const [library, { createBackingSampleLoader }, { backingKeyboardTrim }] = await Promise.all([load(smplr), load(loader), load(levels)]);
+			const sampleRate = 48000;
+			const output = [];
+			for (const performance of performances) {
+				const stage = (name: string) => console.info(`native-keyboard-stage ${performance.instrument} ${name} ${Math.round(globalThis.performance.now())}ms`);
+				stage('create-context');
+				const context = new OfflineAudioContext(2, Math.ceil(durationSeconds * sampleRate), sampleRate);
+				const gain = context.createGain();
+				gain.gain.value = backingKeyboardTrim(performance.instrument, calibrationStyle);
+				gain.connect(context.destination);
+				const scheduler = new library.Scheduler(context, { lookaheadMs: Math.ceil((durationSeconds + 1) * 1000) });
+				const player = performance.instrument === 'piano'
+					? new library.SplendidGrandPiano(context, { destination: gain, scheduler, loader: createBackingSampleLoader(context) })
+					: new library.Soundfont(context, { instrument: 'drawbar_organ', kit: 'MusyngKite', destination: gain, scheduler });
+				stage('loading-samples');
+				await player.load;
+				stage('samples-ready');
+				for (const event of performance.events) for (const note of event.notes) {
+					player.start({ note, velocity: event.velocity, duration: event.duration, time: event.time });
+				}
+				stage('render-start');
+				const rendered = await context.startRendering();
+				stage('render-complete');
+				let sum = 0, peak = 0, tailSum = 0, tailPeak = 0, count = 0, tailCount = 0, nonfinite = 0;
+				const tailStart = rendered.length - sampleRate;
+				for (let c = 0; c < rendered.numberOfChannels; c++) {
+					const samples = rendered.getChannelData(c);
+					for (let i = 0; i < samples.length; i++) {
+						const value = samples[i];
+						if (!Number.isFinite(value)) nonfinite++;
+						sum += value * value; peak = Math.max(peak, Math.abs(value)); count++;
+						if (i >= tailStart) { tailSum += value * value; tailPeak = Math.max(tailPeak, Math.abs(value)); tailCount++; }
+					}
+				}
+				output.push({ instrument: performance.instrument, totalBars: performance.totalBars, attacks: performance.events.length,
+					rms: Math.sqrt(sum / count), peak, tailRms: Math.sqrt(tailSum / tailCount), tailPeak, nonfinite });
+				player.disconnect(); gain.disconnect();
+			}
+			return output;
+		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? style : undefined });
+		const differenceDb = 20 * Math.log10(measurements[1].rms / measurements[0].rms);
+		const report = { browserName, style, seed, tune, tempo, durationSeconds, differenceDb, measurements };
+		console.log('Full Blues keyboard phrasing levels', JSON.stringify(report));
+		await test.info().attach(`keyboard-phrasing-${style}`, { body: JSON.stringify(report, null, 2), contentType: 'application/json' });
+		for (const measurement of measurements) {
+			expect(measurement.nonfinite, `${measurement.instrument}: every rendered sample is finite`).toBe(0);
+			expect(measurement.rms, `${measurement.instrument}: sustained audible output`).toBeGreaterThan(.0001);
+			expect(measurement.peak).toBeLessThan(.9);
+			// A full second at the end, after at least four seconds of release room.
+			expect(measurement.tailRms, `${measurement.instrument}: released tail RMS`).toBeLessThan(.00001);
+			expect(measurement.tailPeak, `${measurement.instrument}: no stuck terminal voice`).toBeLessThan(.0001);
+		}
+		expect(Math.abs(differenceDb), `${style}: organ minus piano ${differenceDb.toFixed(2)} dB`).toBeLessThan(2);
+	});
+}

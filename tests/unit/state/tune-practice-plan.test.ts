@@ -23,6 +23,8 @@ import {
 } from '$lib/state/tune-practice-plan';
 import { flattenTune } from '$lib/tunes/flatten';
 import { buildBarInfos } from '$lib/audio/backing-generation';
+import { performanceBarContext } from '$lib/audio/performance-form';
+import { fractionToFloat } from '$lib/music/intervals';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -867,6 +869,46 @@ describe('practice choruses skip a pickup bar', () => {
 });
 
 describe('multiple practice choruses', () => {
+	it('copies every section occurrence into each actual practice chorus', () => {
+		const flat = mkFlat({ totalBars: 16, sectionMap: [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 0, barOffset: 4 },
+			{ sourceSection: 1, barOffset: 8 }, { sourceSection: 0, barOffset: 12 }
+		], harmony: [seg('C', 'maj7', [0, 1], [16, 1])] });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true, choruses: 2 });
+		expect(built.sectionMap.map((s) => s.barOffset)).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44]);
+		expect(built.performanceForm.choruses.map((c) => [c.role, c.startBar, c.endBarExclusive])).toEqual([
+			['head', 0, 16], ['solo', 16, 32], ['solo', 32, 48]
+		]);
+		expect(built.performanceForm.sections.map((s) => s.chorusIndex)).toEqual([0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]);
+		expect(flat.sectionMap.map((s) => s.barOffset)).toEqual([0, 4, 8, 12]);
+	});
+
+	it.each([false, true])('preserves alternate endings and rebases head removal (head=%s)', (playHead) => {
+		const flat = mkFlat({ totalBars: 8, sectionMap: [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 3 },
+			{ sourceSection: 0, barOffset: 4 }, { sourceSection: 2, barOffset: 7 }
+		], harmony: [seg('C', 'maj7', [0, 1], [8, 1])] });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, choruses: 2 });
+		expect(built.sectionMap).toEqual(playHead ? [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 3 },
+			{ sourceSection: 0, barOffset: 4 }, { sourceSection: 2, barOffset: 7 },
+			{ sourceSection: 0, barOffset: 8 }, { sourceSection: 2, barOffset: 11 }
+		] : [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 2, barOffset: 3 },
+			{ sourceSection: 0, barOffset: 4 }, { sourceSection: 2, barOffset: 7 }
+		]);
+		expect(built.performanceForm.choruses.map((c) => c.role)).toEqual(playHead ? ['head', 'solo', 'solo'] : ['solo', 'solo']);
+	});
+
+	it.each([[3, 4], [6, 8]] as [number, number][])('keeps form bars aligned with harmony in %s/%s', (n, d) => {
+		const flat = mkFlat({ totalBars: 2, harmony: [seg('C', 'maj7', [0, 1], [n * 2, d])],
+			sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 1 }] });
+		const built = buildSessionPhrase({ flat, timeSignature: [n, d], playHead: true, choruses: 2 });
+		expect(built.sectionMap.map((s) => s.barOffset)).toEqual([0, 1, 2, 3, 4, 5]);
+		expect(built.performanceForm.choruses.map((c) => c.startBar)).toEqual([0, 2, 4]);
+		expect(built.harmony.map((h) => h.startOffset[0] / h.startOffset[1])).toEqual([0, 2 * n / d, 4 * n / d]);
+	});
+
 	it.each([1, 2, 12])('plays the head once and %i practice choruses', (choruses) => {
 		const flat = mkFlat({ totalBars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 4] }],
 			harmony: [seg('C', 'maj7', [0, 1], [2, 1])] });
@@ -936,5 +978,97 @@ describe('multiple practice choruses', () => {
 
 	it('bounds chorus counts to whole numbers from 1 to 12', () => {
 		expect([undefined, NaN, Infinity, 0, 2.6, 20].map(normalizeChoruses)).toEqual([1, 1, 1, 1, 3, 12]);
+	});
+});
+
+
+describe('merged session form follows pickup trimming and resolved closing passes', () => {
+	const returning = mkFlat({
+		totalBars: 5,
+		notes: [{ pitch: 60, offset: [3, 4], duration: [1, 4] }, { pitch: 62, offset: [1, 1], duration: [1, 4] }],
+		noteSourceIndices: [0, 1],
+		harmony: [seg('C', '7', [0, 1], [1, 1]), seg('D', 'min7', [1, 1], [2, 1]), seg('G', '7', [3, 1], [2, 1])],
+		sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 1 }]
+	});
+	function closing(contentBars: number): FlattenedTune {
+		return mkFlat({ totalBars: contentBars + 1,
+			notes: [{ pitch: 65, offset: [1, 1], duration: [1, 1] }], noteSourceIndices: [4],
+			harmony: [seg('C', '7', [0, 1], [1, 1]), seg('F', 'maj7', [1, 1], [contentBars, 1])],
+			sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 2, barOffset: 1 }]
+		});
+	}
+	function actualBars(built: ReturnType<typeof buildSessionPhrase>) {
+		return Array.from({ length: built.phraseBars }, (_, barIndex) => {
+			const sounding = built.harmony.filter(h => fractionToFloat(h.startOffset) <= barIndex &&
+				fractionToFloat(h.startOffset) + fractionToFloat(h.duration) > barIndex);
+			expect(sounding).toHaveLength(1);
+			const context = performanceBarContext(built.performanceForm, barIndex);
+			expect(context).not.toBeNull();
+			return [context!.role, context!.sourceSection, sounding[0].chord.root];
+		});
+	}
+
+	it('labels the actual closing melody as a head after pickup-free solos, without an extra pickup', () => {
+		const built = buildSessionPhrase({ flat: returning, timeSignature: [4, 4], playHead: true,
+			playOutro: true, choruses: 2, pickupBars: 1, closingFlat: closing(2), closingPickupBars: 1 });
+		expect(built.phraseBars).toBe(15);
+		expect(built.performanceForm.totalBars).toBe(15);
+		expect(built.outroStartBar).toBe(13);
+		expect(actualBars(built)).toEqual([
+			['head', 0, 'C'], ['head', 1, 'D'], ['head', 1, 'D'], ['head', 1, 'G'], ['head', 1, 'G'],
+			['solo', 1, 'D'], ['solo', 1, 'D'], ['solo', 1, 'G'], ['solo', 1, 'G'],
+			['solo', 1, 'D'], ['solo', 1, 'D'], ['solo', 1, 'G'], ['solo', 1, 'G'],
+			['head', 2, 'F'], ['head', 2, 'F']
+		]);
+		expect(built.notes.map(note => [note.pitch, fractionToFloat(note.offset)])).toEqual([[60, .75], [62, 1], [65, 13]]);
+		expect(built.noteSourceIndices).toEqual([0, 1, 4]);
+		expect(performanceBarContext(built.performanceForm, 14)?.isFinalBar).toBe(true);
+	});
+
+	it.each([2, 6])('keeps a resolved %i-bar final solo a solo and covers its actual changed length', (closingBars) => {
+		const built = buildSessionPhrase({ flat: returning, timeSignature: [4, 4], playHead: false,
+			playOutro: true, choruses: 2, pickupBars: 1, closingFlat: closing(closingBars), closingPickupBars: 1 });
+		expect(built.outroStartBar).toBeNull();
+		expect(built.notes).toEqual([]);
+		expect(built.phraseBars).toBe(4 + closingBars);
+		expect(built.performanceForm.totalBars).toBe(4 + closingBars);
+		expect(actualBars(built)).toEqual([
+			['solo', 1, 'D'], ['solo', 1, 'D'], ['solo', 1, 'G'], ['solo', 1, 'G'],
+			...Array.from({ length: closingBars }, () => ['solo', 2, 'F'])
+		]);
+		expect(performanceBarContext(built.performanceForm, 4)).toMatchObject({ isChorusFirstBar: true, barsInChorus: closingBars });
+		expect(performanceBarContext(built.performanceForm, built.phraseBars - 1)).toMatchObject({ isFinalBar: true, isChorusFinalBar: true });
+		expect(performanceBarContext(built.performanceForm, built.phraseBars)).toBeNull();
+	});
+});
+
+
+describe('omitted solo sections retain the actual performed form', () => {
+	const flat = mkFlat({ totalBars: 6, omittedSoloSections: [1],
+		harmony: [seg('C', 'maj7', [0, 1], [2, 1]), seg('D', 'min7', [2, 1], [2, 1]), seg('G', '7', [4, 1], [2, 1])],
+		sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 2 }, { sourceSection: 2, barOffset: 4 }]
+	});
+	it.each([true, false])('keeps noncontiguous A+C solos aligned with harmony and chart provenance (head=%s)', playHead => {
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
+		const head = [['head', 0, 'C'], ['head', 0, 'C'], ['head', 1, 'D'], ['head', 1, 'D'], ['head', 2, 'G'], ['head', 2, 'G']];
+		const solo = [['solo', 0, 'C'], ['solo', 0, 'C'], ['solo', 2, 'G'], ['solo', 2, 'G']];
+		const actual = Array.from({ length: built.phraseBars }, (_, bar) => {
+			const context = performanceBarContext(built.performanceForm, bar)!;
+			const sounding = built.harmony.filter(h => fractionToFloat(h.startOffset) <= bar && fractionToFloat(h.startOffset) + fractionToFloat(h.duration) > bar);
+			expect(sounding).toHaveLength(1);
+			return [context.role, context.sourceSection, sounding[0].chord.root];
+		});
+		expect(actual).toEqual(playHead ? [...head, ...solo, ...solo, ...head] : [...solo, ...solo]);
+		expect(built.performanceForm.choruses.map(c => [c.role, c.startBar, c.endBarExclusive])).toEqual(playHead
+			? [['head', 0, 6], ['solo', 6, 10], ['solo', 10, 14], ['head', 14, 20]]
+			: [['solo', 0, 4], ['solo', 4, 8]]);
+		expect(built.sessionBarMap?.slice(built.headBars, built.headBars + 8)).toEqual([0, 1, 4, 5, 0, 1, 4, 5]);
+		expect(performanceBarContext(built.performanceForm, built.phraseBars - 1)?.isFinalBar).toBe(true);
+	});
+	it.each([true, false])('creates no phantom solo when all sections are omitted (head=%s)', playHead => {
+		const built = buildSessionPhrase({ flat: { ...flat, omittedSoloSections: [0, 1, 2] }, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
+		expect(built.performanceForm.totalBars).toBe(playHead ? 6 : 0);
+		expect(built.performanceForm.choruses.map(c => c.role)).toEqual(playHead ? ['head'] : []);
+		expect(built.performanceForm.totalBars).toBe(built.phraseBars);
 	});
 });

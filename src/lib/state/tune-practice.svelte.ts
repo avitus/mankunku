@@ -459,8 +459,9 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		...phrase,
 		notes: built.notes,
 		harmony: built.harmony,
-		// The flatten's map is one pass of the chart; the band needs the session's.
+		// The band reads the complete emitted session, including its resolved ending.
 		sectionMap: built.sectionMap,
+		performanceForm: built.performanceForm,
 		difficulty: { ...phrase.difficulty, lengthBars: built.phraseBars }
 	};
 	const changesSheet = changesSheetFor(transposed);

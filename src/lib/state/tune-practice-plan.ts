@@ -21,6 +21,7 @@ import { keyLabel } from '$lib/music/notation';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 import { isInPickupLeadIn } from '$lib/music/pickup';
+import { buildPerformanceForm, type PerformanceForm, type PerformanceChorus } from '$lib/audio/performance-form';
 
 /**
  * Pure planning + accumulation logic for the tune-practice session
@@ -833,8 +834,31 @@ export function buildSessionPhrase(args: {
 	/** The resolved way-out form. Without a head, the last solo takes this ending. */
 	closingFlat?: FlattenedTune;
 	closingPickupBars?: number;
-}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[]; closingStartBar: number | null; sessionBarMap?: number[]; soloBars?: number } {
-	if (args.flat.omittedSoloSections?.length) return sessionWithSoloOmissions({ ...args, choruses: normalizeChoruses(args.choruses) });
+}): ReturnType<typeof buildSingleChorusPhrase> & {
+	outroStartBar: number | null;
+	outroSourceStartBar: number;
+	noteSourceIndices: number[];
+	closingStartBar: number | null;
+	performanceForm: PerformanceForm;
+	sessionBarMap?: number[];
+	soloBars?: number;
+} {
+	if (args.flat.omittedSoloSections?.length) {
+		const count = normalizeChoruses(args.choruses);
+		const built = sessionWithSoloOmissions({ ...args, choruses: count });
+		// The solo can select disjoint authored sections. Its emitted length and
+		// section map describe the performance; source-bar modulo does not.
+		const choruses: Omit<PerformanceChorus, 'index'>[] = [];
+		if (built.headBars > 0) choruses.push({ role: 'head', startBar: 0, endBarExclusive: built.headBars });
+		for (let chorus = 0; chorus < count && built.soloBars > 0; chorus++) {
+			const startBar = built.headBars + chorus * built.soloBars;
+			choruses.push({ role: 'solo', startBar, endBarExclusive: startBar + built.soloBars });
+		}
+		if (built.outroStartBar !== null && built.phraseBars > built.outroStartBar) {
+			choruses.push({ role: 'head', startBar: built.outroStartBar, endBarExclusive: built.phraseBars });
+		}
+		return { ...built, performanceForm: buildPerformanceForm({ totalBars: built.phraseBars, sectionMap: built.sectionMap, choruses }) };
+	}
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
 	const count = normalizeChoruses(args.choruses);
@@ -889,8 +913,23 @@ export function buildSessionPhrase(args: {
 		built.harmony.push(...harmonyFrom(closingFlat.harmony, from, to));
 		sectionMap.push(...sectionMapFrom(closingFlat.sectionMap, outroSourceStartBar, closingStartBar));
 	}
-	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar, closingStartBar,
-		phraseBars: closingStartBar === null ? soloEnd : closingStartBar + closingFlat.totalBars - outroSourceStartBar };
+	const phraseBars = closingStartBar === null ? soloEnd : closingStartBar + closingFlat.totalBars - outroSourceStartBar;
+	// Describe the timeline after pickup trimming and final-pass resolution.
+	// A closing solo remains a solo even when its resolved ending changes length;
+	// only an explicitly appended melody pass becomes a closing head.
+	const choruses: Omit<PerformanceChorus, 'index'>[] = [];
+	if (built.headBars > 0) choruses.push({ role: 'head', startBar: 0, endBarExclusive: built.headBars });
+	for (let chorus = 0; chorus < count && chorusBars > 0; chorus++) {
+		const startBar = built.headBars + chorus * chorusBars;
+		const endBarExclusive = chorus === count - 1 && outroStartBar === null && closingStartBar !== null
+			? phraseBars : startBar + chorusBars;
+		if (endBarExclusive > startBar) choruses.push({ role: 'solo', startBar, endBarExclusive });
+	}
+	if (outroStartBar !== null && phraseBars > outroStartBar) {
+		choruses.push({ role: 'head', startBar: outroStartBar, endBarExclusive: phraseBars });
+	}
+	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar, closingStartBar, phraseBars,
+		performanceForm: buildPerformanceForm({ totalBars: phraseBars, sectionMap, choruses }) };
 }
 
 /**

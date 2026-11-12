@@ -1,0 +1,392 @@
+import { ninthPulse } from './backing-inner-motion';
+import { recallBassOpening, type BassOpening } from './backing-phrase-dialogue';
+import { arpeggiateWalk } from './backing-ensemble-colors';
+import { rootSeventhPulse } from './backing-phrase-colors';
+import { allowsTrioConversation, repeatBassPulse } from './backing-trio-conversation';
+import { selectsPhraseExpression, shapeBassPulse } from './backing-phrase-expression';
+/** Current-bar walking decisions with retained pitch history and committed launches. */
+import { allowsBassScalarContinuation, selectBassScalarContinuation, bassScalarTrace, type BassScalarContinuation, type BassScalarHistory } from './backing-bass-continuation';
+import type { RollingBackingDefinition } from './backing-rolling';
+import type { BarInfo, BassEvent } from './backing-generation';
+import type { EnsembleTiming } from './ensemble-timing';
+import { generateBossaBass, chordToneIntervalsForBass, planBassRegisterArc, bassApproachPitches, type BassApproachDevice } from './backing-bass';
+import { planBassTurnaround, skippedBassTurnaround, type BassTurnaroundTrace } from './backing-bass-turnaround';
+import { createRng, seedFrom } from './generation-rng';
+import { pitchClassToNumber } from './voicings';
+import { fractionToFloat } from '$lib/music/intervals';
+import { getScale } from '$lib/music/scales';
+import { realizeScale } from '$lib/music/keys';
+import { planStructuralBassFeel, type StructuralBassFeel } from './backing-bass-feel';
+import { filterBassHandoffOptions } from './backing-bass-handoff';
+import { planBassDelayedRoot, bassDelayedRootTrace, type BassDelayedRootPlan, type BassDelayedRootTrace } from './backing-bass-delayed-root';
+
+export interface RollingBassMemory {
+	readonly previousMidi: number | null;
+	readonly previousPreviousMidi: number | null;
+	readonly direction: number;
+	readonly segmentIndex: number | null;
+	readonly segmentAnchor: number | null;
+	readonly nextTarget: number | null;
+	readonly approach: BassApproachDevice;
+	readonly feel: 'two' | 'four';
+	readonly pendingLaunch: BassTurnaroundTrace | null;
+	readonly openingMotif?: BassOpening | null;
+	readonly scalarHistory?: BassScalarHistory;
+}
+const pc = (midi: number) => (midi % 12 + 12) % 12;
+function nearest(pcValue: number, center: number): number {
+	const candidates = Array.from({ length: 28 }, (_, i) => i + 28).filter((midi) => pc(midi) === pcValue);
+	return candidates.reduce((best, midi) => Math.abs(midi - center) < Math.abs(best - center) ? midi : best);
+}
+
+interface RollingBassResult {
+	events: BassEvent[];
+	memory: RollingBassMemory;
+	trace: BassTurnaroundTrace[];
+	feelTrace?: StructuralBassFeel;
+	continuationTrace?: readonly BassScalarContinuation[];
+	delayedRootTrace?: BassDelayedRootTrace;
+}
+
+/** Static chart descriptors only; no performed note choices or mutable history. */
+export interface PreparedRollingBass {
+	readonly centers: readonly number[];
+	readonly segments: readonly {
+		readonly start: number; readonly length: number; readonly root: number;
+		readonly chordPcs: readonly number[]; readonly scalePcs: readonly number[];
+	}[];
+	readonly structuralFeels: readonly StructuralBassFeel[] | undefined;
+}
+
+/** The definition factory may retain this immutable data for its own immutable score. */
+export function prepareRollingBass(score: RollingBackingDefinition): PreparedRollingBass | undefined {
+	if (score.style === 'bossa-nova') return undefined;
+	const centers = Object.freeze(planBassRegisterArc(score.totalBars, [...score.bars], score.phraseId, score.tempo));
+	const segments = Object.freeze(score.harmony.map((segment) => {
+		const root = pitchClassToNumber(segment.chord.root);
+		const tones = chordToneIntervalsForBass(segment.chord.quality);
+		const scale = getScale(segment.scaleId);
+		const fallback = segment.chord.quality === 'min7b5' ? [1, 2, 2, 1, 2, 2, 2]
+			: segment.chord.quality.startsWith('min') ? [2, 1, 2, 2, 2, 1, 2]
+				: segment.chord.quality.startsWith('maj') ? [2, 2, 1, 2, 2, 2, 1] : [2, 2, 1, 2, 2, 1, 2];
+		return Object.freeze({ start: fractionToFloat(segment.startOffset) * 4, length: fractionToFloat(segment.duration) * 4, root,
+			chordPcs: Object.freeze([0, tones.third, tones.fifth, ...(tones.seventh === null ? [] : [tones.seventh])].map((interval) => pc(root + interval))),
+			scalePcs: Object.freeze(realizeScale(segment.chord.root, scale?.intervals ?? fallback)) });
+	}));
+	const structuralFeels = score.style === 'ballad' ? undefined
+		: planStructuralBassFeel(score.performanceForm, score.bars.map((entry) => entry.performanceEnergy), score.phraseId, score.tempo);
+	return Object.freeze({ centers, segments, structuralFeels });
+}
+
+export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
+ let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+ if(score.trioConversationVersion && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch &&
+  !result.continuationTrace?.length && info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const start=bar*4;
+  const segments=score.harmony.filter(s=>fractionToFloat(s.startOffset)*4<start+4 && (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4>start);
+  const selected=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,info.ensemble.phraseStartBar,'bass-repeat'));
+  const offset=selected.pick([1,2]);
+  if(bar-info.ensemble.phraseStartBar===offset && selected.chance(.8) && segments.length===1 &&
+   result.events[0]?.midi%12===pitchClassToNumber(segments[0].chord.root)) {
+   result={...result,events:repeatBassPulse(result.events,bar,score.style??'swing')};
+  }
+ }
+ if(score.phraseColorsVersion && ['swing','straight'].includes(score.style??'swing') && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+  info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const start=bar*4,segments=score.harmony.filter(s=>fractionToFloat(s.startOffset)*4<start+4 && (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4>start);
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,info.ensemble.phraseStartBar,'bass-seventh'));
+  const offset=rng.pick([1,2]);
+  if(bar-info.ensemble.phraseStartBar===offset && rng.chance(.75) && segments.length===1 && ['7','min7','maj7'].includes(segments[0].chord.quality)) {
+   result={...result,events:rootSeventhPulse(result.events,bar,pitchClassToNumber(segments[0].chord.root),segments[0].chord.quality==='maj7'?11:10)};
+  }
+ }
+ if(score.ensembleColorsVersion && ['swing','straight'].includes(score.style??'swing') && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+  info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const start=bar*4,segments=score.harmony.filter(s=>fractionToFloat(s.startOffset)*4<start+4 && (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4>start);
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'bass-arpeggio'));
+  if(rng.chance(.65) && segments.length===1 && ['7','min7','maj7'].includes(segments[0].chord.quality) &&
+   (!['enclosure','double-chromatic'].includes(result.memory.approach) ||
+    (fractionToFloat(segments[0].startOffset)+fractionToFloat(segments[0].duration))*4>start+4)) {
+   const events=arpeggiateWalk(result.events,bar,pitchClassToNumber(segments[0].chord.root),segments[0].chord.quality==='min7'?3:4);
+   if(events.some(e=>e.ensembleColor?.kind==='arpeggio'))result={...result,events,memory:{...result.memory,
+    previousPreviousMidi:events[2].midi,direction:Math.sign(events[3].midi-events[2].midi)}};
+  }
+ }
+ if (score.phraseExpressionVersion && selectsPhraseExpression(info, score.phraseId, 'bass') &&
+  result.memory.feel === 'four' && !result.memory.pendingLaunch && !previous?.pendingLaunch &&
+  info.ensemble?.bass.role === 'time' && info.ensemble.bass.keepPulse) result={...result,events:shapeBassPulse(result.events,bar,score.style??'swing')};
+ if(score.phraseDialogueVersion && ['swing','straight'].includes(score.style??'swing')) {
+  let openingMotif:BassOpening|null=null;
+  if(allowsTrioConversation(info) && !info.isChorusFirstBar && result.memory.feel==='four' &&
+   !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+   info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+   const segments=(prepared??prepareRollingBass(score))!.segments.filter(s=>s.start<bar*4+4&&s.start+s.length>bar*4);
+   if(segments.length===1) {
+    const segment=segments[0];
+    if(createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'bass-opening')).chance(.8))
+     result={...result,events:recallBassOpening(result.events,bar,segment.root,segment.scalePcs,previous?.openingMotif)};
+   }
+  }
+  const e=result.events;
+  if(['solo_build','solo_peak'].includes(info.ensemble?.performanceEnergy?.phase??'') && !info.isChorusFinalBar &&
+   e.length===4&&e.every((n,i)=>n.absBeat===bar*4+i&&!n.phraseDialogue)&&Math.abs(e[1].midi-e[0].midi)>0&&Math.abs(e[1].midi-e[0].midi)<=5)
+   openingMotif={barIndex:bar,notes:[e[0].midi,e[1].midi]};
+  result={...result,memory:{...result.memory,openingMotif}};
+ }
+ if(score.innerMotionVersion && ['swing','straight'].includes(score.style??'swing') && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+  !['enclosure','double-chromatic'].includes(result.memory.approach) && info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const segments=(prepared??prepareRollingBass(score))!.segments.filter(s=>s.start<bar*4+4&&s.start+s.length>bar*4);
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'bass-ninth'));
+  if(rng.chance(.55) && segments.length===1 && segments[0].scalePcs.includes((segments[0].root+2)%12)) {
+   const events=ninthPulse(result.events,bar,segments[0].root);
+   if(events.some(e=>e.innerMotion))result={...result,events,memory:{...result.memory,previousPreviousMidi:events[2].midi,direction:Math.sign(events[3].midi-events[2].midi)}};
+  }
+ }
+ return result;
+}
+
+function realizeBassPitch(score: RollingBackingDefinition, bar: number, info: BarInfo,
+ timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
+	const ordinary = realizeBassWithHandoff(score, bar, info, timing, previous, prepared);
+	const plan = info.ensemble;
+	if (!score.bassDelayedRootVersion || !plan?.performanceEnergy || !previous || previous.previousMidi === null ||
+		bar === 0 || info.isSectionFirstBar || info.isSectionFinalBar || info.isChorusFirstBar || info.isChorusFinalBar || info.isFinalBar ||
+		plan.terminalArrangement || plan.coordinatedAccent || plan.setupFor || plan.responseOwner !== 'nobody' || plan.drums.allowFill ||
+		!plan.bass.keepPulse || plan.bass.role !== 'time' || plan.bass.ornamentScale < .5 ||
+		['leave_space', 'release'].includes(plan.intent) || ['leave_space', 'release'].includes(plan.phraseIntent) ||
+		['solo_release', 'ending'].includes(plan.performanceEnergy.phase) ||
+		['active_soloist', 'dense_soloist'].includes(plan.piano.rootlessTexture?.reason ?? '') ||
+		previous.pendingLaunch || ordinary.memory.pendingLaunch || ordinary.trace.some(entry => entry.status === 'planned')) return ordinary;
+	const start = bar * 4;
+	const segmentAt = (beat: number) => score.harmony.findIndex(segment => fractionToFloat(segment.startOffset) * 4 <= beat &&
+		(fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4 > beat);
+	const index = segmentAt(start), priorIndex = segmentAt(start - .001), segment = score.harmony[index];
+	if (!segment || priorIndex < 0) return ordinary;
+	const same = (candidate: typeof segment) => candidate.chord.root === segment.chord.root && candidate.chord.quality === segment.chord.quality;
+	if (!score.harmony.filter(candidate => fractionToFloat(candidate.startOffset) * 4 < start + 4 &&
+		(fractionToFloat(candidate.startOffset) + fractionToFloat(candidate.duration)) * 4 > start).every(same)) return ordinary;
+	const rootPc = pitchClassToNumber(segment.chord.root), tones = chordToneIntervalsForBass(segment.chord.quality);
+	const proposal = planBassDelayedRoot({ phraseId: score.phraseId, tempo: score.tempo, barIndex: bar, style: score.style ?? 'swing',
+		rootPc, third: tones.third, fifth: tones.fifth, previousMidi: previous.previousMidi,
+		rootOffset: ordinary.memory.feel === 'four' ? 1 : 2, repeatedHarmony: same(score.harmony[priorIndex]), events: ordinary.events });
+	if (!proposal) return ordinary;
+	// An already played walking approach owns its exact entrance, including a
+	// selected third/fifth. Its later root may be developed without moving that entrance.
+	if (ordinary.memory.feel === 'four' && previous.segmentIndex !== index && previous.nextTarget !== null &&
+		proposal.startMidi !== ordinary.events.find(event => event.absBeat === start)?.midi) return ordinary;
+	const alternate = realizeBassCandidate(score, bar, info, timing, previous, undefined, proposal, prepared);
+	if (!alternate || alternate.events.length !== ordinary.events.length || alternate.events.some((event, index) => {
+		const before = ordinary.events[index];
+		return event.absBeat !== before.absBeat || event.time !== before.time || event.duration !== before.duration || event.velocity !== before.velocity ||
+			(index > 0 && Math.abs(event.midi - alternate.events[index - 1].midi) > 7);
+	})) return ordinary;
+	const entrance = alternate.events.find(event => event.absBeat === start), landing = alternate.events.find(event => event.absBeat === start + proposal.rootOffset);
+	if (!entrance || !landing || entrance.midi !== proposal.startMidi || landing.midi !== proposal.rootMidi ||
+		alternate.events.some(event => event.absBeat > start && event.absBeat < landing.absBeat && pc(event.midi) === rootPc)) return ordinary;
+	return { ...alternate, delayedRootTrace: bassDelayedRootTrace(bar, rootPc, proposal, entrance, landing) };
+}
+
+function realizeBassWithHandoff(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
+	const ordinary = realizeBassCandidate(score, bar, info, timing, previous, undefined, undefined, prepared)!;
+	if (!score.bassApproachHandoff || (score.style && !['swing', 'straight'].includes(score.style)) || !info.ensemble?.performanceEnergy ||
+		ordinary.memory.feel !== 'four' || previous?.pendingLaunch || ordinary.memory.pendingLaunch ||
+		ordinary.trace.some(entry => entry.status === 'planned') || info.ensemble.coordinatedAccent ||
+		info.ensemble.setupFor || info.ensemble.responseOwner !== 'nobody' ||
+		!['chromatic-above', 'chromatic-below'].includes(ordinary.memory.approach) || ordinary.memory.nextTarget === null) return ordinary;
+	const segment = score.harmony[ordinary.memory.segmentIndex!];
+	if (!segment || fractionToFloat(segment.startOffset) * 4 !== bar * 4 || fractionToFloat(segment.duration) * 4 !== 4) return ordinary;
+	const pulses = ordinary.events.filter(event => Number.isInteger(event.absBeat));
+	if (pulses.length !== 4 || pulses.some((event, index) => event.absBeat !== bar * 4 + index) ||
+		Math.abs(pulses[2].midi - pulses[3].midi) <= 5) return ordinary;
+	// Both candidates start from the same committed history. A failed bridge
+	// never replaces any part of the ordinary bar or advances its memory.
+	const alternate = realizeBassCandidate(score, bar, info, timing, previous, pulses[3].midi, undefined, prepared);
+	if (!alternate || alternate.events.length !== ordinary.events.length) return ordinary;
+	const bridged = alternate.events.filter(event => Number.isInteger(event.absBeat));
+	if (bridged.length !== 4 || bridged.some((event, index) => event.absBeat !== pulses[index].absBeat ||
+		(index > 0 && Math.abs(event.midi - bridged[index - 1].midi) > 5))) return ordinary;
+	for (const [index, event] of alternate.events.entries()) {
+		const before = ordinary.events[index];
+		if (event.absBeat !== before.absBeat || event.time !== before.time || event.duration !== before.duration || event.velocity !== before.velocity ||
+			(![1, 2].includes(Math.floor(event.absBeat - bar * 4)) && event.midi !== before.midi)) return ordinary;
+	}
+	return alternate;
+}
+
+function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingBassMemory, handoffMidi?: number, delayedRoot?: BassDelayedRootPlan, prepared?: PreparedRollingBass): RollingBassResult | undefined {
+	const memory: RollingBassMemory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
+		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
+	if (score.style === 'bossa-nova') {
+		const infos = score.bars.map((entry, index) => index === bar ? info : entry);
+		const events = generateBossaBass([...score.harmony], 4, { phraseId: score.phraseId, tempo: score.tempo,
+			ppq: score.ppq, beatsPerBar: 4, swing: score.swing, timing: score.timingProfiles, ensembleTiming: timing }, infos, bar).events;
+		for (const event of events) {
+			if (delayedRoot && event.absBeat === bar * 4) event.midi = delayedRoot.startMidi;
+			if (delayedRoot && event.absBeat === bar * 4 + delayedRoot.rootOffset) event.midi = delayedRoot.rootMidi;
+			const tick = Math.max(bar * 4 * score.ppq, parseInt(event.time));
+			event.time = `${tick}i`;
+			event.duration = Math.min(event.duration, ((bar + 1) * 4 * score.ppq - tick) * 60 / score.tempo / score.ppq);
+		}
+		const accepted = events.filter((event) => event.duration > 0);
+		const last = accepted.at(-1)?.midi ?? memory.previousMidi;
+		const before = accepted.at(-2)?.midi ?? memory.previousMidi;
+		return { events: accepted, trace: [], memory: { ...memory, previousMidi: last, previousPreviousMidi: before,
+			direction: last !== null && before !== null ? Math.sign(last - before) : 0, feel: 'two', pendingLaunch: null } };
+	}
+	let { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach } = memory;
+	let pendingLaunch = memory.pendingLaunch;
+	const { centers, segments, structuralFeels } = prepared ?? prepareRollingBass(score)!;
+	const feelAt = (index: number): 'two' | 'four' => {
+		if (score.style === 'ballad') return 'two';
+		if (structuralFeels) return structuralFeels[index].feel;
+		const context = score.bars[index];
+		if ((context.chorusIndex ?? 0) !== 0 || context.isSectionFinalBar) return 'four';
+		if (index % 4 === 3 && createRng(seedFrom(score.phraseId, score.tempo, 'bass-feel-escape', index)).chance(0.3)) return 'four';
+		return createRng(seedFrom(score.phraseId, score.tempo, 'bass-feel', 0)).chance(0.65) ? 'two' : 'four';
+	};
+	const feel = feelAt(bar);
+	const targetAt = (index: number, reference: number | null): number => {
+		const segment = segments[index];
+		const context = score.bars[Math.floor(segment.start / 4)];
+		const targetRng = createRng(seedFrom(score.phraseId, score.tempo, 'bass-target', index));
+		const targetPc = index === 0 || context.isChorusFirstBar ? segment.root
+			: targetRng.weighted([{ value: segment.root, weight: 72 }, { value: segment.chordPcs[1], weight: 14 }, { value: segment.chordPcs[2], weight: 14 }]);
+		let target = nearest(targetPc, centers[Math.floor(segment.start / 4)]);
+		if (reference !== null && Math.abs(target - reference) > 7) {
+			const nearby = nearest(targetPc, reference);
+			if (Math.abs(nearby - centers[Math.floor(segment.start / 4)]) <= 9) target = nearby;
+		}
+		return target;
+	};
+	const trace: BassTurnaroundTrace[] = [];
+	const continuationTrace: BassScalarContinuation[] = [];
+	let scalarHistory: BassScalarHistory | undefined;
+	const events: BassEvent[] = [];
+	const endTick = (bar + 1) * 4 * score.ppq;
+	const push = (absBeat: number, midi: number, durationBeats: number, velocity: number) => {
+		const tick = Math.max(bar * 4 * score.ppq, timing.place(absBeat, 'bass'));
+		if (tick >= endTick) return false;
+		if (score.bassScalarContinuation) {
+			if (Number.isInteger(absBeat)) scalarHistory = { pulse: { absBeat, midi, time: `${tick}i` }, ornamentAfterPulse: false };
+			else if (scalarHistory) scalarHistory = { ...scalarHistory, ornamentAfterPulse: true };
+		}
+		events.push({ absBeat, midi, velocity, time: `${tick}i`, duration: Math.min(durationBeats * 60 / score.tempo,
+			(endTick - tick) * 60 / score.tempo / score.ppq) });
+		return true;
+	};
+	for (let beat = 0; beat < 4; beat++) {
+		const absBeat = bar * 4 + beat;
+		const index = segments.findIndex((segment) => absBeat >= segment.start && absBeat < segment.start + segment.length);
+		const segment = segments[index];
+		const isChange = segment.start === absBeat;
+		let scalarChanged = false;
+		if (index !== segmentIndex) {
+			segmentAnchor = pendingLaunch?.notes.find((note) => note.absBeat === absBeat)?.midi ?? nextTarget ?? targetAt(index, previousMidi);
+			segmentIndex = index;
+			nextTarget = index + 1 < segments.length ? targetAt(index + 1, segmentAnchor) : null;
+			approach = createRng(seedFrom(score.phraseId, score.tempo, 'bass-appr', index)).weighted<BassApproachDevice>([
+				{ value: 'chromatic-below', weight: 28 }, { value: 'chromatic-above', weight: 16 },
+				{ value: 'scalar', weight: 16 }, { value: 'dominant', weight: 14 }, { value: 'enclosure', weight: 12 }, { value: 'double-chromatic', weight: 8 }
+			]);
+		}
+		const arrival = beat === 0 ? score.performanceForm.choruses.find((chorus, index, choruses) => index > 0 &&
+			Math.max(choruses[index - 1].startBar, chorus.startBar - 2) === bar) : undefined;
+		if (arrival) {
+			let candidate: BassTurnaroundTrace;
+			const arrivalSegment = segments.findIndex((entry) => entry.start === arrival.startBar * 4);
+			if (arrival.startBar - bar !== 2) candidate = skippedBassTurnaround(bar, arrival.startBar, 'short_chorus');
+			else if (feel !== 'four' || feelAt(bar + 1) !== 'four') candidate = skippedBassTurnaround(bar, bar + 2, 'non_walking');
+			else if (!isChange || arrivalSegment < 0) candidate = skippedBassTurnaround(bar, bar + 2, 'unsupported_harmony');
+			else if (info.ensemble!.bass.ornamentScale < 0.75 || ['leave_space', 'release'].includes(info.ensemble!.phraseIntent)) candidate = skippedBassTurnaround(bar, bar + 2, 'reserved_space');
+			else if (info.ensemble!.responseOwner !== 'nobody') candidate = skippedBassTurnaround(bar, bar + 2, 'response_reserved');
+			else if (info.ensemble!.coordinatedAccent || info.ensemble!.setupFor) candidate = skippedBassTurnaround(bar, bar + 2, 'arrival_reserved');
+			else if (previousMidi === null) candidate = skippedBassTurnaround(bar, bar + 2, 'no_entry');
+			else candidate = planBassTurnaround({ phraseId: score.phraseId, tempo: score.tempo, startBar: bar, arrivalBar: bar + 2,
+				entryMidi: previousMidi, startMidi: segmentAnchor!, targetMidi: nearest(segments[arrivalSegment].root, centers[bar + 2]),
+				beats: Array.from({ length: 8 }, (_, offset) => {
+					const at = bar * 4 + offset;
+					const chord = segments.find((entry) => at >= entry.start && at < entry.start + entry.length)!;
+					return { absBeat: at, chordPcs: chord.chordPcs, scalePcs: chord.scalePcs, harmonicChange: at === chord.start };
+				}) });
+			trace.push(candidate);
+			if (candidate.status === 'planned') pendingLaunch = candidate;
+		}
+		const committed = pendingLaunch?.notes.find((note) => note.absBeat === absBeat)?.midi;
+		if (feel === 'two' && beat % 2 !== 0 && !isChange && committed === undefined) continue;
+		let midi: number;
+		if (committed !== undefined) {
+			midi = committed;
+			if (isChange) segmentAnchor = midi;
+		} else if (isChange) midi = segmentAnchor!;
+		else if (feel === 'two') {
+			const wanted = beat === 0 ? segment.root : segment.chordPcs[2];
+			midi = nearest(wanted, segmentAnchor!);
+		} else if (nextTarget !== null && absBeat >= segment.start + segment.length - (['enclosure', 'double-chromatic'].includes(approach) && segment.length >= 4 ? 2 : 1)) {
+			const pitches = bassApproachPitches(approach, nextTarget, segment.scalePcs,
+				createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-approach', index)));
+			const remaining = segment.start + segment.length - absBeat;
+			midi = pitches[Math.max(0, pitches.length - remaining)];
+			while (midi < 28) midi += 12;
+			while (midi > 55) midi -= 12;
+		} else {
+			const previousPitch = previousMidi ?? segmentAnchor!;
+			const target = nextTarget ?? nearest(segment.root, centers[bar]);
+			let options = Array.from({ length: 28 }, (_, offset) => offset + 28).filter((candidate) => candidate !== previousPitch && Math.abs(candidate - previousPitch) <= 5 &&
+				(beat % 2 === 0 ? segment.chordPcs.includes(pc(candidate)) : segment.scalePcs.includes(pc(candidate))));
+			if (handoffMidi !== undefined && (beat === 1 || beat === 2)) {
+				options = filterBassHandoffOptions(options, { beat, approachMidi: handoffMidi, chordPcs: segment.chordPcs });
+				if (options.length === 0) return undefined;
+			}
+			const rng = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-pitch', absBeat));
+			midi = options.length ? rng.weighted(options.map((candidate) => ({ value: candidate,
+				weight: (Math.abs(candidate - previousPitch) <= 2 ? 4 : 1) * (Math.abs(candidate - target) < Math.abs(previousPitch - target) ? 2 : 1) *
+					(candidate === previousPreviousMidi ? 0.4 : 1) * (direction !== 0 && Math.sign(candidate - previousPitch) === direction ? 1.25 : 1) }))) : nearest(segment.root, previousPitch);
+		}
+		if (score.bassScalarContinuation && beat === 1 && committed === undefined && !pendingLaunch && feel === 'four' &&
+			segment.start === bar * 4 && segment.length === 4 && ['enclosure', 'double-chromatic'].includes(approach) && nextTarget !== null &&
+			index > 0 && (score.harmony[index].chord.root !== score.harmony[index - 1].chord.root || score.harmony[index].chord.quality !== score.harmony[index - 1].chord.quality) &&
+			allowsBassScalarContinuation(info.ensemble) && memory.scalarHistory?.pulse.absBeat === bar * 4 - 1 &&
+			!memory.scalarHistory.ornamentAfterPulse && events.some(event => event.absBeat === bar * 4) &&
+			!events.some(event => event.absBeat > bar * 4)) {
+			const arrival = events.find(event => event.absBeat === bar * 4)!;
+			const pitches = bassApproachPitches(approach, nextTarget, segment.scalePcs,
+				createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-approach', index)));
+			let deviceEntry = pitches[0];
+			while (deviceEntry < 28) deviceEntry += 12;
+			while (deviceEntry > 55) deviceEntry -= 12;
+			const selected = selectBassScalarContinuation({ phraseId: score.phraseId, tempo: score.tempo, boundaryAbsBeat: bar * 4,
+				previousMidi: memory.scalarHistory.pulse.midi, arrivalMidi: arrival.midi, ordinaryMidi: midi,
+				candidates: Array.from({ length: 28 }, (_, offset) => offset + 28), scalePcs: segment.scalePcs, deviceEntryMidi: deviceEntry });
+			scalarChanged = selected !== midi;
+			midi = selected;
+		}
+		if (delayedRoot && (beat === 0 || beat === delayedRoot.rootOffset)) {
+			midi = beat === 0 ? delayedRoot.startMidi : delayedRoot.rootMidi;
+			scalarChanged = false;
+			if (isChange) segmentAnchor = midi;
+		}
+		const velocity = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-velocity', absBeat)).int(76, 88) + (beat === 0 ? 4 : beat === 2 ? 2 : 0);
+		const durationBeats = feel === 'two' ? 1.7 : 0.85;
+		const acceptedPulse = push(absBeat, midi, structuralFeels && feel === 'two' ? Math.min(durationBeats, segment.start + segment.length - absBeat) : durationBeats, velocity);
+		if (scalarChanged) {
+			const arrival = events.find(event => event.absBeat === bar * 4);
+			const continuation = events.find(event => event.absBeat === absBeat);
+			if (arrival && continuation) continuationTrace.push(bassScalarTrace(memory.scalarHistory!.pulse, arrival, continuation));
+		}
+		if (!pendingLaunch && feel === 'four'  && createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-ghost', absBeat)).chance(0.06 * info.ensemble!.bass.ornamentScale)) push(absBeat + 0.5, midi, 0.2, 38);
+		if (!score.bassScalarContinuation || acceptedPulse) {
+			previousPreviousMidi = previousMidi;
+			if (previousMidi !== null) direction = Math.sign(midi - previousMidi);
+			previousMidi = midi;
+		}
+	}
+	if (pendingLaunch && pendingLaunch.arrivalBar <= bar) pendingLaunch = null;
+	return { events, trace, ...(continuationTrace.length ? { continuationTrace } : {}), ...(structuralFeels ? { feelTrace: structuralFeels[bar] } : {}), memory: { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach, feel, pendingLaunch, ...(scalarHistory ? { scalarHistory } : {}) } };
+}

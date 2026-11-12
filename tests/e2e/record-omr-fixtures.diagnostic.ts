@@ -8,7 +8,7 @@
  * /api/tune-parse aborts the recording (the fused path must cover every
  * line). Re-run after an intentional fusion change:
  *
- *     npm run test:sandbox -- diagnostics record-omr-fixtures
+ *     npm run test:sandbox -- diagnostics record-omr-fixtures --project=chromium
  *
  * (Committed, unlike the original pdf-import recorder, precisely because
  * that one living in a scratchpad made re-recording a rediscovery project.)

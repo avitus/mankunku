@@ -1,3 +1,7 @@
+import { prepareReleasedArrangement } from './backing-arrangement';
+import { getBackingArrangementPreference } from './backing-preference';
+import { BACKING_OUTPUT_GAIN, backingOutputGain, connectBackingOutput } from './backing-output';
+import { getBackingNativeArming } from './backing-native-arming';
 /**
  * Jazz backing track engine.
  *
@@ -6,13 +10,14 @@
  *
  * Instruments:
  * - Upright bass (Smolken "Pizzicato" double-bass sample library)
- * - Piano (Salamander Grand Piano via smplr.SplendidGrandPiano) or
+ * - Piano (Splendid Grand Piano via smplr.SplendidGrandPiano) or
  *   organ (drawbar_organ GM SoundFont, MusyngKite kit)
  * - Drums: sampled kick, ride, hi-hat (Virtuosity Drums, CC0)
  */
 
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
+import type { GeneratedBacking } from './backing-generation';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { initAudio, getMasterGain, getAudioContext } from './audio-context';
@@ -51,6 +56,13 @@ import {
 	type DrumFamily
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
+import { createBackingSampleLoader } from './backing-sample-loader';
+import { backingKeyboardTrim } from './backing-keyboard-level';
+import { loadBackingBass } from './backing-bass-instrument';
+import { createSignalMonitor, type BackingSignalMonitor } from './backing-signal-monitor';
+import {
+	createRollingBackingRenderer, type RollingBackingRenderer, type RollingBackingRendererOptions
+} from './backing-rolling-renderer';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -130,18 +142,20 @@ type BassInstrument = SmplrSmolken;
 let tone: ToneModule | null = null;
 
 // Pitched instruments (loaded lazily via smplr).  Piano uses the
-// Salamander-sampled SplendidGrandPiano; organ uses the GM SoundFont;
+// Splendid Grand Piano sample library; organ uses the GM SoundFont;
 // bass uses the Smolken pizzicato double-bass library.
 let compInstrument: CompInstrument | null = null;
 let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
+let currentKeyboardStyle: BackingStyle = 'swing';
 
 // The backing bus (increment 9). Everything backing — bass, panned comp,
 // the split drum kit and the room return — flows through `backingGain`
-// (the volume fader) into a gentle glue compressor, a session output gain, then into
-// master, which itself stays untouched (it carries the melody):
+// (the backing setting) into a gentle glue compressor, then the session reference
+// and band Master fader. Tunes/lab use +6 dB; ordinary practice retains unity.
+// The app master stays untouched (it also carries the melody):
 //
-//   bassGain ──────────────────────► backingGain ─► busCompressor ─► backingOutput ─► master
+//   bassGain ──────────────────────► backingGain ─► busCompressor ─► backingOutput ─► app master
 //   compGain ─► compPan ───────────►      ▲
 //   drum samplers ─► pans ─► drumBus ─────┤
 //   sends ─► roomConvolver ─► roomReturn ─┘
@@ -151,6 +165,7 @@ let currentInstrumentType: BackingInstrument | null = null;
 // trim in `applyMixGains` because `drumBus` sits downstream of the taps.
 let backingGain: GainNode | null = null;
 let backingOutput: GainNode | null = null;
+let currentOutputLevel = 1;
 let busCompressor: DynamicsCompressorNode | null = null;
 let bassGain: GainNode | null = null;
 let compGain: GainNode | null = null;
@@ -168,12 +183,27 @@ let roomSends: Partial<Record<'bass' | 'comp' | DrumFamily, GainNode>> = {};
 
 // Per-instrument mix levels, persisted per device (see backing-mix.ts).
 let mixLevels: BackingMixLevels = loadBackingMix();
+const signalMonitors = new Set<BackingSignalMonitor>();
+
+/** Measure actual post-mix instrument PCM; scheduled notes alone are not audio evidence. */
+export function createBackingSignalMonitor(): BackingSignalMonitor | null {
+	const epoch = graphEpoch;
+	const monitor = createSignalMonitor({ bass: bassGain, comp: compGain, drums: drumBus, master: backingOutput }, () => graphEpoch === epoch);
+	if (!monitor) return null;
+	const owned: BackingSignalMonitor = {
+		read: () => monitor.read(),
+		dispose() { monitor.dispose(); signalMonitors.delete(owned); }
+	};
+	signalMonitors.add(owned);
+	return owned;
+}
 
 /** Push the current volume + base trims + mix levels onto every live gain node. */
 function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
+	if (backingOutput) backingOutput.gain.value = backingOutputGain(mixLevels.master, currentOutputLevel);
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
-	if (compGain) compGain.gain.value = BACKING_BASE_TRIMS.comp * mixLevels.comp;
+	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType, currentKeyboardStyle) * mixLevels.comp;
 	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
 	if (roomReturn) roomReturn.gain.value = ROOM_RETURN_GAIN * mixLevels.room;
 	// Bass/comp taps sit post-trim, so their sends are the raw policy level;
@@ -187,7 +217,7 @@ function applyMixGains(): void {
 }
 
 /**
- * Create the shared backing bus (fader → compressor → session level → master)
+ * Create the shared backing bus (backing volume → glue compressor → band output → app master)
  * and the bass/comp branches, idempotently. Both `loadBackingInstruments`
  * and `ensureDrums` call this, so whichever runs first builds the bus.
  */
@@ -199,10 +229,7 @@ function ensureBackingGraph(audioCtx: AudioContext): void {
 		compressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 		compressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 		compressor.release.value = BACKING_BUS_COMPRESSOR.release;
-		backingOutput = audioCtx.createGain();
-		backingOutput.gain.value = 1;
-		backingOutput.connect(getMasterGain());
-		compressor.connect(backingOutput);
+		backingOutput = connectBackingOutput(compressor, getMasterGain(), mixLevels.master);
 		const gain = audioCtx.createGain();
 		gain.gain.value = currentBackingVolume;
 		gain.connect(compressor);
@@ -288,12 +315,13 @@ export function getBackingMix(): BackingMixLevels {
 
 /**
  * Update per-instrument mix levels, apply them to any live gain nodes
- * immediately, and persist them for future sessions on this device.
+ * immediately, and persist them by default. A scoped listening monitor uses
+ * persist:false and restores its prior levels when releasing the output.
  * Kick/ride/hihat trims take effect from the next drum trigger.
  */
-export function setBackingMix(partial: Partial<BackingMixLevels>): void {
+export function setBackingMix(partial: Partial<BackingMixLevels>, options: { persist?: boolean } = {}): void {
 	mixLevels = normalizeBackingMix({ ...mixLevels, ...partial });
-	saveBackingMix(mixLevels);
+	if (options.persist !== false) saveBackingMix(mixLevels);
 	applyMixGains();
 }
 
@@ -322,6 +350,8 @@ let sectionParts: import('tone').Part<BassEvent | CompEvent | DrumEvent>[] = [];
  * the next schedule (or session stop). Keep them owned during the handoff. */
 let retiringParts: { part: import('tone').Part; stopTick: number }[] = [];
 let activeSchedule: BackingTrackSchedule | null = null;
+let activeRollingPlayback: RollingBackingRenderer | null = null;
+let rollingPlaybackId = 0;
 
 /** Monotonically increasing ID for cancelling stale loads. */
 let currentLoadId = 0;
@@ -335,6 +365,27 @@ async function getTone(): Promise<ToneModule> {
 
 /** Per-sample ceiling on the drum fetch, so one stalled request can't hang the kit. */
 const DRUM_FETCH_TIMEOUT_MS = 15_000;
+
+/** Known pedal pre-attack content; the remaining chick starts near 4 ms, like the ride. */
+const DRUM_SAMPLE_START_SECONDS: Partial<Record<DrumBufferName, number>> = {
+	hihat_pedal: 0.04
+};
+
+/** Remove declared recorded pre-attack sound while preserving the remaining channel samples. */
+function alignDrumSampleAttack(audioCtx: AudioContext, name: DrumBufferName, buffer: AudioBuffer): AudioBuffer {
+	const trimSeconds = DRUM_SAMPLE_START_SECONDS[name];
+	if (!trimSeconds) return buffer;
+	const frames = Math.round(trimSeconds * buffer.sampleRate);
+	// An unexpectedly short or malformed replacement must not become an
+	// empty buffer or prevent the remaining kit from loading.
+	if (!Number.isSafeInteger(frames) || frames <= 0 || !Number.isSafeInteger(buffer.length) || frames >= buffer.length ||
+		!Number.isInteger(buffer.numberOfChannels) || buffer.numberOfChannels < 1) return buffer;
+	const trimmed = audioCtx.createBuffer(buffer.numberOfChannels, buffer.length - frames, buffer.sampleRate);
+	for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+		trimmed.copyToChannel(buffer.getChannelData(channel).subarray(frames), channel);
+	}
+	return trimmed;
+}
 
 /**
  * Fetch + decode each drum sample, returning only the ones this browser can
@@ -360,7 +411,8 @@ async function decodeDrumBuffers(
 					if (!response.ok) return null;
 					// decodeAudioData detaches the ArrayBuffer, so each sample needs
 					// its own — never share one across drums.
-					return [name, await audioCtx.decodeAudioData(await response.arrayBuffer())] as const;
+					const decoded = await audioCtx.decodeAudioData(await response.arrayBuffer());
+					return [name, alignDrumSampleAttack(audioCtx, name, decoded)] as const;
 				} catch {
 					// Undecodable codec or a network failure.
 					return null;
@@ -438,7 +490,8 @@ async function ensureDrums(): Promise<void> {
 	let flight: Promise<void> | null = null;
 	flight = (async () => {
 		const audioCtx = await initAudio();
-		const { Sampler } = await import('smplr');
+		const { Sampler, Scheduler } = await import('smplr');
+		const native = getBackingNativeArming(audioCtx, Scheduler);
 		// Disposed while awaiting? Abort BEFORE ensureBackingGraph — a stale
 		// flight must not resurrect a fresh bus onto master.
 		if (epoch !== graphEpoch) return;
@@ -495,7 +548,8 @@ async function ensureDrums(): Promise<void> {
 		// producing NaN detune at playback and throwing inside Voice.
 		const samplers = {} as Record<DrumFamily, SmplrSampler>;
 		for (const family of ['kick', 'snare', 'cymbals'] as const) {
-			samplers[family] = new Sampler(audioCtx, {
+			samplers[family] = new Sampler(native.context, {
+				scheduler: native.createScheduler(),
 				buffers: byFamily[family],
 				destination: pans[family],
 				detune: 0,
@@ -543,11 +597,12 @@ async function ensureDrums(): Promise<void> {
  * Idempotent for the same chord instrument type.
  *
  * Bass: Smolken "Pizzicato" double-bass (loaded once, reused across types).
- * Piano: SplendidGrandPiano (Salamander, 16 velocity layers).
+ * Piano: SplendidGrandPiano (five velocity bands; PPP reuses filtered PP samples).
  * Organ: SoundFont drawbar_organ (MusyngKite kit — no better smplr option).
  */
 export async function loadBackingInstruments(
-	instrumentType: BackingInstrument = 'piano'
+	instrumentType: BackingInstrument = 'piano',
+	style: BackingStyle = 'swing'
 ): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
@@ -560,7 +615,8 @@ export async function loadBackingInstruments(
 	// path — the backing simply plays dry until (unless) it decodes.
 	void ensureRoomIr(audioCtx);
 
-	const { Soundfont, SplendidGrandPiano, Smolken, CacheStorage } = await import('smplr');
+	const { Soundfont, SplendidGrandPiano, Smolken, CacheStorage, Scheduler } = await import('smplr');
+	const native = getBackingNativeArming(audioCtx, Scheduler);
 	if (loadId !== currentLoadId) return;
 
 	// Cache the CDN sample libraries in CacheStorage so revisits (and full
@@ -596,15 +652,17 @@ export async function loadBackingInstruments(
 					};
 				})()
 			: undefined;
+	const loader = createBackingSampleLoader(audioCtx, storage);
 
 	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
-		const bass = new Smolken(audioCtx, {
+		const bass = await loadBackingBass(native.context, Smolken, {
+			scheduler: native.createScheduler(),
 			instrument: 'Pizzicato',
 			destination: bassGain as GainNode,
-			storage
+			storage,
+			loader
 		});
-		await bass.load;
 		if (loadId !== currentLoadId) {
 			bass.disconnect();
 			return;
@@ -615,14 +673,16 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(audioCtx, { destination: compGain as GainNode, storage })
-			: new Soundfont(audioCtx, {
+			? new SplendidGrandPiano(native.context, { scheduler: native.createScheduler(), destination: compGain as GainNode, storage, loader })
+			: new Soundfont(native.context, {
+				scheduler: native.createScheduler(),
 				instrument: 'drawbar_organ',
 				kit: 'MusyngKite',
 				destination: compGain as GainNode,
 				storage
 			});
-		await newComp.load;
+		try { await newComp.load; }
+		catch (error) { newComp.disconnect(); throw error; }
 		if (loadId !== currentLoadId) {
 			newComp.disconnect();
 			return;
@@ -630,11 +690,19 @@ export async function loadBackingInstruments(
 		const oldComp = compInstrument;
 		compInstrument = newComp;
 		currentInstrumentType = instrumentType;
+		currentKeyboardStyle = style;
+		// Publish the new bank and its calibration together; a failed or stale
+		// load must leave the previous sounding instrument at its own level.
+		applyMixGains();
 		if (oldComp) {
 			oldComp.stop();
 			oldComp.disconnect();
 		}
 	}
+
+	// A reused bank still needs the selected style's output calibration.
+	currentKeyboardStyle = style;
+	applyMixGains();
 
 	// Preload the drum kit alongside the pitched instruments so
 	// `scheduleBackingTrack`'s `ensureDrums()` resolves as a microtask rather
@@ -847,6 +915,9 @@ function captureLog(
 
 /** Dispose only the scheduled parts (not the instruments). */
 export function disposeBackingParts(): void {
+	const rolling = activeRollingPlayback;
+	activeRollingPlayback = null;
+	rolling?.stop();
 	for (const { part } of retiringParts) part.dispose();
 	retiringParts = [];
 	if (bassPart) {
@@ -942,42 +1013,129 @@ export function playTransitionChords(
  * callback's `time` through. Lives here because the drum velocity-layer and
  * trim mapping (drumBufferForVelocity, BACKING_BASE_TRIMS, mixLevels) is
  * module-private — this mirrors the backing Parts' trigger callbacks.
+ * The rolling renderer additionally calls this inside an explicit native-arming
+ * scope after committing a bar. That scope bypasses smplr's timer queue and
+ * owns native cancellation, so those already-known hits may be farther ahead.
  */
-export function playBackingHitsNow(hits: BackingHit[], time: number): void {
-	for (const hit of hits) {
+export function playBackingHitsNow(hits: readonly BackingHit[], time: number, ownershipPrefix?: string): () => void {
+	const stops: (() => void)[] = [];
+	let stopped = false;
+	let voiceIndex = 0;
+	const ownership = () => ownershipPrefix === undefined ? {} : { stopId: `${ownershipPrefix}:${voiceIndex++}` };
+	const keep = (stop: (() => void) | undefined) => { if (stop) stops.push(stop); };
+	const release = () => {
+		if (stopped) return;
+		stopped = true;
+		for (const stop of stops) { try { stop(); } catch { /* Release remaining owned voices. */ } }
+	};
+	try { for (const hit of hits) {
 		switch (hit.kind) {
 			case 'bass':
-				bassInstrument?.start({
+				keep(bassInstrument?.start({
 					note: hit.midi,
 					velocity: hit.velocity,
 					duration: hit.duration,
-					time
-				});
+					time, ...ownership()
+				}));
 				break;
 			case 'comp':
 				for (const note of hit.notes) {
-					compInstrument?.start({
+					keep(compInstrument?.start({
 						note,
 						velocity: hit.velocity,
 						duration: hit.duration,
-						time
-					});
+						time, ...ownership()
+					}));
 				}
 				break;
 			case 'drum':
 				// Mirrors the drum Part callback: buffer picked by generated
 				// velocity, level shaped through velocity, hit routed to its
 				// family's sampler (kick / snare / cymbals).
-				drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
+				keep(drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
 					note: drumBufferForVelocity(hit.drum, hit.velocity),
 					velocity: Math.round(
 						voiceVelocity(hit.velocity * BACKING_BASE_TRIMS[hit.drum], mixLevels[hit.drum]) * 127
 					),
-					time
-				});
+					time, ...ownership()
+				}));
 				break;
 		}
-	}
+	} } catch (error) { release(); throw error; }
+	return release;
+}
+
+export interface RollingBackingPlaybackOptions extends Omit<RollingBackingRendererOptions, 'startAudioTime'> {
+	/** Omit to anchor after all asynchronous sample readiness checks. */
+	startAudioTime?: number;
+	isCurrent(): boolean;
+}
+
+export interface RollingBackingPlayback extends RollingBackingRenderer {
+	/** Physical graph ownership, retained through stop until replaced; independent of request cancellation. */
+	ownsOutput(): boolean;
+}
+
+/**
+ * Claim the backing output once, then append complete rolling bars. Existing
+ * playback remains untouched on stale async setup; normal bar commits neither
+ * dispose Parts nor stop ringing voices. Stop handles use unique run/voice IDs.
+ */
+export async function createRollingBackingPlayback(options: RollingBackingPlaybackOptions): Promise<RollingBackingPlayback> {
+	const Tone = await getTone();
+	const assertCurrent = () => {
+		if (!options.isCurrent()) throw new DOMException('Rolling playback was cancelled.', 'AbortError');
+	};
+	assertCurrent();
+	if (!isBackingLoaded()) throw new Error('Load backing instruments before rolling playback.');
+	await ensureDrums();
+	assertCurrent();
+	const context = Tone.getContext();
+	const transport = Tone.getTransport();
+	if (transport.PPQ !== options.ppq) throw new Error('Rolling playback PPQ must match the transport.');
+	const updateInterval = () => {
+		if (!('updateInterval' in context) || typeof context.updateInterval !== 'number' ||
+			!Number.isFinite(context.updateInterval) || context.updateInterval < 0) {
+			throw new Error('Rolling playback requires the audio scheduler update interval.');
+		}
+		return context.updateInterval;
+	};
+	const audioNow = () => {
+		if (context.rawContext.state !== 'running') throw new Error('Rolling playback requires a running audio context.');
+		return context.rawContext.currentTime;
+	};
+	const { Scheduler } = await import('smplr');
+	assertCurrent();
+	const native = getBackingNativeArming(context.rawContext as AudioContext, Scheduler);
+	const readyAt = audioNow();
+	const startAudioTime = options.startAudioTime ?? readyAt + context.lookAhead + updateInterval() + 0.2;
+	const epoch = graphEpoch;
+	const playbackId = ++rollingPlaybackId;
+	let renderer: RollingBackingRenderer;
+	const ownsOutput = () => activeRollingPlayback === renderer && epoch === graphEpoch;
+	const isCurrentOwner = () => ownsOutput() && options.isCurrent();
+	// Validate configuration before replacing the previous session.
+	renderer = createRollingBackingRenderer({ ...options, startAudioTime }, {
+		audioNow, lookAhead: () => context.lookAhead, updateInterval,
+		isCurrent: isCurrentOwner,
+		scheduleOnce: (callback, ticks) => transport.scheduleOnce(callback, ticks),
+		clear: (id) => { transport.clear(id); },
+		play: (hits, time, eventKey) => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`),
+		arm: (hits, time, eventKey, onEnded) => native.arm(() => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`), onEnded),
+		publishSchedule: (schedule) => { if (isCurrentOwner()) activeSchedule = schedule; }
+	});
+	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');
+	disposeBackingParts();
+	activeRollingPlayback = renderer;
+	currentOutputLevel = BACKING_OUTPUT_GAIN;
+	applyMixGains();
+	const stop = renderer.stop;
+	return Object.assign(renderer, { ownsOutput, stop() {
+		stop();
+		// A request can be cancelled before its stop handler runs. Releasing
+		// this physical owner may clear its index even then, never a successor's.
+		if (ownsOutput()) activeSchedule = null;
+	} });
 }
 
 /** Trigger one bass hit at its audio-clock time, including a joined downbeat. */
@@ -1030,18 +1188,31 @@ function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
+	const orchestration = options.backingOrchestration ?? getBackingArrangementPreference();
+	if (orchestration === 'coordinated' && !options.backingSoloFeatures?.length) {
+		const generated = prepareReleasedArrangement(harmony, style, {
+			phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
+			sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm
+		}, options.backingInstrument ?? currentInstrumentType ?? 'piano', phrase.timeSignature[1], options.backingPerformanceSeed ?? 0);
+		if (generated) return { harmony, generated };
+	}
 	// Cached: lick-practice loops and per-key restarts reschedule the same
 	// (phrase, tempo, style) many times — the LRU returns the identical
 	// events without re-running the planners.
 	return {
 		harmony,
-		...generateBackingCached(harmony, style, {
+		generated: generateBackingCached(harmony, style, {
 			phraseId: phrase.id,
 			tempo: options.tempo,
 			ppq,
 			beatsPerBar,
 			swing,
-			sectionMap: phrase.sectionMap
+			sectionMap: phrase.sectionMap,
+			// Form coordinates are bars; the legacy generator counts numerator beats.
+			// Do not misapply bar metadata in denominator-based meters until that path is migrated.
+			performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+			ensemble: orchestration === 'coordinated' && !!options.backingSoloFeatures?.length && phrase.timeSignature[1] === 4
+				? { soloFeatures: options.backingSoloFeatures } : undefined
 		})
 	};
 }
@@ -1064,7 +1235,7 @@ export async function prepareBackingSection(
 	if (!isStillCurrent()) return null;
 	await ensureDrums();
 	if (!isStillCurrent()) return null;
-	const { bassEvents, compEvents, drumEvents } = generateFor(phrase, options, Tone.getTransport().PPQ);
+	const { generated: { bassEvents, compEvents, drumEvents } } = generateFor(phrase, options, Tone.getTransport().PPQ);
 	return (tickOffset) => {
 		const parts = [
 			new Tone.Part(playBass, bassEvents),
@@ -1103,7 +1274,7 @@ export async function scheduleBackingTrack(
 	isStillCurrent: () => boolean = () => true,
 	boundaryTime?: number,
 	loopTicks?: number
-): Promise<void> {
+): Promise<GeneratedBacking | undefined> {
 	if (!isBackingLoaded()) return;
 
 	const Tone = await getTone();
@@ -1125,7 +1296,8 @@ export async function scheduleBackingTrack(
 	await ensureDrums();
 	if (!isStillCurrent()) return;
 
-	const { harmony, bassEvents, compEvents, drumEvents } = generateFor(phrase, options, ppq);
+	const { harmony, generated } = generateFor(phrase, options, ppq);
+	const { bassEvents, compEvents, drumEvents } = generated;
 	if (transport.state === 'started' && tickOffset > transport.ticks) {
 		retireBackingParts(tickOffset, transport.ticks);
 	} else {
@@ -1187,8 +1359,11 @@ export async function scheduleBackingTrack(
 	// Drums are a Part like bass and comp (not a per-beat Sequence): the
 	// swung ride eighths and section-final setups are tick-placed events,
 	// generated up front so the whole kit shares the swing grid.
+	currentKeyboardStyle = options.backingStyle ?? 'swing';
+	applyMixGains();
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
-	if (backingOutput) backingOutput.gain.value = options.backingOutputLevel ?? 1;
+	currentOutputLevel = options.backingOutputLevel ?? 1;
+	applyMixGains();
 
 	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
 	drumPart.start(`${tickOffset}i`);
@@ -1197,6 +1372,7 @@ export async function scheduleBackingTrack(
 		drumPart.loopStart = 0;
 		drumPart.loopEnd = `${harmonyTicks}i`;
 	}
+	return generated;
 }
 
 // ── Exported API ─────────────────────────────────────────────
@@ -1216,15 +1392,19 @@ export async function startBackingTrack(
 	const beatsPerBar = phrase.timeSignature[0];
 	const barTicks = beatsPerBar * ppq;
 
-	await loadBackingInstruments(options.backingInstrument);
+	await loadBackingInstruments(options.backingInstrument, options.backingStyle);
 	await scheduleBackingTrack(phrase, options, barTicks, keepLooping);
 }
 
 /** Full cleanup: dispose parts and instruments. */
 export function disposeBackingTrack(): void {
+	for (const monitor of signalMonitors) monitor.dispose();
 	// Invalidate in-flight async loads (kit, IR) so they tear their local
 	// nodes down instead of promoting onto the disposed graph.
 	graphEpoch++;
+	// Pitched loads use a separate token from the kit/room graph flights.
+	// A completed decode must not publish a bass/piano onto this dead graph.
+	currentLoadId++;
 	drumLoadPromise = null;
 	disposeBackingParts();
 	if (bassInstrument) {
@@ -1235,6 +1415,7 @@ export function disposeBackingTrack(): void {
 		compInstrument.disconnect();
 		compInstrument = null;
 		currentInstrumentType = null;
+		currentKeyboardStyle = 'swing';
 	}
 	if (drumSamplers) {
 		for (const sampler of Object.values(drumSamplers)) sampler.disconnect();
@@ -1277,10 +1458,7 @@ export function disposeBackingTrack(): void {
 		backingGain.disconnect();
 		backingGain = null;
 	}
-	if (backingOutput) {
-		backingOutput.disconnect();
-		backingOutput = null;
-	}
+	if (backingOutput) { backingOutput.disconnect(); backingOutput = null; }
 	if (busCompressor) {
 		busCompressor.disconnect();
 		busCompressor = null;

@@ -1,3 +1,4 @@
+import { buildPerformanceForm } from './performance-form';
 import type { Fraction, HarmonicSegment, Phrase } from '$lib/types/music';
 import {
 	addFractions,
@@ -146,12 +147,21 @@ function phraseSection(phrase: Phrase, startBar: number, endBar: number): Phrase
 		})
 		.map((entry) => ({ ...entry, barOffset: Math.max(0, entry.barOffset - region.startBar) }));
 
+	const performanceForm = phrase.performanceForm ? buildPerformanceForm({
+		totalBars: endBar - startBar, sectionMap,
+		choruses: phrase.performanceForm.choruses
+			.filter(c => c.endBarExclusive > startBar && c.startBar < endBar)
+			.map(c => ({ role: c.role, startBar: Math.max(c.startBar, startBar) - startBar,
+				endBarExclusive: Math.min(c.endBarExclusive, endBar) - startBar }))
+	}) : undefined;
+
 	return {
 		...phrase,
 		id: `${phrase.id}:form-${region.startBar}-${region.endBar}`,
 		notes,
 		harmony,
-		sectionMap
+		sectionMap,
+		...(performanceForm ? { performanceForm } : {})
 	};
 }
 

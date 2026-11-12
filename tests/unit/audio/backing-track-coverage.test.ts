@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import { drumBufferForVelocity } from '$lib/audio/sample-maps';
+import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
+import { scriptedSoloFeatures } from '$lib/audio/backing-lab-scenarios';
+import { generateBacking, resolveBackingSwing } from '$lib/audio/backing-generation';
+import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { buildSchedule } from '$lib/audio/backing-track-schedule';
+import { buildPerformanceForm } from '$lib/audio/performance-form';
+import type { RollingBackingBar } from '$lib/audio/backing-rolling';
 
 /**
  * The backing track must cover the whole phrase.
@@ -19,11 +26,21 @@ interface Recorded {
 	kind: 'part' | 'sequence';
 	events: unknown[];
 	started: boolean;
+	startedAt?: unknown;
+	disposed: boolean;
 	/** The fake Part itself, so the loop settings the SUT assigns are visible. */
 	part?: { loop: boolean; loopStart: unknown; loopEnd: unknown };
 }
 
 const recorded: Recorded[] = [];
+const rollingCallbacks = new Map<number, (time: number) => void>();
+let rollingEventId = 0;
+const rollingClock = { currentTime: 10, state: 'running' };
+const rollingTransport = {
+	PPQ: 480,
+	scheduleOnce: vi.fn((callback: (time: number) => void) => { const id = ++rollingEventId; rollingCallbacks.set(id, callback); return id; }),
+	clear: vi.fn((id: number) => { rollingCallbacks.delete(id); })
+};
 
 /**
  * Stand-in for a Tone Part/Sequence constructor: logs the events and whether
@@ -31,17 +48,19 @@ const recorded: Recorded[] = [];
  * the SUT assigns can be asserted on.
  */
 function record(kind: 'part' | 'sequence', events: unknown[]) {
-	const r: Recorded = { kind, events, started: false };
+	const r: Recorded = { kind, events, started: false, disposed: false };
 	recorded.push(r);
 	const part = {
-		start() {
+		start(when?: unknown) {
 			r.started = true;
+			r.startedAt = when;
 			return this;
 		},
 		stop() {
 			return this;
 		},
 		dispose() {
+			r.disposed = true;
 			return this;
 		},
 		loop: false,
@@ -63,7 +82,8 @@ vi.mock('tone', () => ({
 			return record('sequence', events) as unknown as never;
 		}
 	},
-	getTransport: () => ({ PPQ: 480 })
+	getTransport: () => rollingTransport,
+	getContext: () => ({ rawContext: rollingClock, lookAhead: 0.1, updateInterval: 0.025 })
 }));
 
 /** Every fake smplr instrument built, by class, with its constructor options. */
@@ -80,6 +100,7 @@ class FakeInstrument {
 }
 
 vi.mock('smplr', () => ({
+	Scheduler: function Scheduler() { return { schedule(event: unknown, callback: (event: unknown) => void) { callback(event); return () => {}; }, stop() {} }; },
 	Sampler: class extends FakeInstrument {},
 	Smolken: class extends FakeInstrument {},
 	SplendidGrandPiano: class extends FakeInstrument {},
@@ -308,6 +329,105 @@ describe('backing track loop mode', () => {
 	});
 });
 
+describe('coordinated backing schedule evidence', () => {
+	const preset = BACKING_LAB_PRESETS.find((item) => item.id === 'lab-aaba-c')!;
+	const phrase = preset.phrase;
+	const style = BACKING_STYLES.swing;
+	const features = scriptedSoloFeatures('dense', preset.bars)!;
+	const tickOffset = PPQ * BEATS_PER_BAR;
+	const params = {
+		phraseId: phrase.id, tempo: OPTIONS.tempo, ppq: PPQ, beatsPerBar: BEATS_PER_BAR,
+		swing: resolveBackingSwing(OPTIONS.swing, style, OPTIONS.tempo),
+		sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm
+	};
+
+	beforeEach(() => {
+		vi.resetModules();
+		recorded.length = 0;
+		instruments.length = 0;
+	});
+
+	it('publishes exactly the coordinated dense events as pitched and transient evidence, including loop offsets', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const scheduled = await mod.scheduleBackingTrack(phrase, {
+			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+		}, tickOffset, true);
+		const generated = generateBacking(phrase.harmony, style, { ...params, ensemble: { soloFeatures: features } });
+		expect(scheduled).toEqual(generated);
+		const parts = recorded.filter((part) => part.kind === 'part');
+		expect(parts[0].events).toEqual(scheduled!.bassEvents);
+		expect(parts[1].events).toEqual(scheduled!.compEvents);
+		expect(parts[2].events).toEqual(scheduled!.drumEvents);
+		expect(parts.map((part) => part.events)).toEqual([
+			generated.bassEvents, generated.compEvents, generated.drumEvents
+		]);
+		const loopTicks = preset.bars * BEATS_PER_BAR * PPQ;
+		for (const part of parts) {
+			expect(part.startedAt).toBe(`${tickOffset}i`);
+			expect(part.part).toMatchObject({ loop: true, loopStart: 0, loopEnd: `${loopTicks}i` });
+		}
+		const expected = buildSchedule(
+			generated.bassEvents, generated.compEvents, generated.drumEvents,
+			tickOffset, PPQ, OPTIONS.tempo, loopTicks
+		);
+		const schedule = mod.getActiveSchedule()!;
+		expect(schedule.notes).toEqual(expected.notes);
+		expect(schedule.transientOnsets).toEqual(expected.transientOnsets);
+		expect(schedule.notes).toHaveLength(generated.bassEvents.length + generated.compEvents.reduce((n, event) => n + event.notes.length, 0));
+		expect(schedule.loopSeconds).toBe(expected.loopSeconds);
+		const offsetSeconds = tickOffset / PPQ * 60 / OPTIONS.tempo;
+		expect(schedule.activeMidiAt(offsetSeconds / 2, 0)).toEqual([]);
+		const probe = schedule.notes[0].startSeconds + schedule.notes[0].durationSeconds / 2;
+		expect(schedule.activeMidiAt(probe + 2 * schedule.loopSeconds!, 0)).toEqual(schedule.activeMidiAt(probe, 0));
+		const round = (values: number[]) => values.map((value) => Number(value.toFixed(8)));
+		expect(round(schedule.bleedEventsIn(offsetSeconds + 1 + 2 * schedule.loopSeconds!, 1)))
+			.toEqual(round(schedule.bleedEventsIn(offsetSeconds + 1, 1)));
+
+		mod.disposeBackingParts();
+		expect(mod.getActiveSchedule()).toBeNull();
+		expect(parts.every((part) => part.disposed)).toBe(true);
+	});
+
+	it('resets coordinated evidence when rescheduled with explicit Original mode, ignoring solo fixtures', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(phrase, {
+			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+		}, tickOffset, true);
+		const previous = [...recorded];
+		const previousSchedule = mod.getActiveSchedule();
+		await mod.scheduleBackingTrack(phrase, { ...OPTIONS, backingOrchestration: 'original', backingSoloFeatures: features }, tickOffset, false);
+		const generated = generateBacking(phrase.harmony, style, params);
+		expect(recorded.slice(previous.length).map((part) => part.events)).toEqual([
+			generated.bassEvents, generated.compEvents, generated.drumEvents
+		]);
+		expect(previous.every((part) => part.disposed)).toBe(true);
+		expect(mod.getActiveSchedule()).not.toBe(previousSchedule);
+		expect(mod.getActiveSchedule()!.loopSeconds).toBeNull();
+		expect(generated.ensemblePlan).toBeUndefined();
+	});
+
+	it('falls back to original generation without quarter-note form metadata in denominator-based meters', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const performanceForm = buildPerformanceForm({
+			totalBars: preset.bars, sectionMap: phrase.sectionMap ?? [],
+			choruses: [{ role: 'head', startBar: 0, endBarExclusive: preset.bars }]
+		});
+		const eighthMeter: Phrase = { ...phrase, timeSignature: [4, 8], performanceForm };
+		await mod.scheduleBackingTrack(eighthMeter, {
+			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+		}, tickOffset, false);
+		const expected = generateBacking(phrase.harmony, style, { ...params, performanceForm: undefined });
+		const misapplied = generateBacking(phrase.harmony, style, { ...params, performanceForm });
+		expect(expected).not.toEqual(misapplied);
+		expect(recorded.map((part) => part.events)).toEqual([
+			expected.bassEvents, expected.compEvents, expected.drumEvents
+		]);
+	});
+});
+
 describe('playBackingHitsNow', () => {
 	beforeEach(() => {
 		vi.resetModules();
@@ -357,6 +477,123 @@ describe('playBackingHitsNow', () => {
 		);
 		expect(drumAt(-0.1).start).not.toHaveBeenCalled();
 	});
+
+	it('owns unique note stop handles across sessions, including queued notes and partial trigger failure', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const bass = instruments.find((item) => item.kind === 'Smolken')!.inst;
+		const stops = [vi.fn(), vi.fn(), vi.fn()];
+		bass.start.mockReturnValueOnce(stops[0]).mockReturnValueOnce(stops[1]).mockReturnValueOnce(stops[2]);
+		const hit = { kind: 'bass' as const, midi: 48, velocity: 80, duration: 0.4 };
+		const stopOld = mod.playBackingHitsNow([hit], 12, 'old:batch');
+		mod.playBackingHitsNow([hit], 12, 'new:batch');
+		stopOld(); stopOld();
+		expect(stops[0]).toHaveBeenCalledOnce();
+		expect(stops[1]).not.toHaveBeenCalled();
+		expect(bass.start.mock.calls[0][0].stopId).not.toBe(bass.start.mock.calls[1][0].stopId);
+		const comp = instruments.find((item) => item.kind === 'SplendidGrandPiano')!.inst;
+		comp.start.mockImplementationOnce(() => { throw new Error('voice failure'); });
+		expect(() => mod.playBackingHitsNow([hit, { kind: 'comp', notes: [60], velocity: 60, duration: 0.2 }], 12, 'failed')).toThrow('voice failure');
+		expect(stops[2]).toHaveBeenCalledOnce();
+	});
+});
+
+describe('rolling playback browser wrapper', () => {
+	beforeEach(() => {
+		vi.resetModules(); recorded.length = 0; instruments.length = 0; rollingCallbacks.clear(); rollingClock.currentTime = 10;
+	});
+
+	function openingBar(): RollingBackingBar {
+		return { version: 1, sessionId: 'rolling-probe', fromBar: 0, toBarExclusive: 1, startTick: 0, earliestTick: 0,
+			committedThroughTick: 1920, previousCheckpointId: null,
+			checkpoint: { version: 1, sessionId: 'rolling-probe', fingerprint: 'score', checkpointId: 'one', nextBar: 1 },
+			bassEvents: [{ time: '0i', midi: 48, velocity: 80, duration: 0.4, absBeat: 0 }],
+			compEvents: [], drumEvents: [], ensemblePlan: [], ensembleTiming: [],
+			ensembleDevelopment: { version: 1, pianoMotifs: [], bassTurnarounds: [], drumPhrases: [] }
+		} as unknown as RollingBackingBar;
+	}
+
+	it('anchors after readiness, arms native audio at commit and clears the schedule while cancelling owned voices', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const release = vi.fn();
+		const bass = instruments.find((item) => item.kind === 'Smolken')!.inst;
+		bass.start.mockReturnValue(release);
+		const playback = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => true });
+		expect(playback.startAudioTime).toBeCloseTo(10.325, 8);
+		expect(playback.commit(openingBar()).accepted).toBe(true);
+		expect(mod.getActiveSchedule()).toBe(playback.snapshot().schedule);
+		expect(recorded).toHaveLength(0);
+		expect(rollingCallbacks.size).toBe(0);
+		expect(bass.start).toHaveBeenCalledOnce();
+		expect(bass.start).toHaveBeenCalledWith(expect.objectContaining({ note: 48, velocity: 80, duration: .4, time: playback.startAudioTime }));
+		expect(playback.snapshot().dispatches[0].status).toBe('played');
+		mod.disposeBackingParts(); mod.disposeBackingParts();
+		expect(release).toHaveBeenCalledOnce();
+		expect(mod.getActiveSchedule()).toBeNull();
+		expect(playback.snapshot().status).toBe('stopped');
+	});
+
+	it('does not let a superseded setup clear an existing schedule', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const first = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => true });
+		first.commit(openingBar()); const schedule = mod.getActiveSchedule();
+		await expect(mod.createRollingBackingPlayback({ sessionId: 'old', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => false })).rejects.toMatchObject({ name: 'AbortError' });
+		expect(mod.getActiveSchedule()).toBe(schedule);
+		first.stop();
+	});
+
+	it('retains physical ownership across commits and request cancellation, but never across replacement', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		let current = true;
+		const first = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120,
+			ppq: 480, totalBars: 4, isCurrent: () => current });
+		expect(first.ownsOutput()).toBe(true);
+		first.commit(openingBar());
+		const oldSchedule = mod.getActiveSchedule();
+		const secondBar = { ...openingBar(), fromBar: 1, toBarExclusive: 2, startTick: 1920, earliestTick: 1920,
+			committedThroughTick: 3840, previousCheckpointId: 'one',
+			checkpoint: { ...openingBar().checkpoint, nextBar: 2, checkpointId: 'two' },
+			bassEvents: [{ time: '1920i', midi: 48, velocity: 80, duration: 0.4, absBeat: 4 }] };
+		expect(first.commit(secondBar).accepted).toBe(true);
+		expect(mod.getActiveSchedule()).not.toBe(oldSchedule);
+		expect(first.ownsOutput()).toBe(true);
+		current = false;
+		expect(first.ownsOutput()).toBe(true);
+		first.stop();
+		expect(mod.getActiveSchedule()).toBeNull();
+		expect(first.ownsOutput()).toBe(true);
+		const replacement = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120,
+			ppq: 480, totalBars: 4, isCurrent: () => true });
+		expect(first.ownsOutput()).toBe(false);
+		expect(replacement.ownsOutput()).toBe(true);
+		expect(replacement.commit(openingBar()).accepted).toBe(true);
+		const replacementSchedule = mod.getActiveSchedule();
+		first.stop();
+		expect(mod.getActiveSchedule()).toBe(replacementSchedule);
+		expect(replacement.snapshot().status).toBe('active');
+		mod.disposeBackingParts();
+		expect(replacement.ownsOutput()).toBe(false);
+	});
+
+	it('cannot clear a newer fixed arrangement when a former rolling owner stops late', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const previous = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120,
+			ppq: 480, totalBars: 4, isCurrent: () => true });
+		expect(previous.commit(openingBar()).accepted).toBe(true);
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, false, () => true);
+		const schedule = mod.getActiveSchedule();
+		expect(schedule).not.toBeNull();
+		expect(previous.ownsOutput()).toBe(false);
+		previous.stop();
+		expect(mod.getActiveSchedule()).toBe(schedule);
+		expect(recorded.every((part) => !part.disposed)).toBe(true);
+		mod.disposeBackingTrack();
+		expect(previous.ownsOutput()).toBe(false);
+	});
 });
 
 
@@ -372,6 +609,9 @@ describe('tune backing output level', () => {
 		expect(fader.gain.value).toBe(OPTIONS.backingTrackVolume);
 		expect(output.gain.value).toBe(4);
 		expect(output.connect).toHaveBeenCalledWith(master);
+		mod.setBackingMix({ master: 0.5 }, { persist: false });
+		expect(output.gain.value).toBe(2); // Reference × fader, with no second +6 dB boost.
+		mod.setBackingMix({ master: 1 }, { persist: false });
 		mod.setBackingTrackVolume(0);
 		expect(fader.gain.value).toBe(0);
 		expect(output.gain.value).toBe(4);
@@ -383,4 +623,25 @@ describe('tune backing output level', () => {
 		mod.disposeBackingTrack();
 		expect(output.disconnect).toHaveBeenCalled();
 	});
+});
+
+it('normal playback installs the released full-tune attacks and explicit Original still selects the reference engine', async () => {
+ const { buildListeningTuneSession } = await import('$lib/musicality/listening-tunes');
+ const { MANKUNKU_BLUES } = await import('$lib/data/tunes');
+ const { prepareReleasedArrangement } = await import('$lib/audio/backing-arrangement');
+ const { phrase } = buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
+ const mod=await import('$lib/audio/backing-track'); await mod.loadBackingInstruments('piano');
+ const options={...OPTIONS,tempo:140,swing:.62,backingPerformanceSeed:256};
+ const expected=prepareReleasedArrangement(phrase.harmony,BACKING_STYLES.swing,{
+  phraseId:phrase.id,tempo:140,swing:.62,ppq:PPQ,beatsPerBar:4,sectionMap:phrase.sectionMap,performanceForm:phrase.performanceForm
+ },'piano',4,256)!;
+ const start=recorded.length;
+ const generated=await mod.scheduleBackingTrack(phrase,options,2*PPQ,false);
+ expect(generated).toEqual(expected);
+ expect(recorded.slice(start).map(p=>p.events)).toEqual([expected.bassEvents,expected.compEvents,expected.drumEvents]);
+ expect(recorded.slice(start).every(p=>p.startedAt===`${2*PPQ}i`)).toBe(true);
+ const original=await mod.scheduleBackingTrack(phrase,{...options,backingOrchestration:'original'},2*PPQ,false);
+ expect(original?.compEvents).not.toEqual(expected.compEvents);
+ expect(mod.getActiveSchedule()?.notes.length).toBeGreaterThan(0);
+ mod.disposeBackingTrack();
 });

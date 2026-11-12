@@ -176,12 +176,15 @@ The guard is automatic: every test that uses the fixture `test` fails on any une
 Normal E2E discovery includes `*.spec.ts`. The calibration, milestone WAV and OMR fixture recorders are `*.diagnostic.ts`, selected only by `playwright.diagnostics.config.ts`:
 
 ```sh
-CALIB_DIR=tests/fixtures/backing npm run test:sandbox -- diagnostics backing-calibration
-RENDER_DIR=tests/fixtures/backing/milestone-a npm run test:sandbox -- diagnostics backing-milestone-render
-npm run test:sandbox -- diagnostics record-omr-fixtures
+CALIB_DIR=tests/fixtures/backing npm run test:sandbox -- diagnostics backing-calibration --project=chromium
+RENDER_DIR=tests/fixtures/backing/milestone-a npm run test:sandbox -- diagnostics backing-milestone-render --project=chromium
+npm run test:sandbox -- diagnostics record-omr-fixtures --project=chromium
+npm run test:sandbox -- diagnostics backing-bass-selection --project=firefox
+npm run test:sandbox -- diagnostics backing-pitched-timing --project=webkit
+npm run test:sandbox -- diagnostics musicality-native-audio --project=chromium
 ```
 
-Inputs must be repository-relative directories. Outputs are stored under the recovered sandbox artifacts; review generated files before replacing a committed fixture. These commands are tools for collecting evidence, not correctness tests. The normal backing-render regression now supplies audible deterministic CDN samples and asserts output over the whole form, including isolated stems.
+Inputs must be repository-relative directories. Outputs are stored under the recovered sandbox artifacts; review generated files before replacing a committed fixture. The calibration/recording commands collect artifacts; the native bass-selection, pitched-timing and musicality-audio diagnostics assert behavior using real CDN recordings. All require explicit diagnostic selection, and all engines remain selectable. Linux Firefox real-time audio cases retain the documented device skip; offline bass-selection remains runnable. The normal backing-render regression now supplies audible deterministic CDN samples and asserts output over the whole form, including isolated stems.
 
 See the [maintenance audit](../../docs/maintenance/2026-11-08-audit.md) for the remaining platform skips and expected failures.
 

@@ -723,6 +723,12 @@ export interface PhrasePlaybackOpts {
  */
 export const PHRASE_LEAD_IN_BARS = 1;
 
+let backingPerformanceSeed = 0;
+function newBackingPerformanceSeed(): number {
+ return globalThis.crypto?.getRandomValues(new Uint32Array(1))[0] ?? Math.floor(Math.random() * 0x100000000);
+}
+
+
 /**
  * Play a phrase through the loaded instrument.
  * Returns a promise that resolves when phrase playback finishes.
@@ -749,6 +755,8 @@ export async function playPhrase(
 	// Claim setup before yielding so a teardown or newer play cancels even
 	// the initial Tone lookup and AudioContext activation.
 	const scheduleId = ++currentScheduleId;
+	backingPerformanceSeed = options.backingPerformanceSeed ?? newBackingPerformanceSeed();
+	options = { ...options, backingPerformanceSeed };
 	// The one cancellation boundary, shared with the helpers awaited below:
 	// they yield before they allocate, and must allocate nothing once a
 	// stopPlayback() or a newer phrase has bumped the generation.
@@ -1027,6 +1035,7 @@ export async function scheduleNextPhrase(
 	// supersedes us, our `scheduleId` will no longer match and we bail
 	// out before installing stale callbacks.
 	const scheduleId = ++currentScheduleId;
+	options = { ...options, backingPerformanceSeed: options.backingPerformanceSeed ?? backingPerformanceSeed };
 
 	const Tone = await getTone();
 	if (scheduleId !== currentScheduleId) return;

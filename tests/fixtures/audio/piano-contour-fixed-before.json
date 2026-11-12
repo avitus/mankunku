@@ -1,0 +1,636 @@
+{
+  "baselineCommit": "a00ea1f3",
+  "scenario": "Saints F#, two solos, default seed, 140 BPM",
+  "styles": {
+    "swing": [
+      {
+        "time": "3015i",
+        "notes": [
+          49,
+          58,
+          63,
+          68
+        ],
+        "duration": 0.6296695532742888,
+        "velocity": 68,
+        "absBeat": 15.5
+      },
+      {
+        "time": "3078i",
+        "notes": [
+          49,
+          58,
+          63,
+          68
+        ],
+        "duration": 1.398785181402096,
+        "velocity": 66,
+        "absBeat": 16
+      },
+      {
+        "time": "4742i",
+        "notes": [
+          59,
+          63,
+          65
+        ],
+        "duration": 0.27166461836546657,
+        "velocity": 71,
+        "absBeat": 24.5
+      },
+      {
+        "time": "8773i",
+        "notes": [
+          56,
+          61,
+          63,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 67,
+        "absBeat": 45.5
+      },
+      {
+        "time": "10694i",
+        "notes": [
+          58,
+          59,
+          65
+        ],
+        "duration": 0.6905796110630036,
+        "velocity": 62,
+        "absBeat": 55.5
+      },
+      {
+        "time": "12231i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.12723214285714285,
+        "velocity": 74,
+        "absBeat": 63.5
+      },
+      {
+        "time": "12288i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.20230543564738973,
+        "velocity": 59,
+        "absBeat": 64
+      },
+      {
+        "time": "14151i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.3,
+        "velocity": 65,
+        "absBeat": 73.5
+      },
+      {
+        "time": "15687i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.3,
+        "velocity": 67,
+        "absBeat": 81.5
+      },
+      {
+        "time": "17031i",
+        "notes": [
+          59,
+          61,
+          65
+        ],
+        "duration": 0.3,
+        "velocity": 70,
+        "absBeat": 88.5
+      },
+      {
+        "time": "17798i",
+        "notes": [
+          59,
+          61,
+          65
+        ],
+        "duration": 0.18060309603810312,
+        "velocity": 69,
+        "absBeat": 92.5
+      },
+      {
+        "time": "20742i",
+        "notes": [
+          56,
+          63
+        ],
+        "duration": 1.6440341672780256,
+        "velocity": 59,
+        "absBeat": 108
+      },
+      {
+        "time": "21830i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 68,
+        "absBeat": 113.5
+      },
+      {
+        "time": "25733i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.6131012238096445,
+        "velocity": 65,
+        "absBeat": 134
+      },
+      {
+        "time": "26053i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.4796010309823656,
+        "velocity": 63,
+        "absBeat": 135.5
+      },
+      {
+        "time": "26437i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.22063028748546326,
+        "velocity": 64,
+        "absBeat": 137.5
+      },
+      {
+        "time": "26693i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.251208983208718,
+        "velocity": 60,
+        "absBeat": 139
+      },
+      {
+        "time": "30663i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.6601710787408852,
+        "velocity": 66,
+        "absBeat": 159.5
+      },
+      {
+        "time": "31046i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.3,
+        "velocity": 73,
+        "absBeat": 161.5
+      },
+      {
+        "time": "31815i",
+        "notes": [
+          56,
+          63,
+          64,
+          70
+        ],
+        "duration": 0.3,
+        "velocity": 77,
+        "absBeat": 165.5
+      },
+      {
+        "time": "33926i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.29970645176712424,
+        "velocity": 76,
+        "absBeat": 176.5
+      },
+      {
+        "time": "37190i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 63,
+        "absBeat": 193.5
+      },
+      {
+        "time": "38406i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 1.6407006217619138,
+        "velocity": 69,
+        "absBeat": 200
+      },
+      {
+        "time": "40838i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.29088299314957106,
+        "velocity": 71,
+        "absBeat": 212.5
+      },
+      {
+        "time": "43335i",
+        "notes": [
+          51,
+          58,
+          61,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 65,
+        "absBeat": 225.5
+      },
+      {
+        "time": "44678i",
+        "notes": [
+          51,
+          56,
+          59,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 72,
+        "absBeat": 232.5
+      },
+      {
+        "time": "46406i",
+        "notes": [
+          51,
+          56,
+          58,
+          61
+        ],
+        "duration": 0.3,
+        "velocity": 71,
+        "absBeat": 241.5
+      }
+    ],
+    "straight": [
+      {
+        "time": "2979i",
+        "notes": [
+          49,
+          58,
+          63,
+          68
+        ],
+        "duration": 0.6296695532742888,
+        "velocity": 68,
+        "absBeat": 15.5
+      },
+      {
+        "time": "3075i",
+        "notes": [
+          49,
+          58,
+          63,
+          68
+        ],
+        "duration": 1.398785181402096,
+        "velocity": 66,
+        "absBeat": 16
+      },
+      {
+        "time": "4707i",
+        "notes": [
+          59,
+          63,
+          65
+        ],
+        "duration": 0.27166461836546657,
+        "velocity": 71,
+        "absBeat": 24.5
+      },
+      {
+        "time": "8738i",
+        "notes": [
+          56,
+          61,
+          63,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 67,
+        "absBeat": 45.5
+      },
+      {
+        "time": "10659i",
+        "notes": [
+          58,
+          59,
+          65
+        ],
+        "duration": 0.6905796110630036,
+        "velocity": 62,
+        "absBeat": 55.5
+      },
+      {
+        "time": "12196i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.20535714285714282,
+        "velocity": 74,
+        "absBeat": 63.5
+      },
+      {
+        "time": "12288i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.20230543564738973,
+        "velocity": 59,
+        "absBeat": 64
+      },
+      {
+        "time": "14500i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.6040686661843211,
+        "velocity": 65,
+        "absBeat": 75.5
+      },
+      {
+        "time": "15651i",
+        "notes": [
+          56,
+          58,
+          61,
+          63
+        ],
+        "duration": 0.3,
+        "velocity": 67,
+        "absBeat": 81.5
+      },
+      {
+        "time": "16996i",
+        "notes": [
+          59,
+          61,
+          65
+        ],
+        "duration": 0.3,
+        "velocity": 70,
+        "absBeat": 88.5
+      },
+      {
+        "time": "17762i",
+        "notes": [
+          59,
+          61,
+          65
+        ],
+        "duration": 0.18060309603810312,
+        "velocity": 69,
+        "absBeat": 92.5
+      },
+      {
+        "time": "20740i",
+        "notes": [
+          56,
+          63
+        ],
+        "duration": 1.6440341672780256,
+        "velocity": 59,
+        "absBeat": 108
+      },
+      {
+        "time": "21795i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 68,
+        "absBeat": 113.5
+      },
+      {
+        "time": "25730i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.6131012238096445,
+        "velocity": 65,
+        "absBeat": 134
+      },
+      {
+        "time": "26018i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.4796010309823656,
+        "velocity": 63,
+        "absBeat": 135.5
+      },
+      {
+        "time": "26402i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.22063028748546326,
+        "velocity": 64,
+        "absBeat": 137.5
+      },
+      {
+        "time": "26690i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.251208983208718,
+        "velocity": 60,
+        "absBeat": 139
+      },
+      {
+        "time": "30627i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.6601710787408852,
+        "velocity": 66,
+        "absBeat": 159.5
+      },
+      {
+        "time": "31010i",
+        "notes": [
+          56,
+          61,
+          63,
+          70
+        ],
+        "duration": 0.3,
+        "velocity": 73,
+        "absBeat": 161.5
+      },
+      {
+        "time": "31780i",
+        "notes": [
+          56,
+          63,
+          64,
+          70
+        ],
+        "duration": 0.3,
+        "velocity": 77,
+        "absBeat": 165.5
+      },
+      {
+        "time": "33891i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.29970645176712424,
+        "velocity": 76,
+        "absBeat": 176.5
+      },
+      {
+        "time": "37155i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 63,
+        "absBeat": 193.5
+      },
+      {
+        "time": "38404i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 1.6407006217619138,
+        "velocity": 69,
+        "absBeat": 200
+      },
+      {
+        "time": "40802i",
+        "notes": [
+          56,
+          61,
+          66
+        ],
+        "duration": 0.29088299314957106,
+        "velocity": 71,
+        "absBeat": 212.5
+      },
+      {
+        "time": "43299i",
+        "notes": [
+          51,
+          58,
+          61,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 65,
+        "absBeat": 225.5
+      },
+      {
+        "time": "44643i",
+        "notes": [
+          51,
+          56,
+          59,
+          66
+        ],
+        "duration": 0.3,
+        "velocity": 72,
+        "absBeat": 232.5
+      },
+      {
+        "time": "46371i",
+        "notes": [
+          51,
+          56,
+          58,
+          61
+        ],
+        "duration": 0.3,
+        "velocity": 71,
+        "absBeat": 241.5
+      }
+    ]
+  }
+}

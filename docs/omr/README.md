@@ -305,4 +305,4 @@ in `.circleci/config.yml`, mirroring `nginx-changed`. The Python suite runs
 separately from the app's tests; on the app side, the hybrid `.omr.json`
 import path has its own Vitest coverage (`tests/unit/tunes/omr-*.test.ts`,
 `pdf-vs-musescore`'s OMR family) and an env-gated Playwright fixture recorder
-(`npm run test:sandbox -- diagnostics record-omr-fixtures`), so CI never rewrites fixtures.
+(`npm run test:sandbox -- diagnostics record-omr-fixtures --project=chromium`), so CI never rewrites fixtures.

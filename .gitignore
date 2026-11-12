@@ -43,10 +43,12 @@ supabase/.temp/
 # CircleCI Smarter Testing local impact data (doctor / --local runs)
 .circleci/impact-*.json
 .circleci/state-*/
+.circleci/state-*.json
 
 # chunk active sidecar tracking
 .chunk/sidecar.json
 .chunk/sidecar.*.json
+.chunk/validate-pool*.json
 .prod-backup.*
 
 # Python (omr/ subsystem)

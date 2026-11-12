@@ -1,0 +1,5597 @@
+{
+  "sourceCommit": "57b5f9431a8bdd9aefcc1bd8867ee009ccba8053",
+  "performances": {
+    "62e09105b7d7755e270709708b3044bf3aed2d527d1d9c1360b1884a00d0def4": {
+      "scenarioId": "ls-when-the-saints-Eb-bossa-nova-0-coordinated-explicit",
+      "engine": "fixed",
+      "compEvents": [
+        {
+          "time": "192i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.31479962132871153,
+          "velocity": 55,
+          "absBeat": 1
+        },
+        {
+          "time": "768i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3460254333487579,
+          "velocity": 51,
+          "absBeat": 4
+        },
+        {
+          "time": "1729i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3606409639439412,
+          "velocity": 51,
+          "absBeat": 9
+        },
+        {
+          "time": "3840i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.318557950258255,
+          "velocity": 52,
+          "absBeat": 20
+        },
+        {
+          "time": "4801i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.34817552003477303,
+          "velocity": 51,
+          "absBeat": 25
+        },
+        {
+          "time": "5377i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.35098731629018276,
+          "velocity": 50,
+          "absBeat": 28
+        },
+        {
+          "time": "6336i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.37544564032661065,
+          "velocity": 51,
+          "absBeat": 33
+        },
+        {
+          "time": "6912i",
+          "notes": [
+            53,
+            58,
+            63
+          ],
+          "duration": 0.31860977653946193,
+          "velocity": 60,
+          "absBeat": 36
+        },
+        {
+          "time": "7872i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.36048048793737375,
+          "velocity": 58,
+          "absBeat": 41
+        },
+        {
+          "time": "8448i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.31342726824006867,
+          "velocity": 59,
+          "absBeat": 44
+        },
+        {
+          "time": "11520i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.35133538570787226,
+          "velocity": 58,
+          "absBeat": 60
+        },
+        {
+          "time": "12480i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3176934283918568,
+          "velocity": 56,
+          "absBeat": 65
+        },
+        {
+          "time": "13057i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3688897407959615,
+          "velocity": 59,
+          "absBeat": 68
+        },
+        {
+          "time": "14017i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.32528637041470837,
+          "velocity": 60,
+          "absBeat": 73
+        },
+        {
+          "time": "14592i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3332996368621077,
+          "velocity": 54,
+          "absBeat": 76
+        },
+        {
+          "time": "15552i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3664000024380428,
+          "velocity": 50,
+          "absBeat": 81
+        },
+        {
+          "time": "16128i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3338424119672605,
+          "velocity": 52,
+          "absBeat": 84
+        },
+        {
+          "time": "17088i",
+          "notes": [
+            55,
+            56,
+            60,
+            62
+          ],
+          "duration": 0.3380624314982976,
+          "velocity": 54,
+          "absBeat": 89
+        },
+        {
+          "time": "17664i",
+          "notes": [
+            55,
+            56,
+            60,
+            62
+          ],
+          "duration": 0.3263227872497269,
+          "velocity": 59,
+          "absBeat": 92
+        },
+        {
+          "time": "18624i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.34377910890749525,
+          "velocity": 54,
+          "absBeat": 97
+        },
+        {
+          "time": "18912i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.4649545510918168,
+          "velocity": 64,
+          "absBeat": 98.5
+        },
+        {
+          "time": "19201i",
+          "notes": [
+            55,
+            58,
+            61,
+            65
+          ],
+          "duration": 0.3690837255599243,
+          "velocity": 57,
+          "absBeat": 100
+        },
+        {
+          "time": "19489i",
+          "notes": [
+            55,
+            58,
+            61,
+            65
+          ],
+          "duration": 0.3947026382599558,
+          "velocity": 60,
+          "absBeat": 101.5
+        },
+        {
+          "time": "20162i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.3698820584267378,
+          "velocity": 56,
+          "absBeat": 105
+        },
+        {
+          "time": "20449i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.5052936074357214,
+          "velocity": 55,
+          "absBeat": 106.5
+        },
+        {
+          "time": "20737i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.333518137176122,
+          "velocity": 59,
+          "absBeat": 108
+        },
+        {
+          "time": "21024i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.41159045501013414,
+          "velocity": 64,
+          "absBeat": 109.5
+        },
+        {
+          "time": "21696i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.3436910254827568,
+          "velocity": 52,
+          "absBeat": 113
+        },
+        {
+          "time": "22272i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.31996544133871796,
+          "velocity": 54,
+          "absBeat": 116
+        },
+        {
+          "time": "26880i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3348923631491406,
+          "velocity": 60,
+          "absBeat": 140
+        },
+        {
+          "time": "27840i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.33022556413497245,
+          "velocity": 58,
+          "absBeat": 145
+        },
+        {
+          "time": "28416i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3117100427352957,
+          "velocity": 54,
+          "absBeat": 148
+        },
+        {
+          "time": "29375i",
+          "notes": [
+            56,
+            60,
+            62,
+            65
+          ],
+          "duration": 0.34281646878591604,
+          "velocity": 56,
+          "absBeat": 153
+        },
+        {
+          "time": "29952i",
+          "notes": [
+            56,
+            60,
+            62,
+            65
+          ],
+          "duration": 0.3372146457380482,
+          "velocity": 57,
+          "absBeat": 156
+        },
+        {
+          "time": "30912i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.356397299511092,
+          "velocity": 54,
+          "absBeat": 161
+        },
+        {
+          "time": "31488i",
+          "notes": [
+            55,
+            61,
+            63
+          ],
+          "duration": 0.3741161165758967,
+          "velocity": 60,
+          "absBeat": 164
+        },
+        {
+          "time": "33984i",
+          "notes": [
+            55,
+            60,
+            65,
+            70
+          ],
+          "duration": 0.31457505473600966,
+          "velocity": 59,
+          "absBeat": 177
+        },
+        {
+          "time": "34560i",
+          "notes": [
+            55,
+            60,
+            65,
+            70
+          ],
+          "duration": 0.36900353055979523,
+          "velocity": 50,
+          "absBeat": 180
+        },
+        {
+          "time": "35520i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.31995090614472116,
+          "velocity": 51,
+          "absBeat": 185
+        },
+        {
+          "time": "36096i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.36062400957303387,
+          "velocity": 50,
+          "absBeat": 188
+        },
+        {
+          "time": "37057i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3234012779646686,
+          "velocity": 56,
+          "absBeat": 193
+        },
+        {
+          "time": "37633i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.31677995185234714,
+          "velocity": 59,
+          "absBeat": 196
+        },
+        {
+          "time": "38594i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.37691528631640336,
+          "velocity": 60,
+          "absBeat": 201
+        },
+        {
+          "time": "40704i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3308286981550711,
+          "velocity": 58,
+          "absBeat": 212
+        },
+        {
+          "time": "41663i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.34203555677086117,
+          "velocity": 56,
+          "absBeat": 217
+        },
+        {
+          "time": "42239i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.35505636351981334,
+          "velocity": 56,
+          "absBeat": 220
+        },
+        {
+          "time": "43776i",
+          "notes": [
+            53,
+            58,
+            63
+          ],
+          "duration": 0.34063543581004657,
+          "velocity": 57,
+          "absBeat": 228
+        },
+        {
+          "time": "44735i",
+          "notes": [
+            53,
+            58,
+            63,
+            72
+          ],
+          "duration": 0.31610566372850113,
+          "velocity": 58,
+          "absBeat": 233
+        },
+        {
+          "time": "45312i",
+          "notes": [
+            53,
+            58,
+            63,
+            72
+          ],
+          "duration": 0.3137823895843966,
+          "velocity": 55,
+          "absBeat": 236
+        },
+        {
+          "time": "48384i",
+          "notes": [
+            55,
+            63,
+            72
+          ],
+          "duration": 0.32152857498931037,
+          "velocity": 55,
+          "absBeat": 252
+        }
+      ],
+      "families": [
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ]
+      ]
+    },
+    "2d444d5acf2dd8bc49e4eadd3559f2a2bc4a593f72f17af17c175c23882e9b64": {
+      "scenarioId": "ls-when-the-saints-Eb-bossa-nova-0-coordinated-explicit",
+      "engine": "rolling",
+      "compEvents": [
+        {
+          "absBeat": 1,
+          "time": "192i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3147996213287116,
+          "velocity": 55
+        },
+        {
+          "absBeat": 4,
+          "time": "768i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3460254333487579,
+          "velocity": 51
+        },
+        {
+          "absBeat": 9,
+          "time": "1729i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.36064096394394124,
+          "velocity": 51
+        },
+        {
+          "absBeat": 20,
+          "time": "3840i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.31855795025825506,
+          "velocity": 52
+        },
+        {
+          "absBeat": 25,
+          "time": "4801i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.34817552003477303,
+          "velocity": 51
+        },
+        {
+          "absBeat": 28,
+          "time": "5377i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.35098731629018276,
+          "velocity": 50
+        },
+        {
+          "absBeat": 33,
+          "time": "6336i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.37544564032661065,
+          "velocity": 51
+        },
+        {
+          "absBeat": 36,
+          "time": "6912i",
+          "notes": [
+            53,
+            58,
+            63
+          ],
+          "duration": 0.318609776539462,
+          "velocity": 60
+        },
+        {
+          "absBeat": 41,
+          "time": "7872i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.3604804879373738,
+          "velocity": 58
+        },
+        {
+          "absBeat": 44,
+          "time": "8448i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.31342726824006867,
+          "velocity": 59
+        },
+        {
+          "absBeat": 60,
+          "time": "11520i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.3513353857078723,
+          "velocity": 58
+        },
+        {
+          "absBeat": 65,
+          "time": "12480i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3176934283918569,
+          "velocity": 56
+        },
+        {
+          "absBeat": 68,
+          "time": "13057i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.36888974079596154,
+          "velocity": 59
+        },
+        {
+          "absBeat": 73,
+          "time": "14017i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.32528637041470837,
+          "velocity": 60
+        },
+        {
+          "absBeat": 76,
+          "time": "14592i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.33329963686210773,
+          "velocity": 54
+        },
+        {
+          "absBeat": 81,
+          "time": "15552i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3664000024380429,
+          "velocity": 50
+        },
+        {
+          "absBeat": 84,
+          "time": "16128i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.33384241196726056,
+          "velocity": 52
+        },
+        {
+          "absBeat": 89,
+          "time": "17088i",
+          "notes": [
+            55,
+            56,
+            60,
+            62
+          ],
+          "duration": 0.3380624314982977,
+          "velocity": 54
+        },
+        {
+          "absBeat": 92,
+          "time": "17664i",
+          "notes": [
+            55,
+            56,
+            60,
+            62
+          ],
+          "duration": 0.3263227872497269,
+          "velocity": 59
+        },
+        {
+          "absBeat": 97,
+          "time": "18624i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3437791089074953,
+          "velocity": 54
+        },
+        {
+          "absBeat": 98.5,
+          "time": "18912i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.4649545510918168,
+          "velocity": 64
+        },
+        {
+          "absBeat": 100,
+          "time": "19201i",
+          "notes": [
+            55,
+            58,
+            61,
+            65
+          ],
+          "duration": 0.3690837255599243,
+          "velocity": 57
+        },
+        {
+          "absBeat": 101.5,
+          "time": "19489i",
+          "notes": [
+            55,
+            58,
+            61,
+            65
+          ],
+          "duration": 0.39470263825995583,
+          "velocity": 60
+        },
+        {
+          "absBeat": 105,
+          "time": "20162i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.3698820584267378,
+          "velocity": 56
+        },
+        {
+          "absBeat": 106.5,
+          "time": "20449i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.5052936074357215,
+          "velocity": 55
+        },
+        {
+          "absBeat": 108,
+          "time": "20737i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.333518137176122,
+          "velocity": 59
+        },
+        {
+          "absBeat": 109.5,
+          "time": "21024i",
+          "notes": [
+            53,
+            56,
+            60
+          ],
+          "duration": 0.4115904550101342,
+          "velocity": 64
+        },
+        {
+          "absBeat": 113,
+          "time": "21696i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.3436910254827568,
+          "velocity": 52
+        },
+        {
+          "absBeat": 116,
+          "time": "22272i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.319965441338718,
+          "velocity": 54
+        },
+        {
+          "absBeat": 140,
+          "time": "26880i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.33489236314914067,
+          "velocity": 60
+        },
+        {
+          "absBeat": 145,
+          "time": "27840i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.33022556413497245,
+          "velocity": 58
+        },
+        {
+          "absBeat": 148,
+          "time": "28416i",
+          "notes": [
+            55,
+            60,
+            63,
+            70
+          ],
+          "duration": 0.3117100427352957,
+          "velocity": 54
+        },
+        {
+          "absBeat": 153,
+          "time": "29375i",
+          "notes": [
+            56,
+            60,
+            62,
+            65
+          ],
+          "duration": 0.3428164687859161,
+          "velocity": 56
+        },
+        {
+          "absBeat": 156,
+          "time": "29952i",
+          "notes": [
+            56,
+            60,
+            62,
+            65
+          ],
+          "duration": 0.33721464573804827,
+          "velocity": 57
+        },
+        {
+          "absBeat": 161,
+          "time": "30912i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.356397299511092,
+          "velocity": 54
+        },
+        {
+          "absBeat": 164,
+          "time": "31488i",
+          "notes": [
+            55,
+            61,
+            63
+          ],
+          "duration": 0.3741161165758967,
+          "velocity": 60
+        },
+        {
+          "absBeat": 177,
+          "time": "33984i",
+          "notes": [
+            55,
+            60,
+            65,
+            70
+          ],
+          "duration": 0.3145750547360097,
+          "velocity": 59
+        },
+        {
+          "absBeat": 180,
+          "time": "34560i",
+          "notes": [
+            55,
+            60,
+            65,
+            70
+          ],
+          "duration": 0.3690035305597953,
+          "velocity": 50
+        },
+        {
+          "absBeat": 185,
+          "time": "35520i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.3199509061447212,
+          "velocity": 51
+        },
+        {
+          "absBeat": 188,
+          "time": "36096i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.36062400957303387,
+          "velocity": 50
+        },
+        {
+          "absBeat": 193,
+          "time": "37057i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3234012779646686,
+          "velocity": 56
+        },
+        {
+          "absBeat": 196,
+          "time": "37633i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3167799518523472,
+          "velocity": 59
+        },
+        {
+          "absBeat": 201,
+          "time": "38594i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3769152863164034,
+          "velocity": 60
+        },
+        {
+          "absBeat": 212,
+          "time": "40704i",
+          "notes": [
+            55,
+            58,
+            60,
+            65
+          ],
+          "duration": 0.3308286981550711,
+          "velocity": 58
+        },
+        {
+          "absBeat": 217,
+          "time": "41663i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.3420355567708612,
+          "velocity": 56
+        },
+        {
+          "absBeat": 220,
+          "time": "42240i",
+          "notes": [
+            55,
+            56,
+            62
+          ],
+          "duration": 0.35505636351981334,
+          "velocity": 56
+        },
+        {
+          "absBeat": 228,
+          "time": "43776i",
+          "notes": [
+            53,
+            58,
+            63
+          ],
+          "duration": 0.3406354358100466,
+          "velocity": 57
+        },
+        {
+          "absBeat": 233,
+          "time": "44735i",
+          "notes": [
+            53,
+            58,
+            63,
+            72
+          ],
+          "duration": 0.31610566372850113,
+          "velocity": 58
+        },
+        {
+          "absBeat": 236,
+          "time": "45312i",
+          "notes": [
+            53,
+            58,
+            63,
+            72
+          ],
+          "duration": 0.3137823895843966,
+          "velocity": 55
+        },
+        {
+          "absBeat": 252,
+          "time": "48384i",
+          "notes": [
+            55,
+            63,
+            72
+          ],
+          "duration": 0.32152857498931037,
+          "velocity": 55
+        }
+      ],
+      "families": [
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ]
+      ]
+    },
+    "a4c639bd4acfd075688bb24b268e25554b23222cec92efb60ae02a2a7c38cd26": {
+      "scenarioId": "ls-when-the-saints-F#-bossa-nova-0-coordinated-explicit",
+      "engine": "fixed",
+      "compEvents": [
+        {
+          "time": "2305i",
+          "notes": [
+            49,
+            58,
+            63,
+            68
+          ],
+          "duration": 0.3409299995005131,
+          "velocity": 54,
+          "absBeat": 12
+        },
+        {
+          "time": "3264i",
+          "notes": [
+            49,
+            58,
+            63,
+            68
+          ],
+          "duration": 0.3653183100266116,
+          "velocity": 50,
+          "absBeat": 17
+        },
+        {
+          "time": "3840i",
+          "notes": [
+            49,
+            58,
+            63,
+            68
+          ],
+          "duration": 0.32028378953358955,
+          "velocity": 56,
+          "absBeat": 20
+        },
+        {
+          "time": "4800i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.3537778940051794,
+          "velocity": 50,
+          "absBeat": 25
+        },
+        {
+          "time": "5376i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.3363834080259715,
+          "velocity": 51,
+          "absBeat": 28
+        },
+        {
+          "time": "8448i",
+          "notes": [
+            56,
+            61,
+            63,
+            66
+          ],
+          "duration": 0.3318663611635566,
+          "velocity": 56,
+          "absBeat": 44
+        },
+        {
+          "time": "9408i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3744891449064016,
+          "velocity": 59,
+          "absBeat": 49
+        },
+        {
+          "time": "9984i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.31278000418628965,
+          "velocity": 59,
+          "absBeat": 52
+        },
+        {
+          "time": "10945i",
+          "notes": [
+            58,
+            59,
+            65
+          ],
+          "duration": 0.3089443041597094,
+          "velocity": 59,
+          "absBeat": 57
+        },
+        {
+          "time": "11521i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.34344737134873865,
+          "velocity": 57,
+          "absBeat": 60
+        },
+        {
+          "time": "13057i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.3435446096158454,
+          "velocity": 52,
+          "absBeat": 68
+        },
+        {
+          "time": "14017i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.32149191913860187,
+          "velocity": 52,
+          "absBeat": 73
+        },
+        {
+          "time": "14593i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.35130952380065406,
+          "velocity": 54,
+          "absBeat": 76
+        },
+        {
+          "time": "15552i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.3318807511191283,
+          "velocity": 50,
+          "absBeat": 81
+        },
+        {
+          "time": "16129i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.3609182366782001,
+          "velocity": 53,
+          "absBeat": 84
+        },
+        {
+          "time": "17089i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.3429690031387976,
+          "velocity": 56,
+          "absBeat": 89
+        },
+        {
+          "time": "17377i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.49045423302533375,
+          "velocity": 55,
+          "absBeat": 90.5
+        },
+        {
+          "time": "17664i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.3346178749469774,
+          "velocity": 52,
+          "absBeat": 92
+        },
+        {
+          "time": "17952i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.38166652970016,
+          "velocity": 58,
+          "absBeat": 93.5
+        },
+        {
+          "time": "20737i",
+          "notes": [
+            61,
+            66,
+            71
+          ],
+          "duration": 0.3190715444460511,
+          "velocity": 59,
+          "absBeat": 108
+        },
+        {
+          "time": "21696i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3320861980319023,
+          "velocity": 50,
+          "absBeat": 113
+        },
+        {
+          "time": "22272i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3468770786800555,
+          "velocity": 54,
+          "absBeat": 116
+        },
+        {
+          "time": "24768i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.36078718361045625,
+          "velocity": 58,
+          "absBeat": 129
+        },
+        {
+          "time": "25056i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.46829220263087856,
+          "velocity": 60,
+          "absBeat": 130.5
+        },
+        {
+          "time": "25343i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.35577167976647617,
+          "velocity": 56,
+          "absBeat": 132
+        },
+        {
+          "time": "25631i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.4101640020789844,
+          "velocity": 54,
+          "absBeat": 133.5
+        },
+        {
+          "time": "26303i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.3161056408818279,
+          "velocity": 57,
+          "absBeat": 137
+        },
+        {
+          "time": "26591i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.4541233416719895,
+          "velocity": 57,
+          "absBeat": 138.5
+        },
+        {
+          "time": "26879i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.37205459145030806,
+          "velocity": 50,
+          "absBeat": 140
+        },
+        {
+          "time": "29952i",
+          "notes": [
+            61,
+            65,
+            71
+          ],
+          "duration": 0.3156100451626948,
+          "velocity": 56,
+          "absBeat": 156
+        },
+        {
+          "time": "30912i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.35413313092397797,
+          "velocity": 56,
+          "absBeat": 161
+        },
+        {
+          "time": "31489i",
+          "notes": [
+            56,
+            63,
+            64,
+            70
+          ],
+          "duration": 0.372890522070229,
+          "velocity": 56,
+          "absBeat": 164
+        },
+        {
+          "time": "33984i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3730746508975114,
+          "velocity": 55,
+          "absBeat": 177
+        },
+        {
+          "time": "34559i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.30935782519302196,
+          "velocity": 52,
+          "absBeat": 180
+        },
+        {
+          "time": "37056i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.31001559954668795,
+          "velocity": 53,
+          "absBeat": 193
+        },
+        {
+          "time": "37632i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.36463087373014,
+          "velocity": 55,
+          "absBeat": 196
+        },
+        {
+          "time": "38592i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3763477017357945,
+          "velocity": 58,
+          "absBeat": 201
+        },
+        {
+          "time": "40704i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3473144967907241,
+          "velocity": 53,
+          "absBeat": 212
+        },
+        {
+          "time": "41664i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.3125777996970075,
+          "velocity": 57,
+          "absBeat": 217
+        },
+        {
+          "time": "42240i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.35051131179290157,
+          "velocity": 58,
+          "absBeat": 220
+        },
+        {
+          "time": "43200i",
+          "notes": [
+            58,
+            63,
+            66,
+            73
+          ],
+          "duration": 0.3170464773582561,
+          "velocity": 51,
+          "absBeat": 225
+        },
+        {
+          "time": "43776i",
+          "notes": [
+            58,
+            64,
+            66
+          ],
+          "duration": 0.3233172702363559,
+          "velocity": 53,
+          "absBeat": 228
+        },
+        {
+          "time": "44736i",
+          "notes": [
+            56,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.3548957535464849,
+          "velocity": 58,
+          "absBeat": 233
+        },
+        {
+          "time": "45312i",
+          "notes": [
+            56,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.3534625038557819,
+          "velocity": 50,
+          "absBeat": 236
+        },
+        {
+          "time": "46272i",
+          "notes": [
+            56,
+            58,
+            63,
+            73
+          ],
+          "duration": 0.3538296806280102,
+          "velocity": 57,
+          "absBeat": 241
+        },
+        {
+          "time": "46848i",
+          "notes": [
+            56,
+            58,
+            63,
+            73
+          ],
+          "duration": 0.3238670948254211,
+          "velocity": 60,
+          "absBeat": 244
+        }
+      ],
+      "families": [
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ]
+      ]
+    },
+    "8cb4ce5e8303c3f66bdca1220f6cb76713f27724d8883129c0bdd165c7ff7d96": {
+      "scenarioId": "ls-when-the-saints-F#-bossa-nova-0-coordinated-explicit",
+      "engine": "rolling",
+      "compEvents": [
+        {
+          "absBeat": 12,
+          "time": "2305i",
+          "notes": [
+            49,
+            58,
+            63,
+            68
+          ],
+          "duration": 0.3409299995005131,
+          "velocity": 54
+        },
+        {
+          "absBeat": 17,
+          "time": "3264i",
+          "notes": [
+            49,
+            58,
+            63,
+            68
+          ],
+          "duration": 0.3653183100266116,
+          "velocity": 50
+        },
+        {
+          "absBeat": 20,
+          "time": "3840i",
+          "notes": [
+            49,
+            58,
+            63,
+            68
+          ],
+          "duration": 0.32028378953358955,
+          "velocity": 56
+        },
+        {
+          "absBeat": 25,
+          "time": "4800i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.35377789400517945,
+          "velocity": 50
+        },
+        {
+          "absBeat": 28,
+          "time": "5376i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.3363834080259715,
+          "velocity": 51
+        },
+        {
+          "absBeat": 44,
+          "time": "8448i",
+          "notes": [
+            56,
+            61,
+            63,
+            66
+          ],
+          "duration": 0.3318663611635566,
+          "velocity": 56
+        },
+        {
+          "absBeat": 49,
+          "time": "9408i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.37448914490640167,
+          "velocity": 59
+        },
+        {
+          "absBeat": 52,
+          "time": "9984i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.31278000418628965,
+          "velocity": 59
+        },
+        {
+          "absBeat": 57,
+          "time": "10945i",
+          "notes": [
+            58,
+            59,
+            65
+          ],
+          "duration": 0.3089443041597094,
+          "velocity": 59
+        },
+        {
+          "absBeat": 60,
+          "time": "11521i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.3434473713487387,
+          "velocity": 57
+        },
+        {
+          "absBeat": 68,
+          "time": "13057i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.3435446096158454,
+          "velocity": 52
+        },
+        {
+          "absBeat": 73,
+          "time": "14017i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.32149191913860187,
+          "velocity": 52
+        },
+        {
+          "absBeat": 76,
+          "time": "14593i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.35130952380065406,
+          "velocity": 54
+        },
+        {
+          "absBeat": 81,
+          "time": "15552i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.33188075111912835,
+          "velocity": 50
+        },
+        {
+          "absBeat": 84,
+          "time": "16129i",
+          "notes": [
+            56,
+            58,
+            61,
+            63
+          ],
+          "duration": 0.36091823667820017,
+          "velocity": 53
+        },
+        {
+          "absBeat": 89,
+          "time": "17089i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.3429690031387976,
+          "velocity": 56
+        },
+        {
+          "absBeat": 90.5,
+          "time": "17377i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.4904542330253338,
+          "velocity": 55
+        },
+        {
+          "absBeat": 92,
+          "time": "17664i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.3346178749469775,
+          "velocity": 52
+        },
+        {
+          "absBeat": 93.5,
+          "time": "17952i",
+          "notes": [
+            59,
+            61,
+            65
+          ],
+          "duration": 0.38166652970016,
+          "velocity": 58
+        },
+        {
+          "absBeat": 108,
+          "time": "20737i",
+          "notes": [
+            61,
+            66,
+            71
+          ],
+          "duration": 0.3190715444460511,
+          "velocity": 59
+        },
+        {
+          "absBeat": 113,
+          "time": "21696i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3320861980319023,
+          "velocity": 50
+        },
+        {
+          "absBeat": 116,
+          "time": "22272i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3468770786800556,
+          "velocity": 54
+        },
+        {
+          "absBeat": 129,
+          "time": "24768i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.3607871836104563,
+          "velocity": 58
+        },
+        {
+          "absBeat": 130.5,
+          "time": "25056i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.46829220263087856,
+          "velocity": 60
+        },
+        {
+          "absBeat": 132,
+          "time": "25344i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.35577167976647617,
+          "velocity": 56
+        },
+        {
+          "absBeat": 133.5,
+          "time": "25631i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.4101640020789844,
+          "velocity": 54
+        },
+        {
+          "absBeat": 137,
+          "time": "26303i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.31610564088182797,
+          "velocity": 57
+        },
+        {
+          "absBeat": 138.5,
+          "time": "26591i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.4541233416719895,
+          "velocity": 57
+        },
+        {
+          "absBeat": 140,
+          "time": "26880i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.37205459145030806,
+          "velocity": 50
+        },
+        {
+          "absBeat": 156,
+          "time": "29952i",
+          "notes": [
+            61,
+            65,
+            71
+          ],
+          "duration": 0.3156100451626948,
+          "velocity": 56
+        },
+        {
+          "absBeat": 161,
+          "time": "30912i",
+          "notes": [
+            56,
+            61,
+            63,
+            70
+          ],
+          "duration": 0.35413313092397797,
+          "velocity": 56
+        },
+        {
+          "absBeat": 164,
+          "time": "31489i",
+          "notes": [
+            56,
+            63,
+            64,
+            70
+          ],
+          "duration": 0.37289052207022905,
+          "velocity": 56
+        },
+        {
+          "absBeat": 177,
+          "time": "33984i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3730746508975114,
+          "velocity": 55
+        },
+        {
+          "absBeat": 180,
+          "time": "34560i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.309357825193022,
+          "velocity": 52
+        },
+        {
+          "absBeat": 193,
+          "time": "37056i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.310015599546688,
+          "velocity": 53
+        },
+        {
+          "absBeat": 196,
+          "time": "37632i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.36463087373014,
+          "velocity": 55
+        },
+        {
+          "absBeat": 201,
+          "time": "38592i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3763477017357945,
+          "velocity": 58
+        },
+        {
+          "absBeat": 212,
+          "time": "40704i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3473144967907241,
+          "velocity": 53
+        },
+        {
+          "absBeat": 217,
+          "time": "41664i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.3125777996970075,
+          "velocity": 57
+        },
+        {
+          "absBeat": 220,
+          "time": "42240i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.35051131179290157,
+          "velocity": 58
+        },
+        {
+          "absBeat": 225,
+          "time": "43200i",
+          "notes": [
+            58,
+            63,
+            66,
+            73
+          ],
+          "duration": 0.3170464773582561,
+          "velocity": 51
+        },
+        {
+          "absBeat": 228,
+          "time": "43776i",
+          "notes": [
+            58,
+            64,
+            66
+          ],
+          "duration": 0.3233172702363559,
+          "velocity": 53
+        },
+        {
+          "absBeat": 233,
+          "time": "44736i",
+          "notes": [
+            56,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.35489575354648495,
+          "velocity": 58
+        },
+        {
+          "absBeat": 236,
+          "time": "45312i",
+          "notes": [
+            56,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.3534625038557819,
+          "velocity": 50
+        },
+        {
+          "absBeat": 241,
+          "time": "46272i",
+          "notes": [
+            56,
+            58,
+            63,
+            73
+          ],
+          "duration": 0.35382968062801023,
+          "velocity": 57
+        },
+        {
+          "absBeat": 244,
+          "time": "46848i",
+          "notes": [
+            56,
+            58,
+            63,
+            73
+          ],
+          "duration": 0.32386709482542114,
+          "velocity": 60
+        }
+      ],
+      "families": [
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ]
+      ]
+    },
+    "512c7777705c5663eff4761d0220a0eed2c89d5d24f1119aeab31da426e36bb2": {
+      "scenarioId": "ls-mankunku-blues-Eb-bossa-nova-1-coordinated-explicit",
+      "engine": "fixed",
+      "compEvents": [
+        {
+          "time": "192i",
+          "notes": [
+            49,
+            63,
+            67
+          ],
+          "duration": 0.3241755638537662,
+          "velocity": 56,
+          "absBeat": 1
+        },
+        {
+          "time": "768i",
+          "notes": [
+            48,
+            58,
+            66
+          ],
+          "duration": 0.33679064461163116,
+          "velocity": 55,
+          "absBeat": 4
+        },
+        {
+          "time": "1727i",
+          "notes": [
+            48,
+            49,
+            67
+          ],
+          "duration": 0.33357942748814823,
+          "velocity": 55,
+          "absBeat": 9
+        },
+        {
+          "time": "3840i",
+          "notes": [
+            48,
+            58,
+            66
+          ],
+          "duration": 0.3657919531422002,
+          "velocity": 53,
+          "absBeat": 20
+        },
+        {
+          "time": "5376i",
+          "notes": [
+            49,
+            60,
+            68
+          ],
+          "duration": 0.33526776015758514,
+          "velocity": 58,
+          "absBeat": 28
+        },
+        {
+          "time": "6913i",
+          "notes": [
+            48,
+            59,
+            63,
+            66
+          ],
+          "duration": 0.35757189506930964,
+          "velocity": 60,
+          "absBeat": 36
+        },
+        {
+          "time": "7874i",
+          "notes": [
+            49,
+            65,
+            67
+          ],
+          "duration": 0.37660379281001427,
+          "velocity": 57,
+          "absBeat": 41
+        },
+        {
+          "time": "8449i",
+          "notes": [
+            52,
+            61,
+            67,
+            70
+          ],
+          "duration": 0.33644444271389934,
+          "velocity": 59,
+          "absBeat": 44
+        },
+        {
+          "time": "9407i",
+          "notes": [
+            51,
+            67,
+            68
+          ],
+          "duration": 0.34646542175007716,
+          "velocity": 55,
+          "absBeat": 49
+        },
+        {
+          "time": "9984i",
+          "notes": [
+            50,
+            60,
+            68
+          ],
+          "duration": 0.35926556897482703,
+          "velocity": 59,
+          "absBeat": 52
+        },
+        {
+          "time": "11520i",
+          "notes": [
+            51,
+            55,
+            68
+          ],
+          "duration": 0.34797263254012384,
+          "velocity": 58,
+          "absBeat": 60
+        },
+        {
+          "time": "12480i",
+          "notes": [
+            49,
+            53,
+            60,
+            67
+          ],
+          "duration": 0.3146581807679364,
+          "velocity": 59,
+          "absBeat": 65
+        },
+        {
+          "time": "13056i",
+          "notes": [
+            51,
+            56,
+            60,
+            66
+          ],
+          "duration": 0.3169125513413123,
+          "velocity": 51,
+          "absBeat": 68
+        },
+        {
+          "time": "14017i",
+          "notes": [
+            53,
+            60,
+            61,
+            67
+          ],
+          "duration": 0.3677727632064905,
+          "velocity": 51,
+          "absBeat": 73
+        },
+        {
+          "time": "14592i",
+          "notes": [
+            58,
+            61,
+            68
+          ],
+          "duration": 0.32196383122354744,
+          "velocity": 60,
+          "absBeat": 76
+        },
+        {
+          "time": "15552i",
+          "notes": [
+            60,
+            66,
+            68
+          ],
+          "duration": 0.32419785855071886,
+          "velocity": 59,
+          "absBeat": 81
+        },
+        {
+          "time": "15841i",
+          "notes": [
+            60,
+            66,
+            68
+          ],
+          "duration": 0.5133363723249308,
+          "velocity": 55,
+          "absBeat": 82.5
+        },
+        {
+          "time": "16128i",
+          "notes": [
+            60,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.35004611011594533,
+          "velocity": 50,
+          "absBeat": 84
+        },
+        {
+          "time": "16416i",
+          "notes": [
+            60,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.4099113308591768,
+          "velocity": 58,
+          "absBeat": 85.5
+        },
+        {
+          "time": "17088i",
+          "notes": [
+            60,
+            61,
+            65,
+            67
+          ],
+          "duration": 0.3490295310265251,
+          "velocity": 60,
+          "absBeat": 89
+        },
+        {
+          "time": "17376i",
+          "notes": [
+            60,
+            61,
+            65,
+            67
+          ],
+          "duration": 0.5167250972327644,
+          "velocity": 61,
+          "absBeat": 90.5
+        },
+        {
+          "time": "17664i",
+          "notes": [
+            58,
+            61,
+            64,
+            67
+          ],
+          "duration": 0.36806507593286886,
+          "velocity": 57,
+          "absBeat": 92
+        },
+        {
+          "time": "17953i",
+          "notes": [
+            58,
+            61,
+            64,
+            67
+          ],
+          "duration": 0.34967887734861247,
+          "velocity": 60,
+          "absBeat": 93.5
+        },
+        {
+          "time": "18624i",
+          "notes": [
+            67,
+            72,
+            77,
+            82
+          ],
+          "duration": 0.31101502397762876,
+          "velocity": 53,
+          "absBeat": 97
+        },
+        {
+          "time": "19198i",
+          "notes": [
+            68,
+            74,
+            77,
+            82
+          ],
+          "duration": 0.3720284350588918,
+          "velocity": 51,
+          "absBeat": 100
+        },
+        {
+          "time": "20160i",
+          "notes": [
+            67,
+            73,
+            77
+          ],
+          "duration": 0.3275201482006482,
+          "velocity": 54,
+          "absBeat": 105
+        },
+        {
+          "time": "20737i",
+          "notes": [
+            67,
+            72,
+            75
+          ],
+          "duration": 0.32388060613402303,
+          "velocity": 59,
+          "absBeat": 108
+        },
+        {
+          "time": "21696i",
+          "notes": [
+            58,
+            67,
+            73,
+            77
+          ],
+          "duration": 0.3092137162493808,
+          "velocity": 50,
+          "absBeat": 113
+        },
+        {
+          "time": "22272i",
+          "notes": [
+            56,
+            66,
+            72
+          ],
+          "duration": 0.3582626862823963,
+          "velocity": 51,
+          "absBeat": 116
+        },
+        {
+          "time": "23233i",
+          "notes": [
+            65,
+            67,
+            72,
+            73
+          ],
+          "duration": 0.35859749770058047,
+          "velocity": 55,
+          "absBeat": 121
+        },
+        {
+          "time": "23808i",
+          "notes": [
+            65,
+            68,
+            72,
+            73
+          ],
+          "duration": 0.3642705728805491,
+          "velocity": 52,
+          "absBeat": 124
+        },
+        {
+          "time": "26881i",
+          "notes": [
+            70,
+            72,
+            76
+          ],
+          "duration": 0.3756475426363094,
+          "velocity": 52,
+          "absBeat": 140
+        },
+        {
+          "time": "27840i",
+          "notes": [
+            68,
+            75,
+            77
+          ],
+          "duration": 0.3263220403822405,
+          "velocity": 55,
+          "absBeat": 145
+        },
+        {
+          "time": "28416i",
+          "notes": [
+            68,
+            72,
+            74
+          ],
+          "duration": 0.35573089270719455,
+          "velocity": 58,
+          "absBeat": 148
+        },
+        {
+          "time": "29952i",
+          "notes": [
+            58,
+            67,
+            72,
+            77
+          ],
+          "duration": 0.3544343248914395,
+          "velocity": 52,
+          "absBeat": 156
+        },
+        {
+          "time": "30911i",
+          "notes": [
+            67,
+            73,
+            75
+          ],
+          "duration": 0.34314491687076437,
+          "velocity": 60,
+          "absBeat": 161
+        },
+        {
+          "time": "31487i",
+          "notes": [
+            66,
+            72,
+            80
+          ],
+          "duration": 0.3586383861888732,
+          "velocity": 54,
+          "absBeat": 164
+        },
+        {
+          "time": "32447i",
+          "notes": [
+            67,
+            73,
+            75,
+            82
+          ],
+          "duration": 0.31378386698663235,
+          "velocity": 54,
+          "absBeat": 169
+        },
+        {
+          "time": "33024i",
+          "notes": [
+            68,
+            73,
+            84
+          ],
+          "duration": 0.3512804326574717,
+          "velocity": 52,
+          "absBeat": 172
+        },
+        {
+          "time": "33984i",
+          "notes": [
+            66,
+            68,
+            72
+          ],
+          "duration": 0.3352040679593172,
+          "velocity": 51,
+          "absBeat": 177
+        },
+        {
+          "time": "34559i",
+          "notes": [
+            63,
+            66,
+            71,
+            72
+          ],
+          "duration": 0.3466435353883675,
+          "velocity": 59,
+          "absBeat": 180
+        },
+        {
+          "time": "35519i",
+          "notes": [
+            53,
+            58,
+            63
+          ],
+          "duration": 0.3365641863111939,
+          "velocity": 53,
+          "absBeat": 185
+        },
+        {
+          "time": "36096i",
+          "notes": [
+            52,
+            58,
+            61,
+            69
+          ],
+          "duration": 0.3516301077125328,
+          "velocity": 55,
+          "absBeat": 188
+        },
+        {
+          "time": "37632i",
+          "notes": [
+            48,
+            53,
+            58
+          ],
+          "duration": 0.31797241718109165,
+          "velocity": 58,
+          "absBeat": 196
+        },
+        {
+          "time": "38592i",
+          "notes": [
+            48,
+            55,
+            61
+          ],
+          "duration": 0.33361657911645515,
+          "velocity": 54,
+          "absBeat": 201
+        },
+        {
+          "time": "39167i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.3148115841086422,
+          "velocity": 55,
+          "absBeat": 204
+        }
+      ],
+      "families": [
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ]
+      ]
+    },
+    "498bc292a4f0fd0a3691bbadfdde50081310484d70e3e2e1317926761ee1b547": {
+      "scenarioId": "ls-mankunku-blues-Eb-bossa-nova-1-coordinated-explicit",
+      "engine": "rolling",
+      "compEvents": [
+        {
+          "absBeat": 1,
+          "time": "192i",
+          "notes": [
+            49,
+            63,
+            67
+          ],
+          "duration": 0.3241755638537662,
+          "velocity": 56
+        },
+        {
+          "absBeat": 4,
+          "time": "768i",
+          "notes": [
+            48,
+            58,
+            66
+          ],
+          "duration": 0.33679064461163116,
+          "velocity": 55
+        },
+        {
+          "absBeat": 9,
+          "time": "1727i",
+          "notes": [
+            48,
+            49,
+            67
+          ],
+          "duration": 0.33357942748814823,
+          "velocity": 55
+        },
+        {
+          "absBeat": 20,
+          "time": "3840i",
+          "notes": [
+            48,
+            58,
+            66
+          ],
+          "duration": 0.3657919531422002,
+          "velocity": 53
+        },
+        {
+          "absBeat": 28,
+          "time": "5376i",
+          "notes": [
+            49,
+            60,
+            68
+          ],
+          "duration": 0.33526776015758514,
+          "velocity": 58
+        },
+        {
+          "absBeat": 36,
+          "time": "6913i",
+          "notes": [
+            48,
+            59,
+            63,
+            66
+          ],
+          "duration": 0.3575718950693097,
+          "velocity": 60
+        },
+        {
+          "absBeat": 41,
+          "time": "7874i",
+          "notes": [
+            49,
+            65,
+            67
+          ],
+          "duration": 0.3766037928100143,
+          "velocity": 57
+        },
+        {
+          "absBeat": 44,
+          "time": "8449i",
+          "notes": [
+            52,
+            61,
+            67,
+            70
+          ],
+          "duration": 0.33644444271389934,
+          "velocity": 59
+        },
+        {
+          "absBeat": 49,
+          "time": "9407i",
+          "notes": [
+            51,
+            67,
+            68
+          ],
+          "duration": 0.34646542175007716,
+          "velocity": 55
+        },
+        {
+          "absBeat": 52,
+          "time": "9984i",
+          "notes": [
+            50,
+            60,
+            68
+          ],
+          "duration": 0.35926556897482703,
+          "velocity": 59
+        },
+        {
+          "absBeat": 60,
+          "time": "11520i",
+          "notes": [
+            51,
+            55,
+            68
+          ],
+          "duration": 0.3479726325401239,
+          "velocity": 58
+        },
+        {
+          "absBeat": 65,
+          "time": "12480i",
+          "notes": [
+            49,
+            53,
+            60,
+            67
+          ],
+          "duration": 0.3146581807679364,
+          "velocity": 59
+        },
+        {
+          "absBeat": 68,
+          "time": "13056i",
+          "notes": [
+            51,
+            56,
+            60,
+            66
+          ],
+          "duration": 0.3169125513413123,
+          "velocity": 51
+        },
+        {
+          "absBeat": 73,
+          "time": "14017i",
+          "notes": [
+            53,
+            60,
+            61,
+            67
+          ],
+          "duration": 0.3677727632064905,
+          "velocity": 51
+        },
+        {
+          "absBeat": 76,
+          "time": "14592i",
+          "notes": [
+            58,
+            61,
+            68
+          ],
+          "duration": 0.32196383122354744,
+          "velocity": 60
+        },
+        {
+          "absBeat": 81,
+          "time": "15552i",
+          "notes": [
+            60,
+            66,
+            68
+          ],
+          "duration": 0.32419785855071886,
+          "velocity": 59
+        },
+        {
+          "absBeat": 82.5,
+          "time": "15841i",
+          "notes": [
+            60,
+            66,
+            68
+          ],
+          "duration": 0.5133363723249308,
+          "velocity": 55
+        },
+        {
+          "absBeat": 84,
+          "time": "16128i",
+          "notes": [
+            60,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.35004611011594533,
+          "velocity": 50
+        },
+        {
+          "absBeat": 85.5,
+          "time": "16416i",
+          "notes": [
+            60,
+            63,
+            66,
+            71
+          ],
+          "duration": 0.40991133085917686,
+          "velocity": 58
+        },
+        {
+          "absBeat": 89,
+          "time": "17088i",
+          "notes": [
+            60,
+            61,
+            65,
+            67
+          ],
+          "duration": 0.3490295310265252,
+          "velocity": 60
+        },
+        {
+          "absBeat": 90.5,
+          "time": "17376i",
+          "notes": [
+            60,
+            61,
+            65,
+            67
+          ],
+          "duration": 0.5167250972327644,
+          "velocity": 61
+        },
+        {
+          "absBeat": 92,
+          "time": "17664i",
+          "notes": [
+            58,
+            61,
+            64,
+            67
+          ],
+          "duration": 0.3680650759328689,
+          "velocity": 57
+        },
+        {
+          "absBeat": 93.5,
+          "time": "17953i",
+          "notes": [
+            58,
+            61,
+            64,
+            67
+          ],
+          "duration": 0.34967887734861247,
+          "velocity": 60
+        },
+        {
+          "absBeat": 97,
+          "time": "18624i",
+          "notes": [
+            67,
+            72,
+            77,
+            82
+          ],
+          "duration": 0.3110150239776288,
+          "velocity": 53
+        },
+        {
+          "absBeat": 100,
+          "time": "19200i",
+          "notes": [
+            68,
+            74,
+            77,
+            82
+          ],
+          "duration": 0.3720284350588918,
+          "velocity": 51
+        },
+        {
+          "absBeat": 105,
+          "time": "20160i",
+          "notes": [
+            67,
+            73,
+            77
+          ],
+          "duration": 0.32752014820064823,
+          "velocity": 54
+        },
+        {
+          "absBeat": 108,
+          "time": "20737i",
+          "notes": [
+            67,
+            72,
+            75
+          ],
+          "duration": 0.32388060613402303,
+          "velocity": 59
+        },
+        {
+          "absBeat": 113,
+          "time": "21696i",
+          "notes": [
+            58,
+            67,
+            73,
+            77
+          ],
+          "duration": 0.3092137162493808,
+          "velocity": 50
+        },
+        {
+          "absBeat": 116,
+          "time": "22272i",
+          "notes": [
+            56,
+            66,
+            72
+          ],
+          "duration": 0.3582626862823964,
+          "velocity": 51
+        },
+        {
+          "absBeat": 121,
+          "time": "23233i",
+          "notes": [
+            65,
+            67,
+            72,
+            73
+          ],
+          "duration": 0.3585974977005805,
+          "velocity": 55
+        },
+        {
+          "absBeat": 124,
+          "time": "23808i",
+          "notes": [
+            65,
+            68,
+            72,
+            73
+          ],
+          "duration": 0.36427057288054915,
+          "velocity": 52
+        },
+        {
+          "absBeat": 140,
+          "time": "26881i",
+          "notes": [
+            70,
+            72,
+            76
+          ],
+          "duration": 0.3756475426363094,
+          "velocity": 52
+        },
+        {
+          "absBeat": 145,
+          "time": "27840i",
+          "notes": [
+            68,
+            75,
+            77
+          ],
+          "duration": 0.32632204038224055,
+          "velocity": 55
+        },
+        {
+          "absBeat": 148,
+          "time": "28416i",
+          "notes": [
+            68,
+            72,
+            74
+          ],
+          "duration": 0.35573089270719455,
+          "velocity": 58
+        },
+        {
+          "absBeat": 156,
+          "time": "29952i",
+          "notes": [
+            58,
+            67,
+            72,
+            77
+          ],
+          "duration": 0.35443432489143956,
+          "velocity": 52
+        },
+        {
+          "absBeat": 161,
+          "time": "30911i",
+          "notes": [
+            67,
+            73,
+            75
+          ],
+          "duration": 0.34314491687076437,
+          "velocity": 60
+        },
+        {
+          "absBeat": 164,
+          "time": "31488i",
+          "notes": [
+            66,
+            72,
+            80
+          ],
+          "duration": 0.3586383861888732,
+          "velocity": 54
+        },
+        {
+          "absBeat": 169,
+          "time": "32447i",
+          "notes": [
+            67,
+            73,
+            75,
+            82
+          ],
+          "duration": 0.31378386698663235,
+          "velocity": 54
+        },
+        {
+          "absBeat": 172,
+          "time": "33024i",
+          "notes": [
+            68,
+            73,
+            84
+          ],
+          "duration": 0.3512804326574718,
+          "velocity": 52
+        },
+        {
+          "absBeat": 177,
+          "time": "33984i",
+          "notes": [
+            66,
+            68,
+            72
+          ],
+          "duration": 0.3352040679593172,
+          "velocity": 51
+        },
+        {
+          "absBeat": 180,
+          "time": "34560i",
+          "notes": [
+            63,
+            66,
+            71,
+            72
+          ],
+          "duration": 0.34664353538836756,
+          "velocity": 59
+        },
+        {
+          "absBeat": 185,
+          "time": "35519i",
+          "notes": [
+            53,
+            58,
+            63
+          ],
+          "duration": 0.3365641863111939,
+          "velocity": 53
+        },
+        {
+          "absBeat": 188,
+          "time": "36096i",
+          "notes": [
+            52,
+            58,
+            61,
+            69
+          ],
+          "duration": 0.3516301077125328,
+          "velocity": 55
+        },
+        {
+          "absBeat": 196,
+          "time": "37632i",
+          "notes": [
+            48,
+            53,
+            58
+          ],
+          "duration": 0.31797241718109165,
+          "velocity": 58
+        },
+        {
+          "absBeat": 201,
+          "time": "38592i",
+          "notes": [
+            48,
+            55,
+            61
+          ],
+          "duration": 0.33361657911645515,
+          "velocity": 54
+        },
+        {
+          "absBeat": 204,
+          "time": "39168i",
+          "notes": [
+            53,
+            55,
+            60,
+            70
+          ],
+          "duration": 0.3148115841086422,
+          "velocity": 55
+        }
+      ],
+      "families": [
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ]
+      ]
+    },
+    "176dc3101b3a8ecda9a860718b0d255240d812fddc374fccc44ca2c4a9c9a718": {
+      "scenarioId": "ls-mankunku-blues-F#-bossa-nova-0-coordinated-explicit",
+      "engine": "fixed",
+      "compEvents": [
+        {
+          "time": "0i",
+          "notes": [
+            51,
+            64,
+            70
+          ],
+          "duration": 0.3645303816720843,
+          "velocity": 50,
+          "absBeat": 0
+        },
+        {
+          "time": "960i",
+          "notes": [
+            61,
+            63,
+            69
+          ],
+          "duration": 0.3351595240192754,
+          "velocity": 56,
+          "absBeat": 5
+        },
+        {
+          "time": "1536i",
+          "notes": [
+            56,
+            64,
+            70
+          ],
+          "duration": 0.3305961093785507,
+          "velocity": 52,
+          "absBeat": 8
+        },
+        {
+          "time": "2496i",
+          "notes": [
+            56,
+            64,
+            65,
+            71
+          ],
+          "duration": 0.3465530854570014,
+          "velocity": 52,
+          "absBeat": 13
+        },
+        {
+          "time": "4031i",
+          "notes": [
+            63,
+            69,
+            71,
+            78
+          ],
+          "duration": 0.3165947525522539,
+          "velocity": 52,
+          "absBeat": 21
+        },
+        {
+          "time": "4607i",
+          "notes": [
+            64,
+            68,
+            70
+          ],
+          "duration": 0.33460483529205837,
+          "velocity": 51,
+          "absBeat": 24
+        },
+        {
+          "time": "5568i",
+          "notes": [
+            63,
+            64,
+            71
+          ],
+          "duration": 0.3181953105543341,
+          "velocity": 52,
+          "absBeat": 29
+        },
+        {
+          "time": "7104i",
+          "notes": [
+            50,
+            63,
+            66,
+            69
+          ],
+          "duration": 0.3136663020615067,
+          "velocity": 56,
+          "absBeat": 37
+        },
+        {
+          "time": "7680i",
+          "notes": [
+            64,
+            66,
+            70
+          ],
+          "duration": 0.32123652379427636,
+          "velocity": 53,
+          "absBeat": 40
+        },
+        {
+          "time": "8640i",
+          "notes": [
+            61,
+            64,
+            67,
+            75
+          ],
+          "duration": 0.34258078793329855,
+          "velocity": 59,
+          "absBeat": 45
+        },
+        {
+          "time": "9216i",
+          "notes": [
+            59,
+            66,
+            70
+          ],
+          "duration": 0.36835308430450303,
+          "velocity": 58,
+          "absBeat": 48
+        },
+        {
+          "time": "11710i",
+          "notes": [
+            59,
+            66,
+            68
+          ],
+          "duration": 0.3770893166746412,
+          "velocity": 52,
+          "absBeat": 61
+        },
+        {
+          "time": "12288i",
+          "notes": [
+            58,
+            64,
+            66
+          ],
+          "duration": 0.3299179583787918,
+          "velocity": 56,
+          "absBeat": 64
+        },
+        {
+          "time": "13247i",
+          "notes": [
+            61,
+            66,
+            71
+          ],
+          "duration": 0.3650235887563655,
+          "velocity": 54,
+          "absBeat": 69
+        },
+        {
+          "time": "13823i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3087258809432388,
+          "velocity": 59,
+          "absBeat": 72
+        },
+        {
+          "time": "14111i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.38655941754646067,
+          "velocity": 54,
+          "absBeat": 73.5
+        },
+        {
+          "time": "14783i",
+          "notes": [
+            56,
+            59,
+            64,
+            75
+          ],
+          "duration": 0.3488586457180125,
+          "velocity": 53,
+          "absBeat": 77
+        },
+        {
+          "time": "15072i",
+          "notes": [
+            56,
+            58,
+            64,
+            75
+          ],
+          "duration": 0.4589941810656872,
+          "velocity": 59,
+          "absBeat": 78.5
+        },
+        {
+          "time": "17856i",
+          "notes": [
+            58,
+            61,
+            64,
+            67
+          ],
+          "duration": 0.3253331270334976,
+          "velocity": 59,
+          "absBeat": 93
+        },
+        {
+          "time": "18432i",
+          "notes": [
+            59,
+            66,
+            68
+          ],
+          "duration": 0.3187998601421714,
+          "velocity": 59,
+          "absBeat": 96
+        },
+        {
+          "time": "19392i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.3398203855007887,
+          "velocity": 57,
+          "absBeat": 101
+        },
+        {
+          "time": "19967i",
+          "notes": [
+            58,
+            64,
+            68
+          ],
+          "duration": 0.3471037750265428,
+          "velocity": 53,
+          "absBeat": 104
+        },
+        {
+          "time": "23999i",
+          "notes": [
+            59,
+            63,
+            64,
+            68
+          ],
+          "duration": 0.33888062473386527,
+          "velocity": 54,
+          "absBeat": 125
+        },
+        {
+          "time": "24576i",
+          "notes": [
+            57,
+            61,
+            63,
+            68
+          ],
+          "duration": 0.3097783320237483,
+          "velocity": 50,
+          "absBeat": 128
+        },
+        {
+          "time": "25536i",
+          "notes": [
+            57,
+            62,
+            63,
+            66
+          ],
+          "duration": 0.3709864803243961,
+          "velocity": 59,
+          "absBeat": 133
+        },
+        {
+          "time": "27072i",
+          "notes": [
+            55,
+            60,
+            61,
+            64
+          ],
+          "duration": 0.31550788457904544,
+          "velocity": 58,
+          "absBeat": 141
+        },
+        {
+          "time": "27360i",
+          "notes": [
+            55,
+            60,
+            61,
+            64
+          ],
+          "duration": 0.4942001137090847,
+          "velocity": 56,
+          "absBeat": 142.5
+        },
+        {
+          "time": "28607i",
+          "notes": [
+            53,
+            59,
+            63
+          ],
+          "duration": 0.3352434983476996,
+          "velocity": 56,
+          "absBeat": 149
+        },
+        {
+          "time": "30144i",
+          "notes": [
+            51,
+            58,
+            66
+          ],
+          "duration": 0.330484480932355,
+          "velocity": 57,
+          "absBeat": 157
+        },
+        {
+          "time": "33216i",
+          "notes": [
+            51,
+            52,
+            59
+          ],
+          "duration": 0.3734946716896125,
+          "velocity": 59,
+          "absBeat": 173
+        },
+        {
+          "time": "33792i",
+          "notes": [
+            51,
+            56,
+            57
+          ],
+          "duration": 0.3233348987836923,
+          "velocity": 55,
+          "absBeat": 176
+        },
+        {
+          "time": "34753i",
+          "notes": [
+            51,
+            54,
+            57,
+            62
+          ],
+          "duration": 0.3441369447112083,
+          "velocity": 50,
+          "absBeat": 181
+        },
+        {
+          "time": "35329i",
+          "notes": [
+            51,
+            52,
+            58
+          ],
+          "duration": 0.30904846822576865,
+          "velocity": 54,
+          "absBeat": 184
+        },
+        {
+          "time": "36289i",
+          "notes": [
+            49,
+            52,
+            55,
+            60
+          ],
+          "duration": 0.36115629604352373,
+          "velocity": 50,
+          "absBeat": 189
+        },
+        {
+          "time": "36864i",
+          "notes": [
+            54,
+            58,
+            59
+          ],
+          "duration": 0.33883193320461685,
+          "velocity": 60,
+          "absBeat": 192
+        },
+        {
+          "time": "37823i",
+          "notes": [
+            51,
+            56,
+            61
+          ],
+          "duration": 0.3460631782721196,
+          "velocity": 53,
+          "absBeat": 197
+        }
+      ],
+      "families": [
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ]
+      ]
+    },
+    "fa8af1a4f6c7252de764fd75714969672345ef8d48031c43ca0963e2a791edea": {
+      "scenarioId": "ls-mankunku-blues-F#-bossa-nova-0-coordinated-explicit",
+      "engine": "rolling",
+      "compEvents": [
+        {
+          "absBeat": 0,
+          "time": "0i",
+          "notes": [
+            51,
+            64,
+            70
+          ],
+          "duration": 0.36453038167208435,
+          "velocity": 50
+        },
+        {
+          "absBeat": 5,
+          "time": "960i",
+          "notes": [
+            61,
+            63,
+            69
+          ],
+          "duration": 0.3351595240192754,
+          "velocity": 56
+        },
+        {
+          "absBeat": 8,
+          "time": "1536i",
+          "notes": [
+            56,
+            64,
+            70
+          ],
+          "duration": 0.3305961093785508,
+          "velocity": 52
+        },
+        {
+          "absBeat": 13,
+          "time": "2496i",
+          "notes": [
+            56,
+            64,
+            65,
+            71
+          ],
+          "duration": 0.3465530854570014,
+          "velocity": 52
+        },
+        {
+          "absBeat": 21,
+          "time": "4031i",
+          "notes": [
+            63,
+            69,
+            71,
+            78
+          ],
+          "duration": 0.31659475255225394,
+          "velocity": 52
+        },
+        {
+          "absBeat": 24,
+          "time": "4608i",
+          "notes": [
+            64,
+            68,
+            70
+          ],
+          "duration": 0.3346048352920584,
+          "velocity": 51
+        },
+        {
+          "absBeat": 29,
+          "time": "5568i",
+          "notes": [
+            63,
+            64,
+            71
+          ],
+          "duration": 0.3181953105543341,
+          "velocity": 52
+        },
+        {
+          "absBeat": 37,
+          "time": "7104i",
+          "notes": [
+            50,
+            63,
+            66,
+            69
+          ],
+          "duration": 0.3136663020615067,
+          "velocity": 56
+        },
+        {
+          "absBeat": 40,
+          "time": "7680i",
+          "notes": [
+            64,
+            66,
+            70
+          ],
+          "duration": 0.3212365237942764,
+          "velocity": 53
+        },
+        {
+          "absBeat": 45,
+          "time": "8640i",
+          "notes": [
+            61,
+            64,
+            67,
+            75
+          ],
+          "duration": 0.3425807879332986,
+          "velocity": 59
+        },
+        {
+          "absBeat": 48,
+          "time": "9216i",
+          "notes": [
+            59,
+            66,
+            70
+          ],
+          "duration": 0.36835308430450303,
+          "velocity": 58
+        },
+        {
+          "absBeat": 61,
+          "time": "11710i",
+          "notes": [
+            59,
+            66,
+            68
+          ],
+          "duration": 0.37708931667464124,
+          "velocity": 52
+        },
+        {
+          "absBeat": 64,
+          "time": "12288i",
+          "notes": [
+            58,
+            64,
+            66
+          ],
+          "duration": 0.3299179583787918,
+          "velocity": 56
+        },
+        {
+          "absBeat": 69,
+          "time": "13247i",
+          "notes": [
+            61,
+            66,
+            71
+          ],
+          "duration": 0.36502358875636554,
+          "velocity": 54
+        },
+        {
+          "absBeat": 72,
+          "time": "13824i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.3087258809432388,
+          "velocity": 59
+        },
+        {
+          "absBeat": 73.5,
+          "time": "14111i",
+          "notes": [
+            56,
+            61,
+            66
+          ],
+          "duration": 0.38655941754646067,
+          "velocity": 54
+        },
+        {
+          "absBeat": 77,
+          "time": "14783i",
+          "notes": [
+            56,
+            59,
+            64,
+            75
+          ],
+          "duration": 0.34885864571801256,
+          "velocity": 53
+        },
+        {
+          "absBeat": 78.5,
+          "time": "15072i",
+          "notes": [
+            56,
+            58,
+            64,
+            75
+          ],
+          "duration": 0.4589941810656872,
+          "velocity": 59
+        },
+        {
+          "absBeat": 93,
+          "time": "17856i",
+          "notes": [
+            58,
+            61,
+            64,
+            67
+          ],
+          "duration": 0.3253331270334976,
+          "velocity": 59
+        },
+        {
+          "absBeat": 96,
+          "time": "18432i",
+          "notes": [
+            59,
+            66,
+            68
+          ],
+          "duration": 0.3187998601421714,
+          "velocity": 59
+        },
+        {
+          "absBeat": 101,
+          "time": "19392i",
+          "notes": [
+            59,
+            63,
+            65
+          ],
+          "duration": 0.33982038550078875,
+          "velocity": 57
+        },
+        {
+          "absBeat": 104,
+          "time": "19968i",
+          "notes": [
+            58,
+            64,
+            68
+          ],
+          "duration": 0.3471037750265428,
+          "velocity": 53
+        },
+        {
+          "absBeat": 125,
+          "time": "23999i",
+          "notes": [
+            59,
+            63,
+            64,
+            68
+          ],
+          "duration": 0.33888062473386527,
+          "velocity": 54
+        },
+        {
+          "absBeat": 128,
+          "time": "24576i",
+          "notes": [
+            57,
+            61,
+            63,
+            68
+          ],
+          "duration": 0.3097783320237483,
+          "velocity": 50
+        },
+        {
+          "absBeat": 133,
+          "time": "25536i",
+          "notes": [
+            57,
+            62,
+            63,
+            66
+          ],
+          "duration": 0.3709864803243961,
+          "velocity": 59
+        },
+        {
+          "absBeat": 141,
+          "time": "27072i",
+          "notes": [
+            55,
+            60,
+            61,
+            64
+          ],
+          "duration": 0.31550788457904544,
+          "velocity": 58
+        },
+        {
+          "absBeat": 142.5,
+          "time": "27360i",
+          "notes": [
+            55,
+            60,
+            61,
+            64
+          ],
+          "duration": 0.49420011370908473,
+          "velocity": 56
+        },
+        {
+          "absBeat": 149,
+          "time": "28607i",
+          "notes": [
+            53,
+            59,
+            63
+          ],
+          "duration": 0.3352434983476996,
+          "velocity": 56
+        },
+        {
+          "absBeat": 157,
+          "time": "30144i",
+          "notes": [
+            51,
+            58,
+            66
+          ],
+          "duration": 0.330484480932355,
+          "velocity": 57
+        },
+        {
+          "absBeat": 173,
+          "time": "33216i",
+          "notes": [
+            51,
+            52,
+            59
+          ],
+          "duration": 0.3734946716896125,
+          "velocity": 59
+        },
+        {
+          "absBeat": 176,
+          "time": "33792i",
+          "notes": [
+            51,
+            56,
+            57
+          ],
+          "duration": 0.3233348987836923,
+          "velocity": 55
+        },
+        {
+          "absBeat": 181,
+          "time": "34753i",
+          "notes": [
+            51,
+            54,
+            57,
+            62
+          ],
+          "duration": 0.3441369447112083,
+          "velocity": 50
+        },
+        {
+          "absBeat": 184,
+          "time": "35329i",
+          "notes": [
+            51,
+            52,
+            58
+          ],
+          "duration": 0.30904846822576865,
+          "velocity": 54
+        },
+        {
+          "absBeat": 189,
+          "time": "36289i",
+          "notes": [
+            49,
+            52,
+            55,
+            60
+          ],
+          "duration": 0.36115629604352373,
+          "velocity": 50
+        },
+        {
+          "absBeat": 192,
+          "time": "36864i",
+          "notes": [
+            54,
+            58,
+            59
+          ],
+          "duration": 0.33883193320461685,
+          "velocity": 60
+        },
+        {
+          "absBeat": 197,
+          "time": "37823i",
+          "notes": [
+            51,
+            56,
+            61
+          ],
+          "duration": 0.3460631782721196,
+          "velocity": 53
+        }
+      ],
+      "families": [
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "drop2",
+          "drop2"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "shell",
+          "shell"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-b",
+          "rootless-b"
+        ],
+        [
+          "rootless-a",
+          "rootless-a"
+        ],
+        [
+          "quartal",
+          "quartal"
+        ]
+      ]
+    }
+  }
+}

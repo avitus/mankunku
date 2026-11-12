@@ -9,6 +9,9 @@
  * itself is sequential, but each bar's DRAWS are stream-isolated, so
  * recomputing a prefix costs a few float draws per bar and adding a figure
  * to the library shifts selection without touching realization streams.
+ * Coordinated mode may develop a selected library cell across a four-bar
+ * phrase. Each later cell is admitted whole against that bar's shared plan;
+ * future solo observations cannot retroactively change the source statement.
  *
  * Figure grammar: hits are (beatOffset, durationBeats) on the x.0/x.5
  * eighth grid — the anticipated-next-chord voicing on pushes in
@@ -18,7 +21,7 @@
 
 import { createRng, seedFrom } from './generation-rng';
 import { lerp } from './backing-intensity';
-import type { BarInfo } from './backing-generation';
+import type { BarInfo, CompEvent } from './backing-generation';
 
 export type FigureTag = 'early' | 'push' | 'pad';
 
@@ -94,14 +97,153 @@ export interface PlannedBar {
 	figureId: string;
 	/** This bar voices only guide tones (the "leave space" color). */
 	guideTones: boolean;
+	/** A complete transformed library figure, consumed by the usual realization path. */
+	transformedFigure?: CompFigure;
+	motif?: CompMotifDecision;
+}
+
+export type CompMotifTransform = 'statement' | 'repeat' | 'displace' | 'shorten' | 'answer' | 'space' | 'fallback';
+export interface PianoMotifAttack extends Pick<CompEvent, 'expression' | 'ensembleColor' | 'phraseColor' | 'phraseDialogue' | 'innerMotion' | 'conversation'> {
+	readonly absBeat: number;
+	readonly time: string;
+	readonly notes: readonly number[];
+	readonly duration: number;
+	readonly velocity: number;
+}
+/** A complete independent cell that actually sounded, never a future proposal. */
+export interface PianoMotifRecallSource {
+	readonly barIndex: number;
+	readonly phraseStartBar: number;
+	readonly chorusIndex: number;
+	readonly sectionIndex: number;
+	readonly loopIndex: number;
+	readonly figureId: string;
+	readonly attacks: readonly PianoMotifAttack[];
+}
+export interface CompMotifDecision {
+	readonly version: 1;
+	readonly barIndex: number;
+	readonly phraseStartBar: number;
+	readonly motifId: string | null;
+	readonly sourceFigureId: string | null;
+	readonly transform: CompMotifTransform;
+	readonly displacementBeats: number;
+	/** New-policy phrase shape and actual complementary cell, only when realized. */
+	readonly development?: import('./backing-keyboard-development').KeyboardDevelopment;
+	readonly answerFigureId?: string;
+	/** Planned onsets and nominal durations, before articulation and timing. */
+	readonly hits: readonly Readonly<CompFigureHit>[];
+	/** Accepted first statement of a one-use adjacent-phrase recall. */
+	readonly recall?: { readonly source: PianoMotifRecallSource; readonly attacks: readonly PianoMotifAttack[] };
+	readonly reason?: 'harmonic_support' | 'gesture_refit' | 'phrase_reentry' | 'native_pattern' | 'native_drum_reply' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
+}
+
+export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {
+	for (const entry of trace) {
+		if (entry.recall) {
+			for (const attacks of [entry.recall.source.attacks, entry.recall.attacks]) {
+				for (const attack of attacks) { Object.freeze(attack.notes); Object.freeze(attack); }
+				Object.freeze(attacks);
+			}
+			Object.freeze(entry.recall.source); Object.freeze(entry.recall);
+		}
+		for (const hit of entry.hits) Object.freeze(hit);
+		Object.freeze(entry.hits);
+		Object.freeze(entry);
+	}
+	return Object.freeze(trace);
+}
+
+export function compMotifTrace(plan: readonly PlannedBar[]): readonly CompMotifDecision[] {
+	return freezeCompMotifTrace(plan.flatMap((bar) => bar.motif ? [bar.motif] : []));
 }
 
 /** The CompFigure sounding in a planned bar (resolving 2-bar 'cont' tails). */
 export function headFigureFor(plan: PlannedBar[], barIndex: number): CompFigure | undefined {
 	const planned = plan[barIndex];
 	if (!planned) return undefined;
+	if (planned.transformedFigure) return planned.transformedFigure;
 	const id = planned.figureId === 'cont' ? plan[barIndex - 1]?.figureId : planned.figureId;
 	return id !== undefined && id !== 'cont' ? BY_ID.get(id) : undefined;
+}
+
+type MotifStep = {
+	figure: CompFigure;
+	transform: Exclude<CompMotifTransform, 'fallback'>;
+	shift: number;
+	reason?: CompMotifDecision['reason'];
+};
+type MotifPhrase = {
+	startBar: number;
+	source?: CompFigure;
+	steps?: MotifStep[];
+	reason?: CompMotifDecision['reason'];
+};
+
+function transformedFigure(source: CompFigure, hits: CompFigureHit[], id: string): CompFigure {
+	const tags: FigureTag[] = [];
+	if (hits.some((hit) => hit.b === 0)) tags.push('early');
+	if (hits.some((hit) => hit.b === 3.5)) tags.push('push');
+	for (const hit of hits) Object.freeze(hit);
+	Object.freeze(hits);
+	const figure: CompFigure = {
+		id, bars: 1, hits: [hits], tags, weight: source.weight,
+		busy: hits.length === 0 ? 0 : hits.length === 1 ? 1 : 2,
+		repeatKey: source.repeatKey ?? source.id
+	};
+	Object.freeze(figure.hits);
+	Object.freeze(figure.tags);
+	return Object.freeze(figure);
+}
+
+/** Choose a source from current evidence; only known form constrains future cells. */
+function chooseMotifPhrase(
+	infos: BarInfo[], startBar: number, phraseId: string, tempo: number,
+	figureBias?: Partial<Record<string, number>>, harmonyEndBeat?: number
+): MotifPhrase {
+	const start = infos[startBar];
+	const group = infos.slice(startBar, startBar + 4);
+	if (group.length !== 4 || group.some((info) =>
+		info.ensemble?.phraseStartBar !== startBar || info.sectionIndex !== start.sectionIndex)) {
+		return { startBar, reason: 'short_phrase' };
+	}
+	if (harmonyEndBeat !== undefined && (startBar + 4) * 4 > harmonyEndBeat) {
+		return { startBar, reason: 'incomplete_harmony' };
+	}
+	const rng = createRng(seedFrom(phraseId, tempo, 'comp-motif', startBar));
+	if (!rng.chance(0.55)) return { startBar, reason: 'not_selected' };
+	const fits = (hits: CompFigureHit[], offset: number): boolean => {
+		const info = group[offset];
+		return (offset !== 0 || (hits.length <= info.ensemble!.piano.maxAttacks &&
+			!info.ensemble!.coordinatedAccent && info.ensemble!.responseOwner === 'nobody')) &&
+			(startBar + offset !== 0 || hits.some((hit) => hit.b === 0)) &&
+			hits.every((hit) => hit.b >= 0 && hit.b < (info.isFinalBar ? 3.5 : 4));
+	};
+	const candidates = COMP_FIGURES.flatMap((source) => {
+		if (source.bars !== 1 || source.hits[0].length === 0 || source.tags.includes('pad') || !fits(source.hits[0], 0)) return [];
+		return [-1, -0.5, 0.5, 1].flatMap((shift) => {
+			const displaced = source.hits[0].map((hit) => ({ b: hit.b + shift, d: hit.d }));
+			const shortened = [{ b: displaced[0].b, d: Math.min(displaced[0].d, 0.45) }];
+			if (!fits(displaced, 2) || !fits(shortened, 3)) return [];
+			return [{ value: { source, shift, displaced, shortened }, weight: source.weight * (figureBias?.[source.id] ?? 1) }];
+		}).filter((candidate) => candidate.weight > 0);
+	});
+	if (candidates.length === 0) return { startBar, reason: 'gesture_does_not_fit' };
+	const { source, shift, displaced, shortened } = rng.weighted(candidates);
+	const develop = createRng(seedFrom(phraseId, tempo, 'comp-motif-development', startBar));
+	const step = (transform: MotifStep['transform'], hits: CompFigureHit[], displacement = 0, reason?: MotifStep['reason']): MotifStep => ({
+		figure: transformedFigure(source, hits.map((hit) => ({ ...hit })), `motif:${startBar}:${source.id}:${transform}`),
+		transform, shift: displacement, ...(reason ? { reason } : {})
+	});
+	return {
+		startBar, source,
+		steps: [
+			step('statement', source.hits[0]),
+			develop.chance(0.35) ? step('repeat', source.hits[0]) : step('space', [], 0, 'motif_gap'),
+			step('displace', displaced, shift),
+			step('shorten', shortened, shift)
+		]
+	};
 }
 
 /**
@@ -117,15 +259,43 @@ export function planCompFigures(
 	tempo: number,
 	/** Per-figure weight multipliers (`StyleDefinition.compFigureBias`) —
 	 *  how a style leans the shared library, e.g. straight rests more. */
-	figureBias?: Partial<Record<string, number>>
+	figureBias?: Partial<Record<string, number>>,
+	options?: { motifs?: boolean; harmonyEndBeat?: number }
 ): PlannedBar[] {
 	const plan: PlannedBar[] = [];
 	const recent: string[] = []; // last selections, newest last
+	const motifs = options?.motifs === true && beatsPerBar === 4 && barInfos.every((info) => Boolean(info.ensemble));
+	let motifPhrase: MotifPhrase | undefined;
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		if (plan.length > bar) continue; // consumed by a 2-bar figure
 		const info = barInfos[bar];
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp-figure', bar));
+		if (info.ensemble?.piano.arrival?.action === 'catch') {
+			const figure: CompFigure = { ...REST_FIGURE, id: 'shared-arrival', hits: [[{ b: 0, d: 0.45 }]], busy: 1, tags: ['early'] };
+			plan.push({ figureId: figure.id, guideTones: false, transformedFigure: figure,
+				...(motifs ? { motif: { version: 1 as const, barIndex: bar, phraseStartBar: info.ensemble.phraseStartBar,
+					motifId: null, sourceFigureId: null, transform: 'fallback' as const, displacementBeats: 0,
+					hits: [], reason: 'shared_arrival' as const } } : {}) });
+			recent.push(figure.id);
+			continue;
+		}
+		if (motifs && motifPhrase?.startBar !== info.ensemble!.phraseStartBar) {
+			motifPhrase = chooseMotifPhrase(barInfos, info.ensemble!.phraseStartBar, phraseId, tempo, figureBias, options?.harmonyEndBeat);
+		}
+		let motifStep = motifPhrase?.steps?.[bar - motifPhrase.startBar];
+		if (motifStep) {
+			// Later observations may withhold a whole cell, but never rewrite
+			// its earlier audible source. This is causal phrase development.
+			const budget = info.ensemble!.piano.maxAttacks;
+			const reason: CompMotifDecision['reason'] = budget === 0 || info.ensemble!.coordinatedAccent ? 'ensemble_silence'
+				: info.ensemble!.responseOwner !== 'nobody' ? 'response_reserved'
+				: motifStep.figure.hits[0].length > budget ? 'gesture_does_not_fit' : undefined;
+			if (reason) motifStep = {
+				figure: transformedFigure(motifPhrase!.source!, [], `motif:${motifPhrase!.startBar}:withheld:${bar}`),
+				transform: 'space', shift: 0, reason
+			};
+		}
 
 		const isBarZero = bar === 0;
 		const sameSectionNext =
@@ -138,18 +308,23 @@ export function planCompFigures(
 			barInfos[bar + 1].isSectionFinalBar &&
 			!barInfos[bar + 1].isFinalBar;
 		const weighted = COMP_FIGURES.filter((f) => {
-			if (f.bars === 2 && !sameSectionNext) return false;
+			// Select complete figures that fit every reserved bar, rather than
+			// deleting arbitrary notes after a motif has been composed.
+			if (f.hits.some((hits, offset) => hits.length > (barInfos[bar + offset]?.ensemble?.piano.maxAttacks ?? Infinity))) return false;
+			if (f.bars === 2 && (!sameSectionNext || barInfos[bar + 1]?.ensemble?.piano.arrival)) return false;
+			if (motifs && f.bars === 2 && barInfos[bar + 1]?.ensemble?.phraseStartBar !== info.ensemble!.phraseStartBar) return false;
 			// A 2-bar figure's tail would swallow the cadence bar and bypass
 			// its push weighting — only push-tagged figures may land there.
 			if (f.bars === 2 && nextIsCadence && !f.tags.includes('push')) return false;
-			if (isBarZero && !f.tags.includes('early')) return false;
+			if (isBarZero && info.ensemble?.piano.maxAttacks !== 0 && !f.tags.includes('early')) return false;
 			// The phrase's last bar resolves; a rest there sounds like the band
 			// stopped early (space belongs mid-phrase).
-			if (info.isFinalBar && f.id === 'rest') return false;
+			if (info.isFinalBar && info.ensemble?.piano.maxAttacks !== 0 && f.id === 'rest') return false;
 			return true;
 		}).map((f) => {
 			const isCadenceBar = info.isSectionFinalBar && !info.isFinalBar;
 			let weight = f.weight * (figureBias?.[f.id] ?? 1);
+			if (info.ensemble && f.busy > 0) weight *= info.ensemble.piano.densityScale;
 			// Anti-repetition on the figure's MEMORY key (repeatKey lets
 			// sound-alike figures share one identity): same as previous
 			// ×0.25; twice in the last three ×0.5; a third consecutive
@@ -174,19 +349,35 @@ export function planCompFigures(
 			return { value: f, weight };
 		}).filter((w) => w.weight > 0);
 
-		const figure = weighted.length > 0 ? rng.weighted(weighted) : REST_FIGURE;
+		const figure = motifStep?.figure ?? (weighted.length > 0 ? rng.weighted(weighted) : REST_FIGURE);
 
 		// The "leave space" color: occasionally a bar speaks in guide tones
 		// only — a low-intensity color that mostly retires as the band digs
 		// in. Conditional draw (rest bars consume one draw, others two) —
 		// safe because nothing draws from this bar's stream afterwards.
-		const guideTones = figure.id !== 'rest' && rng.chance(0.06 * lerp(1.6, 0.4, info.intensity));
+		const guideTones = figure.id !== 'rest' && (!motifs || figure.hits[0].length > 0) && rng.chance(0.06 * lerp(1.6, 0.4, info.intensity));
 
-		plan.push({ figureId: figure.id, guideTones });
+		plan.push({ figureId: figure.id, guideTones, ...(motifStep ? { transformedFigure: figure } : {}) });
+		if (motifs) {
+			plan[bar].motif = {
+				version: 1, barIndex: bar, phraseStartBar: info.ensemble!.phraseStartBar,
+				motifId: motifPhrase?.source ? `motif:${motifPhrase.startBar}:${motifPhrase.source.id}` : null,
+				sourceFigureId: motifPhrase?.source?.id ?? null,
+				transform: motifStep?.transform ?? 'fallback', displacementBeats: motifStep?.shift ?? 0,
+				hits: [], ...(motifStep?.reason || motifPhrase?.reason ? { reason: motifStep?.reason ?? motifPhrase?.reason } : {})
+			};
+		}
 		recent.push(figure.repeatKey ?? figure.id);
 		if (figure.bars === 2) {
 			plan.push({ figureId: 'cont', guideTones });
+			if (motifs) plan[bar + 1].motif = { ...plan[bar].motif!, barIndex: bar + 1 };
 		}
+	}
+	if (motifs) {
+		for (const [bar, planned] of plan.entries()) {
+			planned.motif = { ...planned.motif!, hits: hitsForPlannedBar(planned, plan, bar, barInfos[bar], beatsPerBar).map((hit) => ({ ...hit })) };
+		}
+		compMotifTrace(plan);
 	}
 	// Defensive only: a 2-bar head is never selectable on the last bar
 	// (sameSectionNext requires a next bar), so the plan cannot overrun.
@@ -205,6 +396,7 @@ export function hitsForPlannedBar(
 	info: BarInfo,
 	beatsPerBar: number
 ): CompFigureHit[] {
+	if (info.ensemble?.piano.maxAttacks === 0 || planned.motif?.transform === 'space') return [];
 	const figure = headFigureFor(plan, barIndex);
 	const hits = (planned.figureId === 'cont' ? figure?.hits[1] : figure?.hits[0]) ?? [];
 	if (info.isFinalBar) {

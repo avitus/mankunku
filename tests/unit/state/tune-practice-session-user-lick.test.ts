@@ -144,6 +144,22 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 			expect([...offered], mode).toEqual(['e2e-minor-lick']);
 		}
 	});
+
+	it('passes the full performed form to audio after the head and repeated solo choruses', () => {
+		tunePractice.config.choruses = 2;
+		const { playedPhrase, leadBars, outroStartBar } = startTunePracticeSession(autumnLeaves, 480);
+		const form = playedPhrase.performanceForm!;
+		// Preserve the original head/solo contract; main now appends the resolved melody head.
+		expect(form.choruses.slice(0, 3).map((c) => c.role)).toEqual(['head', 'solo', 'solo']);
+		expect(form.choruses).toHaveLength(4);
+		expect(form.choruses[3]).toMatchObject({ role: 'head', startBar: outroStartBar, endBarExclusive: form.totalBars });
+		expect(form.choruses[2].endBarExclusive).toBe(outroStartBar);
+		expect(form.choruses[1].startBar).toBe(leadBars);
+		expect(form.totalBars).toBe(playedPhrase.difficulty.lengthBars);
+		expect(form.choruses.at(-1)?.endBarExclusive).toBe(form.totalBars);
+		expect(playedPhrase.sectionMap?.at(-1)?.barOffset).toBe(form.sections.at(-1)?.startBar);
+		expect(playedPhrase.sectionMap!.some((s) => s.barOffset >= form.choruses[2].startBar)).toBe(true);
+	});
 });
 
 describe('setup proposes the same known licks as the playing session', () => {

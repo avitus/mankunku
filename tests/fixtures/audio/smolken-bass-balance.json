@@ -1,0 +1,58 @@
+{
+  "provenance": {
+    "artifactDirectory": "musicality-2026-10-25/bass-selection",
+    "measurementsFile": "measurements.json",
+    "measurementsSha256": "17fc8f2bd089241b2c8457c84fe101559a3c49eff94a16b627e3757ec7bb87ea",
+    "sourceManifestFile": "source-sha256.json",
+    "sourceManifestSha256": "b5115c250a60cd304d824eae62e1ef43ca2ed8812b2deb7fa083003c5dca2a36",
+    "sfzSha256": "0aea1def56753b0dcc89914b1ac24054200bacc01dd696572745c70787eaec4f",
+    "method": "Raw isolated stereo bass stems; fresh native Smolken graph per render, identical saved events before/after, original SFZ and 91 decoded OGG recordings. No gain boost, normalization, compression or trimming. RMS includes three-second tail. These are scalar balance references, not ensemble/perceptual acceptance.",
+    "calibration": "One equal-dB best-fit scalar across the four measured RMS ratios; rounded to 7.74.",
+    "sampleRate": 48000,
+    "bassTrim": 0.05,
+    "tempo": 140,
+    "ppq": 192,
+    "totalBars": 64,
+    "phraseId": "musicality-ls-when-the-saints-C-2",
+    "form": "Saints head, two solo choruses, head return",
+    "seed": "deterministic phraseId and style; exact generated event files identified by SHA-256"
+  },
+  "records": [
+    {
+      "style": "swing",
+      "eventsSha256": "9ed3e3838c94a6474a844e5321c04d309462799849f9bb6a2d907e25aa96789c",
+      "notes": 197,
+      "beforeRms": 0.00620043311310736,
+      "correctedRms": 0.0008517452681961752,
+      "beforeSources": 2341,
+      "correctedSources": 197
+    },
+    {
+      "style": "straight",
+      "eventsSha256": "8c1d053a28def24fcacc7b563c2584dbfda854f48cc4ff51d1535487cb7b5c18",
+      "notes": 197,
+      "beforeRms": 0.006207697758645217,
+      "correctedRms": 0.0008519732672506976,
+      "beforeSources": 2341,
+      "correctedSources": 197
+    },
+    {
+      "style": "bossa-nova",
+      "eventsSha256": "1990f4c2ed312a988433fa0130f9376982fb3ae060af09acb5bbd3ec68847b60",
+      "notes": 169,
+      "beforeRms": 0.004567924866925678,
+      "correctedRms": 0.0005022766037288995,
+      "beforeSources": 1584,
+      "correctedSources": 169
+    },
+    {
+      "style": "ballad",
+      "eventsSha256": "20206307c851f5dbf99aa819e5661a92e6af33a8f6203a346ea38f9d9989bef5",
+      "notes": 128,
+      "beforeRms": 0.005647608087620641,
+      "correctedRms": 0.0007598426074303909,
+      "beforeSources": 1529,
+      "correctedSources": 128
+    }
+  ]
+}

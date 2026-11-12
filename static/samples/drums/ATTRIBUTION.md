@@ -74,3 +74,25 @@ at Milestone B), not the asset.
 `tests/unit/audio/sample-formats.test.ts` pins the codec invariant for every
 file under `static/samples/`; `tests/e2e/audio-sample-decode.spec.ts` proves
 real browsers can decode them.
+
+## Pedal hi-hat playback start (2026-10-20)
+
+The shipped `hihat_pedal.ogg` includes quiet pedal movement before cymbal
+contact. Its first substantial chick energy arrives about 44 ms after the
+recording starts, compared with about 4–5 ms for the ride and stick hi-hat
+(1 ms stereo RMS windows, 10% of each attack's peak RMS). This made the
+coordinated backbeat audibly later than its generated event timestamp.
+
+The shared decoder in `backing-track.ts` removes **40 ms** from the pedal
+buffer, at its decoded sample rate. The encoded asset stays intact. This
+discards the mechanical pre-roll, leaving roughly 4 ms of natural onset and
+preserving the remaining stereo waveform and decay. Live and offline playback
+use the same prepared buffer. Other kit samples and all musical timestamps
+are unchanged; this is an explicit asset calibration, not automatic silence
+trimming or a drummer timing preference.
+
+The upstream [pedal offset description](https://github.com/sfzinstruments/virtuosity_drums/blob/master/Programs/keymaps/keymap.sfz)
+describes the tradeoff between pedal responsiveness and retaining realistic
+noise before cymbal contact. Reassess this offset whenever replacing the asset.
+`tests/e2e/backing-drum-timing.spec.ts` checks the audible attack through the
+app's public WAV render path against the stick hi-hat and ride.

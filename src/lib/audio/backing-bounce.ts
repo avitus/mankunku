@@ -1,3 +1,5 @@
+import { prepareReleasedArrangement } from './backing-arrangement';
+import { connectBackingOutput } from './backing-output';
 /**
  * Offline WAV bounce of the backing engine for the listening lab.
  *
@@ -16,6 +18,10 @@ import type { Phrase } from '$lib/types/music';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
+import { assessTerminalArrangement, type TerminalArrangementInput } from './backing-terminal';
+import { createBackingSampleLoader } from './backing-sample-loader';
+import { backingKeyboardTrim } from './backing-keyboard-level';
+import { loadBackingBass } from './backing-bass-instrument';
 import {
 	generateBacking,
 	resolveBackingSwing,
@@ -50,6 +56,9 @@ export const BOUNCE_PPQ = 192;
  *  buffers, which resample freely. */
 export const BOUNCE_SAMPLE_RATE = 44100;
 
+/** Bound browser offline audio allocation, including the requested release tail. */
+export const MAX_BOUNCE_SECONDS = 600;
+
 /** Seconds of tail after the last bar so releases and the room ring out. */
 const BOUNCE_TAIL_SECONDS = 2.5;
 
@@ -68,6 +77,8 @@ export function harmonyDurationBeats(phrase: Phrase): number {
 }
 
 export interface BounceParams {
+	/** Listening-studio rolling policy only; captured separately from note generation RNG. */
+	performanceEnergySeed?: number;
 	phrase: Phrase;
 	style: BackingStyle;
 	tempo: number;
@@ -76,6 +87,12 @@ export interface BounceParams {
 	instrument: BackingInstrument;
 	volume: number;
 	mix: BackingMixLevels;
+	/** Same generation policy as live playback; original is an A/B reference. */
+	orchestration?: 'original' | 'coordinated';
+	/** Explicit finite ending; omitted/continue retains the current accompaniment. */
+	ending?: 'continue' | 'hold-release';
+	/** Scripted observation trace for the lab, shared with live preview generation. */
+	soloFeatures?: readonly import('./ensemble-plan').SoloFeature[];
 }
 
 export interface BounceResult {
@@ -83,6 +100,20 @@ export interface BounceResult {
 	filename: string;
 	generated: GeneratedBacking;
 	durationSeconds: number;
+}
+
+/** Validate declared listening intent before an audio graph or ordinary score is prepared. */
+export function resolveListeningTerminalArrangement(params: BounceParams): TerminalArrangementInput | undefined {
+	if (params.ending !== 'hold-release' || params.orchestration !== 'coordinated' || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(params.style)) return undefined;
+	const phrase = params.phrase;
+	const terminalArrangement: TerminalArrangementInput = { ending: 'hold-release', melody: phrase.notes };
+	const assessment = assessTerminalArrangement(phrase.harmony, BACKING_STYLES[params.style], {
+		phraseId: phrase.id, tempo: params.tempo, ppq: BOUNCE_PPQ, beatsPerBar: phrase.timeSignature[0], swing: params.swing,
+		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+		ensemble: {}, terminalArrangement
+	});
+	if (!assessment.available) throw new Error(`Hold & release is unavailable: ${assessment.reason}`);
+	return terminalArrangement;
 }
 
 /** Deterministic-ish filename: preset, style, tempo, seed and date, no spaces. */
@@ -103,17 +134,30 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		throw new Error(`Lab phrase ${phrase.id} has no harmony to bounce`);
 	}
 	const style = BACKING_STYLES[params.style];
-	return generateBacking(phrase.harmony, style, {
+	const terminalArrangement = resolveListeningTerminalArrangement(params);
+	const generation = {
 		phraseId: phrase.id,
 		tempo,
 		ppq: BOUNCE_PPQ,
 		beatsPerBar: phrase.timeSignature[0],
 		swing: resolveBackingSwing(params.swing, style, tempo),
-		sectionMap: phrase.sectionMap
-	});
+		sectionMap: phrase.sectionMap,
+		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+		...(terminalArrangement ? { terminalArrangement } : {}),
+		ensemble: params.orchestration === 'coordinated' && phrase.timeSignature[1] === 4
+			? { soloFeatures: params.soloFeatures } : undefined
+	};
+	if (params.orchestration === 'coordinated' && !params.soloFeatures?.length && !terminalArrangement) {
+		const released = prepareReleasedArrangement(phrase.harmony, style, generation, params.instrument, phrase.timeSignature[1], params.performanceEnergySeed ?? 0);
+		if (released) return released;
+		// The normal transport also falls back to Original for unsupported score shapes.
+		return generateBacking(phrase.harmony, style, { ...generation, ensemble: undefined });
+	}
+	return generateBacking(phrase.harmony, style, generation);
 }
 
 export interface RenderOpts {
+	style?: BackingStyle;
 	tempo: number;
 	instrument: BackingInstrument;
 	volume: number;
@@ -140,6 +184,7 @@ export async function bounceBacking(
 	const blob = await renderEventsToWav(generated, drumBuffers, {
 		tempo: params.tempo,
 		instrument: params.instrument,
+		style: params.style,
 		volume: params.volume,
 		mix: params.mix,
 		durationSeconds,
@@ -166,6 +211,9 @@ export async function renderEventsToWav(
 	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
 	opts: RenderOpts
 ): Promise<Blob> {
+	if (!Number.isFinite(opts.durationSeconds) || opts.durationSeconds <= 0 || opts.durationSeconds > MAX_BOUNCE_SECONDS) {
+		throw new RangeError('Browser WAV bounce is limited to 10 minutes. Export events JSON or use a shorter take.');
+	}
 	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler, Scheduler } =
 		await import('smplr');
 	const { tempo, volume, mix, durationSeconds } = opts;
@@ -184,7 +232,7 @@ export async function renderEventsToWav(
 			busCompressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 			busCompressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 			busCompressor.release.value = BACKING_BUS_COMPRESSOR.release;
-			busCompressor.connect(context.destination);
+			connectBackingOutput(busCompressor, context.destination, mix.master);
 
 			const backingGain = context.createGain();
 			backingGain.gain.value = volume;
@@ -198,7 +246,7 @@ export async function renderEventsToWav(
 			compPan.pan.value = BACKING_PANS.comp;
 			compPan.connect(backingGain);
 			const compGain = context.createGain();
-			compGain.gain.value = BACKING_BASE_TRIMS.comp * mix.comp;
+			compGain.gain.value = backingKeyboardTrim(opts.instrument, opts.style) * mix.comp;
 			compGain.connect(compPan);
 
 			const drumBus = context.createGain();
@@ -247,6 +295,7 @@ export async function renderEventsToWav(
 			const scheduler = new Scheduler(context, {
 				lookaheadMs: (durationSeconds + 10) * 1000
 			});
+			const loader = createBackingSampleLoader(context);
 			// Partition the kit into its family samplers, mirroring ensureDrums.
 			const byFamily: Record<DrumFamily, Record<string, AudioBuffer>> = {
 				kick: {},
@@ -268,9 +317,9 @@ export async function renderEventsToWav(
 					scheduler
 				}).load;
 			const [bass, comp, kickSampler, snareSampler, cymbalSampler] = await Promise.all([
-				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler }).load,
+				loadBackingBass(context, Smolken, { instrument: 'Pizzicato', destination: bassGain, scheduler, loader }),
 				opts.instrument === 'piano'
-					? new SplendidGrandPiano(context, { destination: compGain, scheduler }).load
+					? new SplendidGrandPiano(context, { destination: compGain, scheduler, loader }).load
 					: new Soundfont(context, {
 							instrument: 'drawbar_organ',
 							kit: 'MusyngKite',
@@ -382,6 +431,8 @@ export async function renderGoldenJsonToWav(
 	if (!tempo || !Number.isFinite(tempo) || tempo < 20) {
 		throw new Error('Events JSON carries no usable tempo (expected `tempo` or `params.tempo` ≥ 20)');
 	}
+	const style = json.style ?? opts.style;
+	if (style !== undefined && !Object.hasOwn(BACKING_STYLES, style)) throw new Error('Events JSON carries an unsupported backing style');
 	const generated: GeneratedBacking = {
 		bassEvents: json.bassEvents,
 		compEvents: json.compEvents,
@@ -389,6 +440,7 @@ export async function renderGoldenJsonToWav(
 	};
 	const blob = await renderEventsToWav(generated, drumBuffers, {
 		...opts,
+		style: style as BackingStyle | undefined,
 		tempo,
 		durationSeconds: eventsDurationSeconds(generated, tempo)
 	});

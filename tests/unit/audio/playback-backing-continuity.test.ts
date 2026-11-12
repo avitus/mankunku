@@ -19,6 +19,7 @@ vi.mock('smplr', () => {
 		disconnect() {}
 	}
 	return {
+		Scheduler: () => ({ schedule(event: unknown, callback: (event: unknown) => void) { callback(event); return () => {}; }, stop() {} }),
 		Soundfont: class Soundfont extends Instrument {},
 		Smolken: class Smolken extends Instrument {},
 		SplendidGrandPiano: class SplendidGrandPiano extends Instrument {},
@@ -52,11 +53,13 @@ const phrase: Phrase = {
 };
 const options: PlaybackOptions = {
 	tempo: 120, swing: 0.5, countInBeats: 0, metronomeEnabled: false,
-	metronomeVolume: 0.5, backingTrackEnabled: true, backingInstrument: 'piano'
+	metronomeVolume: 0.5, backingTrackEnabled: true, backingInstrument: 'piano', backingPerformanceSeed: 256
 };
 
 /** Compare a retry's band against the same vamp left running without a handoff. */
-async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled') {
+async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled', arrangement: 'original' | 'coordinated' = 'coordinated') {
+	const sessionOptions = { ...options, backingOrchestration: arrangement };
+	const nextOptions = { ...sessionOptions, backingPerformanceSeed: undefined };
 	const h = await createHeadlessTransport({ sampleRate: 48000, bpm: 120, startQuantum: 1 });
 	h.Tone.setContext(h.context);
 	guardTickRedelivery(h.transport);
@@ -65,7 +68,7 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled') 
 	try {
 		await playback.loadInstrument('trumpet', 1, 'piano');
 		const started = vi.fn();
-		const first = playback.playPhrase(phrase, options, true, { resolveAtMelodyEnd: true, onStarted: started });
+		const first = playback.playPhrase(phrase, sessionOptions, true, { resolveAtMelodyEnd: true, onStarted: started });
 		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		hits.length = 0;
 		h.run(3.3); // Call has ended; band is still playing during the response.
@@ -74,7 +77,7 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled') 
 		if (continuation !== 'none') {
 			started.mockClear();
 			next = playback.scheduleNextPhrase(phrase, {
-				...options, backingTrackEnabled: continuation !== 'disabled'
+				...nextOptions, backingTrackEnabled: continuation !== 'disabled'
 			}, { resolveAtMelodyEnd: true, onStarted: started });
 			await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		}
@@ -86,7 +89,7 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled') 
 			// A later retry also reclaims the first outgoing band. It must not
 			// cut the currently playing one or leave an older loop sounding.
 			started.mockClear();
-			next = playback.scheduleNextPhrase(phrase, options, { resolveAtMelodyEnd: true, onStarted: started });
+			next = playback.scheduleNextPhrase(phrase, nextOptions, { resolveAtMelodyEnd: true, onStarted: started });
 			await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		}
 		h.run(3);
@@ -104,9 +107,9 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled') 
 }
 
 describe('ear-training backing continuity', () => {
-	it('keeps every bass, comp and drum attack through successive retry downbeats', async () => {
-		const uninterrupted = await runSession('none');
-		const retry = await runSession('retry');
+	it.each(['original', 'coordinated'] as const)('%s keeps every attack and the session seed through successive retry downbeats', async arrangement => {
+		const uninterrupted = await runSession('none', arrangement);
+		const retry = await runSession('retry', arrangement);
 		expect(uninterrupted.band.length).toBeGreaterThan(30);
 		expect(retry.band).toEqual(uninterrupted.band);
 	});

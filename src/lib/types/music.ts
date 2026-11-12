@@ -141,6 +141,8 @@ export interface Phrase {
 	 * unset.
 	 */
 	sectionMap?: { sourceSection: number; barOffset: number }[];
+	/** Explicit performed passes and section occurrences on this phrase's timeline. */
+	performanceForm?: import('./performance-form').PerformanceForm;
 }
 
 export type ScaleFamily =

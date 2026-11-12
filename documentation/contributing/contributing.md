@@ -202,16 +202,27 @@ CircleCI, two config files: `.circleci/config.yml` is a setup workflow whose
 path filter sets `nginx-changed` / `omr-changed`, and
 `.circleci/continue-config.yml` holds the jobs.
 
+The exact `musicality` branch skips the setup workflow, including its
+path-filtering job, so none of the continuation jobs run. CircleCI may still
+show a skipped pipeline record. `dev`, `main` and other branches retain their
+usual CI, including branches with names such as `musicality/example`.
+
+Keep ongoing musicality work on `musicality` and validate it on a Chunk sidecar
+or locally: use the relevant Vitest and Playwright suites, plus `npm run check`
+and `npm run build` for completed milestones. Moving the work to `dev` or
+`main` is a separate, explicitly approved release decision. To restore hosted
+CI on `musicality`, deliberately remove the setup workflow's `unless` guard.
+
 | Job | Runs on | What it does |
 |---|---|---|
-| `list-unit-tests` / `list-e2e-tests` | every push | Select the test files to run (Smarter Testing; impacted files only on branches) and size the next job |
-| `test` | every push, after `list-unit-tests` | `circleci testsuite run "unit tests"` (Vitest), then `npm run test:deploy` on the first node |
-| `e2e` | every push, after `list-e2e-tests`, in parallel with `test` | Playwright on all three engines; each node builds and serves the app once, then runs the spec files dynamic splitting hands it |
+| `list-unit-tests` / `list-e2e-tests` | every eligible push | Select the test files to run (Smarter Testing; impacted files only on branches) and size the next job |
+| `test` | every eligible push, after `list-unit-tests` | `circleci testsuite run "unit tests"` (Vitest), then `npm run test:deploy` on the first node |
+| `e2e` | every eligible push, after `list-e2e-tests`, in parallel with `test` | Playwright on all three engines; each node builds and serves the app once, then runs the spec files dynamic splitting hands it |
 | `unit-analysis` / `e2e-analysis` | `main`, non-blocking | Refresh the test-impact data (per-test coverage) |
 | `build` | `main`, after `test` | `npm run build` |
 | `db-migrate` | `main`, after `build` | `supabase db push --linked` against production |
 | `deploy` | `main`, after `build` + `db-migrate` + `e2e` | Atomic release on the server, then verifies the public `/api/health` reports this commit |
-| `omr-test` | any branch, only when `omr/**` or `.circleci/**` changed | `uv sync --frozen`, `ruff check`, hermetic `pytest` |
+| `omr-test` | any eligible branch, only when `omr/**` or `.circleci/**` changed | `uv sync --frozen`, `ruff check`, hermetic `pytest` |
 | `nginx-deploy` | `main`, only when `nginx/**`, `deploy/nginx/**` or `.circleci/**` changed | Installs and reloads the nginx config (see the root README) |
 
 A failed Firefox/WebKit spec blocks the deploy just like a unit test does.
