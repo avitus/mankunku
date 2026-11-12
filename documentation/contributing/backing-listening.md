@@ -58,7 +58,7 @@ one WAV per events JSON:
 
 ```sh
 RENDER_DIR=tests/fixtures/backing/milestone-a \
-  npm run test:sandbox -- diagnostics backing-milestone-render
+  npm run test:sandbox -- diagnostics backing-milestone-render --project=chromium
 ```
 
 This explicit diagnostic command uses Chromium in Linux. `RENDER_DIR` must be repository-relative. Generated WAVs are saved under the run's recovered test artifacts, never to an arbitrary desktop directory. The recording tool is excluded from ordinary E2E discovery. The committed Milestone A set lives at `tests/fixtures/backing/milestone-a/` (old/new × blues at 90/160/240 + AABA at 160).
