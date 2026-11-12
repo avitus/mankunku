@@ -21,7 +21,7 @@ test.describe('docs reading desk', () => {
 		await search.fill('no matching guide');
 		await expect(page.getByRole('status')).toContainText('No guides match');
 		await page.getByRole('button', { name: 'Clear search' }).click();
-		await expect(index.getByRole('link')).toHaveCount(13);
+		await expect(index.getByRole('link')).toHaveCount(16);
 		await search.fill('daily key');
 		await index.getByRole('link', { name: 'The Daily Key' }).click();
 		await expect(page).toHaveURL(/\/docs\/architecture\/tonality-system$/);

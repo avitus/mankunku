@@ -33,6 +33,26 @@ test.describe('docs pages', () => {
 	});
 
 	for (const doc of PAGES) {
+		// An entry with a page of its own is a link, not an article: its docs
+		// address forwards there, and so do the guides on either side of it.
+		const { href } = doc;
+		if (href) {
+			test(`/docs/${doc.slug} forwards to ${href}`, async ({ page }) => {
+				await page.goto(`/docs/${doc.slug}`);
+				await expect(page).toHaveURL(href);
+				const index = PAGES.indexOf(doc);
+				const guides = page.getByRole('navigation', { name: 'More guides' });
+				if (PAGES[index - 1] && !PAGES[index - 1].href) {
+					await page.goto(`/docs/${PAGES[index - 1].slug}`);
+					await expect(guides.getByRole('link', { name: /Next guide/ })).toHaveAttribute('href', href);
+				}
+				if (PAGES[index + 1] && !PAGES[index + 1].href) {
+					await page.goto(`/docs/${PAGES[index + 1].slug}`);
+					await expect(guides.getByRole('link', { name: /Previous guide/ })).toHaveAttribute('href', href);
+				}
+			});
+			continue;
+		}
 		test(`/docs/${doc.slug} renders "${doc.title}"`, async ({
 			page,
 			consoleCollector: _consoleCollector

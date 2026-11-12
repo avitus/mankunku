@@ -1,5 +1,5 @@
 import { renderMarkdown } from '$lib/docs/markdown';
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getPage, getBreadcrumbs } from '$lib/docs/structure';
 
@@ -15,7 +15,8 @@ const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
 
 /**
  * Serves one documentation page: 404s when the slug is absent from the docs
- * tree (`DOC_TREE`) or its bundled markdown file is missing, otherwise returns
+ * tree (`DOC_TREE`) or its bundled markdown file is missing, forwards an entry
+ * that lives on a page of its own (`href`) to that page, otherwise returns
  * the page metadata, the raw markdown, the rendered HTML and the breadcrumbs.
  */
 export const load: PageServerLoad = async ({ params }) => {
@@ -23,6 +24,13 @@ export const load: PageServerLoad = async ({ params }) => {
 	const meta = getPage(slug);
 	if (!meta) {
 		error(404, `No documentation page at /${slug}`);
+	}
+	// An entry with its own page is a link in the tree, not an article here.
+	// The musicality spec rendered as one crashed on hydration: it repeats its
+	// section headings (Piano, Bass, Drums, Ensemble) and the contents list is
+	// keyed by heading slug (main's first hosted e2e run, 2026-11-12).
+	if (meta.href) {
+		redirect(308, meta.href);
 	}
 
 	const markdown = DOC_FILES[`/documentation/${slug}.md`];

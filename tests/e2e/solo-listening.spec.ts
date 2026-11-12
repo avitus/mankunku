@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import type { SoloObservationWindow } from '../../src/lib/audio/solo-observer';
@@ -41,6 +42,10 @@ const micState = (page: Page) => page.evaluate(() => {
 });
 
 async function setup(page: Page, delayed = false) {
+	// Every pass here starts the transport before it asks for the microphone,
+	// and on headless Linux Firefox that resume never settles: main's first
+	// hosted run (2026-11-12) left all eleven cases at "Waiting for microphone".
+	requireRealtimeAudio(page);
 	await seedOnboardedAnonymous(page);
 	await microphone(page, delayed);
 	await stubCdnInstrumentSamples(page);
@@ -51,6 +56,12 @@ async function setup(page: Page, delayed = false) {
 
 test('microphone is explicit; a finite take exports causal replay evidence and parameter changes clear it', async ({ page }) => {
 	await setup(page);
+	// Twelve bars, not the default four. A bar's observation can only steer a
+	// bar that starts after it arrives, so a four-bar pass has exactly one bar
+	// (the second) that can yield a replayable feature, and Linux WebKit drops
+	// input frames through its first two bars: `missing_frames`, nothing to
+	// replay, on every attempt of main's first hosted run (2026-11-12).
+	await page.getByTestId('lab-preset').selectOption('lab-blues-f');
 	expect(await micState(page)).toEqual({ calls: 0, stopped: 0 });
 	await expect(page.getByTestId('lab-listen')).toBeVisible();
 	await expect(page.getByTestId('lab-replay-observations')).toBeDisabled();
@@ -70,7 +81,7 @@ test('microphone is explicit; a finite take exports causal replay evidence and p
 	};
 	expect(data.soloScenario).toBe('microphone-replay');
 	expect(data.soloObservationTrace.tempo).toBe(240);
-	expect(data.soloObservationTrace.windows).toHaveLength(4);
+	expect(data.soloObservationTrace.windows).toHaveLength(12);
 	expect(data.soloObservationTrace.windows.every((window) => window.sessionId === data.soloObservationTrace.sessionId)).toBe(true);
 	expect(data.soloFeatures.length).toBeGreaterThan(0);
 	for (const window of data.soloObservationTrace.windows) {
