@@ -67,6 +67,34 @@ export function proposePianoMotifRecall(input: {
 	return { ...motif, sourceId: source.figureId };
 }
 
+// Only keyboard receipts belong in a recalled chord. Keep their JSON shape so
+// export/replay is identical to the owned in-memory checkpoint, while rejecting
+// unknown fields, non-finite numbers and receipts for the other musicians.
+function validRecallAttackShape(event: CompEvent): boolean {
+ const required = ['absBeat', 'time', 'notes', 'duration', 'velocity'];
+ const optional = ['expression', 'ensembleColor', 'phraseColor', 'phraseDialogue', 'innerMotion', 'conversation'];
+ if (!required.every(key => Object.hasOwn(event, key)) || Object.keys(event).some(key => !required.includes(key) && !optional.includes(key))) return false;
+ type Check = (value: unknown) => boolean;
+ const finite: Check = value => typeof value === 'number' && Number.isFinite(value);
+ const midi: Check = value => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 127;
+ const pc: Check = value => Number.isInteger(value) && Number(value) >= 0 && Number(value) < 12;
+ const positive: Check = value => finite(value) && Number(value) > 0;
+ const velocity: Check = value => positive(value) && Number(value) <= 127;
+ const notes: Check = value => Array.isArray(value) && value.length >= 2 && value.length <= 8 && value.every(midi);
+ const oneOf = (...values: unknown[]): Check => value => values.includes(value);
+ const shape = (value: unknown, fields: Record<string, Check>): boolean => !!value && typeof value === 'object' && !Array.isArray(value) &&
+  Object.keys(value).length === Object.keys(fields).length && Object.entries(fields).every(([key, check]) => Object.hasOwn(value, key) && check((value as Record<string, unknown>)[key]));
+ const receipts: Record<string, Record<string, Check>> = {
+  expression: { kind: oneOf('short-held'), originalVelocity: velocity, originalDuration: positive, part: oneOf('statement', 'answer') },
+  ensembleColor: { kind: oneOf('drop3'), fromMidi: midi, toMidi: midi, originalNotes: notes },
+  phraseColor: { kind: oneOf('upper-structure'), rootPc: pc, addedMidi: midi, originalNotes: notes },
+  phraseDialogue: { kind: oneOf('fourth-stack'), originalVelocity: velocity, velocityScale: positive, originalNotes: notes, notes, rootPc: pc, third: oneOf(3, 4), seventh: oneOf(10, 11) },
+  innerMotion: { kind: oneOf('chromatic-inner'), phase: oneOf('approach', 'resolution'), fromMidi: midi, toMidi: midi, approachBeat: finite, resolutionBeat: finite, rootPc: pc },
+  conversation: { kind: oneOf('dominant-b9'), fromMidi: midi, toMidi: midi, rootPc: pc, targetRootPc: pc }
+ };
+ return optional.every(key => !Object.hasOwn(event, key) || shape((event as unknown as Record<string, unknown>)[key], receipts[key]));
+}
+
 /** Validate shape, score identity and bounded provenance, not authenticity of uploads. */
 export function validatePianoPhraseRecall(memory: PianoPhraseRecallMemory | undefined, score: RollingBackingDefinition,
 	nextBar: number, motif: RollingPianoMemory['motif']): void {
@@ -90,10 +118,10 @@ export function validatePianoPhraseRecall(memory: PianoPhraseRecallMemory | unde
 	if (!figure || figure.bars !== 1 || figure.tags.includes('pad') || !figure.hits[0].length || !Array.isArray(source.attacks) ||
 		source.attacks.length !== figure.hits[0].length || source.attacks.length > 2) return invalid();
 	for (const [index, event] of source.attacks.entries()) {
-		if (!event || !keys(event, ['absBeat', 'time', 'notes', 'duration', 'velocity']) ||
+		if (!event || !validRecallAttackShape(event) ||
 			event.absBeat !== source.barIndex * 4 + figure.hits[0][index].b || !Array.isArray(event.notes) || event.notes.length < 2 || event.notes.length > 8 ||
-			event.notes.some((note: number, i: number) => !Number.isInteger(note) || note < 48 || note > 84 || (i > 0 && note <= event.notes[i - 1])) ||
-			!Number.isFinite(event.duration) || event.duration <= 0 || !Number.isInteger(event.velocity) || event.velocity < 1 || event.velocity > 127 ||
+			event.notes.some((note: number, i: number) => !Number.isInteger(note) || note < (score.ensembleColorsVersion ? 45 : 48) || note > 84 || (i > 0 && note <= event.notes[i - 1])) ||
+			!Number.isFinite(event.duration) || event.duration <= 0 || !Number.isFinite(event.velocity) || event.velocity < 1 || event.velocity > 127 ||
 			typeof event.time !== 'string' || !/^(0|[1-9]\d*)i$/.test(event.time)) return invalid();
 		const tick = Number(event.time.slice(0, -1)), end = (source.barIndex + 1) * 4 * score.ppq;
 		if (!Number.isSafeInteger(tick) || tick < source.barIndex * 4 * score.ppq || tick >= end ||

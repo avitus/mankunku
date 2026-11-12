@@ -21,7 +21,7 @@
 
 import { createRng, seedFrom } from './generation-rng';
 import { lerp } from './backing-intensity';
-import type { BarInfo } from './backing-generation';
+import type { BarInfo, CompEvent } from './backing-generation';
 
 export type FigureTag = 'early' | 'push' | 'pad';
 
@@ -103,7 +103,7 @@ export interface PlannedBar {
 }
 
 export type CompMotifTransform = 'statement' | 'repeat' | 'displace' | 'shorten' | 'answer' | 'space' | 'fallback';
-export interface PianoMotifAttack {
+export interface PianoMotifAttack extends Pick<CompEvent, 'expression' | 'ensembleColor' | 'phraseColor' | 'phraseDialogue' | 'innerMotion' | 'conversation'> {
 	readonly absBeat: number;
 	readonly time: string;
 	readonly notes: readonly number[];

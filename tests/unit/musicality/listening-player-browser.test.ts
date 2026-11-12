@@ -213,3 +213,14 @@ it('forwards the captured energy seed only into coordinated rolling generation',
  take.stop(); create.mockClear(); await take.start({ ...input('original'), performanceEnergySeed: 42 });
  expect(create).not.toHaveBeenCalled();
 });
+
+it.each(['original', 'coordinated'] as const)('%s stops and reports a suspended native clock instead of hanging in Playing', async mode => {
+ const take = player(); await take.start(input(mode)); advance(400);
+ expect(take.snapshot().status).toBe('playing');
+ host.context.state = 'suspended'; vi.advanceTimersByTime(100);
+ expect(take.snapshot()).toMatchObject({ status: 'error', error: mode === 'original' ? 'Audio context is suspended. Start a new take.' : 'Audio scheduling stopped: audio_clock' });
+ expect(host.transport.stop).toHaveBeenCalled();
+ expect(host.callbacks.size).toBe(0);
+ if (mode === 'original') expect(host.schedule).toBeNull();
+ else expect(host.playbacks.at(-1)!.stop).toHaveBeenCalled();
+});

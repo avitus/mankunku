@@ -1,9 +1,11 @@
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 
 test('shipped bass and piano attack promptly in a dry WAV render', async ({ page, browserName }) => {
-	test.skip(!!process.env.CI, 'needs real CDN instrument recordings — local diagnostic only');
+	test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'isolated native-audio diagnostic only');
 	// Forty independent full-bank decodes can take five minutes on WebKit.
+	requireRealtimeAudio(page);
 	test.setTimeout(480_000);
 	await seedOnboardedAnonymous(page);
 	// Keep the recordings, decoder, sampler and mixer real. A synthesized

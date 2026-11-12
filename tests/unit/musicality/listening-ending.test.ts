@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateForBounce, type BounceParams } from '$lib/audio/backing-bounce';
+import * as arrangement from '$lib/audio/backing-arrangement';
 import * as generation from '$lib/audio/backing-generation';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
@@ -12,7 +13,7 @@ const input = (): BounceParams => ({
 afterEach(() => vi.restoreAllMocks());
 
 describe('explicit listening ending at the fixed bounce boundary', () => {
- it.each(['swing', 'ballad', 'bossa-nova'].flatMap(style => ['unknown', 'late-attack'].map(kind => [style, kind])))('rejects %s %s closing melody before generating a silently continuing bounce', (style, kind) => {
+ it.each(['swing', 'straight', 'ballad', 'bossa-nova'].flatMap(style => ['unknown', 'late-attack'].map(kind => [style, kind])))('rejects %s %s closing melody before generating a silently continuing bounce', (style, kind) => {
   const generate = vi.spyOn(generation, 'generateBacking');
   const params = { ...input(), style, ending: 'hold-release' } as BounceParams;
   if (kind === 'unknown') params.phrase.notes = undefined as unknown as typeof params.phrase.notes;
@@ -43,7 +44,10 @@ describe('explicit listening ending at the fixed bounce boundary', () => {
   { style: 'bossa-nova' }, { ending: 'continue', style: 'bossa-nova' }
  ])('keeps unsupported/default intent outside generation: %j', overrides => {
   const generate = vi.spyOn(generation, 'generateBacking');
+  const prepare = vi.spyOn(arrangement, 'prepareReleasedArrangement');
   generateForBounce({ ...input(), ...overrides } as BounceParams);
-  expect(generate.mock.calls.at(-1)?.[2]).not.toHaveProperty('terminalArrangement');
+  const calls = [...generate.mock.calls, ...prepare.mock.calls];
+  expect(calls.length).toBeGreaterThan(0);
+  for (const call of calls) expect(call[2]).not.toHaveProperty('terminalArrangement');
  });
 });

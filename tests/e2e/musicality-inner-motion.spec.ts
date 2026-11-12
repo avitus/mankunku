@@ -1,3 +1,4 @@
+import { taggedAttackPeaks } from './fixtures/tagged-attack-audio';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -59,4 +60,8 @@ for(const keyboard of ['piano','organ'] as const)test(`0.16 full Blues with ${ke
   await expect(page.getByTestId(`musician-${card}`)).toContainText(label);
  }
  await page.screenshot({path:test.info().outputPath('inner-motion-review.png'),fullPage:true});
+ const isolated = await taggedAttackPeaks(page, generated, 'innerMotion', keyboard);
+ await test.info().attach('isolated-tagged-attack-peaks', { body: JSON.stringify(isolated), contentType: 'application/json' });
+ for (const peak of isolated) expect(peak, 'accepted tagged attack must produce isolated audio').toBeGreaterThan(.001);
+
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SmplrPreset, Storage } from 'smplr';
 import { createBackingSampleLoader } from '$lib/audio/backing-sample-loader';
 
@@ -84,4 +84,50 @@ describe('backing pitched sample readiness', () => {
 		await expect(other.loader.load(preset, { buffers: new Map([['low', buffer], ['high', buffer]]) })).resolves.toHaveProperty('size', 2);
 		expect(other.fetch).not.toHaveBeenCalled();
 	});
+});
+
+// A CDN response or decoder may never settle; readiness must still be recoverable.
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+it.each(['fetch', 'body', 'decode'])('bounds a stalled %s, shares the deadline and permits retry', async stage => {
+ vi.useFakeTimers();
+ const never = () => new Promise<never>(() => {});
+ let stalled = true;
+ const decode = vi.fn(() => stalled && stage === 'decode' ? never() : Promise.resolve(buffer));
+ const fetch = vi.fn(() => stalled && stage === 'fetch' ? never() : Promise.resolve({ status: 200,
+  arrayBuffer: () => stalled && stage === 'body' ? never() : Promise.resolve(new ArrayBuffer(1)) }));
+ const loader = createBackingSampleLoader({ decodeAudioData: decode } as unknown as BaseAudioContext, { fetch } as unknown as Storage);
+ const one = { ...preset, samples: { ...preset.samples, formats: ['ogg'] }, groups: [{ regions: [{ sample: 'low' }] }] };
+ const pending = [loader.load(one), loader.load(one)].map(p => expect(p).rejects.toThrow(/No playable sample/));
+ await vi.advanceTimersByTimeAsync(15_000);
+ await Promise.all(pending);
+ expect(fetch).toHaveBeenCalledTimes(1);
+ stalled = false;
+ await expect(loader.load(one)).resolves.toHaveProperty('size', 1);
+ expect(fetch).toHaveBeenCalledTimes(2);
+ expect(vi.getTimerCount()).toBe(0);
+});
+
+it('falls back to the next codec after a stalled request and clears successful deadlines', async () => {
+ vi.useFakeTimers();
+ const { loader, fetch } = fixture(['m4a']);
+ fetch.mockImplementation(url => url.endsWith('.ogg') ? new Promise<never>(() => {})
+  : Promise.resolve({ status: 200, arrayBuffer: async () => new TextEncoder().encode(url).buffer }));
+ const ready = expect(loader.load(preset)).resolves.toHaveProperty('size', 2);
+ await vi.advanceTimersByTimeAsync(15_000); await ready;
+ expect(fetch.mock.calls.map(([url]) => url.split('/').at(-1))).toEqual(['low.ogg', 'low.m4a', 'high.m4a']);
+ expect(vi.getTimerCount()).toBe(0);
+});
+
+it('aborts a native fetch at the deadline and does not leave an unhandled rejection', async () => {
+ vi.useFakeTimers();
+ let signal: AbortSignal | undefined;
+ vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+  signal = init.signal ?? undefined;
+  signal!.addEventListener('abort', () => reject(new Error('aborted')));
+ })));
+ const loader = createBackingSampleLoader({ decodeAudioData: vi.fn() } as unknown as BaseAudioContext);
+ const one = { ...preset, samples: { ...preset.samples, formats: ['ogg'] } };
+ const ready = expect(loader.load(one)).rejects.toThrow(/No playable sample/);
+ await vi.advanceTimersByTimeAsync(15_000); await ready;
+ expect(signal?.aborted).toBe(true); expect(vi.getTimerCount()).toBe(0);
 });

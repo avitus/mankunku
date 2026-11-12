@@ -260,9 +260,10 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const textureInput: Parameters<typeof planKeyboardTexture>[0] = { quality: chord.quality, family, phraseId: score.phraseId, tempo: score.tempo,
 			phraseStartBar: phraseStart, seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, answering: transform === 'answer',
 			allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' as const };
-		const nativeTexture = phrasing && (score.style === 'bossa-nova' || score.style === 'ballad') && !guideTones
-			? planNativeKeyboardTexture({ ...textureInput, style: score.style, barIndex: bar }) : undefined;
-		const texture = nativeTexture ?? (score.keyboardTextureVersion === 1 && !backgroundHarmony && !guideTones && !arrival && !proposal &&
+		const nativeTextureLane = phrasing && (score.style === 'bossa-nova' || score.style === 'ballad') && !guideTones;
+		const nativeTexture = nativeTextureLane
+			? planNativeKeyboardTexture({ ...textureInput, style: score.style as 'bossa-nova' | 'ballad', barIndex: bar }) : undefined;
+		const texture = nativeTextureLane ? nativeTexture : (score.keyboardTextureVersion === 1 && !backgroundHarmony && !guideTones && !arrival && !proposal &&
 			ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent &&
 			!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '')
 			? planKeyboardTexture({ quality: chord.quality, family, phraseId: score.phraseId, tempo: score.tempo,

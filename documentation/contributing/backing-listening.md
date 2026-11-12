@@ -136,7 +136,7 @@ and [global attack setting](https://github.com/sfzinstruments/SplendidGrandPiano
 The converted library's mappings at revision
 `009793ebf849aee57f9a213aeaf8f2d1e2178f4f` match those source definitions.
 
-`tests/e2e/backing-pitched-timing.spec.ts` exercises the public events-JSON WAV
+`tests/e2e/backing-pitched-timing.diagnostic.ts` exercises the public events-JSON WAV
 renderer with real CDN samples, a dry mix, and isolated notes: bass MIDI
 28/36/43/48/55 at three velocities and piano MIDI 35/38/48/60/72 across all five
 velocity bands. It measures 10%/50%/peak timing in the first 150 ms, checks that

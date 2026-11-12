@@ -18,13 +18,18 @@ export function createBackingSampleLoader(context: BaseAudioContext, storage?: S
 		const url = rawUrl.replace(/#/g, '%23').replace(/ /g, '%20').replace(/([^:]\/)\/+/g, '$1');
 		const existing = decoded.get(url);
 		if (existing) return existing;
-		const pending = (async () => {
-			const response = await (storage ? storage.fetch(url) : fetch(url));
+		const controller = storage ? undefined : new AbortController();
+		let deadline: ReturnType<typeof setTimeout> | undefined;
+		const timeout = new Promise<never>((_, reject) => {
+			deadline = setTimeout(() => { reject(new Error('Backing sample timed out')); controller?.abort(); }, 15_000);
+		});
+		const pending = Promise.race([timeout, (async () => {
+			const response = await (storage ? storage.fetch(url) : fetch(url, { signal: controller?.signal }));
 			if (response.status < 200 || response.status >= 300) throw new Error(`Sample HTTP ${response.status}`);
 			const buffer = await context.decodeAudioData(await response.arrayBuffer());
 			if (!buffer.length || !buffer.numberOfChannels) throw new Error('Empty decoded sample');
 			return buffer;
-		})();
+		})()]).finally(() => clearTimeout(deadline));
 		decoded.set(url, pending);
 		try { return await pending; }
 		catch (error) {

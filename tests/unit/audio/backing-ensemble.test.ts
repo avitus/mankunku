@@ -287,12 +287,12 @@ describe('coordinated swing generation', () => {
 		}
 	});
 
-	it('bounces the same coordinated events as playback generation, with original as the default', () => {
+	it('keeps scripted observation bounces on their matching fixed coordinated policy, with Original as the default', () => {
 		const params = { phrase: preset.phrase, style: 'swing' as const, tempo: 140, swing: 0.67,
 			instrument: 'piano' as const, volume: 0.6, mix: DEFAULT_BACKING_MIX };
 		expect(generateForBounce(params).ensemblePlan).toBeUndefined();
-		expect(generateForBounce({ ...params, orchestration: 'coordinated' })).toEqual(
-			generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, { ...base, ensemble: {} })
+		expect(generateForBounce({ ...params, orchestration: 'coordinated', soloFeatures: [{ barIndex: 0, observedAtBar: 1, source: 'scripted', confidence: 0, noteDensity: 0, restBeats: 0 }] })).toEqual(
+			generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, { ...base, ensemble: { soloFeatures: [{ barIndex: 0, observedAtBar: 1, source: 'scripted', confidence: 0, noteDensity: 0, restBeats: 0 }] } })
 		);
 	});
 

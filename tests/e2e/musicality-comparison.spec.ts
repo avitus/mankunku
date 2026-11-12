@@ -1,3 +1,4 @@
+import { setE2EAuthCookie } from './fixtures/auth';
 import type { Page, Route } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
@@ -235,4 +236,42 @@ test('a corrupted saved archive shows a fallback and cannot block a new blind co
 	await expect(page.getByTestId('blind-play-A')).toBeEnabled();
 	await expect(page.getByTestId('blind-reveal')).toBeDisabled();
 	await assertBlind(page);
+});
+
+
+test('a cancelled replay preserves the completed take and its ratings', async ({ page }) => {
+ requireRealtimeAudio(page);
+ test.setTimeout(100_000);
+ await setup(page); await startPair(page); await playComplete(page, 'A'); await rate(page, 'A');
+ await page.getByTestId('blind-play-A').click();
+ await expect(page.getByTestId('blind-status')).toHaveText('Playing take A');
+ await page.getByTestId('blind-stop').click();
+ await expect(page.getByTestId('blind-completed-A')).toHaveText('Full take heard');
+ await expect(page.getByTestId('blind-status')).toHaveText('Replay stopped — previous complete take retained');
+ for (const criterion of criteria) await expect(page.getByTestId(`blind-rating-A-${criterion}`)).toHaveValue('3');
+});
+
+test('blind review archives stay in their account bucket across account changes', async ({ page, baseURL }) => {
+ const alice = '00000000-0000-0000-0000-000000000031', bob = '00000000-0000-0000-0000-000000000032';
+ const entry = (name: string) => ({ version: 1, revealed: true, id: name, revealedAt: '2026-11-11T12:00:00Z',
+  inputs: { phrase: { name }, style: 'swing' }, preference: 'A', mapping: { A: 'original', B: 'coordinated' } });
+ await setE2EAuthCookie(page, { id: alice, email: 'alice@example.test' }, baseURL);
+ await seedOnboardedAnonymous(page);
+ await page.addInitScript(({ alice, bob, entries }) => {
+  for (const [key, value] of Object.entries(entries)) if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(value));
+ }, { alice, bob, entries: {
+  [`mankunku:u:${alice}:musicality-blind-listening-reviews:v1`]: [entry('Alice private review')],
+  [`mankunku:u:${bob}:musicality-blind-listening-reviews:v1`]: [entry('Bob private review')],
+  [archiveKey]: [entry('Anonymous review')]
+ } });
+ await page.goto('/musicality'); await page.getByTestId('blind-open').click();
+ const history = page.getByTestId('blind-saved-reviews');
+ await history.locator('summary').click();
+ await expect(history).toContainText('Alice private review'); await expect(history).not.toContainText('Bob private review');
+ await setE2EAuthCookie(page, { id: bob, email: 'bob@example.test' }, baseURL);
+ await page.evaluate(uid => localStorage.setItem('mankunku:__active', JSON.stringify(uid)), bob);
+ await page.reload(); await page.getByTestId('blind-open').click(); await history.locator('summary').click();
+ await expect(history).toContainText('Bob private review'); await expect(history).not.toContainText('Alice private review');
+ await expect(history).not.toContainText('Anonymous review');
+ expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).length, `mankunku:u:${alice}:musicality-blind-listening-reviews:v1`)).toBe(1);
 });

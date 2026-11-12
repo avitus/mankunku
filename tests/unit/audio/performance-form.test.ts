@@ -67,5 +67,8 @@ describe('explicit performance form', () => {
 			totalBars: 8, sectionMap: [],
 			choruses: [{ role: 'solo', startBar: 0, endBarExclusive: 4 }]
 		})).toThrow(/chorus/i);
+		expect(() => buildPerformanceForm({ totalBars: 8, sectionMap: [], choruses: [
+			{ role: 'head', startBar: 0, endBarExclusive: 5 }, { role: 'solo', startBar: 4, endBarExclusive: 8 }
+		] })).toThrow(/chorus/i);
 	});
 });

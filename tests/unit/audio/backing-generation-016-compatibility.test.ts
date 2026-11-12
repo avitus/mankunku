@@ -26,7 +26,7 @@ function scoreFor(style: Style, tune: 'blues' | 'aaba', seed: number, instrument
 function run(score: ReturnType<typeof createRollingBacking>) {
  let checkpoint: RollingBackingCheckpoint | undefined;
  return Array.from({ length: score.totalBars }, () => {
-  const result = advanceRollingBacking(score, checkpoint); checkpoint = result.checkpoint; return result;
+  const result = advanceRollingBacking(score, checkpoint && JSON.parse(JSON.stringify(checkpoint))); checkpoint = result.checkpoint; return result;
  });
 }
 

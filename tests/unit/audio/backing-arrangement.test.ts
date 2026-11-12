@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { prepareReleasedArrangement } from '$lib/audio/backing-arrangement';
+import { generateForBounce } from '$lib/audio/backing-bounce';
+import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import { releasedBackingOptions } from '$lib/audio/backing-release';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
@@ -22,6 +24,7 @@ describe('normal playback uses the released musical vocabulary', () => {
    const bars = Array.from({length: definition.totalBars}, () => { const b=advanceRollingBacking(definition,checkpoint);checkpoint=b.checkpoint;return b; });
    const actual = prepareReleasedArrangement(phrase.harmony, BACKING_STYLES[style], p, keyboard, 4, 256);
    expect(actual).not.toBeNull();
+   expect(generateForBounce({ phrase, style, tempo: p.tempo, swing: .62, instrument: keyboard, volume: .6, mix: DEFAULT_BACKING_MIX, orchestration: 'coordinated', performanceEnergySeed: 256 })).toEqual(actual);
    expect(actual!.bassEvents).toEqual(bars.flatMap(b => b.bassEvents));
    expect(actual!.compEvents).toEqual(bars.flatMap(b => b.compEvents));
    expect(actual!.drumEvents).toEqual(bars.flatMap(b => b.drumEvents));

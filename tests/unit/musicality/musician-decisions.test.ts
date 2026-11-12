@@ -1145,7 +1145,7 @@ describe('connected keyboard phrasing evidence', () => {
   if(change==='fallback') decision.keyboardLine.status='bounded_fallback';
   if(change==='duration') decision.keyboardArticulation.durationSeconds=.7;
   const card=describeMusicianDecisions(value as unknown as GeneratedBacking,context)[1];
-  if(change==='duration') expect(card.evidence).not.toContain('Chord 1 articulation: organ held · 0.60 s');
+  if(change==='duration') expect(card.evidence.filter(entry => entry.includes('articulation:'))).toEqual([]);
   else expect(card.detail).not.toContain('Connected top voice');
  });
 });

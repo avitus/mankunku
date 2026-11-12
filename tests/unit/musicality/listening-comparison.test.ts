@@ -251,16 +251,23 @@ it('does not accept an adjusted monitor take as a matched blind audition, even a
 });
 
 
-it('clears accepted evidence and ratings before replaying a label while retaining notes', () => {
+it('retains accepted evidence on failed or cancelled replay and invalidates ratings only on valid replacement', () => {
  const pair = create();
  for (const label of ['A', 'B'] as const) {
   pair.recordPlayback(label, completed(pair.paramsFor(label)));
   for (const criterion of LISTENING_COMPARISON_CRITERIA) pair.rate(label, criterion.id, 4);
  }
  pair.setPreference('A'); pair.setNotes('Keep my observations');
+ const before = pair.snapshot();
  pair.beginPlayback('A');
- expect(pair.snapshot()).toMatchObject({ completed: { A: false, B: true }, ratings: { A: {} }, preference: null, notes: 'Keep my observations', canReveal: false });
- expect(() => pair.rate('A', 'groove', 5)).toThrow(/complete/i);
+ expect(pair.snapshot()).toEqual(before);
+ for (const status of ['loading', 'error', 'stopped', 'playing'] as const) {
+  expect(pair.recordPlayback('A', { ...completed(pair.paramsFor('A')), status })).toBe(false);
+  expect(pair.snapshot()).toEqual(before);
+ }
+ expect(pair.recordPlayback('A', completed(pair.paramsFor('A')))).toBe(true);
+ expect(pair.snapshot()).toMatchObject({ completed: { A: true, B: true }, ratings: { A: {} }, preference: null, notes: 'Keep my observations', canReveal: false });
+ expect(() => pair.rate('A', 'groove', 5)).not.toThrow();
 });
 
 it('restores blind comparisons saved before the Master control existed', () => {

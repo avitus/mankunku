@@ -6,7 +6,7 @@ import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from
 import { seedFrom } from '$lib/audio/generation-rng';
 import type { EnsembleTiming } from '$lib/audio/ensemble-timing';
 import { fractionToFloat } from '$lib/music/intervals';
-import { capturePianoMotifSource } from '$lib/audio/backing-piano-motif-memory';
+import { capturePianoMotifSource, validatePianoPhraseRecall } from '$lib/audio/backing-piano-motif-memory';
 import { freezeCompMotifTrace } from '$lib/audio/backing-comp-figures';
 
 const { phrase } = buildListeningTuneSession({ tuneId: 'ls-when-the-saints', key: 'Eb', soloChoruses: 2 });
@@ -160,4 +160,23 @@ describe('actual piano motif recall across adjacent solo phrases', () => {
 		delete policy.pianoPhraseRecallVersion;
 		expect(() => advanceRollingBacking(score, rebind({ ...checkpoint, fingerprint: JSON.stringify(binding) }))).toThrow(/checkpoint/);
 	});
+});
+
+// Persisted checkpoints must admit the same colored attacks as in-memory ones.
+it('validates expressive, low-register and fractional-velocity recall without accepting malformed annotations', () => {
+ const checkpoint = prefix(24).checkpoint;
+ const memory = structuredClone(checkpoint.piano.phraseRecall!);
+ const event = memory.source!.attacks[0];
+ const expression = { kind: 'short-held', originalVelocity: 80, originalDuration: .2, part: 'statement' };
+ Object.assign(event, { notes: [45, 57, 64, 69, 74], velocity: 80 * Math.sqrt(4 / 5), expression,
+  ensembleColor: { kind: 'drop3', fromMidi: 57, toMidi: 45, originalNotes: [52, 57, 64, 69] } });
+ const coloredScore = { ...score, ensembleColorsVersion: 1 as const };
+ expect(() => validatePianoPhraseRecall(memory, coloredScore, 24, checkpoint.piano.motif)).not.toThrow();
+ expect(() => validatePianoPhraseRecall(memory, score, 24, checkpoint.piano.motif)).toThrow();
+ for (const annotation of [null, { kind: 'fake' }, { ...expression, originalVelocity: NaN }]) {
+  const invalid = structuredClone(memory); Object.assign(invalid.source!.attacks[0], { expression: annotation });
+  expect(() => validatePianoPhraseRecall(invalid, coloredScore, 24, checkpoint.piano.motif)).toThrow();
+ }
+ const extra = structuredClone(memory); Object.assign(extra.source!.attacks[0], { arbitrary: true });
+ expect(() => validatePianoPhraseRecall(extra, coloredScore, 24, checkpoint.piano.motif)).toThrow();
 });

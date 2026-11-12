@@ -174,14 +174,17 @@ export function createBlindListeningComparison(input: BounceParams, options: {
     ratings: structuredClone(ratings), preference, notes, canReveal: canReveal(), record });
   },
   beginPlayback(label: ListeningComparisonLabel): void {
-   editable(); labelValid(label); delete takes[label]; ratings[label] = {}; preference = null;
+   // Keep the last accepted take until a complete, valid replacement arrives.
+   editable(); labelValid(label);
   },
   recordPlayback(label: ListeningComparisonLabel, snapshot: ListeningSnapshot): boolean {
    labelValid(label);
    if (record || !completeTake(snapshot, inputs, mapping[label])) return false;
    const other = takes[label === 'A' ? 'B' : 'A'];
    if (other && !sameMusicalityRelease(snapshot.musicalityRelease, other.musicalityRelease)) return false;
-   takes[label] = freeze(structuredClone(snapshot)); return true;
+   const accepted = freeze(structuredClone(snapshot));
+   if (takes[label]) { ratings[label] = {}; preference = null; }
+   takes[label] = accepted; return true;
   },
   rate(label: ListeningComparisonLabel, criterion: ListeningComparisonCriterion, value: number): void {
    editable(); labelValid(label);

@@ -1,3 +1,4 @@
+import { prepareReleasedArrangement } from './backing-arrangement';
 import { connectBackingOutput } from './backing-output';
 /**
  * Offline WAV bounce of the backing engine for the listening lab.
@@ -134,7 +135,7 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 	}
 	const style = BACKING_STYLES[params.style];
 	const terminalArrangement = resolveListeningTerminalArrangement(params);
-	return generateBacking(phrase.harmony, style, {
+	const generation = {
 		phraseId: phrase.id,
 		tempo,
 		ppq: BOUNCE_PPQ,
@@ -145,7 +146,14 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		...(terminalArrangement ? { terminalArrangement } : {}),
 		ensemble: params.orchestration === 'coordinated' && phrase.timeSignature[1] === 4
 			? { soloFeatures: params.soloFeatures } : undefined
-	});
+	};
+	if (params.orchestration === 'coordinated' && !params.soloFeatures?.length && !terminalArrangement) {
+		const released = prepareReleasedArrangement(phrase.harmony, style, generation, params.instrument, phrase.timeSignature[1], params.performanceEnergySeed ?? 0);
+		if (released) return released;
+		// The normal transport also falls back to Original for unsupported score shapes.
+		return generateBacking(phrase.harmony, style, { ...generation, ensemble: undefined });
+	}
+	return generateBacking(phrase.harmony, style, generation);
 }
 
 export interface RenderOpts {
@@ -423,6 +431,8 @@ export async function renderGoldenJsonToWav(
 	if (!tempo || !Number.isFinite(tempo) || tempo < 20) {
 		throw new Error('Events JSON carries no usable tempo (expected `tempo` or `params.tempo` ≥ 20)');
 	}
+	const style = json.style ?? opts.style;
+	if (style !== undefined && !Object.hasOwn(BACKING_STYLES, style)) throw new Error('Events JSON carries an unsupported backing style');
 	const generated: GeneratedBacking = {
 		bassEvents: json.bassEvents,
 		compEvents: json.compEvents,
@@ -430,6 +440,7 @@ export async function renderGoldenJsonToWav(
 	};
 	const blob = await renderEventsToWav(generated, drumBuffers, {
 		...opts,
+		style: style as BackingStyle | undefined,
 		tempo,
 		durationSeconds: eventsDurationSeconds(generated, tempo)
 	});

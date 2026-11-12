@@ -115,3 +115,14 @@ it('balances short Bossa organ in live reuse and bounce while preserving mute, f
  expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.1635*1.06,6);
  expect(bank('Soundfont').start.mock.calls.map(([event])=>event.velocity)).toEqual([72,72,72]);
 });
+
+it('events JSON preserves captured Ballad organ calibration and uses selected style only for legacy exports', async () => {
+ const { renderGoldenJsonToWav } = await import('$lib/audio/backing-bounce');
+ const events = { tempo: 80, bassEvents: [], drumEvents: [], compEvents: [{ absBeat: 0, time: '0i', notes: [57,60,63], duration: 1.4, velocity: 72 }] };
+ const opts = { volume: .7, mix: { ...DEFAULT_BACKING_MIX, comp: .75 }, instrument: 'organ' as const, style: 'swing' as const };
+ await renderGoldenJsonToWav({ ...events, style: 'ballad' }, {}, opts);
+ expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.14061);
+ await renderGoldenJsonToWav(events, {}, { ...opts, style: 'ballad' });
+ expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.14061);
+ await expect(renderGoldenJsonToWav({ ...events, style: 'invalid' }, {}, opts)).rejects.toThrow(/style/);
+});

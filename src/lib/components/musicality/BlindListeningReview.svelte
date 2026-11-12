@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { getActiveUid, nsKey, isAnonActive, markAnonSessionActive } from '$lib/persistence/namespace';
 	import ListeningMixer from './ListeningMixer.svelte';
 	import type { BackingMixLevels } from '$lib/audio/backing-mix';
 	import { isMusicalityRelease } from '$lib/musicality/release';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { LISTENING_TUNES, buildListeningTuneSession, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
 	import { createListeningPlayer, type ListeningSnapshot } from '$lib/musicality/listening-player';
 	import {
@@ -28,7 +30,10 @@
 		[key: string]: unknown;
 	}
 	const labels: Label[] = ['A', 'B'];
-	const ARCHIVE_KEY = 'mankunku:musicality-blind-listening-reviews:v1';
+	const archiveKey = () => `mankunku:${nsKey('musicality-blind-listening-reviews:v1')}`;
+	let archiveOwner = '';
+	let archiveUser: string | undefined;
+	let mounted = $state(false);
 	const defaultTune = LISTENING_TUNES.find((tune) => tune.title === 'Mankunku Blues') ?? LISTENING_TUNES[0];
 	const styles: { value: BackingStyle; label: string }[] = [
 		{ value: 'swing', label: 'Swing' }, { value: 'straight', label: 'Straight' },
@@ -62,7 +67,7 @@
 			try {
 				const accepted = comparison.recordPlayback(activeLabel, next);
 				review = comparison.snapshot();
-				if (!accepted && !review.completed[activeLabel]) error = next.monitoring?.adjusted
+				if (!accepted) error = next.monitoring?.adjusted
 					? 'The mix changed during this take. Replay it at the fixed comparison mix before rating.'
 					: 'This take could not be verified as complete. Replay it before rating.';
 			} catch (cause) { error = message(cause); }
@@ -72,11 +77,12 @@
 	const position = $derived(currentBar
 		? `Bar ${currentBar.barNumber} of ${takeSession!.bars.length} · ${currentBar.sectionLabel}`
 		: 'Ready for the full tune');
+	const retainedTake = $derived(activeLabel !== null && review?.completed[activeLabel] === true);
 	const status = $derived(playback?.status === 'loading' ? 'Loading the band…'
 		: playback?.status === 'playing' ? playback.ending ? 'Letting the last chord ring' : `Playing take ${activeLabel}`
 		: playback?.status === 'completed' ? `Take ${activeLabel} complete`
-		: playback?.status === 'stopped' ? 'Stopped — replay the complete take to finish'
-		: playback?.status === 'error' ? 'Unable to play' : 'Choose a take to begin');
+		: playback?.status === 'stopped' ? retainedTake ? 'Replay stopped — previous complete take retained' : 'Stopped — replay the complete take to finish'
+		: playback?.status === 'error' ? retainedTake ? 'Unable to replay — previous complete take retained' : 'Unable to play' : 'Choose a take to begin');
 	function message(cause: unknown): string { return cause instanceof Error ? cause.message : String(cause); }
 	function changeTune() { key = LISTENING_TUNES.find((tune) => tune.id === tuneId)!.key; }
 	function startComparison() {
@@ -137,7 +143,7 @@
 			&& ['original', 'coordinated'].includes(String(mapping.B)) && mapping.A !== mapping.B;
 	}
 	function readArchive(): SavedReview[] {
-		const existing: unknown = JSON.parse(localStorage.getItem(ARCHIVE_KEY) ?? '[]');
+		const existing: unknown = JSON.parse(localStorage.getItem(archiveOwner) ?? '[]');
 		if (!Array.isArray(existing)) throw new Error('Invalid saved review archive');
 		const seen = new Set<string>();
 		return existing.slice(0, 20).filter(isSavedReview).filter((item) => {
@@ -145,12 +151,23 @@
 			seen.add(item.id); return true;
 		});
 	}
-	onMount(() => {
-		try { archive = readArchive(); }
-		catch { archiveError = 'Saved reviews are unavailable in this browser. You can still export a completed review.'; }
+	onMount(() => { mounted = true; });
+	$effect(() => {
+		const user = page.data.user?.id ?? 'anon';
+		if (!mounted) return;
+		untrack(() => {
+			if (archiveUser === user) return;
+			archiveUser = user;
+			newComparison(); archive = []; archiveError = ''; archiveOwner = '';
+			// Account reconciliation reloads the page; never read the former bucket during that transition.
+			if (user !== getActiveUid()) return;
+			archiveOwner = archiveKey();
+			try { archive = readArchive(); }
+			catch { archiveError = 'Saved reviews are unavailable in this browser. You can still export a completed review.'; }
+		});
 	});
 	function saveReview() {
-		if (!review?.record) return;
+		if (!review?.record || !archiveOwner || archiveOwner !== archiveKey() || archiveUser !== (page.data.user?.id ?? 'anon')) return;
 		try {
 			const records = readArchive().filter((item) => item.id !== review!.record!.id);
 			const { takes, ...summary } = review.record;
@@ -159,7 +176,8 @@
 				return [label, { status, ppq, startAudioTime, audioTime, elapsedBeats, durationBeats }];
 			}));
 			const next = [{ ...summary, completion }, ...records].slice(0, 20);
-			localStorage.setItem(ARCHIVE_KEY, JSON.stringify(next));
+			localStorage.setItem(archiveOwner, JSON.stringify(next));
+			if (isAnonActive()) markAnonSessionActive();
 			archive = next; archiveError = '';
 			saved = true; storageMessage = 'Review summary saved on this browser. The latest 20 are kept; export for both complete score traces.';
 		} catch {

@@ -1,3 +1,4 @@
+import { CURRENT_MUSICALITY_RELEASE } from '../../src/lib/musicality/release';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -9,7 +10,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.15 full Blues with ${ke
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText('0.16.0');
+ await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.addInitScript(()=>{const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{if(array instanceof Uint32Array&&array.length===1){array[0]=243;return array;}return random(array);}) as typeof crypto.getRandomValues;});
  await page.reload();
@@ -49,7 +50,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.15 full Blues with ${ke
  await test.info().attach('phrase-dialogue-performed-take',{path,contentType:'application/json'});
  await test.info().attach('phrase-dialogue-live-evidence',{body:JSON.stringify(observed,null,2),contentType:'application/json'});
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
- expect(take.playback.musicalityRelease.version).toBe('0.16.0');
+ expect(take.playback.musicalityRelease.version).toBe(CURRENT_MUSICALITY_RELEASE.version);
  expect(take.playback.params.performanceEnergySeed).toBe(243);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);

@@ -11,7 +11,6 @@ function deferred<T>() {
 	return { promise, resolve, reject };
 }
 
-const flush = async () => { for (let n = 0; n < 8; n++) await Promise.resolve(); };
 
 function stream() {
 	const track = { kind: 'audio', readyState: 'live', enabled: true, muted: false, stop: vi.fn() };
@@ -105,11 +104,10 @@ describe('owned listening-lab microphone lifecycle', () => {
 		h.getUserMedia.mockReturnValueOnce(permission.promise);
 		const start = h.listener.start();
 		const outcome = start.catch((error) => error);
-		await flush();
-		expect(h.getUserMedia).toHaveBeenCalledOnce();
+		await vi.waitFor(() => expect(h.getUserMedia).toHaveBeenCalledOnce());
 		expect(h.listener.stop()).toEqual([]);
 		expect(await outcome).toMatchObject({ name: 'AbortError' });
-		const late = stream(); permission.resolve(late.value); await flush();
+		const late = stream(); permission.resolve(late.value); await vi.waitFor(() => expect(late.track.stop).toHaveBeenCalledOnce());
 		expect(late.track.stop).toHaveBeenCalledOnce();
 		expect(h.sources).toHaveLength(0);
 		expect(h.pendingFrames.size).toBe(0);
@@ -122,10 +120,10 @@ describe('owned listening-lab microphone lifecycle', () => {
 		const oldPermission = deferred<MediaStream>();
 		h.getUserMedia.mockReturnValueOnce(oldPermission.promise);
 		const oldStart = h.listener.start().catch((error) => error);
-		await flush(); h.listener.stop(); await oldStart;
+		await vi.waitFor(() => expect(h.getUserMedia).toHaveBeenCalledOnce()); h.listener.stop(); await oldStart;
 		await h.listener.start();
 		const current = h.captures[0];
-		const late = stream(); oldPermission.resolve(late.value); await flush();
+		const late = stream(); oldPermission.resolve(late.value); await vi.waitFor(() => expect(late.track.stop).toHaveBeenCalledOnce());
 		expect(late.track.stop).toHaveBeenCalledOnce();
 		expect(current.track.stop).not.toHaveBeenCalled();
 		h.play(); h.tick(0.1);
@@ -161,9 +159,11 @@ describe('owned listening-lab microphone lifecycle', () => {
 		const h = harness(); const detector = deferred<never>();
 		h.createDetector.mockReturnValueOnce(detector.promise);
 		const result = h.listener.start().catch((error) => error);
-		await flush(); h.listener.stop();
+		await vi.waitFor(() => expect(h.createDetector).toHaveBeenCalledOnce()); h.listener.stop();
 		expect(await result).toMatchObject({ name: 'AbortError' });
-		detector.resolve({ findPitch: () => [440, 0.99] } as never); await flush();
+		detector.resolve({ findPitch: () => [440, 0.99] } as never);
+		// Let the settled detector's continuation drain before checking absence.
+		await new Promise<void>(resolve => setImmediate(resolve));
 		expect(h.getUserMedia).not.toHaveBeenCalled();
 	});
 });

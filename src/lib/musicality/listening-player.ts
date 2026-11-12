@@ -274,7 +274,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		const ownsParts = () => backing.getActiveSchedule() === schedule;
 		const startAudioTime = Tone.now() + 0.05;
 		const signal = backing.createBackingSignalMonitor();
-		return { generated, ppq: transport.PPQ, startAudioTime, audioNow: () => context.currentTime,
+		return { generated, ppq: transport.PPQ, startAudioTime, audioNow() { if (context.state !== 'running') throw new Error('Audio context is suspended. Start a new take.'); return context.currentTime; },
 			readOutputSignal() { return current() && ownsParts() ? signal?.read() ?? null : null; },
 			start() { if (!current() || !ownsParts()) throw new Error('This listening take no longer owns the audio output.'); backing.setBackingMix(params.mix, { persist: false }); transport.start(startAudioTime); },
 			setMix(mix) { if (!current() || !ownsParts()) return false; backing.setBackingMix(mix, { persist: false }); return true; },

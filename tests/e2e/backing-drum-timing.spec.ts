@@ -1,8 +1,10 @@
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
 
 test('shipped pedal hi-hat attacks with the ride and stick hi-hat in a dry WAV render', async ({ page, browserName }) => {
+	requireRealtimeAudio(page);
 	test.setTimeout(90_000);
 	await seedOnboardedAnonymous(page);
 	// Only pitched CDN libraries are replaced. The local drum recordings,

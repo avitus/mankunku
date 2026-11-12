@@ -452,7 +452,7 @@
 			const roomIr = await getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE);
 			const json: unknown = JSON.parse(await file.text());
 			const { blob, label } = await renderGoldenJsonToWav(json, drumBuffers, {
-				instrument,
+				instrument, style,
 				volume,
 				mix,
 				roomIr

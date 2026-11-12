@@ -78,6 +78,9 @@ test(`normal ${style} ${keyboard} completes a whole Blues with continuous native
  expect(starts.at(-1)! - starts[0]).toBeGreaterThan(51); // 52-bar authored form at 240 BPM: four-bar intro plus four 12-bar choruses.
  expect(Math.max(...starts.slice(1).map((t,i) => t-starts[i]))).toBeLessThan(2);
  const count = starts.length;
- await page.waitForTimeout(750);
+ // Cover one complete 4/4 bar at the slowest supported tempo (30 BPM),
+ // beyond Tone's 100ms lookahead and 25ms update interval. A leaked loop or
+ // delayed boundary callback must not schedule a new native voice here.
+ await page.waitForTimeout(8_150);
  expect(await page.evaluate(() => (window as unknown as { __releaseAudio: { starts: number[] } }).__releaseAudio.starts.length)).toBe(count);
 });

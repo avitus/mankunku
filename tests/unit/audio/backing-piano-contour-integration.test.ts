@@ -1,8 +1,9 @@
+import * as contourPolicy from '$lib/audio/backing-piano-contour';
 import { assertBassHandoffDelta } from './bass-handoff-assertions';
 import { createHash } from 'node:crypto';
 import { assertPianoPhraseRecallDelta } from './piano-phrase-recall-assertions';
 import { assertBossaContourCompatibility } from './bossa-contour-assertions';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
@@ -352,6 +353,21 @@ it.each(baselineCases)('$style $mode $engine preserves full-tune contracts outsi
 	if (id === 'bossa-nova' && mode === 'coordinated-explicit') {
 		assertBossaContourCompatibility(generated, expected.compEvents);
 	} else if (pitchControl) expect(hash(generated.compEvents)).toBe(expected.compEvents);
+ if (engine === 'fixed' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')) {
+  // Disable only the admitted contour request to reconstruct the retained pre-contour baseline.
+  const control = vi.spyOn(contourPolicy, 'preparePianoContour').mockReturnValue({ direction: 'hold' });
+  let before;
+  try { before = generateBacking(phrase.harmony, BACKING_STYLES[id], input).compEvents; }
+  finally { control.mockRestore(); }
+  expect(hash(before)).toBe(expected.compEvents);
+  const deltas = generated.compEvents.flatMap((event, index) => JSON.stringify(event.notes) === JSON.stringify(before[index].notes) ? []
+   : [{ beat: event.absBeat, before: before[index].notes, after: event.notes }]);
+  expect(deltas).toEqual([
+   { beat: 99.5, before: [55,58,61,65], after: [53,55,58,61] },
+   { beat: 115.5, before: [53,55,60,70], after: [53,55,58,60] }
+  ]);
+ }
+
 });
 
 it.each(['swing', 'straight'] as const)('%s updates phrase contour only from actual accepted chords, including rests and loop seams', id => {

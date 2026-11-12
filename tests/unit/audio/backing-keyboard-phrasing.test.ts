@@ -45,8 +45,9 @@ describe('connected keyboard phrases in complete performances', () => {
   expect(organ.map(b=>b.compEvents.map(e=>e.notes))).toEqual(piano.map(b=>b.compEvents.map(e=>e.notes)));
   expect(piano.map(b=>b.bassEvents)).toEqual(old.map(b=>b.bassEvents));
   expect(piano.map(b=>b.drumEvents)).toEqual(old.map(b=>b.drumEvents));
+  const { tempo, ppq } = make('piano');
   for (const bars of [piano,organ]) for (const [i,bar] of bars.entries()) for(const [j,event] of bar.compEvents.entries()) {
-   const end=Number(event.time.slice(0,-1))+event.duration*make('piano').tempo/60*192;
+   const end=Number(event.time.slice(0,-1))+event.duration*tempo/60*ppq;
    expect(end).toBeLessThanOrEqual((i+1)*4*192+1e-8);
    if(bar.compEvents[j+1]) expect(end).toBeLessThanOrEqual(Number(bar.compEvents[j+1].time.slice(0,-1))+1e-8);
   }

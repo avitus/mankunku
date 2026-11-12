@@ -120,7 +120,7 @@ export const DOC_TREE: DocSection[] = [
 		pages: [
 			{
 				slug: 'musicality/spec',
-				href: '/musicality',
+				href: '/musicality#original-spec',
 				title: 'Rhythm Section Musicality',
 				blurb: 'The complete musicality specification, implementation status, and evidence for piano, bass, drums and ensemble interaction.'
 			},

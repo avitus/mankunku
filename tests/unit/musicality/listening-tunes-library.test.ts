@@ -41,12 +41,7 @@ it('rejects the actual expanded overlong arrangement without truncating choruses
 });
 
 it('preserves historical corpus results, intro once, alternate ending and transpose semantics exactly', () => {
-	for (const tune of HISTORICAL_MUSICALITY_TUNES.filter(t => t.timeSignature[0] === 4)) {
-		for (const soloChoruses of [1, 2, 3, 4]) {
-			const options = { key: 'Bb' as const, soloChoruses };
-			expect(buildListeningTuneSessionFromTune(tune, options)).toEqual(buildListeningTuneSession({ tuneId: tune.id, ...options }));
-		}
-	}
+	// Whole-session compatibility is checked against the 24 captured hashes below.
 	const source = structuredClone(MANKUNKU_BLUES);
 	source.id = 'existing-import'; source.source = 'imported-ireal';
 	const result = buildListeningTuneSessionFromTune(source, { key: 'Bb', soloChoruses: 2 });
@@ -143,4 +138,9 @@ it('rejects transposition that moves an otherwise valid melody outside MIDI rang
 		.toMatchObject({ ok: false, reason: expect.stringMatching(/MIDI|pitch/i) });
 	expect(() => buildListeningTuneSessionFromTune(input, { key: 'D', soloChoruses: 1 })).toThrow(/MIDI|pitch/i);
 	expect(input).toEqual(before);
+});
+
+it('rejects the historical Amazing Grace waltz rather than silently changing its meter', () => {
+ const tune = HISTORICAL_MUSICALITY_TUNES.find(t => t.id === 'ls-amazing-grace')!;
+ expect(assessListeningTune(tune)).toMatchObject({ ok: false, reason: expect.stringMatching(/4\/4/) });
 });

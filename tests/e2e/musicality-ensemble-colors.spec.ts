@@ -1,3 +1,5 @@
+import { taggedAttackPeaks } from './fixtures/tagged-attack-audio';
+import { CURRENT_MUSICALITY_RELEASE } from '../../src/lib/musicality/release';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -16,7 +18,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
   }) as typeof crypto.getRandomValues;
  });
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText('0.16.0');
+ await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-style').selectOption('ballad');
  await page.getByTestId('listening-tempo').fill('80');
@@ -57,7 +59,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
  await test.info().attach('ensemble-colors-performed-take',{path,contentType:'application/json'});
  await test.info().attach('ensemble-colors-live-evidence',{body:JSON.stringify(observed,null,2),contentType:'application/json'});
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
- expect(take.playback.musicalityRelease.version).toBe('0.16.0');
+ expect(take.playback.musicalityRelease.version).toBe(CURRENT_MUSICALITY_RELEASE.version);
  expect(take.playback.params.performanceEnergySeed).toBe(9);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
@@ -68,4 +70,8 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
   await expect(page.getByTestId(`musician-${card}`)).toContainText(label);
  }
  await page.screenshot({path:test.info().outputPath('ensemble-colors-review.png'),fullPage:true});
+ const isolated = await taggedAttackPeaks(page, generated, 'ensembleColor', keyboard);
+ await test.info().attach('isolated-tagged-attack-peaks', { body: JSON.stringify(isolated), contentType: 'application/json' });
+ for (const peak of isolated) expect(peak, 'accepted tagged attack must produce isolated audio').toBeGreaterThan(.001);
+
 });

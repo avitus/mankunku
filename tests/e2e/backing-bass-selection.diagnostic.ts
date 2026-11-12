@@ -29,7 +29,7 @@ async function recording(path: string): Promise<Buffer> {
 }
 
 test('real Smolken factory starts exactly one recording per bass note through velocity boundaries and round robins', async ({ page, browserName }) => {
-	test.skip(!!process.env.CI, 'real instrument recordings — local native-audio regression');
+	test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'isolated native-audio diagnostic only');
 	test.setTimeout(300_000);
 	const [smplr, loader, sfz] = await Promise.all([
 		readFile(resolve('node_modules/smplr/dist/index.mjs'), 'utf8'),
@@ -143,7 +143,7 @@ test('real Smolken factory starts exactly one recording per bass note through ve
 });
 
 test('shared bass adapter adds one real calibration insert and disconnects it with the sampler', async ({ page, browserName }) => {
-	test.skip(!!process.env.CI, 'real instrument recordings — local native-audio regression');
+	test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'isolated native-audio diagnostic only');
 	test.setTimeout(120_000);
 	const [smplr, loader, adapter, sfzBytes] = await Promise.all([
 		readFile(resolve('node_modules/smplr/dist/index.mjs'), 'utf8'),

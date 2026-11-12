@@ -257,7 +257,7 @@ const crossLoopEvidence: MusicalityEvidence[] = [
 const bassSampleEvidence: MusicalityEvidence[] = [
 	...['backing-bass-samples', 'backing-bass-instrument', 'backing-sample-loader'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['backing-bass-samples', 'backing-bass-instrument'].map(file => ({ ...test(file), revision: 'musicality' })),
-	{ kind: 'test', path: 'tests/e2e/backing-bass-selection.spec.ts', revision: 'musicality' }
+	{ kind: 'test', path: 'tests/e2e/backing-bass-selection.diagnostic.ts', revision: 'musicality' }
 ];
 
 const rootlessTextureEvidence: MusicalityEvidence[] = [
@@ -388,7 +388,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     ? 'Musicality 0.16.0 resolves an inner flat ninth to ninth, or sharp eleventh to fifth, across two existing dominant-chord attacks. Defining 3/7 tones, outer voices, native rhythm and harmonic support remain.'
     : 'Musicality 0.16.0 occasionally lifts the existing beat-four foot hi-hat at a quiet phrase close, leaving ride, beat two and attack count intact. Late keyboard attacks and competing commentary veto the lift.',
   remaining:'Ninth-only bass extension targets; keyboard movement is a bounded lower-neighbor resolution on plain dominants; the hat uses the existing pedal sample rather than a dedicated bark articulation. Human listening acceptance remains pending.',
-  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard.',
+  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard. Release-review hardening adds bounded sample loading, colored-checkpoint replay, WAV/live policy parity and account-scoped blind reviews with recoverable replay ratings.',
   evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance'),source('backing-arrangement'),source('backing-release'),test('backing-arrangement')]
  };
 
@@ -642,7 +642,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	return {
 		...entry, status: 'partial', assessment: foundationAssessments[entry.id],
 		remaining: foundationRemaining[entry.id] ?? 'Broader vocabulary, general ensemble conflict resolution and human listening acceptance remain incomplete.',
-		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Original generation remains the practice mode pending listening acceptance.',
+		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Released accompaniment is the default for supported normal 4/4 playback; Original remains the device-local rollback and unsupported-score fallback. Human listening acceptance remains pending.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
 			...(['S25', 'S33', 'S38', 'S40', 'S41', 'S44', 'S46'].includes(entry.id) ? returningMelodyEvidence : []),
@@ -659,7 +659,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? [
 				{ ...source('backing-piano-samples'), revision: 'musicality' },
 				{ ...test('backing-piano-samples'), revision: 'musicality' },
-				{ kind: 'test' as const, path: 'tests/e2e/backing-pitched-timing.spec.ts', revision: 'musicality' }
+				{ kind: 'test' as const, path: 'tests/e2e/backing-pitched-timing.diagnostic.ts', revision: 'musicality' }
 			] : []),
 			...(entry.id === 'S33' ? [{ kind: 'source' as const, path: 'documentation/contributing/backing-listening.md', revision: 'musicality' }] : []),
 			...(['S3', 'S31', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? [
