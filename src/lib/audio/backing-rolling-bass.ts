@@ -1,3 +1,4 @@
+import { musicalSentence, sentenceBassCenters } from './backing-sentences';
 import { ninthPulse } from './backing-inner-motion';
 import { recallBassOpening, type BassOpening } from './backing-phrase-dialogue';
 import { arpeggiateWalk } from './backing-ensemble-colors';
@@ -61,7 +62,7 @@ export interface PreparedRollingBass {
 /** The definition factory may retain this immutable data for its own immutable score. */
 export function prepareRollingBass(score: RollingBackingDefinition): PreparedRollingBass | undefined {
 	if (score.style === 'bossa-nova') return undefined;
-	const centers = Object.freeze(planBassRegisterArc(score.totalBars, [...score.bars], score.phraseId, score.tempo));
+	const centers = Object.freeze(sentenceBassCenters(score, planBassRegisterArc(score.totalBars, [...score.bars], score.phraseId, score.tempo)));
 	const segments = Object.freeze(score.harmony.map((segment) => {
 		const root = pitchClassToNumber(segment.chord.root);
 		const tones = chordToneIntervalsForBass(segment.chord.quality);
@@ -252,6 +253,8 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 		return createRng(seedFrom(score.phraseId, score.tempo, 'bass-feel', 0)).chance(0.65) ? 'two' : 'four';
 	};
 	const feel = feelAt(bar);
+ const sentence = musicalSentence(score, bar);
+ const followsSentence = !!sentence && ['swing','straight'].includes(score.style ?? 'swing') && info.ensemble?.responseOwner === 'nobody' && !info.ensemble.setupFor && !info.ensemble.coordinatedAccent && !['active_soloist','dense_soloist'].includes(info.ensemble.piano.rootlessTexture?.reason ?? '');
 	const targetAt = (index: number, reference: number | null): number => {
 		const segment = segments[index];
 		const context = score.bars[Math.floor(segment.start / 4)];
@@ -347,7 +350,9 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 			const rng = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-pitch', absBeat));
 			midi = options.length ? rng.weighted(options.map((candidate) => ({ value: candidate,
 				weight: (Math.abs(candidate - previousPitch) <= 2 ? 4 : 1) * (Math.abs(candidate - target) < Math.abs(previousPitch - target) ? 2 : 1) *
-					(candidate === previousPreviousMidi ? 0.4 : 1) * (direction !== 0 && Math.sign(candidate - previousPitch) === direction ? 1.25 : 1) }))) : nearest(segment.root, previousPitch);
+					(followsSentence
+      ? 1 / (1 + Math.abs(candidate - centers[bar]) * .45) : 1) *
+     (candidate === previousPreviousMidi ? 0.4 : 1) * (direction !== 0 && Math.sign(candidate - previousPitch) === direction ? 1.25 : 1) }))) : nearest(segment.root, previousPitch);
 		}
 		if (score.bassScalarContinuation && beat === 1 && committed === undefined && !pendingLaunch && feel === 'four' &&
 			segment.start === bar * 4 && segment.length === 4 && ['enclosure', 'double-chromatic'].includes(approach) && nextTarget !== null &&

@@ -36,7 +36,8 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 			if (!timing.has(trace.phraseStartBar)) timing.set(trace.phraseStartBar, trace);
 		}
 		result.ensembleTiming = [...timing.values()];
-		const bassDelayedRoots = windows.flatMap((bar) => bar.ensembleDevelopment.bassDelayedRoots ?? []);
+		const musicalSentences = windows.flatMap(bar => bar.ensembleDevelopment.musicalSentences ?? []);
+  const bassDelayedRoots = windows.flatMap((bar) => bar.ensembleDevelopment.bassDelayedRoots ?? []);
 		const bassContinuations = windows.flatMap((bar) => bar.ensembleDevelopment.bassContinuations ?? []);
 		const bassFeel = windows.flatMap((bar) => bar.ensembleDevelopment.bassFeel ?? []);
 		const pianoVoicings = windows.flatMap((bar) => bar.ensembleDevelopment.pianoVoicings ?? []);
@@ -46,6 +47,7 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 		const pianoFeedback = windows.flatMap((bar) => bar.ensembleDevelopment.pianoFeedback ?? []);
 		const terminalArrangements = windows.flatMap((bar) => bar.ensembleDevelopment.terminalArrangements ?? []);
 		result.ensembleDevelopment = { version: 1,
+   ...(musicalSentences.length ? { musicalSentences } : {}),
 			pianoMotifs: windows.flatMap((bar) => bar.ensembleDevelopment.pianoMotifs),
 			bassTurnarounds: windows.flatMap((bar) => bar.ensembleDevelopment.bassTurnarounds),
 			...(bassDelayedRoots.length ? { bassDelayedRoots } : {}),

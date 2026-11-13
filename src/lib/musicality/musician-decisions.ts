@@ -743,6 +743,29 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   }
  }
 
+ const sentence = development?.musicalSentences?.find(s => s.barIndex === barIndex);
+ if (sentence && sentence.endBarExclusive - sentence.startBar === 8 && sentence.startBar <= barIndex && barIndex < sentence.endBarExclusive) {
+  const position = barIndex - sentence.startBar + 1;
+  const context = `Eight-bar sentence · ${position}/8`;
+  if (sentence.bass && walking && JSON.stringify(bass.map(({time,midi})=>({time,midi}))) === JSON.stringify(sentence.bass.attacks)) {
+   bassCard.detail += ` A longer ${({ arch: 'arching', 'fall-return': 'falling and returning', 'rise-settle': 'rising then settling' })[sentence.shape]} line aims near ${noteName(Math.round(sentence.bass.registerTargetMidi))} in this bar; chord arrivals still lead.`;
+   bassCard.evidence.push(context);
+  }
+  if (sentence.keyboard && piano.length && JSON.stringify(piano.map(({time,notes})=>({time,notes}))) === JSON.stringify(sentence.keyboard.attacks) &&
+   development?.pianoMotifs.some(t => t.barIndex === barIndex && t.motifId === sentence.keyboard!.motifId && t.sourceFigureId === sentence.keyboard!.sourceFigureId)) {
+   pianoCard.detail += ` The same rhythmic idea develops through an eight-bar sentence, with current-harmony voicings and regular support.`;
+   pianoCard.evidence.push(context);
+  }
+  if (sentence.keyboardLine?.length && sentence.keyboardLine.every(line => piano.some(e => e.time === line.time && JSON.stringify(e.notes) === JSON.stringify(line.notes)) && development?.pianoVoicings?.some(v => v.time === line.time && JSON.stringify(v.notes) === JSON.stringify(line.notes) && v.decision.keyboardLine?.status === 'connected' && v.decision.keyboardLine.contour !== 'settle' && v.decision.keyboardLine.targetMidi === line.targetMidi))) {
+   pianoCard.detail += ' This connected top note follows the longer sentence direction within the native groove.';
+   pianoCard.evidence.push(context);
+  }
+  if (sentence.drums && drumPhrase?.phraseLength === 8 && JSON.stringify(drums.map(({time,drum,velocity})=>({time,drum,velocity}))) === JSON.stringify(sentence.drums.attacks)) {
+   drumCard.detail += position === 8 ? ' This is the end of the longer drum sentence.' : ' The ride phrase continues through the middle of the longer sentence.';
+   drumCard.evidence.push(context);
+  }
+ }
+
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

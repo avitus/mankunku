@@ -1,3 +1,4 @@
+import { musicalSentence, sentenceKeyboardTransform, sentenceOffset } from './backing-sentences';
 import { applyKeyboardDecorations } from './backing-keyboard-decorations';
 /** Stateful one-bar piano realization. Multi-bar source cells are proposals, not future budgets. */
 import type { RollingBackingDefinition } from './backing-rolling';
@@ -24,7 +25,7 @@ import { pianoPhraseRecallEnabled, retainPianoPhraseRecall, capturePianoMotifSou
 
 export interface RollingPianoMemory {
 	readonly recentFigures: readonly string[];
-	readonly motif: { readonly startBar: number; readonly sourceId: string | null; readonly shift: number; readonly repeat: boolean } | null;
+	readonly motif: { readonly startBar: number; readonly sourceBar?: number; readonly sourceId: string | null; readonly shift: number; readonly repeat: boolean } | null;
 	readonly segmentIndex: number | null;
 	readonly segmentVoicing: readonly number[];
 	readonly lastVoicing: readonly number[];
@@ -89,7 +90,9 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	const contourContext = coordinatedVoicing ? { barIndex: bar, phraseStartBar: ensemble.phraseStartBar, chorusIndex: ensemble.performanceEnergy!.chorusIndex, phase: ensemble.performanceEnergy!.phase } : undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 	const form = score.bars[bar];
-	const phraseStart = ensemble.phraseStartBar;
+	const sentence = musicalSentence(score, bar);
+ const rhythmicSentence = sentence && style.compPlanning ? sentence : undefined;
+ const phraseStart = rhythmicSentence?.startBar ?? ensemble.phraseStartBar;
 	const budget = ensemble.piano.maxAttacks;
 	const harmonicSupport = ensemble.piano.harmonicSupport !== undefined;
 	const backgroundHarmony = harmonicSupport && ensemble.piano.harmonicSupport !== 'ordinary';
@@ -112,12 +115,12 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	let guideTones = false;
 	let realized: CompHitSpec[];
 	if (style.compPlanning) {
-		if (!motif || motif.startBar !== phraseStart) {
+		if (!motif || motif.startBar !== phraseStart || rhythmicSentence && !motif.sourceId && bar <= phraseStart + 2) {
 			const rng = createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif', phraseStart));
 			const candidates = keyboardFigures(score).filter((figure) => fits(figure) && figure.hits[0].length > 0 && !figure.tags.includes('pad') && shiftsFor(figure).length > 0);
-			const selected = !backgroundHarmony && form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(0.55) && candidates.length > 0;
+			const selected = !backgroundHarmony && form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(rhythmicSentence ? .9 : .55) && candidates.length > 0;
 			const source = selected ? rng.weighted(candidates.map((figure) => ({ value: figure, weight: figure.weight * (score.keyboardVarietyVersion && memory.recentFigures.includes(figure.repeatKey ?? figure.id) ? .25 : 1) }))) : undefined;
-			motif = { startBar: phraseStart, sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
+			motif = { startBar: phraseStart, ...(rhythmicSentence && source ? { sourceBar: bar } : {}), sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
 				repeat: createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif-development', phraseStart)).chance(ensemble.piano.texture === 'steady' ? .7 : .35) };
 		}
 		if (motifOverride) motif = motifOverride;
@@ -130,7 +133,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			shift = position >= 2 ? motif.shift : 0;
 			if (score.keyboardVarietyVersion === 2) {
 				development = keyboardDevelopment(score.phraseId, score.tempo, phraseStart, score.bars[phraseStart].pianoPresenceSeed ?? 0);
-				transform = KEYBOARD_DEVELOPMENTS[development][position];
+				transform = rhythmicSentence ? (bar === motif.sourceBar ? 'statement' : sentenceKeyboardTransform(score, rhythmicSentence, bar)) : KEYBOARD_DEVELOPMENTS[development][position];
 				shift = transform === 'displace' ? motif.shift : 0;
 				if (transform === 'answer') {
 					figure = keyboardAnswerFigure(keyboardFigures(score), figure, score.phraseId, score.tempo, phraseStart);
@@ -142,6 +145,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			if (development) hits = articulateKeyboardDevelopment(hits, transform, development);
 			if (transform === 'space') reason = 'motif_gap';
 			const withheld = budget === 0 || ensemble.coordinatedAccent ? 'ensemble_silence'
+    : rhythmicSentence && ['active_soloist','dense_soloist'].includes(ensemble.piano.rootlessTexture?.reason ?? '') ? 'response_reserved'
 				: ensemble.responseOwner !== 'nobody' ? 'response_reserved'
 					: hits.length > budget || !cellFits(hits) ? 'gesture_does_not_fit' : undefined;
 			if (withheld) { hits = []; transform = 'space'; shift = 0; reason = withheld; development = undefined; answerFigureId = undefined; }
@@ -271,7 +275,8 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' }) : undefined);
 		const keyboardLine = phrasing && !guideTones ? planKeyboardLine({ style: score.style ?? 'swing', phraseId: score.phraseId, tempo: score.tempo,
 			seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, barIndex: bar, phraseStartBar: phraseStart,
-			phase: ensemble.performanceEnergy!.phase, attackIndex: events.length, previous: voicingMemory }) : undefined;
+			phase: ensemble.performanceEnergy!.phase, attackIndex: events.length, previous: voicingMemory,
+    ...(sentence ? { sentenceStep: bar === sentence.startBar ? 0 : Math.sign(sentenceOffset(sentence, bar) - sentenceOffset(sentence, bar - 1)) * (score.style === 'ballad' ? ((bar - sentence.startBar) % 2 ? 0 : 1) : score.style === 'bossa-nova' ? 1 : 2), sentenceContour: sentence.shape === 'arch' ? 'arch' as const : sentence.shape === 'fall-return' ? 'fall' as const : 'lift' as const } : {}) }) : undefined;
 		// Native rhythm, selected families and strict motion bounds already make
 		// this a rare opportunity. Only the first accepted chord may propose it.
 		const contraryMotion = score.keyboardContraryMotionVersion === 1 && phrasing && !guideTones && events.length === 0;
@@ -331,13 +336,14 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
   proposal: !!proposal, nativeLatePad, guideTones: !!guideTones, contourEnabled,
   memory, bassEvents, lastVoicingPredecessor
  }, { events, voicingTrace, lastSuspensionBar, lastVoicing, segmentVoicing, voicingMemory, contourMemory }));
-	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
+	if (rhythmicSentence && bar === motif.sourceBar && (transform !== 'statement' || reason || !events.length || hits.length !== events.length || hits.some((hit,i) => events[i].absBeat !== bar * 4 + hit.b))) motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };
+ const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
 	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; development = undefined; answerFigureId = undefined; }
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(score.keyboardSuspensionsVersion && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(rhythmicSentence && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
 			sourceFigureId: answer || arrival ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

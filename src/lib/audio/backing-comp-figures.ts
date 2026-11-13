@@ -121,6 +121,8 @@ export interface PianoMotifRecallSource {
 	readonly attacks: readonly PianoMotifAttack[];
 }
 export interface CompMotifDecision {
+ /** Actual first statement of the longer sentence; may follow a protected arrival. */
+ readonly sentenceSourceBar?: number;
 	readonly version: 1;
 	readonly barIndex: number;
 	readonly phraseStartBar: number;

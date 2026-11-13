@@ -1,3 +1,5 @@
+import { keyboardFigures } from './backing-keyboard-vocabulary';
+import { musicalSentence } from './backing-sentences';
 import { liftFootHat } from './backing-inner-motion';
 import { snareKickDialogue } from './backing-phrase-dialogue';
 import { crossStickUnderChord } from './backing-ensemble-colors';
@@ -55,6 +57,7 @@ export interface RollingBackingOptions {
 	readonly phraseColors?: true;
 	readonly phraseDialogue?: true;
  readonly innerMotion?: true;
+ readonly longerSentences?: true;
 	readonly ensembleColors?: true;
 	/** Listening 0.8 policies; omission preserves earlier event streams. */
 	readonly bassDelayedRoot?: true;
@@ -103,6 +106,7 @@ export interface RollingBackingDefinition {
 	readonly phraseColorsVersion?: 1;
 	readonly phraseDialogueVersion?: 1;
  readonly innerMotionVersion?: 1;
+ readonly longerSentencesVersion?: 1;
 	readonly ensembleColorsVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
 	readonly drumPhraseCushioningVersion?: 1;
@@ -241,6 +245,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+  ...(keyboardPhrasing && options.keyboardVariety === 'developed' && options.longerSentences === true ? { longerSentencesVersion: 1 as const } : {}),
   ...(keyboardPhrasing && options.innerMotion === true ? { innerMotionVersion: 1 as const } : {}),
         ...(keyboardPhrasing && options.phraseDialogue === true ? { phraseDialogueVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.ensembleColors === true ? { ensembleColorsVersion: 1 as const } : {}),
@@ -356,6 +361,16 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		const lastBar = score.bars[contour!.lastBarIndex];
 		if (lastBar.chorusIndex !== contour!.chorusIndex || contour!.lastBarIndex - lastBar.phrase4.barIndex !== contour!.phraseStartBar) invalid();
 	} else if (contour !== undefined) invalid();
+ if (score.longerSentencesVersion && checkpoint.piano.motif) {
+  const motif = checkpoint.piano.motif, lastBar = checkpoint.nextBar - 1;
+  const sentence = ['swing','straight'].includes(score.style ?? 'swing') ? musicalSentence(score, lastBar) : undefined;
+  const start = sentence?.startBar ?? lastBar - score.bars[lastBar].phrase4.barIndex;
+  if (motif.startBar !== start || typeof motif.repeat !== 'boolean' || !Number.isFinite(motif.shift) ||
+   motif.sourceId !== null && !keyboardFigures(score).some(f => f.id === motif.sourceId)) invalid();
+  if (motif.sourceBar !== undefined && (!sentence || motif.sourceId === null || !Number.isInteger(motif.sourceBar) ||
+   motif.sourceBar < start || motif.sourceBar > start + 2 || motif.sourceBar > lastBar)) invalid();
+  if (sentence && motif.sourceId !== null && motif.sourceBar === undefined) invalid();
+ }
  const opening=checkpoint.bass.openingMotif;
  const openingPolicy=!!score.phraseDialogueVersion && ['swing','straight'].includes(score.style??'swing');
  if(opening!==undefined&&!openingPolicy || openingPolicy&&checkpoint.nextBar<score.totalBars&&opening===undefined)invalid();
@@ -431,14 +446,17 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		peakEnd = bar + 1;
 		while (peakEnd < phraseEnd && definition.bars[peakEnd].performanceEnergy?.phase === 'solo_peak') peakEnd++;
 	}
-	const realizeDrums = (pianoResult: typeof piano) => {
+	const sentence = musicalSentence(definition, bar);
+ const drumSentence = sentence && ['swing','straight'].includes(definition.style ?? 'swing') ? sentence : undefined;
+ const realizeDrums = (pianoResult: typeof piano) => {
 	 const planned = planDrumPhraseBar({
+  ...(definition.longerSentencesVersion ? { longerSentences: true as const } : {}),
 		...(definition.phraseColorsVersion ? { phraseColors: true as const, phraseColorSeed: definition.bars[bar].pianoPresenceSeed ?? 0 } : {}),
 		...(definition.phraseExpressionVersion ? { phraseExpression: true as const } : {}),
 		...(definition.trioConversationVersion ? { trioConversation: true as const, bassEvents: bass.events } : {}),
 		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
 		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
-		barIndex: bar, info: pianoResult.answer ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: ensemble.phraseStartBar, phraseEndBarExclusive: phraseEnd, harmonyEndBeat: definition.totalBars * 4,
+		barIndex: bar, info: pianoResult.answer ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: drumSentence?.startBar ?? ensemble.phraseStartBar, phraseEndBarExclusive: drumSentence?.endBarExclusive ?? phraseEnd, harmonyEndBeat: definition.totalBars * 4,
 		...(peakEnd !== undefined ? { peakEndBarExclusive: peakEnd } : {}),
 		compOnsets: pianoResult.events.map((event) => event.absBeat - bar * 4), bassOnsets: bass.events.map((event) => event.absBeat - bar * 4),
 		acceptsOnset: (absBeat, hit) => (hit.role === 'accent' && absBeat === bar * 4 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.drum)) < endTick
@@ -558,7 +576,17 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		previousCheckpointId: checkpoint?.checkpointId ?? null,
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
-		ensembleDevelopment: { version: 1, ...(nativeReply ? { nativeBalladReplies: [nativeReply] } : {}), ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
+		ensembleDevelopment: { version: 1,
+   ...(sentence && !terminalAccepted ? { musicalSentences: [{ ...sentence, barIndex: bar,
+    ...(drumSentence && bass.events.length && !bass.memory.pendingLaunch && !checkpoint?.bass.pendingLaunch && !bass.delayedRootTrace && !ensemble.coordinatedAccent && !ensemble.setupFor ? { bass: {
+     registerTargetMidi: (preparedBassScores.get(definition) ?? prepareRollingBass(definition))!.centers[bar],
+     attacks: bass.events.map(({time,midi})=>({time,midi})) } } : {}),
+    ...(piano.trace.motifId && piano.trace.sourceFigureId && piano.trace.phraseStartBar === sentence.startBar && piano.events.length ? { keyboard: {
+     motifId: piano.trace.motifId, sourceFigureId: piano.trace.sourceFigureId,
+     attacks: piano.events.map(({time,notes})=>({time,notes:[...notes]})) } } : {}),
+    ...(!drumSentence && piano.voicingTrace?.some(v => v.decision.keyboardLine?.status === 'connected' && v.decision.keyboardLine.contour !== 'settle') ? { keyboardLine: piano.voicingTrace.filter(v => v.decision.keyboardLine?.status === 'connected' && v.decision.keyboardLine.contour !== 'settle').map(v => ({ time:v.time, notes:[...v.notes], targetMidi:v.decision.keyboardLine!.targetMidi })) } : {}),
+    ...(drumSentence && drums.bar.phraseLength === 8 && drumEvents.length ? { drums: { attacks: drumEvents.map(({time,drum,velocity})=>({time,drum,velocity})) } } : {})
+   }] } : {}), ...(nativeReply ? { nativeBalladReplies: [nativeReply] } : {}), ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
 			...(feedback && !terminalAccepted ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
 			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),

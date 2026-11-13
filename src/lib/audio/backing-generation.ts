@@ -153,6 +153,7 @@ export interface GeneratedBacking {
 }
 
 export interface EnsembleDevelopment {
+ readonly musicalSentences?: readonly import('./backing-sentences').MusicalSentenceDecision[];
 	readonly version: 1;
 	readonly terminalArrangements?: readonly TerminalArrangementDecision[];
 	readonly pianoMotifs: readonly CompMotifDecision[];

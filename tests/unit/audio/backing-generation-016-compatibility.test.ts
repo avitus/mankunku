@@ -16,11 +16,12 @@ function scoreFor(style: Style, tune: 'blues' | 'aaba', seed: number, instrument
  const { phrase } = tune === 'blues'
   ? buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 }) : admitted.session;
  const tempo = style === 'ballad' ? 80 : 140;
+ const { longerSentences: _newPolicy, ...released016 } = releasedBackingOptions(instrument, seed);
  return createRollingBacking(phrase.harmony!, BACKING_STYLES[style], {
   phraseId: phrase.id, tempo, ppq: 192, beatsPerBar: 4,
   swing: resolveBackingSwing(.62, BACKING_STYLES[style], tempo),
   sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
- }, { ...releasedBackingOptions(instrument, seed), loopCount: 1 }
+ }, { ...released016, loopCount: 1 }
  );
 }
 function run(score: ReturnType<typeof createRollingBacking>) {

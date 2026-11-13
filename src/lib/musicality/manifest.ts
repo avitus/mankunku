@@ -380,6 +380,18 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ const sentenceAssessments: Record<string,string> = {
+  P12: '0.17.0 extends selected Swing/Straight keyboard motifs through an eight-bar solo sentence. A statement is retained only after it sounds, then returns, moves or answers against each current harmony. Protected arrivals may postpone the statement by up to two bars.',
+  P13: '0.17.0 develops the same accepted keyboard source across adjacent four-bar units with seeded repetition, displacement, answer and a shortened conclusion. Current response and support permissions still own each bar.',
+  B30: '0.17.0 gives selected Swing/Straight solo passages one eight-bar register contour rather than restarting the aim after four bars. Legal chord targets, approaches and stepwise interior choices follow that longer direction; committed launches retain priority.',
+  D4: '0.17.0 can retain a Swing/Straight ride phrase across eight bars of a solo section. Its middle is a continuation, with release at the sentence end; timekeeping and current commentary allowances remain protected.',
+  D28: '0.17.0 carries a drum commentary motif through an eight-bar sentence with repetition, displacement, optional gaps and concluding orchestration. Internal four-bar fill permission does not prematurely end that sentence; authored sections, chorus endings and reserved setups retain priority.'
+ };
+ if(sentenceAssessments[entry.id]) return { ...entry, status:'partial', assessment:sentenceAssessments[entry.id],
+  remaining:'Four- and eight-bar phrases vary by seed and stay inside authored sections/choruses. Broader phrase lengths, cross-bar sustained notes, general solo imitation and human full-tune listening acceptance remain pending. Bossa/Ballad retain native bass/drum rhythm; their keyboard top-note direction can span eight bars.',
+  scope:'Musicality 0.17.0 listening candidate and shared normal-playback engine. Load 0.17 example for a reproducible full Blues; no microphone input is inferred. Original remains available.',
+  evidence:[...entry.evidence,source('backing-sentences'),source('backing-rolling-piano'),source('backing-rolling-bass'),source('backing-drum-phrases'),test('backing-longer-sentences')] };
+
  if(['B36','P32','D17'].includes(entry.id))return {
   ...entry,status:'partial',
   assessment:entry.id==='B36'
@@ -388,7 +400,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     ? 'Musicality 0.16.0 resolves an inner flat ninth to ninth, or sharp eleventh to fifth, across two existing dominant-chord attacks. Defining 3/7 tones, outer voices, native rhythm and harmonic support remain.'
     : 'Musicality 0.16.0 occasionally lifts the existing beat-four foot hi-hat at a quiet phrase close, leaving ride, beat two and attack count intact. Late keyboard attacks and competing commentary veto the lift.',
   remaining:'Ninth-only bass extension targets; keyboard movement is a bounded lower-neighbor resolution on plain dominants; the hat uses the existing pedal sample rather than a dedicated bark articulation. Human listening acceptance remains pending.',
-  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard. Release-review hardening adds bounded sample loading, colored-checkpoint replay, WAV/live policy parity and account-scoped blind reviews with recoverable replay ratings.',
+  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. The current release example is documented above the listening controls. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard. Release-review hardening adds bounded sample loading, colored-checkpoint replay, WAV/live policy parity and account-scoped blind reviews with recoverable replay ratings.',
   evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance'),source('backing-arrangement'),source('backing-release'),test('backing-arrangement')]
  };
 
