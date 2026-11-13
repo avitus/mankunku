@@ -97,6 +97,12 @@ export interface RollingBackingRenderer {
 	stop(): void;
 }
 
+/**
+ * Build the append-only renderer for one finite take. Bars are committed one
+ * at a time; every note of an accepted bar is scheduled at the absolute audio
+ * time its tick names, and a bar that can no longer be scheduled with the full
+ * dispatch lead is refused whole, so a take is on the beat or it stops.
+ */
 export function createRollingBackingRenderer(
 	options: RollingBackingRendererOptions,
 	runtime: RollingBackingRuntime
@@ -239,6 +245,11 @@ export function createRollingBackingRenderer(
 			window.drumEvents.every((event) => event.velocity <= 1 && Object.hasOwn(DRUM_FAMILY_BY_VOICE, event.drum));
 	}
 
+	/**
+	 * Admit the next bar and schedule its notes, or refuse it without changing
+	 * anything. `timing` is the coordinator's measurement of the bar's generation:
+	 * the audio-clock reading when it began and the wall-clock time it took.
+	 */
 	function commit(window: RollingBackingBar, timing?: { renderStartedAt: number; renderElapsedSeconds: number }): RollingBackingCommitResult {
 		if (status !== 'active') return { accepted: false, reason: 'stopped' };
 		if (!runtime.isCurrent() || window.sessionId !== options.sessionId) return { accepted: false, reason: 'stale_session' };
@@ -258,9 +269,12 @@ export function createRollingBackingRenderer(
 		// pause on Linux WebKit, 2026-11-12) with lead to spare is accepted; one
 		// that used up its lead is refused whichever clock saw it.
 		const earliestAudioTime = options.startAudioTime + window.earliestTick * secondsPerTick;
+		/**
+		 * Whether the bar's first note is too close to `current` to schedule.
+		 * Reconciles each fresh clock reading: once the audio clock catches up,
+		 * its advance already includes the previously unseen generation time.
+		 */
 		const missesDeadline = (current: RollingBackingHorizon): boolean => {
-			// Reconcile each fresh clock reading: once the audio clock catches up,
-			// its advance already includes the previously unseen generation time.
 			const unseen = timing ? Math.max(0, timing.renderStartedAt + timing.renderElapsedSeconds - current.audioNow) : 0;
 			return earliestAudioTime <= current.dispatchThrough + unseen;
 		};

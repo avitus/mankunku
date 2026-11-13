@@ -248,6 +248,7 @@ describe('append-only rolling audio renderer', () => {
 	// and bar 0 sounds at 11. These pin the rule that replaced the fixed 25 ms
 	// generation cap (2026-11-12): lead decides, on whichever clock saw the time pass.
 	describe('a slow bar is judged by the lead it left', () => {
+		/** Give the harness a native arm that records the audio time of each armed batch. */
 		function native(h: ReturnType<typeof harness>) {
 			const armed: number[] = [];
 			h.runtime.arm = vi.fn((_hits, time) => { armed.push(time); return vi.fn(); });
@@ -349,6 +350,7 @@ describe('append-only rolling audio renderer', () => {
 
 		it('never arms a note with less than the dispatch lead, however the two clocks disagree', () => {
 			let seed = 20261112;
+			/** Seeded LCG in [0, 1): the same 4,000 trials on every run. */
 			const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
 			let accepted = 0, refused = 0;
 			for (let trial = 0; trial < 4000; trial++) {
