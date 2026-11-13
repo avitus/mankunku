@@ -257,9 +257,14 @@ export function createRollingBackingRenderer(
 		// shown yet is charged against the lead. A slow bar (a 15–30 ms collector
 		// pause on Linux WebKit, 2026-11-12) with lead to spare is accepted; one
 		// that used up its lead is refused whichever clock saw it.
-		const unseen = timing ? Math.max(0, timing.renderStartedAt + timing.renderElapsedSeconds - before.audioNow) : 0;
 		const earliestAudioTime = options.startAudioTime + window.earliestTick * secondsPerTick;
-		if (earliestAudioTime <= before.dispatchThrough + unseen) return { accepted: false, reason: 'deadline' };
+		const missesDeadline = (current: RollingBackingHorizon): boolean => {
+			// Reconcile each fresh clock reading: once the audio clock catches up,
+			// its advance already includes the previously unseen generation time.
+			const unseen = timing ? Math.max(0, timing.renderStartedAt + timing.renderElapsedSeconds - current.audioNow) : 0;
+			return earliestAudioTime <= current.dispatchThrough + unseen;
+		};
+		if (missesDeadline(before)) return { accepted: false, reason: 'deadline' };
 		let copied: RollingBackingBar;
 		try { copied = deepFreeze(structuredClone(window)); }
 		catch { return { accepted: false, reason: 'invalid_window' }; }
@@ -324,14 +329,14 @@ export function createRollingBackingRenderer(
 			if (!runtime.isCurrent() || status !== 'active') {
 				rollback(); return { accepted: false, reason: 'stale_session' };
 			}
-			if (earliestAudioTime <= horizon().dispatchThrough + unseen) {
+			if (missesDeadline(horizon())) {
 				rollback(); return { accepted: false, reason: 'deadline' };
 			}
 			runtime.publishSchedule(nextSchedule);
 			if (!runtime.isCurrent() || status !== 'active') {
 				rollback(); return { accepted: false, reason: 'stale_session' };
 			}
-			if (earliestAudioTime <= horizon().dispatchThrough + unseen) {
+			if (missesDeadline(horizon())) {
 				rollback(); runtime.publishSchedule(schedule); return { accepted: false, reason: 'deadline' };
 			}
 		} catch {

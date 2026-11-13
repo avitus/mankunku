@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRollingBackingRenderer, type RollingBackingRuntime } from '$lib/audio/backing-rolling-renderer';
-import type { RollingBackingBar } from '$lib/audio/backing-rolling';
+import { createRollingSession } from '$lib/audio/backing-rolling-session';
+import type { RollingBackingBar, RollingBackingDefinition } from '$lib/audio/backing-rolling';
 import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 
 function bar(index: number): RollingBackingBar {
@@ -278,6 +279,71 @@ describe('append-only rolling audio renderer', () => {
 			const h = harness(), armed = native(h);
 			h.now(10.8);
 			expect(h.renderer.commit(bar(0), { renderStartedAt: 10.7, renderElapsedSeconds: 0.1 }).accepted).toBe(true);
+			expect(armed).toEqual([11]);
+		});
+
+		// 2026-11-12 clock catch-up regression: the first clock read trails the
+		// measured generation end by 2.5 ms. Later reads must absorb that missing
+		// time, while still rejecting genuinely exhausted lead on either path.
+		for (const path of ['native', 'transport'] as const) {
+			for (const phase of ['preparation', 'publication'] as const) {
+				it.each([
+					{ caughtUp: 10.863, accepted: true, lead: 'safe' },
+					{ caughtUp: 10.866, accepted: false, lead: 'exhausted' }
+				])(`judges $lead lead after the clock catches up during ${phase} on the ${path} path`, ({ caughtUp, accepted }) => {
+					const h = harness();
+					const armed = path === 'native' ? native(h) : [];
+					h.now(10.8605);
+					if (phase === 'preparation') {
+						let reads = 0;
+						h.runtime.audioNow = () => ++reads === 1 ? 10.8605 : caughtUp;
+					} else {
+						const publish = h.runtime.publishSchedule;
+						h.runtime.publishSchedule = vi.fn(schedule => {
+							h.now(caughtUp);
+							publish(schedule);
+						});
+					}
+					const result = h.renderer.commit(bar(0), { renderStartedAt: 10.839, renderElapsedSeconds: 0.024 });
+					if (accepted) {
+						expect(result).toEqual({ accepted: true, nextBar: 1, committedThroughTick: 768 });
+						expect(h.published()).not.toBeNull();
+						if (path === 'native') expect(armed).toEqual([11]);
+						else {
+							expect(h.pending.size).toBe(1);
+							[...h.pending.values()][0].callback(11);
+							expect(h.runtime.play).toHaveBeenCalledWith(expect.any(Array), 11, '0:0');
+						}
+						expect(h.renderer.snapshot().dispatches).toEqual([{ tick: 0, audioTime: 11, status: 'played' }]);
+					} else {
+						expect(result).toEqual({ accepted: false, reason: 'deadline' });
+						expect(armed).toEqual([]);
+						expect(h.runtime.play).not.toHaveBeenCalled();
+						expect(h.pending.size).toBe(0);
+						expect(h.published()).toBeNull();
+						expect(h.renderer.snapshot().nextBar).toBe(0);
+					}
+				});
+			}
+		}
+
+		it('keeps a session running when an admitted generation leaves 137 ms after clock catch-up', () => {
+			const h = harness(), armed = native(h);
+			// Admission at 10.839 leaves 161 ms, just outside the 160 ms
+			// planning horizon. Generation takes 24 ms; 137 ms remains.
+			const clocks = [10.839, 10.8605, 10.863];
+			h.runtime.audioNow = () => clocks.length ? clocks.shift()! : 10.863;
+			let wall = 0;
+			const onError = vi.fn();
+			const session = createRollingSession({
+				definition: { sessionId: 'take', tempo: 120, ppq: 192, beatsPerBar: 4, totalBars: 1 } as RollingBackingDefinition,
+				startAudioTime: 11, observationSessionId: 'take', renderer: h.renderer,
+				measureNow: () => wall, onError,
+				generate: () => { wall += 0.024; return bar(0); }
+			});
+			session.start();
+			expect(session.snapshot()).toMatchObject({ status: 'running', nextBar: 1, error: null });
+			expect(onError).not.toHaveBeenCalled();
 			expect(armed).toEqual([11]);
 		});
 
