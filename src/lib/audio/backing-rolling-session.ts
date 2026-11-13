@@ -52,7 +52,9 @@ export interface RollingSessionSnapshot {
  * A 250 ms preparation allowance tolerates bounded main-thread timer stalls.
  * This commits decisions up to 175 ms earlier than the original 75 ms margin;
  * observations arriving afterwards apply only to a subsequent uncommitted bar.
- * Renderer compute, publication and native-source deadlines remain unchanged.
+ * Renderer publication and native-source deadlines remain unchanged; the
+ * measured generation time is passed on so the renderer can charge it against
+ * the bar's lead when the audio clock did not advance during generation.
  * A stalled clock stops the take: there is never a burst of overdue notes.
  */
 export function createRollingSession(options: RollingSessionOptions) {

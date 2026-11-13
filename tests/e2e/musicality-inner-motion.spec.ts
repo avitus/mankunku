@@ -3,6 +3,7 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
+import { expectEveryBarCommittedWithLead } from './fixtures/rolling-lead';
 import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 
 for(const keyboard of ['piano','organ'] as const)test(`0.16 full Blues with ${keyboard} sounds all three inner-motion gestures and shows their actual live decisions`,async({page})=>{
@@ -49,8 +50,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.16 full Blues with ${ke
  expect(take.playback.params.performanceEnergySeed).toBe(256);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
- expect(take.playback.provenance.renderTimings).toHaveLength(52);
- expect(take.playback.provenance.renderTimings.every((r:{accepted:boolean;renderElapsedSeconds:number})=>r.accepted&&r.renderElapsedSeconds<=.025)).toBe(true);
+ expectEveryBarCommittedWithLead(take.playback,52);
 
  for(const label of ['Walk through the ninth','Resolve an inner voice','Lift the foot hi-hat'])expect(observed.labels).toContain(label);
  const generated=take.playback.generated as GeneratedBacking;
