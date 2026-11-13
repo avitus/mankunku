@@ -123,7 +123,12 @@ describe('rolling renderer native audio arming', () => {
  });
  it('preserves compute, ordering and stale-session admission guards before native source allocation', () => {
   const h = harness();
-  expect(h.renderer.commit(bar(0), { renderStartedAt: 10, renderElapsedSeconds: .026 })).toEqual({ accepted: false, reason: 'compute_budget' });
+  // Since 2026-11-12 a slow bar is refused for the lead it used up, not for a fixed 25 ms:
+  // here the audio clock stood still at 10.8 while generation took 70 ms of the 65 ms left.
+  h.now(10.8);
+  expect(h.renderer.commit(bar(0), { renderStartedAt: 10.8, renderElapsedSeconds: .07 })).toEqual({ accepted: false, reason: 'deadline' });
+  expect(h.renderer.commit(bar(0), { renderStartedAt: 10.8, renderElapsedSeconds: -1 })).toEqual({ accepted: false, reason: 'compute_budget' });
+  h.now(10);
   expect(h.renderer.commit(bar(1))).toEqual({ accepted: false, reason: 'out_of_order' });
   h.current(false);
   expect(h.renderer.commit(bar(0))).toEqual({ accepted: false, reason: 'stale_session' });

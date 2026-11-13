@@ -12,6 +12,11 @@ export interface RollingBackingRendererOptions {
 	ppq: number;
 	totalBars: number;
 	startAudioTime: number;
+	/**
+	 * The generation time the coordinator plans for when it decides a bar can still
+	 * be started (`renderSafeFrom`). It is a planning allowance, not a limit: a bar
+	 * that took longer is accepted or refused by the lead it left (see `commit`).
+	 */
 	maxComputeSeconds?: number;
 	safetySeconds?: number;
 	onUnderrun?(reason: string): void;
@@ -242,11 +247,19 @@ export function createRollingBackingRenderer(
 		catch { return { accepted: false, reason: 'invalid_window' }; }
 		const before = horizon();
 		if (timing && (!Number.isFinite(timing.renderStartedAt) || timing.renderStartedAt > before.audioNow ||
-			!Number.isFinite(timing.renderElapsedSeconds) || timing.renderElapsedSeconds < 0 || timing.renderElapsedSeconds > maxCompute)) {
+			!Number.isFinite(timing.renderElapsedSeconds) || timing.renderElapsedSeconds < 0)) {
 			return { accepted: false, reason: 'compute_budget' };
 		}
+		// How long generation took does not decide whether the bar can still be
+		// scheduled on time; how much lead is left does. A browser may hold
+		// AudioContext.currentTime still for the whole script task that generated
+		// the bar, so time the wall clock measured but the audio clock has not
+		// shown yet is charged against the lead. A slow bar (a 15–30 ms collector
+		// pause on Linux WebKit, 2026-11-12) with lead to spare is accepted; one
+		// that used up its lead is refused whichever clock saw it.
+		const unseen = timing ? Math.max(0, timing.renderStartedAt + timing.renderElapsedSeconds - before.audioNow) : 0;
 		const earliestAudioTime = options.startAudioTime + window.earliestTick * secondsPerTick;
-		if (earliestAudioTime <= before.dispatchThrough) return { accepted: false, reason: 'deadline' };
+		if (earliestAudioTime <= before.dispatchThrough + unseen) return { accepted: false, reason: 'deadline' };
 		let copied: RollingBackingBar;
 		try { copied = deepFreeze(structuredClone(window)); }
 		catch { return { accepted: false, reason: 'invalid_window' }; }
@@ -311,14 +324,14 @@ export function createRollingBackingRenderer(
 			if (!runtime.isCurrent() || status !== 'active') {
 				rollback(); return { accepted: false, reason: 'stale_session' };
 			}
-			if (earliestAudioTime <= horizon().dispatchThrough) {
+			if (earliestAudioTime <= horizon().dispatchThrough + unseen) {
 				rollback(); return { accepted: false, reason: 'deadline' };
 			}
 			runtime.publishSchedule(nextSchedule);
 			if (!runtime.isCurrent() || status !== 'active') {
 				rollback(); return { accepted: false, reason: 'stale_session' };
 			}
-			if (earliestAudioTime <= horizon().dispatchThrough) {
+			if (earliestAudioTime <= horizon().dispatchThrough + unseen) {
 				rollback(); runtime.publishSchedule(schedule); return { accepted: false, reason: 'deadline' };
 			}
 		} catch {
