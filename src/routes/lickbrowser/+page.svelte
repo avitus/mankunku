@@ -5,12 +5,14 @@
  import {settings,getInstrument,getEffectiveHighestNote} from '$lib/state/settings.svelte';
  import {createLickAudition} from '$lib/state/lick-audition.svelte';
  import {leadSheetTuneFor,leadSheetAbcOptions} from '$lib/music/lead-sheet';
- import {search,parseQuery} from '$lib/lickbrowser/search';
+ import {BROWSER_PROGRESSIONS,searchProgression} from '$lib/lickbrowser/progressions';
+ import type {ChordProgressionType} from '$lib/types/lick-practice';
  import {excerptPhrases} from '$lib/lickbrowser/phrase';
  import type {Phrase} from '$lib/types/music';
  import type {Solo,Excerpt} from '$lib/lickbrowser/types';
  let corpus: Solo[]=$state.raw([]),results: Excerpt[]=$state.raw([]);
- let query=$state('Dm7 G7 Cmaj7'),artist=$state(''),allKeys=$state(true),error=$state(''),loading=$state(true),limit=$state(10),speed=$state(1);
+ let progression: ChordProgressionType=$state('ii-V-I-major-long');
+ let artist=$state(''),allKeys=$state(true),error=$state(''),loading=$state(true),limit=$state(10),speed=$state(1);
  const audition=createLickAudition();
  const artists=$derived([...new Set(corpus.map(s=>s.performer))].sort());
  const displayed=$derived(results.slice(0,limit).map(r=>({r,...excerptPhrases(r,getInstrument(),getEffectiveHighestNote())})));
@@ -19,15 +21,15 @@
   const url=URL.createObjectURL(new Blob([JSON.stringify({phrase:score,attribution:'Weimar Jazz Database, Jazzomat Research Project',license:'ODbL 1.0 / DbCL 1.0'},null,2)],{type:'application/json'}));
   const link=document.createElement('a');link.href=url;link.download=`${score.id}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
- function run(){audition.stop();error='';limit=10;try{results=search(corpus,parseQuery(query),{artist,transpose:allKeys});}catch(e){results=[];error=e instanceof Error?e.message:'Search failed.';}}
+ function run(){audition.stop();error='';limit=10;try{results=searchProgression(corpus,progression,{artist,transpose:allKeys});}catch(e){results=[];error=e instanceof Error?e.message:'Search failed.';}}
  onMount(()=>{const controller=new AbortController();fetch('/data/weimar-licks.json',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The Weimar collection could not load. Reload to try again.');corpus=await response.json();run();}).catch(e=>{if(!controller.signal.aborted)error=e.message;}).finally(()=>loading=false);return ()=>controller.abort();});
  onDestroy(()=>audition.dispose());
 </script>
 <svelte:head><title>Lick Browser — Mankunku</title></svelte:head>
 <StudioPage eyebrow="Weimar collection" title="Lick browser" description="Find recorded solo phrases over your chord changes.">
  <form onsubmit={(e)=>{e.preventDefault();run();}}>
-  <label for="chords">Chords · Concert pitch</label>
-  <div class="search"><input id="chords" bind:value={query} placeholder="Dm7 G7 Cmaj7"/><button disabled={loading}>Find licks</button></div>
+  <label for="progression">Progression</label>
+  <div class="search"><select id="progression" bind:value={progression} onchange={run}>{#each BROWSER_PROGRESSIONS as item}<option value={item.type}>{item.name}</option>{/each}</select><button disabled={loading}>Find licks</button></div>
   <div class="options"><label><input type="checkbox" bind:checked={allKeys}/> Find in all keys</label><label>Artist <select bind:value={artist}><option value="">All artists</option>{#each artists as name}<option>{name}</option>{/each}</select></label><label>Playback speed <select bind:value={speed}><option value={1}>Original</option><option value={0.75}>75%</option><option value={0.5}>50%</option></select></label></div>
   <p>Matches use chord families. Each phrase starts over the first chord and lands in the first bar of the final chord. Notation and sound follow your <a href="/settings">instrument settings</a>.</p>
  </form>
@@ -37,12 +39,14 @@
   <article><h2>{r.performer} — {r.title}</h2><p>Bar {r.bar}, beat {r.beat} · {Math.round(r.tempo)} BPM · {getInstrument().name}</p>
    <NotationDisplay tune={leadSheetTuneFor(score,Infinity).tune} tuneOptions={{...leadSheetAbcOptions(score,4),omitMasthead:true}} instrument={getInstrument()} variant="practice" frameless staffWidth={750}/>
    <button onclick={()=>audition.play(performance,{tempo:r.tempo*speed,swing:0.5})}>{audition.state.playingId===performance.id?'Stop':'Listen'}</button> <button onclick={()=>exportLick(score)}>Export lick</button>
+   <div class="lick-reference" title="Weimar solo ID and starting chord-change index">Ref: WJD {r.id}</div>
   </article>
  {/each}
- {#if !loading&&!error&&!results.length}<p>No matching phrases. Try fewer chords or all artists.</p>{/if}
+ {#if !loading&&!error&&!results.length}<p>No matching phrases. Try another progression or all artists.</p>{/if}
  {#if results.length>limit}<button onclick={()=>limit+=10}>Show more</button>{/if}
  <footer>Transcriptions: <a href="https://jazzomat.hfm-weimar.de/">Weimar Jazz Database</a>, release 2.1. Pfleiderer et al., Inside the Jazzomat (2017). <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> / DbCL 1.0. Written rhythms are inferred; playback retains performed timing.</footer>
 </StudioPage>
 <style>
- form,article{padding:24px;margin:20px 0;border:1px solid var(--color-border,#536174);border-radius:6px}label{display:block}input,select,button{border:1px solid #536174;border-radius:4px;padding:10px;background:transparent;color:inherit}button{cursor:pointer;min-height:44px}button:disabled{opacity:.5}.search{display:flex;gap:12px;margin:12px 0}.search input{flex:1;min-width:0}.options{display:flex;gap:20px;flex-wrap:wrap;align-items:center}p,footer{font-size:13px;opacity:.85}h2{font-family:var(--font-display,Georgia);font-size:24px}footer{margin:32px 0}a{text-decoration:underline}@media(max-width:600px){form,article{padding:16px}.options{display:grid}}
+ .lick-reference{margin-top:12px;text-align:right;font-size:12px;font-family:monospace;color:var(--color-text-secondary,#a3aebc);user-select:all}
+ form,article{padding:24px;margin:20px 0;border:1px solid var(--color-border,#536174);border-radius:6px}label{display:block}input,select,button{border:1px solid #536174;border-radius:4px;padding:10px;background:transparent;color:inherit}button{cursor:pointer;min-height:44px}button:disabled{opacity:.5}.search{display:flex;gap:12px;margin:12px 0}.search select{flex:1;min-width:0}.options{display:flex;gap:20px;flex-wrap:wrap;align-items:center}p,footer{font-size:13px;opacity:.85}h2{font-family:var(--font-display,Georgia);font-size:24px}footer{margin:32px 0}a{text-decoration:underline}@media(max-width:600px){form,article{padding:16px}.options{display:grid}}
 </style>

@@ -110,3 +110,17 @@ describe("Native lick browser", () => {
     }
   });
 });
+
+import { BROWSER_PROGRESSIONS, searchProgression } from '$lib/lickbrowser/progressions';
+import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+it('Offers the whole native catalog and parses every progression',()=>{
+ expect(BROWSER_PROGRESSIONS.map(p=>p.type)).toEqual(Object.keys(PROGRESSION_TEMPLATES));
+ for(const p of BROWSER_PROGRESSIONS)expect(()=>searchProgression([],p.type)).not.toThrow();
+});
+it('Distinguishes long and short cadence spacing',()=>{
+ expect(searchProgression([fixture(108)],'ii-V-I-major-long')).toHaveLength(1);
+ expect(searchProgression([fixture(108)],'ii-V-I-major')).toHaveLength(0);
+});
+it('Reads the native half-diminished symbol as half-diminished',()=>{
+ expect(parseQuery('D-7b5')[0].family).toBe('half-diminished');
+});

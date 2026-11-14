@@ -46,7 +46,7 @@ export function parseChord(raw: string) {
     )
   )
     return null;
-  let family = /^(m7b5)/.test(q)
+  let family = /^(m7b5|min7b5|-7b5)/.test(q)
     ? "half-diminished"
     : /^(dim|o)/.test(q)
       ? "diminished"
