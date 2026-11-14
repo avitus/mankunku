@@ -1,5 +1,6 @@
 import type { Excerpt, MetricNote } from "./types";
 import { articulationGapBeats, tripletAttackEvidence } from "$lib/music/rhythm-evidence";
+import { displacedEighths } from "./eighth-runs";
 
 /** Infer swing only within continuous eighth-note runs on the annotated clock.
  * Repeated 3:1 cells retain their explicit dotted motif; an isolated 3:1 cell
@@ -46,10 +47,13 @@ export function writtenNotes(r: Excerpt): MetricNote[] {
     .sort((a, b) => a[0] - b[0]);
   const gap = articulationGapBeats(r.tempo) * 12;
   const straightened = swingPairs(notes, r.notationEnd, gap);
+  const displaced = displacedEighths(notes, r.notationStart, r.notationEnd);
   return notes
     .map((n, i): MetricNote => {
       const [at, measured, grid, pitch, raw = measured] = n,
         next = notes[i + 1]?.[0] ?? r.notationEnd;
+      const fitted = displaced.get(i);
+      if (fitted !== undefined) return [fitted, 6, 3, pitch];
       // Infer both written lengths together, including a terminal pair. All
       // release/gap evidence above uses ORIGINAL positions; playback is separate.
       if (straightened.has(i)) return [Math.floor(at / 12) * 12 + (at % 12 === 0 ? 0 : 6), 6, 3, pitch];

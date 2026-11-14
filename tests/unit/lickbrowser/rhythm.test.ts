@@ -20,6 +20,54 @@ function excerpt(attacks: number[], end: number, durations = attacks.map((at, i)
 const rhythm = (r: Excerpt) => writtenNotes(r).map(([at, duration]) => [at, duration]);
 
 describe('Weimar swing notation', () => {
+  it('Writes WJD 1-96 as eighths while retaining its entrance and internal rest', () => {
+    const r = search(corpus as unknown as Solo[], parseQuery('Dm7 G7 Cmaj7')).find(r => r.id === '1-96')!;
+    const original = structuredClone(r);
+    expect(writtenNotes(r).map(([at, duration]) => [at - r.notationStart, duration]))
+      .toEqual([12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 78, 84].map(at => [at, 6]));
+    const { performance } = excerptPhrases(r, INSTRUMENTS['tenor-sax'], 68);
+    performance.notes.forEach((n, i) => {
+      expect(n.offset[0] / n.offset[1]).toBeCloseTo(Math.round(r.notes[i][0] * r.tempo * 1000) / 240000, 10);
+      expect(n.duration[0] / n.duration[1]).toBeCloseTo(Math.round(r.notes[i][1] * r.tempo * 1000) / 240000, 10);
+    });
+    expect(r).toEqual(original);
+  });
+
+  it('Uses later grid anchors to resolve a displaced eighth-note entrance', () => {
+    expect(rhythm(excerpt([9, 15, 21, 30, 33, 42, 48, 56, 60], 66, [6, 4, 8, 3, 6, 6, 5, 3, 6])))
+      .toEqual([12, 18, 24, 30, 36, 42, 48, 54, 60].map(at => [at, 6]));
+  });
+
+  it('Resolves half-grid ties backwards when the surrounding run requires it', () => {
+    expect(rhythm(excerpt([0, 9, 15, 21, 24, 30], 36, [8, 6, 6, 3, 6, 6])))
+      .toEqual([0, 6, 12, 18, 24, 30].map(at => [at, 6]));
+  });
+
+  it('Preserves a real sixteenth-note run', () => {
+    const r = excerpt([0, 3, 6, 9, 12, 18, 24, 30], 36);
+    expect(rhythm(r)).toEqual(r.notationNotes.map(([at, duration]) => [at, duration]));
+  });
+
+  it('Keeps a displaced run without enough on-grid evidence unchanged', () => {
+    const r = excerpt([3, 9, 15, 21], 27);
+    expect(rhythm(r)).toEqual(r.notationNotes.map(([at, duration]) => [at, duration]));
+  });
+
+  it('Does not move an inferred entrance backwards into a held note', () => {
+    const r = excerpt([0, 21, 27, 33, 36, 42], 48);
+    expect(rhythm(r)).toEqual(r.notationNotes.map(([at, duration]) => [at, duration]));
+  });
+
+  it('Keeps inferred corpus notes ordered and non-overlapping', () => {
+    for (const r of search(corpus as unknown as Solo[], parseQuery('Dm7 G7 Cmaj7'))) {
+      const notes = writtenNotes(r);
+      for (let i = 0; i < notes.length; i++) {
+        expect(notes[i][0], r.id).toBeGreaterThanOrEqual(r.notationStart);
+        expect(notes[i][0] + notes[i][1], r.id).toBeLessThanOrEqual(notes[i + 1]?.[0] ?? r.notationEnd);
+      }
+    }
+  });
+
   it('Writes WJD 1-63 as ordinary eighths, including its final swung pair', () => {
     const r = search(corpus as unknown as Solo[], parseQuery('Dm7 G7 Cmaj7')).find(r => r.id === '1-63')!;
     const original = structuredClone(r);

@@ -35,17 +35,19 @@ test('Steal adds a persistent personal lick and prevents duplicate copies',async
  await expect(page.getByText(name,{exact:false}).first()).toBeVisible({timeout:30000});
 });
 
-test('WJD 1-63 engraves ordinary eighths through its final swung pair', async ({ page }) => {
+for (const [reference, count] of [['1-63', 11], ['1-96', 12]] as const) {
+test(`WJD ${reference} engraves its eighth-note line`, async ({ page }) => {
   await seedOnboardedAnonymous(page);
   await page.goto('/lickbrowser');
   await expect(page.locator('article').first()).toBeVisible({ timeout: 30000 });
   await page.getByLabel(/^Artist/).selectOption('Art Pepper');
   await page.getByLabel('Progression', { exact: true }).selectOption('ii-V-I-major');
-  const lick = page.locator('article').filter({ has: page.getByText('Ref: WJD 1-63', { exact: true }) });
+  const lick = page.locator('article').filter({ has: page.getByText(`Ref: WJD ${reference}`, { exact: true }) });
   for (let batch = 0; batch < 10 && await lick.count() === 0; batch++) {
     await page.getByRole('button', { name: 'Show more', exact: true }).click();
   }
-  await expect(lick.locator('.abcjs-note')).toHaveCount(11);
-  await expect(lick.locator('.abcjs-note.abcjs-d0-125')).toHaveCount(11);
-  await lick.screenshot({ path: test.info().outputPath('wjd-1-63-eighths.png') });
+  await expect(lick.locator('.abcjs-note')).toHaveCount(count);
+  await expect(lick.locator('.abcjs-note.abcjs-d0-125')).toHaveCount(count);
+  await lick.screenshot({ path: test.info().outputPath(`wjd-${reference}-eighths.png`) });
 });
+}
