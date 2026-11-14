@@ -66,3 +66,12 @@ Source code: <https://github.com/avitus/mankunku>
 
 SvelteKit 3 · Svelte 5 (runes) · TypeScript · Tailwind CSS 4 · Tone.js ·
 Pitchy · Supabase · Node adapter · installable web app.
+
+
+## Rhythm section
+
+Settings offers Musicality 0.16.1 or Original, remembered on this device for the
+next playback. Musicality supports complete 4/4 forms up to 128 bars, with Original
+as the fallback. Normal practice prepares the arrangement before playback; live
+microphone-driven adaptation belongs to the listening lab. Automated audio checks
+measure continuity and rendering behavior, not human musical acceptance.

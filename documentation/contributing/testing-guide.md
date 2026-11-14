@@ -286,7 +286,7 @@ Two rules the suite enforces on itself:
 
 See `tests/e2e/README.md` for the full architecture and debugging notes.
 
-Three `*.diagnostic.ts` tools produce calibration, listening and OMR artifacts through the explicit diagnostics command. They are outside normal discovery. The backing WAV regression remains in the suite and uses deterministic samples.
+`*.diagnostic.ts` tools produce calibration, listening and OMR artifacts or assert native sample behavior through the explicit diagnostics command. They are outside normal discovery. The backing WAV regression remains in the suite and uses deterministic samples.
 
 ## Deploy-script tests (`npm run test:deploy`)
 
@@ -398,6 +398,22 @@ that gets blindly refreshed defeats the entire mechanism. See
 
 ## Disabled coverage and diagnostics
 
-The [maintenance audit](../../docs/maintenance/2026-11-08-audit.md) distinguishes skipped tests, expected failures that still execute, gated model tests and opt-in artifact producers. Do not remove a regression simply because its name describes an old incident. Prefer assertions on user-observable behavior over source-string checks; avoid snapshots that merely duplicate the implementation.
+The [maintenance audit](../../docs/maintenance/2026-11-13-audit.md) distinguishes skipped tests, expected failures that still execute, gated model tests and opt-in artifact producers. Do not remove a regression simply because its name describes an old incident. Prefer assertions on user-observable behavior over source-string checks; avoid snapshots that merely duplicate the implementation.
 
 Recording tools use `npm run test:sandbox -- diagnostics <name> --project=<engine>` (without `--project` every engine runs) and are excluded from normal regression discovery. Their output is copied back with the sandbox artifacts. They do not establish correctness. `backing-render-audio.spec.ts` is a regression: it asserts audible output across the form and for isolated bass/drums using deterministic external samples.
+
+
+### Maintenance coverage checks
+
+The November 13 audit inventories conditional skips and discovery exclusions in
+`docs/maintenance/2026-11-13-audit.md`. Expected-failure assertions still execute;
+they are not paused tests. Real CDN keyboard calibration remains local-sandbox
+coverage, while deterministic native ownership, stem rendering and rolling-output
+checks run in hosted CI. Rendering tests prove signal continuity, not musical
+quality or native Safari acceptance.
+
+Documentation tests validate rendered links between published pages and heading
+anchors as well as app-to-doc links. Repository-only developer guides must link
+to their GitHub source instead of an unpublished `/docs/` URL. The browser suite
+renders every published guide, so separate unit assertions that those files
+exist add no coverage.

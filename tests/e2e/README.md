@@ -38,7 +38,7 @@ npm run test:e2e -- tests/e2e/smoke.spec.ts --headed
 # Interactive UI: manually open the localhost address printed by the runner.
 npm run test:e2e:ui -- tests/e2e/smoke.spec.ts
 
-# Optional isolation for Node tests, type checks, and deploy-script tests.
+# Node tests, type checks, and deploy-script tests use the same required isolation.
 npm run test:sandbox -- unit tests/unit/build/browser-test-sandbox.test.ts
 npm run test:sandbox -- check
 npm run test:sandbox -- deploy
@@ -64,6 +64,16 @@ internal port 4173. Normal runs expose no ports. UI mode exposes only an ephemer
 localhost port. Parallel worktrees cannot reuse each other's preview servers or
 overwrite each other's reports. Image builds share the VM's resource ceiling.
 
+For a large full-suite sweep, Playwright's `--shard=1/6` (through `--shard=6/6`)
+can divide the suite between independent sandbox invocations. Give the backing
+VM enough resources for every concurrent container: each runner can use up to
+two CPUs and four GiB, so six concurrent shards need a dedicated larger VM
+(the November 13 audit used 12 CPUs and 32 GiB). Select it explicitly with
+`MANKUNKU_DOCKER_CONTEXT`. Do not overlap full unit tests and real-time audio
+browser tests on the default two-CPU VM: scheduler starvation can stop a take
+and invalidate timing results. Keep each shard's recovered report and combine
+all six outcomes before calling the sweep complete.
+
 Reports, traces, screenshots and videos are copied to the printed
 `test-results/sandbox/<run-id>/` directory on success, failure and interruption.
 Open a saved report explicitly with:
@@ -80,8 +90,8 @@ normal cache management. Do not prune containers belonging to another session.
 Direct host `npx playwright test` is blocked in `playwright.config.ts`, including
 headless runs and `CI=1`. A missing Docker engine fails with setup guidance and
 never falls back to the host. Browser tests are admitted inside Linux Docker
-containers or CircleCI Linux executors. Node-only Vitest and Python tests can
-still run locally. For ad-hoc browser scripts and agent-driven UI verification,
+containers or CircleCI Linux executors. Node-only Vitest tests must use the sandbox too. Python validation runs in a
+Linux container; a host virtual environment is insufficient. For ad-hoc browser scripts and agent-driven UI verification,
 use the sandbox too; do not bypass the guard or launch host browsers.
 
 The `webServer` block builds and serves with `PLAYWRIGHT=1`, activating the
@@ -160,7 +170,10 @@ The guard is automatic: every test that uses the fixture `test` fails on any une
 ## Skips and local-only specs
 
 - Transport-driven specs (ear training, lick practice, tune practice, record-a-lick) skip on headless Linux Firefox in CI, where `Tone.start()` hangs without an audio device. The sandbox uses the same skips; Chromium and WebKit still exercise those flows.
-- Three artifact producers are selected only by the diagnostics config (see below). The backing WAV regression is part of normal CI with deterministic external samples.
+- Explicit `*.diagnostic.ts` files are selected only by the diagnostics config (see below). These include artifact producers and native sample assertions.
+- `backing-keyboard-level.diagnostic.ts` and `backing-keyboard-phrasing.diagnostic.ts` calibrate real CDN samples through explicit diagnostics; ordinary CI does not select them.
+- Native ownership cancellation, fixed bass/piano stems and rolling live-output checks run in normal CI with deterministic buffers/samples. Linux Firefox still skips real-time playback, and its offline context does not support the mid-render suspension used by the cancellation test.
+- `musicality-playback-budget.spec.ts` intentionally targets WebKit only.
 
 ## Debugging tips
 
@@ -182,10 +195,12 @@ npm run test:sandbox -- diagnostics record-omr-fixtures --project=chromium
 npm run test:sandbox -- diagnostics backing-bass-selection --project=firefox
 npm run test:sandbox -- diagnostics backing-pitched-timing --project=webkit
 npm run test:sandbox -- diagnostics musicality-native-audio --project=chromium
+npm run test:sandbox -- diagnostics backing-keyboard-level --project=chromium
+npm run test:sandbox -- diagnostics backing-keyboard-phrasing --project=chromium
 ```
 
 Inputs must be repository-relative directories. Outputs are stored under the recovered sandbox artifacts; review generated files before replacing a committed fixture. The calibration/recording commands collect artifacts; the native bass-selection, pitched-timing and musicality-audio diagnostics assert behavior using real CDN recordings. All require explicit diagnostic selection, and all engines remain selectable. Linux Firefox real-time audio cases retain the documented device skip; offline bass-selection remains runnable. The normal backing-render regression now supplies audible deterministic CDN samples and asserts output over the whole form, including isolated stems.
 
-See the [maintenance audit](../../docs/maintenance/2026-11-08-audit.md) for the remaining platform skips and expected failures.
+See the [maintenance audit](../../docs/maintenance/2026-11-13-audit.md) for the remaining platform skips and expected failures.
 
 The automatic console guard also watches additional tabs and popups in the test context. `console-errors.spec.ts` verifies that errors from a second tab are retained even after it closes.

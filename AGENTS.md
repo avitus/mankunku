@@ -48,6 +48,11 @@ seven-file increment did not revisit it. See
 
 ## Commands
 
+For Sentry diagnosis, retrieve Doppler project `mankunku`, config `dev`, secret
+`SENTRY_TOKEN` and map it to `SENTRY_AUTH_TOKEN` for the diagnostic tool. Do not
+print the value. Check this source before asking the owner for credentials;
+the local source-map token may have only `org:ci` and cannot read issues.
+
 ```sh
 npm run dev            # Dev server at http://localhost:5173
 npm run build          # Production build (SvelteKit Node adapter → build/)
@@ -238,3 +243,15 @@ A uv-managed Python 3.12 project (own `pyproject.toml`/`uv.lock`/`.venv`) that t
 ## Maintenance audit (2026-11-08)
 
 See `docs/maintenance/2026-11-08-audit.md` for skipped coverage, package limitations, branch cleanup and validation evidence. `*.diagnostic.ts` browser recording tools run only with `npm run test:sandbox -- diagnostics <name> --project=<engine>` (without `--project` every engine runs); their outputs are recovered artifacts. They are not test-suite passes. Retain migration/backfill paths needed by returning devices and `static/sw.js`'s unregistering worker.
+
+
+## Maintenance audit follow-through (2026-11-13)
+
+See `docs/maintenance/2026-11-13-audit.md` for the current maintenance evidence.
+Do not equate expected failures with paused tests, or local native-sample coverage
+with hosted CI coverage. Keep deterministic browser rendering/cancellation checks
+in CI; reserve real-CDN calibration for explicitly documented sandbox runs.
+Published documentation links must resolve through `DOC_TREE`; link repository-only
+guides to GitHub. Retain returning-device migrations until evidence establishes
+that their input states cannot recur. Sentry source-map upload permission does not
+imply event-read access; a 403 leaves production diagnosis unresolved.

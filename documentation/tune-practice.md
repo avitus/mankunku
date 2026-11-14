@@ -18,7 +18,7 @@ So a tune in F that has a ii-V into Bb in bar 5 gives you an insertion point in 
 
 Within the available space, longer useful windows take precedence and shorter compatible chord windows fill gaps. A single-chord lick must fit within the chord's duration. All suggestions come from your own book: written, recorded or adopted licks, plus your practice set and practiced licks. Suggest mode still requires readiness in that key at the chosen tempo. If nothing is ready, the progression or harmonic-region band remains visible without a lick name. Windows and fallback suggestions stay inside the form actually played; they never extend into the returning head.
 
-For the exact analysis rules and acceptance cases, see [Harmonic Analysis](./architecture/harmonic-analysis.md).
+For the exact analysis rules and acceptance cases, see [Harmonic Analysis](https://github.com/avitus/mankunku/blob/main/documentation/architecture/harmonic-analysis.md).
 
 The setup screen tells you what it found before you start: *"6 insertion points: 3× Short ii-V-I (Maj), 2× Long Turnaround, 1× Blues."* If it finds nothing it says so — you can still play along, but there'll be nothing scored.
 

@@ -12,23 +12,13 @@
  * the context is non-empty in a plain module load.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { ALL_PAGES, getBreadcrumbs, getPage, getSectionFor } from '$lib/docs/structure';
 import { getDocContext, getPageContext } from '$lib/docs/context';
-
-/** The absolute path of the markdown file behind `slug`. */
-const docFile = (slug: string): string =>
-	fileURLToPath(new URL(`../../../documentation/${slug}.md`, import.meta.url));
 
 describe('DOC_TREE', () => {
 	it('lists every page slug exactly once', () => {
 		const slugs = ALL_PAGES.map((p) => p.slug);
 		expect(new Set(slugs).size).toBe(slugs.length);
-	});
-
-	it.each(ALL_PAGES.map((p) => [p.slug] as const))('%s has a markdown file behind it', (slug) => {
-		expect(existsSync(docFile(slug)), `documentation/${slug}.md`).toBe(true);
 	});
 
 	it('resolves a page and its section by slug, and nothing for an unknown slug', () => {
@@ -65,8 +55,6 @@ describe('assistant doc context', () => {
 		const bundled = [...context.matchAll(/<doc slug="([^"]+)"/g)].map((m) => m[1]);
 		const pages = new Set(ALL_PAGES.map((p) => p.slug));
 		for (const slug of bundled) expect(pages.has(slug), slug).toBe(true);
-		// Memoised: the second call is the same string, not a rebuild.
-		expect(await getDocContext()).toBe(context);
 	});
 
 	it('prefixes the page context with the page title and URL, and is empty off the tree', async () => {

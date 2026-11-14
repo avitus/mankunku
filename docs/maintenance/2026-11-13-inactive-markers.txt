@@ -1,0 +1,103 @@
+tests/e2e/accompaniment-release.spec.ts:29:requireRealtimeAudio(page);
+tests/e2e/backing-bass-selection.diagnostic.ts:32:test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'isolated native-audio diagnostic only');
+tests/e2e/backing-bass-selection.diagnostic.ts:146:test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'isolated native-audio diagnostic only');
+tests/e2e/backing-drum-timing.spec.ts:7:requireRealtimeAudio(page);
+tests/e2e/backing-native-arming.spec.ts:8:test.skip(scenario === 'cancel-during' && browserName === 'firefox', 'Firefox OfflineAudioContext does not implement suspend; other native ownership cases still run');
+tests/e2e/backing-native-arming.spec.ts:103:requireRealtimeAudio(page);
+tests/e2e/backing-pitched-timing.diagnostic.ts:6:test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'isolated native-audio diagnostic only');
+tests/e2e/backing-pitched-timing.diagnostic.ts:8:requireRealtimeAudio(page);
+tests/e2e/backing-render-audio.spec.ts:16:test.skip(browserName === 'firefox', 'Tone-less render path — verify on Chromium and WebKit, the engines with divergent audio stacks');
+tests/e2e/backing-render-audio.spec.ts:137:test.skip(browserName === 'firefox', 'compare Chromium and WebKit sample decoding');
+tests/e2e/ear-training-audio.spec.ts:9:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI && process.env.MANKUNKU_TEST_AUDIO_SINK !== '1', 'Headless Linux Firefox has no audio output device');
+tests/e2e/ear-training.spec.ts:60:test.skip(
+tests/e2e/ear-training.spec.ts:120:test.skip(
+tests/e2e/ear-training.spec.ts:214:test.skip(
+tests/e2e/fixtures/realtime-audio.ts:10:export function requireRealtimeAudio(page: Page): void {
+tests/e2e/fixtures/realtime-audio.ts:11:test.skip(
+tests/e2e/lick-detail.spec.ts:179:test.skip(
+tests/e2e/lick-practice-daily-report.spec.ts:18:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-daily-report.spec.ts:67:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-daily-report.spec.ts:95:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-deep.spec.ts:17:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-deep.spec.ts:114:test.skip(
+tests/e2e/lick-practice-deep.spec.ts:217:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-deep.spec.ts:234:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-focus-drill.spec.ts:22:test.skip(
+tests/e2e/lick-practice-focus-target.spec.ts:37:test.skip(
+tests/e2e/lick-practice-lead-sheet.spec.ts:20:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-lead-sheet.spec.ts:114:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-lead-sheet.spec.ts:145:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-lead-sheet.spec.ts:207:test.skip(
+tests/e2e/lick-practice-session.spec.ts:29:test.skip(
+tests/e2e/lick-practice-session.spec.ts:84:test.skip(
+tests/e2e/lick-practice-session.spec.ts:155:test.skip(
+tests/e2e/musicality-comparison.spec.ts:64:requireRealtimeAudio(page);
+tests/e2e/musicality-comparison.spec.ts:184:requireRealtimeAudio(page);
+tests/e2e/musicality-comparison.spec.ts:212:requireRealtimeAudio(page);
+tests/e2e/musicality-comparison.spec.ts:243:requireRealtimeAudio(page);
+tests/e2e/musicality-desk.spec.ts:75:requireRealtimeAudio(page);
+tests/e2e/musicality-ensemble-colors.spec.ts:10:requireRealtimeAudio(page);
+tests/e2e/musicality-feedback-save.spec.ts:21:requireRealtimeAudio(page);
+tests/e2e/musicality-inner-motion.spec.ts:10:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:186:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:420:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:586:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:618:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:648:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:683:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:721:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:753:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:807:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:968:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:1010:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:1076:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:1172:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:1250:requireRealtimeAudio(page);
+tests/e2e/musicality-listening.spec.ts:1344:requireRealtimeAudio(page);
+tests/e2e/musicality-mixer.spec.ts:66:requireRealtimeAudio(page);
+tests/e2e/musicality-mixer.spec.ts:108:requireRealtimeAudio(page);
+tests/e2e/musicality-native-audio.diagnostic.ts:12:test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'local isolated native-sample diagnostic only');
+tests/e2e/musicality-native-audio.diagnostic.ts:46:test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'local isolated native-sample diagnostic only');
+tests/e2e/musicality-native-audio.diagnostic.ts:47:requireRealtimeAudio(page);
+tests/e2e/musicality-performance-arc.spec.ts:120:requireRealtimeAudio(page);
+tests/e2e/musicality-phrase-colors.spec.ts:9:requireRealtimeAudio(page);
+tests/e2e/musicality-phrase-dialogue.spec.ts:9:requireRealtimeAudio(page);
+tests/e2e/musicality-playback-budget.spec.ts:14:test.skip(browserName !== 'webkit', 'WebKit-specific budget regression; other engines have full-tune coverage.');
+tests/e2e/musicality-playback-budget.spec.ts:15:requireRealtimeAudio(page);
+tests/e2e/musicality-trio-conversation.spec.ts:9:requireRealtimeAudio(page);
+tests/e2e/record-lick.spec.ts:16:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/recorder-editor-pitch.spec.ts:8:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/solo-listening.spec.ts:48:requireRealtimeAudio(page);
+tests/e2e/solo-listening.spec.ts:251:requireRealtimeAudio(page);
+tests/e2e/tricks.spec.ts:247:test.skip(
+tests/e2e/tricks.spec.ts:280:test.skip(
+tests/e2e/tune-desk.spec.ts:125:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+tests/e2e/tune-desk.spec.ts:153:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+tests/e2e/tune-endings-a-train.spec.ts:386:test.skip(
+tests/e2e/tune-harmonic-regions.spec.ts:47:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-head-layout.spec.ts:14:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam-endings.spec.ts:25:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam-endings.spec.ts:80:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam-endings.spec.ts:103:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam.spec.ts:42:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam.spec.ts:87:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-practice-setup.spec.ts:129:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-practice.spec.ts:312:test.skip(
+tests/e2e/tune-practice.spec.ts:346:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-practice.spec.ts:385:test.skip(
+tests/e2e/tune-practice.spec.ts:429:test.skip(
+tests/e2e/tune-practice.spec.ts:479:test.skip(
+tests/e2e/tune-practice.spec.ts:519:test.skip(
+tests/e2e/tune-practice.spec.ts:628:test.skip(
+tests/e2e/tune-session-options.spec.ts:78:test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/integration/pdf-vs-musescore.test.ts:55:* When an `it.fails` starts passing, vitest flags it — promote it to `it`.
+tests/integration/pdf-vs-musescore.test.ts:156:const target = (id: string) => (defects.has(id) ? it.fails : it);
+tests/integration/pdf-vs-musescore.test.ts:241:const target = (id: string) => (defects.has(id) ? it.fails : it);
+tests/integration/pitch-replay.test.ts:3029:it.fails('does not split the held G3 at the beat-4 click (OPEN)', async () => {
+tests/integration/pitch-replay.test.ts:3627:it.fails(`${take.file} (lick practice after a tempo change: the stamp is off the tick grid by stamp mod beat)`, () => {
+tests/integration/pitch-replay.test.ts:3837:it.fails("concert C replayed: the pairing holds on the recording's own segmentation (a 50 ms F# from the slur sits in the F's slot)", async () => {
+tests/unit/audio/tick-redelivery.test.ts:117:it.fails('guarded, a looping transport plays its loop-start events once per pass (OPEN)', async () => {
+omr/tests/integration/test_benchmark_integration.py:24:pytest.skip("legato extra not installed")
+omr/tests/integration/test_benchmark_integration.py:26:pytest.skip("HF auth required (accept terms + HF_TOKEN / `hf auth login`)")
+research/audio-scoring/ts/tuning-cue.test.ts:44:it.skipIf(!existsSync(ROWS))('writes results/tuning_cue.md', () => {
+research/audio-scoring/ts/tuning-cue.test.ts:105:it.skipIf(!existsSync(ROWS))('writes results/tuning_cue_hysteresis.md', () => {

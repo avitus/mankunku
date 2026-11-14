@@ -2,21 +2,11 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
-import ts from 'typescript';
+import { resolve } from 'node:path';
+import { browserModule } from './fixtures/browser-module';
 import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 import { backingKeyboardTrim } from '../../src/lib/audio/backing-keyboard-level';
 
-async function browserModule(path: string): Promise<string> {
- let source = ts.transpileModule(await readFile(path, 'utf8'), {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
- }).outputText;
- for (const match of [...source.matchAll(/from ['"](\.\/[^'"]+)['"]/g)]) {
-  const dependency = await browserModule(resolve(dirname(path), `${match[1]}.ts`));
-  source = source.replace(match[0], `from 'data:text/javascript;base64,${Buffer.from(dependency).toString('base64')}'`);
- }
- return source;
-}
 
 test('native bass recordings render through the production loader and gain chain, including Firefox', async ({ page, browserName }) => {
  test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'local isolated native-sample diagnostic only');

@@ -26,7 +26,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Chromatic** — Moving by half steps (semitones). A chromatic line moves note-by-note through every available pitch. *Chromatic approach* means approaching a target note by half step from above or below.
 
-**Circle of fifths** — The ordering of all 12 keys by ascending fifths: C → G → D → A → E → B → F# → C# → G# → D# → A# → F → C. The app unlocks new keys in roughly this order, slightly modified for pedagogical reasons.
+**Circle of fifths** — The ordering of all 12 keys by ascending fifths: C → G → D → A → E → B → F# → C# → G# → D# → A# → F → C. Ear Training unlocks keys around this circle. Lick Practice uses a separate ladder ordered by the written key signature, starting at the lick’s home key.
 
 **Clave** — The two-bar rhythmic key that organises Afro-Cuban and Brazilian music. The app's bossa plays it on the rim of the snare, and picks one side of it (the "3-side" or the "2-side") for the whole phrase rather than flipping mid-stream.
 
@@ -140,7 +140,11 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 ## App-specific
 
-**Backing style** — Which band you practice with: Swing, Bossa Nova, Ballad, or Straight. Chosen per session on the Lick Practice and tune-practice setup screens (not in Settings). Ear Training never plays one.
+**Musicality / Original** — The device-local accompaniment choice in Settings → Rhythm & band. Musicality coordinates the rhythm section across supported 4/4 forms; Original is the alternative and automatic fallback for unsupported passages. The choice applies to the next playback. See [The band](../user-guide.md#the-band).
+
+**Listening lab** — The diagnostic workspace for comparing arrangements and testing the band’s responses to microphone observations. Its live adaptive behavior is separate from ordinary practice, which prepares an arrangement before playback.
+
+**Backing style** — Which band you practice with: Swing, Bossa Nova, Ballad, or Straight. Chosen on the Lick Practice and tune-practice setup screens. Ear Training uses the saved backing style when backing is enabled.
 
 **Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at every strictness level, and nothing else does. There is no user-facing toggle.
 
@@ -172,7 +176,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Practice tag** — The mark that puts a lick in your Side B practice set: **+ Practice** on its card on the Licks page, or *☆ Add to Practice* on its own page. Tagged licks rotate through the keys they've earned in Lick Practice sessions, gaining keys toward all 12. A tagged lick also needs a *progression tag* before a session will schedule it.
 
-**Progression tag** — One of the *Practice over* pills on a lick's page: which of Lick Practice's ten backing progressions the lick is served over. Seeded from the lick's category when you set it (only for progressions the lick's own chord changes fit), never guessed after that; pills that don't fit are greyed out with the reason.
+**Progression tag** — One of the *Practice over* pills on a lick's page: which of Lick Practice's twelve backing progressions the lick is served over. Seeded from the lick's category when you set it (only for progressions the lick's own chord changes fit), never guessed after that; pills that don't fit are greyed out with the reason.
 
 **Proficiency** — Your 1–100 level in each key and each scale type, adjusted from a rolling window of your recent accuracy. Proficiency is what gates ear-training content and drives key/scale unlocks. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
 

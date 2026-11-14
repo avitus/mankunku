@@ -192,7 +192,7 @@ establish relative balance. Full-tune artifacts live at
 the calibrated public-app comparison is at
 `/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-calibration/listen.html`.
 This measured reference-level preservation still needs human ensemble listening;
-see the [development log](/docs/contributing/musicality-progress).
+see the [development log](https://github.com/avitus/mankunku/blob/main/documentation/contributing/musicality-progress.md).
 
 ### Milestone B — 2026-08-06 — verdict: NEW preferred at all three tempi
 

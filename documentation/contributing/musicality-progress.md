@@ -1875,3 +1875,21 @@ The P14 ledger now includes both native 0.7 articulation and 0.11 short/held phr
 **Tests.** `backing-rolling-renderer.test.ts` adds four contracts, among them 4,000 seeded combinations of generation time and clock behaviour: every accepted bar has more than 135 ms of real lead and is armed at its written time, and no bar with real lead to spare is refused. With the `unseen` term replaced by zero the stalled-clock contract and that property both fail. Two older assertions pinned the fixed cap (`backing-rolling-renderer.test.ts`, `backing-rolling-native-arming.test.ts`) and now pin the lead-based refusal. In the browser, `musicality-playback-budget` and `musicality-inner-motion` replace "every bar ≤ 25 ms" with `expectEveryBarCommittedWithLead` (`tests/e2e/fixtures/rolling-lead.ts`), which recomputes each bar's real lead from the exported take.
 
 **Limits.** A pause longer than the remaining lead still stops the take; that is the intended fail-closed behaviour. The clock-stall case is proven with a controlled clock, not reproduced in a real browser. Native Safari and human listening acceptance remain pending.
+
+
+## 2026-11-13 — maintenance command update
+
+Historical commands and measurements above remain dated evidence. Keyboard
+calibration now uses explicit diagnostics, preserving the complete release/seed
+matrix and its assertions:
+
+```sh
+npm run test:sandbox -- diagnostics backing-keyboard-level --project=chromium
+npm run test:sandbox -- diagnostics backing-keyboard-phrasing --project=chromium
+```
+
+These require real CDN recordings and are outside normal CI discovery. Native
+ownership cancellation and deterministic stem/rolling-output regressions run in
+normal E2E. See `docs/maintenance/2026-11-13-audit.md` for current validation and
+remaining platform exclusions. Source integration is on main at `ce1e86b5`;
+this audit does not verify production deployment or human musical acceptance.

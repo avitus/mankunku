@@ -52,6 +52,19 @@ skips the upload. In production the runtime secrets come from
 `shared/runtime.env` on the server, loaded by `ecosystem.config.cjs` — never
 from `.env`.
 
+For Sentry issue diagnosis, the owner-managed Doppler secret is `SENTRY_TOKEN`
+in project `mankunku`, configuration `dev`. Pass it to diagnostic tools as
+`SENTRY_AUTH_TOKEN` without printing it or writing it into tracked files. A
+source-map upload token with only `org:ci` scope cannot read issues; issue
+diagnosis needs `org:read`, `project:read` and `event:read`. Check this Doppler
+source before requesting credentials again.
+
+When changing the public Supabase settings, restart the dev server or rebuild
+the preview: these settings are compiled into the app, so changing only runtime
+environment variables cannot repair an existing build. Stop a preview before
+rebuilding its output directory. Automated checks use isolated sandbox snapshots,
+which keep another build from removing files underneath a running server.
+
 ### Optional — the local Supabase stack
 
 Only needed when working on **auth, cloud sync, or anything touching the

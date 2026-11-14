@@ -134,10 +134,10 @@ test('coordinated bounce and golden-JSON render produce non-silent WAVs', async 
 });
 
 test('isolated bass and piano both render audible samples throughout a fixed phrase', async ({ page, browserName }) => {
-	test.skip(!!process.env.CI, 'needs CDN instrument fetches — local diagnostic only');
 	test.skip(browserName === 'firefox', 'compare Chromium and WebKit sample decoding');
 	test.setTimeout(300_000);
 	await seedOnboardedAnonymous(page);
+	await stubCdnInstrumentSamples(page, audibleSample());
 	await page.addInitScript(() => {
 		const original = URL.createObjectURL.bind(URL);
 		(window as unknown as { __stemBlobs: Blob[] }).__stemBlobs = [];
