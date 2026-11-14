@@ -17,6 +17,24 @@ function html(licks: LickReport[], progress: LickPracticeProgress = {}, steps: N
 }
 
 describe('session key map rendering', () => {
+	it.each([
+		[.98, 'gold', true], [.95, 'gold', true], [.949, 'silver', true],
+		[.88, 'silver', true], [.85, 'silver', true], [.849, 'bronze', true],
+		[.72, 'bronze', true], [.7, 'bronze', true], [.699, 'teal', false],
+		[.55, 'teal', false], [.549, 'deep', false], [.48, 'deep', false]
+	] as const)('uses the circle performance tier for score %s', (score, tier, medal) => {
+		const row = lick('performance', ['C']);
+		row.keys[0].score = score;
+		const markup = html([row]);
+		expect(markup).toContain(`data-accuracy-tier="${tier}"`);
+		expect(markup).toContain(`--tone: var(--accuracy-${tier})`);
+		if (medal) expect(markup).toContain(`lp-medal-chip lp-chip-${tier}`);
+		else {
+			expect(markup).toContain('flat-score');
+			expect(markup).not.toContain('lp-medal-chip');
+		}
+	});
+
 	it('names the recommended and alternative drill buttons accessibly', () => {
 		const steps: NextStep[] = ['first', 'second'].map(lickId => ({
 			kind: 'drill-weak-key', headline: `Drill ${lickId}`, reason: 'Keep practising',

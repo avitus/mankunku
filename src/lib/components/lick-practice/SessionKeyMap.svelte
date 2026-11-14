@@ -8,7 +8,8 @@
 	import { circleOfFourths } from '$lib/music/keys';
 	import { keyLabel } from '$lib/music/notation';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { KEY_FLOOR_THRESHOLD, KEY_PROFICIENT_THRESHOLD, NEW_LICK_DEFAULT_TEMPO } from '$lib/persistence/lick-practice-store';
+	import { NEW_LICK_DEFAULT_TEMPO } from '$lib/persistence/lick-practice-store';
+	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { scoreToGrade } from '$lib/scoring/grades';
 
 	let { report, progress, plan, instrument, steps, onstart, ondone, onreset, confirmingResetId = null,
@@ -46,7 +47,7 @@
 		<!-- Keyboard users need to scroll the table without starting a session. -->
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 		<div class="map-scroll" role="region" aria-label="Scores by lick and key" tabindex="0">
-			<table style:min-width="{Math.max(550, 240 + keys.length * 86)}px">
+			<table style:min-width="{Math.max(550, 220 + keys.length * 75)}px">
 				<caption class="sr-only">This session's accuracy with each key's rolling score. Select a score to start Deep Practice in that key.</caption>
 				<thead><tr><th scope="col">Lick</th>{#each keys as key}<th scope="col">{label(key, headerMode)}</th>{/each}</tr></thead>
 				<tbody>{#each report.licks as lick, rowIndex (`${lick.lickId}:${rowIndex}`)}
@@ -66,7 +67,10 @@
 						{@const rolling = stored !== undefined && Number.isFinite(stored) ? stored : undefined}
 						{@const keyName = label(key, mode(lick))}
 						<td>{#if result}
-							<button class="score-cell" class:weak={result.score < KEY_FLOOR_THRESHOLD} class:building={result.score >= KEY_FLOOR_THRESHOLD && result.score < KEY_PROFICIENT_THRESHOLD} class:passed={result.score >= KEY_PROFICIENT_THRESHOLD}
+							{@const tier = accuracyTierInfo(result.score)}
+							{@const medal = tier.key === 'gold' || tier.key === 'silver' || tier.key === 'bronze'}
+							<button class="score-cell {medal ? `lp-medal-chip lp-chip-${tier.key}` : 'flat-score'}"
+								style:--tone={tier.color} data-accuracy-tier={tier.key} title={tier.label}
 								onclick={() => onstart(focusAction(lick, key))}
 								aria-label="Practice {keyName} on {lick.lickName}: {pct(result.score)}% this session, {rolling === undefined ? 'no historical score' : `${pct(rolling)}% rolling score`}">
 								{#if mode(lick) !== headerMode}<span class="cell-key">{keyName}</span>{/if}
@@ -112,17 +116,18 @@
 	.deep-summary { margin-bottom:20px; }
 	.map-scroll { overflow:auto; border:1px solid var(--studio-border); border-radius:7px; background:var(--studio-panel); }
 	table { border-collapse:separate; border-spacing:0; width:100%; table-layout:fixed; }
-	th:first-child { width:240px; text-align:left; padding-left:24px; position:sticky; left:0; z-index:2; background:var(--studio-panel); border-right:1px solid color-mix(in srgb,var(--studio-border) 35%,transparent); }
+	th:first-child { width:220px; text-align:left; padding-left:24px; position:sticky; left:0; z-index:2; background:var(--studio-panel); border-right:1px solid color-mix(in srgb,var(--studio-border) 35%,transparent); }
 	thead th { padding:13px 10px; font:500 14px var(--font-display); color:var(--studio-muted); background:var(--studio-well); }
 	thead th:first-child { font:11px var(--font-display); background:var(--studio-well); z-index:3; }
 	tbody th { padding:18px 12px 18px 24px; font-weight:400; } tbody tr+tr>th,tbody tr+tr>td { border-top:1px solid color-mix(in srgb,var(--studio-border) 25%,transparent); }
-	tbody th>a { font:500 20px/1.3 var(--font-display); text-decoration:none; color:inherit; } tbody th>a:hover { text-decoration:underline; }
-	.tempo { font-size:11px; color:var(--studio-muted); margin-top:7px; }.unlock,.positive { color:var(--color-success); }.negative { color:var(--color-error-text); }
-	td { padding:10px 6px; } td:last-child { padding-right:14px; }
-	.score-cell { --tone:var(--studio-muted); width:100%; min-height:92px; border:1px solid color-mix(in srgb,var(--tone) 35%,transparent); border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px; font-variant-numeric:tabular-nums; background:color-mix(in srgb,var(--tone) 8%,transparent); color:var(--tone); cursor:pointer; }
-	.score-cell.weak { --tone:var(--color-error-text); }.score-cell.building { --tone:var(--color-brass-soft); }.score-cell.passed { --tone:var(--studio-muted); background:color-mix(in srgb,var(--tone) 3%,transparent); }
-	.score-cell>strong { font-size:23px; line-height:1.2; font-weight:600; letter-spacing:-.04em; }.score-cell small { font-size:12px; margin-left:2px; font-weight:400; }
-	.history { color:var(--studio-muted); font-size:10px; line-height:1.3; margin-top:6px; white-space:nowrap; }.history b { font-weight:500; }
+	tbody th>a { font:500 18px/1.3 var(--font-display); text-decoration:none; color:inherit; } tbody th>a:hover { text-decoration:underline; }
+	.tempo { font-size:11px; color:var(--studio-muted); margin-top:7px; }.unlock,.positive { color:var(--color-success); }.negative { color:var(--accuracy-teal); }
+	td { padding:10px 3px; } td:last-child { padding-right:6px; }
+	.score-cell { width:100%; min-height:92px; border:1px solid transparent; border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px 5px; font-variant-numeric:tabular-nums; cursor:pointer; }
+	.score-cell.flat-score { background:color-mix(in srgb,var(--tone) 20%,var(--color-bg)); color:var(--tone); }
+
+	.score-cell>strong { font-size:21px; line-height:1.2; font-weight:600; letter-spacing:-.04em; }.score-cell small { font-size:12px; margin-left:2px; font-weight:400; }
+	.history { color:var(--studio-muted); font-size:9px; line-height:1.3; margin-top:6px; white-space:nowrap; }.history b { font-weight:500; }
 	.track { width:100%; height:3px; background:color-mix(in srgb,var(--studio-muted) 20%,transparent); position:relative; margin-top:12px; }.track>span { display:block; background:currentColor; height:100%; opacity:.65; }.track>i { position:absolute; top:-3px; width:3px; height:9px; background:var(--studio-text); box-shadow:0 0 0 1px var(--studio-panel); transform:translateX(-2px); border-radius:2px; }
 	.score-cell:hover { border-color:var(--color-brass); }.score-cell:focus-visible { outline:2px solid var(--color-brass); outline-offset:2px; }.cell-key { font-size:10px; margin-bottom:3px; }
 	.unplayed { display:grid; place-items:center; height:92px; color:var(--studio-muted); opacity:.5; }
