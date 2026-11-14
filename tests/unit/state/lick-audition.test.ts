@@ -188,3 +188,13 @@ describe('lick preview lifetime (MANKUNKU-1W)', () => {
 		expect(audition.state.playingId).toBeNull();
 	});
 });
+
+it('previews a source performance at its own tempo without applying swing twice', async () => {
+ const { createLickAudition } = await import('$lib/state/lick-audition.svelte');
+ const audition = createLickAudition();
+ await audition.play(firstLick, {tempo: 137, swing: 0.5});
+ expect(mocks.playPhrase).toHaveBeenLastCalledWith(firstLick, expect.objectContaining({tempo:137,swing:0.5}));
+ await audition.play(secondLick);
+ expect(mocks.playPhrase).toHaveBeenLastCalledWith(secondLick, expect.objectContaining({tempo:100,swing:0.6}));
+ audition.dispose();
+});

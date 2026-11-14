@@ -11,7 +11,7 @@ export function createLickAudition() {
 	let disposed = false;
 
 	/** Toggle this lick, or replace the previous preview, including pending setup. */
-	async function play(phrase: Phrase): Promise<void> {
+	async function play(phrase: Phrase, options: { tempo?: number; swing?: number } = {}): Promise<void> {
 		if (disposed) return;
 		const previous = state.playingId;
 		const request = ++generation;
@@ -31,8 +31,8 @@ export function createLickAudition() {
 			}
 			setMasterVolume(settings.masterVolume);
 			await player.playPhrase(phrase, {
-				tempo: settings.defaultTempo,
-				swing: settings.swing,
+				tempo: options.tempo ?? settings.defaultTempo,
+				swing: options.swing ?? settings.swing,
 				countInBeats: 0,
 				metronomeEnabled: false,
 				metronomeVolume: 0
