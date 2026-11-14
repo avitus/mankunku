@@ -12,7 +12,7 @@
  import type {Solo,Excerpt} from '$lib/lickbrowser/types';
  let corpus: Solo[]=$state.raw([]),results: Excerpt[]=$state.raw([]);
  let progression: ChordProgressionType=$state('ii-V-I-major-long');
- let artist=$state(''),allKeys=$state(true),error=$state(''),loading=$state(true),limit=$state(10),speed=$state(1);
+ let artist=$state(''),error=$state(''),loading=$state(true),limit=$state(10),speed=$state(1);
  const audition=createLickAudition();
  const artists=$derived([...new Set(corpus.map(s=>s.performer))].sort());
  const displayed=$derived(results.slice(0,limit).map(r=>({r,...excerptPhrases(r,getInstrument(),getEffectiveHighestNote())})));
@@ -21,7 +21,7 @@
   const url=URL.createObjectURL(new Blob([JSON.stringify({phrase:score,attribution:'Weimar Jazz Database, Jazzomat Research Project',license:'ODbL 1.0 / DbCL 1.0'},null,2)],{type:'application/json'}));
   const link=document.createElement('a');link.href=url;link.download=`${score.id}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
- function run(){audition.stop();error='';limit=10;try{results=searchProgression(corpus,progression,{artist,transpose:allKeys});}catch(e){results=[];error=e instanceof Error?e.message:'Search failed.';}}
+ function run(){audition.stop();error='';limit=10;try{results=searchProgression(corpus,progression,{artist,transpose:true});}catch(e){results=[];error=e instanceof Error?e.message:'Search failed.';}}
  onMount(()=>{const controller=new AbortController();fetch('/data/weimar-licks.json',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The Weimar collection could not load. Reload to try again.');corpus=await response.json();run();}).catch(e=>{if(!controller.signal.aborted)error=e.message;}).finally(()=>loading=false);return ()=>controller.abort();});
  onDestroy(()=>audition.dispose());
 </script>
@@ -30,7 +30,7 @@
  <form onsubmit={(e)=>{e.preventDefault();run();}}>
   <label for="progression">Progression</label>
   <div class="search"><select id="progression" bind:value={progression} onchange={run}>{#each BROWSER_PROGRESSIONS as item}<option value={item.type}>{item.name}</option>{/each}</select><button disabled={loading}>Find licks</button></div>
-  <div class="options"><label><input type="checkbox" bind:checked={allKeys}/> Find in all keys</label><label>Artist <select bind:value={artist}><option value="">All artists</option>{#each artists as name}<option>{name}</option>{/each}</select></label><label>Playback speed <select bind:value={speed}><option value={1}>Original</option><option value={0.75}>75%</option><option value={0.5}>50%</option></select></label></div>
+  <div class="options"><label>Artist <select bind:value={artist}><option value="">All artists</option>{#each artists as name}<option>{name}</option>{/each}</select></label><label>Playback speed <select bind:value={speed}><option value={1}>Original</option><option value={0.75}>75%</option><option value={0.5}>50%</option></select></label></div>
   <p>Matches use chord families. Each phrase starts over the first chord and lands in the first bar of the final chord. Notation and sound follow your <a href="/settings">instrument settings</a>.</p>
  </form>
  {#if error || audition.state.error}<p role="alert">{error || audition.state.error}</p>{/if}

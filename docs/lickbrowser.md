@@ -1,6 +1,6 @@
 # Native lick browser
 
-`/lickbrowser` searches Weimar solo excerpts using the shared practice progression dropdown and chord families (extensions and slash bass do not constrain matching). It loads the corpus only when visited. Artist filtering, all-key matching, native instrument notation, slower playback and paginated scores are available.
+`/lickbrowser` searches Weimar solo excerpts using the shared practice progression dropdown and chord families (extensions and slash bass do not constrain matching). It loads the corpus only when visited. Artist filtering, automatic all-key matching, native instrument notation, slower playback and paginated scores are available.
 
 The last chord's span is clipped at the first source barline after that chord starts, even when the same chord continues for several bars. A new melodic attack must occur before that barline. The first chord needs an entrance, all three chords of a three-chord cadence need activity, and more than half the excerpt's beat cells must contain activity. A held note crossing into I does not count as a new resolution. Resolution here means arrival during I, not a pitch-class test for a tonic chord tone.
 
