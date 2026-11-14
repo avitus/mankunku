@@ -2,6 +2,7 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Note } from '$lib/types/music';
 import { reduceFraction } from '$lib/music/intervals';
 import { applySwingToBeats, MAX_SWING } from '$lib/music/swing';
+import { articulationGapBeats, tripletAttackEvidence } from '$lib/music/rhythm-evidence';
 
 // Six ticks per quarter: straight eighths use tick 3; triplets use 2 and 4.
 // A tick is a unit of notation. Its elapsed time depends on the swing feel.
@@ -122,14 +123,7 @@ function fitRhythm(detected: DetectedNote[], tempo: number, skipCosts?: number[]
 	const times = input.map(n => Math.max(0, n.onsetTime / beatSec));
 	// Three near-equal attacks spaced by a third or two-thirds of a beat
 	// support a true tuplet. A long–short swung pair alone never qualifies.
-	const tripletEvidence = times.map(() => false);
-	for (let i = 2; i < times.length; i++) {
-		const left = times[i - 1] - times[i - 2];
-		const right = times[i] - times[i - 1];
-		if ([1 / 3, 2 / 3].some(span => Math.abs(left - span) < 0.075 && Math.abs(right - span) < 0.075)) {
-			tripletEvidence.fill(true, i - 2, i + 1);
-		}
-	}
+	const tripletEvidence = tripletAttackEvidence(times);
 	// A long-short pair spanning one beat votes for the first attack
 	// being on the beat. A short-long pair votes for its offbeat. Use
 	// this only when several adjacent attacks establish the swing feel;
@@ -205,7 +199,7 @@ function fitRhythm(detected: DetectedNote[], tempo: number, skipCosts?: number[]
 		const last = input[(following?.index ?? input.length) - 1];
 		const release = (!following && joinEnding ? endingRelease! : last.onsetTime + last.duration) / beatSec;
 		const silence = following ? times[following.index] - release : Infinity;
-		const end = silence > Math.max(0.32, 0.12 / beatSec)
+		const end = silence > articulationGapBeats(tempo)
 			? releaseTick(start, next, release, phase, swing) : next;
 		if (previousEnd < start) notes.push({ pitch: null, offset: fraction(previousEnd), duration: fraction(start - previousEnd) });
 		notes.push({ pitch: input[i].midi, offset: fraction(start), duration: fraction(end - start) });
