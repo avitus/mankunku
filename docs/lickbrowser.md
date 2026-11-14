@@ -21,3 +21,9 @@ The source release 2.1's `db_info` declares ODbL 1.0 for the database and DbCL 1
 Delivery checks: 41 browser-model/range tests and 9 audition lifecycle/tempo tests passed in the Linux sandbox; the Chromium route/engraving/input test passed against the production build. Svelte checks reported no errors or warnings. The regression corpus includes all returned major cadences, including partial opening bars and terminal tonic bars without a following recorded barline.
 
 The dropdown reads every entry of `PROGRESSION_TEMPLATES`, including vamps and the Blues I7 vamp. Short and long variants match the template’s chord-change spacing, not just the same chord names.
+
+## Stealing excerpts
+
+Steal saves the displayed written Phrase through `saveUserLick`, with a new personal ID, source attribution and a stable `wjazzd:<excerpt>:<end-tick>` tag. The existing outbox handles authenticated sync; anonymous users can save locally. A second steal returns the existing personal copy without overwriting edits. Success is shown only after reading back the saved copy. Shared `seedStolenLickPracticeDefaults` seeds practice membership and a fitting progression. These are editable personal copies, not community adoption rows.
+
+Steal validation: the three helper tests cover copying, preserving edits on duplicate attempts, and failed local writes. The browser scenario confirms the Stolen state survives reload and the copy appears in `/licks` (Chromium, Linux sandbox).

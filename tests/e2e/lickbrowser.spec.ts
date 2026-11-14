@@ -19,3 +19,18 @@ test("Chord browser renders native scores and selects supported progressions", a
   await expect(selector).toHaveValue('minor-vamp');
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+test('Steal adds a persistent personal lick and prevents duplicate copies',async({page})=>{
+ await seedOnboardedAnonymous(page);
+ await page.goto('/lickbrowser');
+ const first=page.locator('article').first();
+ await expect(first).toBeVisible({timeout:30000});
+ const name=await first.getByRole('heading').innerText();
+ await first.getByRole('button',{name:'Steal',exact:true}).click();
+ await expect(first.getByRole('button',{name:'Stolen',exact:true})).toBeDisabled();
+ await expect(page.getByRole('link',{name:'View lick',exact:true})).toBeVisible();
+ await page.reload();
+ await expect(page.locator('article').first().getByRole('button',{name:'Stolen',exact:true})).toBeDisabled({timeout:30000});
+ await page.goto('/licks');
+ await expect(page.getByText(name,{exact:false}).first()).toBeVisible({timeout:30000});
+});
