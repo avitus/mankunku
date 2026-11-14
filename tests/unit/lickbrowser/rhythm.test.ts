@@ -5,6 +5,7 @@ import { excerptPhrases } from '$lib/lickbrowser/phrase';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import type { Excerpt, Solo } from '$lib/lickbrowser/types';
 import corpus from '../../../static/data/weimar-licks.json';
+import { BROWSER_PROGRESSIONS, searchProgression } from '$lib/lickbrowser/progressions';
 
 function excerpt(attacks: number[], end: number, durations = attacks.map((at, i) => (attacks[i + 1] ?? end) - at)): Excerpt {
   return {
@@ -20,6 +21,19 @@ function excerpt(attacks: number[], end: number, durations = attacks.map((at, i)
 const rhythm = (r: Excerpt) => writtenNotes(r).map(([at, duration]) => [at, duration]);
 
 describe('Weimar swing notation', () => {
+  it('Fits the corpus across every supported progression without empty or overlapping notation', () => {
+    for (const progression of BROWSER_PROGRESSIONS) {
+      const results = searchProgression(corpus as unknown as Solo[], progression.type);
+      for (const r of results) {
+        const notes = writtenNotes(r);
+        expect(notes.length, `${progression.type}: ${r.id}`).toBeGreaterThan(0);
+        for (let i = 0; i < notes.length; i++) {
+          expect(notes[i][1], r.id).toBeGreaterThan(0);
+          expect(notes[i][0] + notes[i][1], r.id).toBeLessThanOrEqual(notes[i + 1]?.[0] ?? r.notationEnd);
+        }
+      }
+    }
+  });
   it('Writes WJD 1-96 as eighths while retaining its entrance and internal rest', () => {
     const r = search(corpus as unknown as Solo[], parseQuery('Dm7 G7 Cmaj7')).find(r => r.id === '1-96')!;
     const original = structuredClone(r);

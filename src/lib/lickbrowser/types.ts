@@ -1,5 +1,6 @@
-/** Beat ticks are twelfths of a quarter; seconds retain the performed timing. */
-export type MetricNote = [number, number, number, number, number?];
+/** Twelfths of a quarter: written onset, length, grid, pitch, raw length,
+ * optional performed onset and release interpolated on the annotated beat map. */
+export type MetricNote = [number, number, number, number, number?, number?, number?];
 export interface Solo {
   melid: number;
   performer: string;

@@ -1,5 +1,6 @@
 import type { Excerpt, Solo, MetricNote } from "./types";
 import { coversProgression } from "./rhythm";
+import { beatAtTime } from "$lib/music/beat-map";
 const roots: Record<string, number> = {
   C: 0,
   D: 2,
@@ -139,6 +140,9 @@ export function search(
                 solo.metric[k]![2],
                 n[2] + shift,
                 solo.metric[k]![3],
+                (beatAtTime(solo.beats, n[0]) ?? solo.metric[k]![0] / 12) * 12,
+                (beatAtTime(solo.beats, Math.min(end, n[0] + n[1])) ??
+                  (solo.metric[k]![0] + (solo.metric[k]![3] ?? solo.metric[k]![1])) / 12) * 12,
               ],
             ]
           : [],
