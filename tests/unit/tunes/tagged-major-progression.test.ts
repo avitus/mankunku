@@ -5,7 +5,7 @@ import { flattenTune } from '$lib/tunes/flatten';
 import { analyzeHarmony } from '$lib/tunes/harmonic-analysis';
 import { detectProgressions } from '$lib/tunes/progression-detector';
 import { suggestLicksForProgression, type LickMatcherDeps } from '$lib/tunes/lick-matcher';
-import { buildSessionPlan } from '$lib/state/tune-practice-plan';
+import { assignSuggestRotation, buildSessionPlan } from '$lib/state/tune-practice-plan';
 import { practiceVocabulary } from '$lib/tunes/practice-vocabulary';
 import type { Phrase } from '$lib/types/music';
 
@@ -103,4 +103,26 @@ describe('explicit major vocabulary over long ii–V–I', () => {
 		d.progress[major.id].C!.currentTempo = 80;
 		expect(plan(d).flatMap(p => p.suggestions.map(s => s.lickId))).toEqual(['minor', 'dominant']);
 	});
+});
+
+
+it('ranks tagged major lines by actual cadence targets while keeping both in the rotation', () => {
+	const target = { ...major, id: 'major-targets', name: 'Z Target line',
+		notes: [65, 71, 64].map((pitch, i) => ({ pitch, offset: [i, 1] as [number, number], duration: [1, 1] as [number, number] })) };
+	const tension = { ...target, id: 'major-tensions', name: 'A Tension line',
+		notes: [66, 61, 63].map((pitch, i) => ({ pitch, offset: [i, 1] as [number, number], duration: [1, 1] as [number, number] })) };
+	const d = { ...deps([tension, target]), harmony: flat.harmony };
+	const suggestions = suggestLicksForProgression(cadence, d).suggestions;
+	expect(suggestions.map(s => s.lickId)).toEqual([target.id, tension.id]);
+	expect(suggestions[0].phraseFit?.score).toBe(1);
+	expect(suggestions[1].phraseFit?.score).toBe(0);
+	const point = plan(d)[0];
+	const visits = [{ ...point, id: 'first' }, { ...point, id: 'second' }];
+	const picks = assignSuggestRotation(visits);
+	expect(visits.map(p => p.suggestions[picks[p.id]].lickId)).toEqual([target.id, tension.id]);
+	// Supplying no actual timeline preserves the previous, non-phrase ranking.
+	expect(suggestLicksForProgression(cadence, { ...d, harmony: undefined }).suggestions[0].lickId).toBe(tension.id);
+	// A musically supported but unready line still cannot enter automatic selection.
+	d.progress[target.id].C!.currentTempo = 80;
+	expect(suggestLicksForProgression(cadence, d, { playableKeysOnly: true, sessionTempo: 120 }).suggestions.map(s => s.lickId)).toEqual([tension.id]);
 });

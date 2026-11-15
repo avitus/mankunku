@@ -196,6 +196,11 @@ describe('live major-region sessions', () => {
 	});
 
 	it('re-analyzes the closing chart and preserves the returning solo region', () => {
+		const closingLine: Phrase = { ...major, id: 'closing-only', name: 'Closing Line',
+			notes: [60, 64, 67, 60].map((pitch, bar) => ({ pitch, offset: [bar, 1], duration: [1, 1] })) };
+		saveUserLick(closingLine);
+		saveLickPracticeProgress(Object.fromEntries([major.id, closingLine.id].map(id =>
+			[id, { F: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }])));
 		const body = autumn.sections[0].harmony.slice(0, 6);
 		const tune: Tune = sheet({ key: 'F', sections: [section({ label: 'A', bars: 3, repeatStart: true, harmony: body }),
 			section({ label: 'Turnaround', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('D', '7', [0, 1], [1, 1])] }),
@@ -207,6 +212,9 @@ describe('live major-region sessions', () => {
 		expect(regions).toHaveLength(2);
 		expect(regions.map(ip => !!ip.closingPass)).toEqual([false, true]);
 		expect(regions.map(ip => ip.notationTimeRange)).toEqual([{ start: 0, end: 3 }, { start: 0, end: 4 }]);
-		expect(regions.every(ip => ip.suggestions[0]?.lickId === major.id)).toBe(true);
+		expect(regions[0].suggestions.map(s => s.lickId)).toEqual([major.id]);
+		const closingSuggestion = regions[1].suggestions.find(s => s.lickId === closingLine.id)!;
+		// The final F belongs to the closing Fmaj7, not the returning D7 turnaround.
+		expect(closingSuggestion.phraseFit).toMatchObject({ endingOnChordTone: true });
 	});
 });

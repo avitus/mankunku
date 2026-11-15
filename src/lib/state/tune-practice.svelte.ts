@@ -423,19 +423,19 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		// Every detection, overlaps included: the planner keeps the longest
 		// window that has a lick and fills the rest shorter.
 		detect: (f) => detectProgressions(f, transposed),
-		match: (det) => {
+		match: (det, analyzedFlat) => {
 			// Every mode offers only the player's own book: the session names a
 			// lick and shows no notation, so an unpracticed curated lick would be
 			// a title with nothing to play (2026-10-07). Suggest mode cycles the
 			// FULL eligible list, further restricted to licks the user can deploy
 			// at this song's tempo and in this spot's key.
-			const result = suggestLicksForProgression(det, matcherDeps, matchOptions);
+			const result = suggestLicksForProgression(det, { ...matcherDeps, harmony: analyzedFlat.harmony }, matchOptions);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
 		},
 		harmonicAnalysis: {
 			key: transposed.key,
 			analyze: (f) => analyzeHarmony(f, transposed, { reservationScope: 'form' }),
-			match: (region) => suggestLicksForMajorRegion(region, matcherDeps, matchOptions)
+			match: (region, analyzedFlat) => suggestLicksForMajorRegion(region, { ...matcherDeps, harmony: analyzedFlat.harmony }, matchOptions)
 		},
 		// Points mode caps the pick card; the cap applies per chosen window, so
 		// a role's licks are never crowded out by another role's on the same
