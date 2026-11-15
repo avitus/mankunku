@@ -81,7 +81,7 @@ test('Steal waits for cloud hydration before checking for an earlier copy', asyn
  await expect(page.locator('article').first().getByRole('button', { name: 'Steal', exact: true })).toBeEnabled();
 });
 
-test('A copy stolen on another device reads Stolen once its cloud licks arrive', async ({ page, baseURL, browser }) => {
+test('A copy stolen on another device reads Stolen once its cloud licks arrive, even after a failed read', async ({ page, baseURL, browser }) => {
  const cloud = createStubCloud();
  const user = { id: 'aaaaaaaa-0000-4000-8000-000000000307', email: 'steal-twice@e2e.dev' };
  // Device A steals the first excerpt; the copy reaches the shared cloud.
@@ -108,10 +108,16 @@ test('A copy stolen on another device reads Stolen once its cloud licks arrive',
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   let requested = false;
+  // hold → the read is pending; fail → it errors; pass → the stub cloud answers.
+  let mode: 'hold' | 'fail' | 'pass' = 'hold';
   await pageB.route('**/rest/v1/user_licks**', async route => {
    if (route.request().method() === 'GET') {
     requested = true;
-    await held;
+    if (mode === 'hold') await held;
+    if (mode === 'fail') {
+     await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'unavailable' }) });
+     return;
+    }
    }
    await route.fallback();
   });
@@ -121,10 +127,19 @@ test('A copy stolen on another device reads Stolen once its cloud licks arrive',
   await expect(firstB.getByRole('heading')).toHaveText(name);
   await expect.poll(() => requested).toBe(true);
   await expect(firstB.getByRole('button', { name: 'Steal', exact: true })).toBeDisabled();
+  // The read fails: Steal stays paused rather than trusting an empty local book.
+  mode = 'fail';
   release();
+  await expect(pageB.getByRole('alert').filter({ hasText: 'Steal is paused' })).toBeVisible();
+  await expect(firstB.getByRole('button', { name: 'Steal', exact: true })).toBeDisabled();
+  // The cloud recovers: a retry finds device A's copy.
+  mode = 'pass';
+  await pageB.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(firstB.getByRole('button', { name: 'Stolen', exact: true })).toBeDisabled();
+  await expect(pageB.getByRole('alert').filter({ hasText: 'Steal is paused' })).toHaveCount(0);
   expect(cloud.rows('user_licks').filter(row => !row.deleted_at)).toHaveLength(1);
-  expect(errors, errors.join('\n')).toEqual([]);
+  // The browser reports each refused read; nothing else may error.
+  expect(errors.filter(text => !text.includes('status of 500')), errors.join('\n')).toEqual([]);
  } finally {
   await contextB.close();
  }

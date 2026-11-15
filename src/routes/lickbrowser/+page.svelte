@@ -9,7 +9,8 @@
  import type {ChordProgressionType} from '$lib/types/lick-practice';
  import {excerptPhrases} from '$lib/lickbrowser/phrase';
  import type {Phrase} from '$lib/types/music';
- import {getUserLicksLocal} from '$lib/persistence/user-licks';
+ import {page} from '$app/state';
+ import {getUserLicksLocal,initUserLicksFromCloud} from '$lib/persistence/user-licks';
  import {whenHydrated} from '$lib/state/hydration';
  import {excerptReference,stealExcerpt} from '$lib/lickbrowser/steal';
  import type {Solo,Excerpt} from '$lib/lickbrowser/types';
@@ -21,10 +22,26 @@
  const displayed=$derived(results.slice(0,limit).map(r=>({r,...excerptPhrases(r,getInstrument(),getEffectiveHighestNote())})));
  $effect(()=>{void settings.instrumentId;void settings.highestNote;void speed;untrack(()=>audition.stop());});
  let personalLicks: Phrase[]=$state([]);
- /** Steal checks the local book for an earlier copy, so it waits for cloud
-  * hydration to land on this device. A failed hydration settles too (the
-  * layout swallows it) and Steal then runs on local state, as every route does. */
+ /** Steal checks the local book for an earlier copy, so it waits until that
+  * book has been checked against the account's cloud licks (CodeRabbit on #306). */
  let licksReady=$state(false);
+ /** The cloud read failed: Steal stays paused, since a copy saved on another
+  * device may be missing here, until a retry succeeds. */
+ let licksSyncFailed=$state(false);
+ let live=true;
+ /** After the layout's hydration settles, reconcile the book with the cloud
+  * once more (as /licks does) and learn whether the read succeeded: the
+  * layout swallows a failed read, which would leave Steal blind to a
+  * cloud-only copy. Anonymous players have no cloud and are ready at once. */
+ async function checkPersonalLicks(): Promise<void> {
+  licksReady=false;licksSyncFailed=false;
+  await whenHydrated();
+  const supabase=page.data?.supabase,session=page.data?.session;
+  const ok=supabase&&session?await initUserLicksFromCloud(supabase):true;
+  if(!live)return;
+  personalLicks=getUserLicksLocal();
+  licksReady=ok;licksSyncFailed=!ok;
+ }
  let stolen: Phrase | null=$state(null);
  /** Saves an excerpt to the player's own licks and refreshes the personal list. */
  function steal(score: Phrase, excerpt: Excerpt){
@@ -35,7 +52,7 @@
  }
  /** Searches the corpus for the chosen progression and artist, resetting the page size. */
  function run(){audition.stop();error='';limit=10;try{results=searchProgression(corpus,progression,{artist,transpose:true});}catch(e){results=[];error=e instanceof Error?e.message:'Search failed.';}}
- onMount(()=>{personalLicks=getUserLicksLocal();let live=true;whenHydrated().then(()=>{if(!live)return;personalLicks=getUserLicksLocal();licksReady=true;});const controller=new AbortController();fetch('/data/weimar-licks.json',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The Weimar collection could not load. Reload to try again.');corpus=await response.json();run();}).catch(e=>{if(!controller.signal.aborted)error=e.message;}).finally(()=>loading=false);return ()=>{live=false;controller.abort();};});
+ onMount(()=>{personalLicks=getUserLicksLocal();void checkPersonalLicks();const controller=new AbortController();fetch('/data/weimar-licks.json',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The Weimar collection could not load. Reload to try again.');corpus=await response.json();run();}).catch(e=>{if(!controller.signal.aborted)error=e.message;}).finally(()=>loading=false);return ()=>{live=false;controller.abort();};});
  onDestroy(()=>audition.dispose());
 </script>
 <svelte:head><title>Lick Browser — Mankunku</title></svelte:head>
@@ -47,6 +64,7 @@
   <p>Matches use chord families. Each phrase starts over the first chord and lands in the first bar of the final chord. Notation and sound follow your <a href="/settings">instrument settings</a>.</p>
  </form>
  {#if error || audition.state.error}<p role="alert">{error || audition.state.error}</p>{/if}
+ {#if licksSyncFailed}<p role="alert">Your licks could not be checked against your account, so Steal is paused to avoid saving a second copy. <button type="button" onclick={()=>void checkPersonalLicks()}>Try again</button></p>{/if}
  <p role="status">{#if stolen}Added to your licks. <a href={`/licks/${stolen.id}`}>View lick</a>{/if}</p>
  <p role="status">{loading?'Loading collection…':`${results.length} matching excerpts`}</p>
  {#each displayed as {r,score,performance} (r.id)}
