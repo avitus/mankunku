@@ -1880,3 +1880,66 @@ describe('segmentNotes: second-harmonic (octave-up) locks at the edges of a note
 		});
 	});
 });
+
+/**
+ * 2026-11-15 "through-the-blue-to-the-root-2": the envelope tier found a
+ * tongued F3 repeat, and the onset guard then dropped the repeat's first five
+ * frames as the previous note's pitch. With no onset for the G3 that follows
+ * 0.19 s later, the two F frames left never made a stable run, the G took the
+ * segment and the repeat was scored MISSED.
+ */
+describe('segmentNotes: a tongued repeat too short to outlast the onset guard', () => {
+	/**
+	 * F3 for half a second, the F again for seven frames, then G3 with no
+	 * onset of its own. `stop` collapses the envelope floor over the last
+	 * 100 ms of the first F, as a tongue does.
+	 */
+	function take(stop: boolean): PitchReading[] {
+		const out: PitchReading[] = [];
+		for (let i = 0; i < 30; i++) out.push({ ...makeReading(53, i / 60), rmsMin: stop && i >= 24 ? 0.02 : 0.09 });
+		for (let i = 30; i < 37; i++) out.push({ ...makeReading(53, i / 60), rmsMin: 0.09 });
+		for (let i = 40; i < 70; i++) out.push({ ...makeReading(55, i / 60), rmsMin: 0.08 });
+		return out;
+	}
+	const onset = 30 / 60 - 0.003;
+	const duration = 70 / 60;
+	/** Segment with `onset` as a re-articulation, the way the app passes one. */
+	const segment = (readings: PitchReading[]) =>
+		segmentNotes(readings, [0, onset], duration, undefined, undefined, undefined, [0], undefined, [onset]);
+
+	it('keeps the repeat when the envelope stopped and restarted across the onset', () => {
+		const notes = segment(take(true));
+		expect(notes.map((n) => n.midi)).toEqual([53, 53, 55]);
+		expect(notes[1].onsetTime).toBeCloseTo(onset, 6);
+		// The G starts where its pitch does, not at the repeat's onset.
+		expect(notes[2].onsetTime).toBeCloseTo(40 / 60, 6);
+	});
+
+	it('still guards when the floor never stopped — the old pitch gliding into a slur is stale', () => {
+		const notes = segment(take(false));
+		expect(notes.map((n) => n.midi)).toEqual([53, 55]);
+		expect(notes[1].onsetTime).toBeCloseTo(onset, 6);
+	});
+
+	it('still guards when fewer than three frames of the old pitch sit inside the guard window', () => {
+		// Two F frames inside the 80 ms window and one after it. Kept, the three
+		// would make a stable run and a note; two frames are too few to say the
+		// floor restarted, so the guard drops them and one stray frame is left.
+		const kept = new Set([33, 34, 35].map((i) => i / 60));
+		const readings = take(true).filter((r) => r.midi !== 53 || r.time < 0.5 || kept.has(r.time));
+		expect(segment(readings).map((n) => n.midi)).toEqual([53, 55]);
+	});
+
+	it('still guards a worklet onset that no re-articulation backs — it says nothing about pitch', () => {
+		const notes = segmentNotes(take(true), [0, onset], duration, undefined, undefined, undefined, [0, onset], undefined, []);
+		expect(notes.map((n) => n.midi)).toEqual([53, 55]);
+	});
+
+	it('keeps the guard for readings that carry no envelope floor', () => {
+		const readings = take(true).map((r) => {
+			const { rmsMin: _floor, ...rest } = r;
+			return rest;
+		});
+		expect(segment(readings).map((n) => n.midi)).toEqual([53, 55]);
+	});
+});

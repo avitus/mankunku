@@ -6301,3 +6301,16 @@ Started as "handle the remaining review comments on PR #304 and merge". The merg
 - **Correction to what I told Andy:** I first recommended dropping the 25 ms stop because the deadline check follows it. Andy asked me to check again. Every deadline check reads `AudioContext.currentTime`, which a browser may hold still through the task that generated the bar, so the wall-clock guard was the only cover for a stalled clock. The rule that shipped charges unseen generation time against the lead instead. It accepts the CI pauses and is stricter than before in the stalled case (135 ms worst-case lead, was 110).
 - **Not verified:** the stalled-clock case in a real browser (controlled clock only), native Safari, and anything by ear.
 - **Also:** I pruned Docker Desktop's dangling images and build cache by mistake while chasing a full sandbox VM.
+
+## 2026-11-14 — Five missed repeats in one session (takes dated 2026-11-15 UTC)
+
+Andy flagged five ear-training takes, all "Missed articulation": Blue Note Step Up twice, Through the Blue to the Root three times. Asked: add to the regression suite, diagnose, fix, push to dev.
+
+- **Reproduced:** all five saved scores exactly (0.781–0.790, 4 of 5), from the saved readings and from the WAV.
+- **One shape, four mechanisms:** each repeat is a swung eighth that lands softer than the note before it (0.79–0.90) and is over within 0.2 s. The envelope tier's recovery wanted 0.9 of the old level or a level held for 100–400 ms. One take's reed reset was judged against a run median its own click had polluted. One re-attack spoke two stray frames that cut the run at the bottom of the dip. One repeat was found and then discarded by the onset guard as "stale" frames of the previous note.
+- **Fixed in `note-segmenter.ts`:** `floorDipUndone`, a pre-dip baseline for `resetsReed`'s deep path, `findSameMidiRuns` continuing across an excursion too short to be a note, and `envelopeRestartsAt` for the onset guard.
+- **Result:** five takes read 5 of 5 in all nine variants each. The other 49 ear-training takes × nine variants and the 14 recorder takes are byte-identical.
+- **Two wrong turns, both caught by a corpus:** unguarding every re-articulation onset added a sliver note at two slurs in the recorder corpus (four edits; I had only swept the ear-training corpus until the full suite ran). Extending the guard rule to worklet onsets dropped an A3 from Honeysuckle Rose. The first form of the run join cut Little Cry's breathy F.
+- **Found, not fixed:** Curl to the Floor holds two click-made envelope onsets, hidden by the guard. A band-recovery check near clicks removes them, but it is a new way to refuse a tongue on the beat. Left for Andy.
+- **Also fixed:** dev's unit suite was red before I started. `49242bb5` split `musicality-listening.spec.ts` into nine files and the Musicality manifest still cited the old path in five places.
+- **Not verified:** nothing by ear or on a real microphone; the app's own live path beyond what the replay variants cover.
