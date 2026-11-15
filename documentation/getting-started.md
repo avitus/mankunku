@@ -53,4 +53,4 @@ There is no level to set. Every player starts at level 1 in every scale — shor
 - **[The Daily Key](./architecture/tonality-system.md)** — why the key rotates, and how new ones unlock.
 - **[Glossary](./reference/glossary.md)** — jazz terms used throughout the app.
 
-Building the app rather than practising with it? See **[Development Setup](./contributing/contributing.md#development-setup)**.
+Building the app rather than practising with it? See **[Development Setup](https://github.com/avitus/mankunku/blob/main/documentation/contributing/contributing.md#development-setup)**.

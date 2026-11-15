@@ -2,6 +2,9 @@
 
 Maintenance status (2026-11-08): PDFium/Pillow and the optional model runtime were upgraded and tested in isolated Linux containers. The compatible Transformers 4.54 line still has outstanding security advisories; newer inference implementations failed the transcription-quality gate. See the [maintenance audit](../maintenance/2026-11-08-audit.md#packages-and-security). The default PDF/ABC runtime scans clean. Real-model tests remain opt-in and gated.
 
+Rechecked November 13 in a Linux Python 3.12 container: 469 tests passed, one real-model test was deselected, and Ruff passed. The default runtime still has no known advisories; the optional pinned Transformers runtime still has 16 reported advisory entries. See the [current audit](../maintenance/2026-11-13-audit.md). This run did not repeat gated model inference.
+
+
 
 Exported PDFs now use a direct SMuFL/vector reader in the browser before optical recognition. A `.omr.json` is optional; it is most relevant to scans and unsupported notation. See [PDF recognition and accuracy](pdf-import-accuracy.md) for the architecture, nine-chart evaluation command, measured results, and remaining scan limitations.
 
@@ -289,6 +292,10 @@ run.json              backend/model/revision/device/timings/environment
 segment; LEGATO v1 does not, and no artifacts are ever fabricated.
 
 ## Tests
+
+Run these commands inside a Linux Python 3.12 container with a copied checkout.
+A host virtual environment is not a sandbox. The default suite excludes gated
+model integration; successful default tests do not establish model accuracy.
 
 ```sh
 uv run pytest                       # hermetic: no network, no model, fast

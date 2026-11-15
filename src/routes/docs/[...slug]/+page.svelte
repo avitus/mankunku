@@ -34,8 +34,8 @@
 		<!-- Rendered and sanitized on the server with the existing markdown pipeline. -->
 		<div class="prose-docs">{@html data.rendered.html}</div>
 		<nav class="docs-pagination" aria-label="More guides">
-			{#if previous}<a href={`/docs/${previous.slug}`}><small>← Previous guide</small><strong>{previous.title}</strong></a>{:else}<span></span>{/if}
-			{#if next}<a href={`/docs/${next.slug}`}><small>Next guide →</small><strong>{next.title}</strong></a>{:else}<a href="/docs"><small>Back to the guidebook</small><strong>All guides ↗</strong></a>{/if}
+			{#if previous}<a href={previous.href ?? `/docs/${previous.slug}`}><small>← Previous guide</small><strong>{previous.title}</strong></a>{:else}<span></span>{/if}
+			{#if next}<a href={next.href ?? `/docs/${next.slug}`}><small>Next guide →</small><strong>{next.title}</strong></a>{:else}<a href="/docs"><small>Back to the guidebook</small><strong>All guides ↗</strong></a>{/if}
 		</nav>
 	</article>
 	<DocContents headings={data.rendered.headings} />

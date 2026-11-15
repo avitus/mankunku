@@ -266,3 +266,12 @@ License pending. This project does not yet have a license file — one will be a
 Named after [Winston "Mankunku" Ngozi](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) (1943-2009), South African jazz tenor saxophonist whose 1968 album *Yakhal' Inkomo* ("Cry of the Bull") remains a landmark of South African jazz.
 
 Built with [SvelteKit](https://svelte.dev), [Tone.js](https://tonejs.github.io), [Pitchy](https://github.com/ianprime0509/pitchy), [smplr](https://github.com/danigb/smplr), [abcjs](https://www.abcjs.net), and [Supabase](https://supabase.com).
+
+
+## Maintenance status
+
+The [November 13 maintenance audit](docs/maintenance/2026-11-13-audit.md) records
+current test exclusions, dependency/security findings, Sentry access and branch
+cleanup. All automated validation belongs in Linux sandboxes, including Node and
+Python tests. The [testing guide](documentation/contributing/testing-guide.md)
+and [browser runner guide](tests/e2e/README.md) describe the supported commands.

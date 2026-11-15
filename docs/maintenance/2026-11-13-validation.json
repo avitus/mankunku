@@ -1,0 +1,88 @@
+{
+  "scope": "Final sandbox browser reports; unit/Python/diagnostic results are recorded in the audit",
+  "total": 1773,
+  "outcomes": {
+    "expected": 1610,
+    "skipped": 163
+  },
+  "shards": [
+    {
+      "shard": 1,
+      "runId": "mankunku-test-4c39cbad-42e2-40b2-94f6-a8a2ab9cb2f2",
+      "stats": {
+        "total": 296,
+        "expected": 288,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 8,
+        "ok": true
+      },
+      "durationMs": 1992534.3199999998
+    },
+    {
+      "shard": 2,
+      "runId": "mankunku-test-96b398f2-197c-43df-964b-b006fae9634b",
+      "stats": {
+        "total": 296,
+        "expected": 296,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      },
+      "durationMs": 605649.795
+    },
+    {
+      "shard": 3,
+      "runId": "mankunku-test-a223cc62-adec-4b2a-9b3d-96de81fd1767",
+      "stats": {
+        "total": 296,
+        "expected": 194,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 102,
+        "ok": true
+      },
+      "durationMs": 235499.49599999998
+    },
+    {
+      "shard": 4,
+      "runId": "mankunku-test-681035f0-99a7-4dc8-92eb-f85afeecc631",
+      "stats": {
+        "total": 295,
+        "expected": 242,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 53,
+        "ok": true
+      },
+      "durationMs": 320107.67600000004
+    },
+    {
+      "shard": 5,
+      "runId": "mankunku-test-e4bc6ccc-c3a8-41fc-a3fa-dfe713da753d",
+      "stats": {
+        "total": 295,
+        "expected": 295,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      },
+      "durationMs": 5437868.506
+    },
+    {
+      "shard": 6,
+      "runId": "mankunku-test-21e9fc30-da5d-4158-bd87-6ac7970de30e",
+      "stats": {
+        "total": 295,
+        "expected": 295,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      },
+      "durationMs": 1897533.743
+    }
+  ]
+}

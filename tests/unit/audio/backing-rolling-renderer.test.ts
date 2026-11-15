@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRollingBackingRenderer, type RollingBackingRuntime } from '$lib/audio/backing-rolling-renderer';
-import type { RollingBackingBar } from '$lib/audio/backing-rolling';
+import { createRollingSession } from '$lib/audio/backing-rolling-session';
+import type { RollingBackingBar, RollingBackingDefinition } from '$lib/audio/backing-rolling';
 import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 
 function bar(index: number): RollingBackingBar {
@@ -234,12 +235,148 @@ describe('append-only rolling audio renderer', () => {
 		h.current(false);
 		expect(h.renderer.commit(bar(0))).toEqual({ accepted: false, reason: 'stale_session' });
 		h.current(true);
-		expect(h.renderer.commit(bar(0), { renderStartedAt: 10, renderElapsedSeconds: 0.03 })).toEqual({ accepted: false, reason: 'compute_budget' });
+		expect(h.renderer.commit(bar(0), { renderStartedAt: 10, renderElapsedSeconds: -0.001 })).toEqual({ accepted: false, reason: 'compute_budget' });
+		expect(h.renderer.commit(bar(0), { renderStartedAt: 10.5, renderElapsedSeconds: 0.001 })).toEqual({ accepted: false, reason: 'compute_budget' });
 		h.now(10.9);
 		expect(h.renderer.commit(bar(0))).toEqual({ accepted: false, reason: 'deadline' });
 		expect(h.pending.size).toBe(0);
 		expect(h.published()).toBeNull();
 		expect(h.renderer.snapshot().nextBar).toBe(0);
+	});
+
+	// The harness dispatches 0.135 s ahead (lookahead .1 + interval .025 + safety .01)
+	// and bar 0 sounds at 11. These pin the rule that replaced the fixed 25 ms
+	// generation cap (2026-11-12): lead decides, on whichever clock saw the time pass.
+	describe('a slow bar is judged by the lead it left', () => {
+		/** Give the harness a native arm that records the audio time of each armed batch. */
+		function native(h: ReturnType<typeof harness>) {
+			const armed: number[] = [];
+			h.runtime.arm = vi.fn((_hits, time) => { armed.push(time); return vi.fn(); });
+			return armed;
+		}
+
+		it('accepts a 30 ms generation with a second of lead and arms every note at its written time', () => {
+			const h = harness(), armed = native(h);
+			expect(h.renderer.commit(bar(0), { renderStartedAt: 10, renderElapsedSeconds: 0.03 }).accepted).toBe(true);
+			expect(armed).toEqual([11]);
+			expect(h.renderer.snapshot().dispatches).toEqual([{ tick: 0, audioTime: 11, status: 'played' }]);
+		});
+
+		it('refuses a bar whose generation used up the lead while the audio clock stood still', () => {
+			// 65 ms of lead on the audio clock, which has not moved since generation
+			// began; the wall clock says 70 ms passed, so the bar is really 5 ms late.
+			const h = harness(), armed = native(h);
+			h.now(10.8);
+			expect(h.renderer.commit(bar(0), { renderStartedAt: 10.8, renderElapsedSeconds: 0.07 })).toEqual({ accepted: false, reason: 'deadline' });
+			expect(armed).toEqual([]);
+			expect(h.published()).toBeNull();
+			expect(h.renderer.snapshot().nextBar).toBe(0);
+			// 60 ms leaves 5 ms to spare.
+			expect(h.renderer.commit(bar(0), { renderStartedAt: 10.8, renderElapsedSeconds: 0.06 }).accepted).toBe(true);
+			expect(armed).toEqual([11]);
+		});
+
+		it('does not charge the generation time twice when the audio clock kept running', () => {
+			const h = harness(), armed = native(h);
+			h.now(10.8);
+			expect(h.renderer.commit(bar(0), { renderStartedAt: 10.7, renderElapsedSeconds: 0.1 }).accepted).toBe(true);
+			expect(armed).toEqual([11]);
+		});
+
+		// 2026-11-12 clock catch-up regression: the first clock read trails the
+		// measured generation end by 2.5 ms. Later reads must absorb that missing
+		// time, while still rejecting genuinely exhausted lead on either path.
+		for (const path of ['native', 'transport'] as const) {
+			for (const phase of ['preparation', 'publication'] as const) {
+				it.each([
+					{ caughtUp: 10.863, accepted: true, lead: 'safe' },
+					{ caughtUp: 10.866, accepted: false, lead: 'exhausted' }
+				])(`judges $lead lead after the clock catches up during ${phase} on the ${path} path`, ({ caughtUp, accepted }) => {
+					const h = harness();
+					const armed = path === 'native' ? native(h) : [];
+					h.now(10.8605);
+					if (phase === 'preparation') {
+						let reads = 0;
+						h.runtime.audioNow = () => ++reads === 1 ? 10.8605 : caughtUp;
+					} else {
+						const publish = h.runtime.publishSchedule;
+						h.runtime.publishSchedule = vi.fn(schedule => {
+							h.now(caughtUp);
+							publish(schedule);
+						});
+					}
+					const result = h.renderer.commit(bar(0), { renderStartedAt: 10.839, renderElapsedSeconds: 0.024 });
+					if (accepted) {
+						expect(result).toEqual({ accepted: true, nextBar: 1, committedThroughTick: 768 });
+						expect(h.published()).not.toBeNull();
+						if (path === 'native') expect(armed).toEqual([11]);
+						else {
+							expect(h.pending.size).toBe(1);
+							[...h.pending.values()][0].callback(11);
+							expect(h.runtime.play).toHaveBeenCalledWith(expect.any(Array), 11, '0:0');
+						}
+						expect(h.renderer.snapshot().dispatches).toEqual([{ tick: 0, audioTime: 11, status: 'played' }]);
+					} else {
+						expect(result).toEqual({ accepted: false, reason: 'deadline' });
+						expect(armed).toEqual([]);
+						expect(h.runtime.play).not.toHaveBeenCalled();
+						expect(h.pending.size).toBe(0);
+						expect(h.published()).toBeNull();
+						expect(h.renderer.snapshot().nextBar).toBe(0);
+					}
+				});
+			}
+		}
+
+		it('keeps a session running when an admitted generation leaves 137 ms after clock catch-up', () => {
+			const h = harness(), armed = native(h);
+			// Admission at 10.839 leaves 161 ms, just outside the 160 ms
+			// planning horizon. Generation takes 24 ms; 137 ms remains.
+			const clocks = [10.839, 10.8605, 10.863];
+			h.runtime.audioNow = () => clocks.length ? clocks.shift()! : 10.863;
+			let wall = 0;
+			const onError = vi.fn();
+			const session = createRollingSession({
+				definition: { sessionId: 'take', tempo: 120, ppq: 192, beatsPerBar: 4, totalBars: 1 } as RollingBackingDefinition,
+				startAudioTime: 11, observationSessionId: 'take', renderer: h.renderer,
+				measureNow: () => wall, onError,
+				generate: () => { wall += 0.024; return bar(0); }
+			});
+			session.start();
+			expect(session.snapshot()).toMatchObject({ status: 'running', nextBar: 1, error: null });
+			expect(onError).not.toHaveBeenCalled();
+			expect(armed).toEqual([11]);
+		});
+
+		it('never arms a note with less than the dispatch lead, however the two clocks disagree', () => {
+			let seed = 20261112;
+			/** Seeded LCG in [0, 1): the same 4,000 trials on every run. */
+			const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
+			let accepted = 0, refused = 0;
+			for (let trial = 0; trial < 4000; trial++) {
+				const h = harness(), armed = native(h);
+				const started = 10 + random() * 0.95;
+				const elapsed = random() * 0.4;
+				// The audio clock shows anything from none to all of the elapsed time.
+				const observed = started + elapsed * (random() < 0.3 ? 0 : random() < 0.5 ? 1 : random());
+				h.now(observed);
+				const result = h.renderer.commit(bar(0), { renderStartedAt: started, renderElapsedSeconds: elapsed });
+				const trueNow = Math.max(observed, started + elapsed);
+				if (result.accepted) {
+					accepted++;
+					expect(armed).toEqual([11]);
+					expect(11 - trueNow).toBeGreaterThan(0.135 - 1e-9);
+				} else {
+					refused++;
+					expect(result.reason).toBe('deadline');
+					expect(armed).toEqual([]);
+					// Nothing with real lead to spare is turned away.
+					expect(11 - trueNow).toBeLessThanOrEqual(0.135 + 1e-9);
+				}
+			}
+			expect(accepted).toBeGreaterThan(500);
+			expect(refused).toBeGreaterThan(500);
+		});
 	});
 
 	it('rejects malformed tick strings, future gates and invalid events as complete batches', () => {

@@ -2,6 +2,7 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
+import { expectEveryBarCommittedWithLead } from './fixtures/rolling-lead';
 import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 import { CURRENT_MUSICALITY_RELEASE } from '../../src/lib/musicality/release';
 
@@ -39,7 +40,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
  expect(take.playback.provenance.renderTimings).toHaveLength(52);
- expect(take.playback.provenance.renderTimings.every((r:{accepted:boolean;renderElapsedSeconds:number})=>r.accepted&&r.renderElapsedSeconds<=.025)).toBe(true);
+ expectEveryBarCommittedWithLead(take.playback, 52);
  const generated=take.playback.generated as GeneratedBacking;
  for(const start of [16,28]) {
   const traces=generated.ensembleDevelopment!.pianoMotifs;

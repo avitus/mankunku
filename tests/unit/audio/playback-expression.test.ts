@@ -117,3 +117,27 @@ describe('phraseToEvents — timing humanization bounds', () => {
 		}
 	});
 });
+
+/**
+ * CodeRabbit on #306: the lick browser's Listen plays a Weimar performance
+ * whose offsets and lengths are the measured seconds. Humanizing those onsets
+ * or shortening them by articulation plays something the soloist did not.
+ */
+describe('phraseToEvents — performed timing', () => {
+	it('schedules a performed phrase exactly as written: no onset jitter, no articulation scaling', () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0.99);
+		const tempo = 120;
+		const events = phraseToEvents(makePhrase(EIGHTH_LINE), tempo, 0.5, PPQ, { performed: true });
+		EIGHTH_LINE.forEach((note, k) => {
+			expect(events[k].ticks).toBe(Math.round(fractionToFloat(note.offset) * 4 * PPQ));
+			expect(events[k].duration).toBeCloseTo(fractionToFloat(note.duration) * 4 * (60 / tempo), 9);
+		});
+	});
+
+	it('still humanizes and articulates an ordinary phrase', () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0.99);
+		const events = phraseToEvents(makePhrase(EIGHTH_LINE), 120, 0.5, PPQ);
+		const grid = EIGHTH_LINE.map((note) => Math.round(fractionToFloat(note.offset) * 4 * PPQ));
+		expect(events.some((e, k) => e.ticks !== grid[k])).toBe(true);
+	});
+});

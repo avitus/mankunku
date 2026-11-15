@@ -201,7 +201,7 @@ const pianoRecallEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-keyboard-decorations'), revision: 'musicality' },
 	{ ...test('backing-piano-phrase-recall'), revision: 'musicality' },
 	{ ...test('backing-piano-phrase-recall-integration'), revision: 'musicality' },
-	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-solo-memory.spec.ts', revision: 'musicality' }
 ];
 const terminalEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-terminal'), revision: 'musicality' },
@@ -212,7 +212,8 @@ const terminalEvidence: MusicalityEvidence[] = [
 	{ ...test('backing-bossa-terminal'), revision: 'musicality' },
 	{ ...test('backing-bossa-terminal-integration'), revision: 'musicality' },
 	{ kind: 'test', path: 'tests/unit/musicality/listening-ending.test.ts', revision: 'musicality' },
-	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-terminal.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-bossa-terminal.spec.ts', revision: 'musicality' }
 ];
 const bassDevelopmentEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-bass-turnaround'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
@@ -270,7 +271,9 @@ const rootlessTextureEvidence: MusicalityEvidence[] = [
 const reciprocalFeedbackEvidence: MusicalityEvidence[] = [
 	{ kind: 'source', path: 'src/lib/musicality/listening-player.ts', revision: 'musicality' },
 	{ kind: 'test', path: 'tests/unit/musicality/listening-causal-integration.test.ts', revision: 'musicality' },
-	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-lifecycle.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-replies.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-returns.spec.ts', revision: 'musicality' },
 	...['backing-ensemble-feedback', 'backing-rolling', 'backing-generation', 'backing-rolling-take'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['backing-drum-piano-feedback', 'backing-drum-piano-feedback-integration', 'backing-development-immutability'].map(file => ({ ...test(file), revision: 'musicality' })),
 	{ kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
@@ -400,7 +403,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     ? 'Musicality 0.16.0 resolves an inner flat ninth to ninth, or sharp eleventh to fifth, across two existing dominant-chord attacks. Defining 3/7 tones, outer voices, native rhythm and harmonic support remain.'
     : 'Musicality 0.16.0 occasionally lifts the existing beat-four foot hi-hat at a quiet phrase close, leaving ride, beat two and attack count intact. Late keyboard attacks and competing commentary veto the lift.',
   remaining:'Ninth-only bass extension targets; keyboard movement is a bounded lower-neighbor resolution on plain dominants; the hat uses the existing pedal sample rather than a dedicated bark articulation. Human listening acceptance remains pending.',
-  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. The current release example is documented above the listening controls. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard. Release-review hardening adds bounded sample loading, colored-checkpoint replay, WAV/live policy parity and account-scoped blind reviews with recoverable replay ratings.',
+  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. The current release example is documented above the listening controls. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines. The subsequent dev scheduling fix admits slow bars only when sufficient actual scheduling lead remains, including time unseen by the audio clock. Release-review hardening adds bounded sample loading, colored-checkpoint replay, WAV/live policy parity and account-scoped blind reviews with recoverable replay ratings.',
   evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance'),source('backing-arrangement'),source('backing-release'),test('backing-arrangement')]
  };
 
@@ -498,7 +501,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		evidence: [...entry.evidence, ...['listening-tunes', 'listening-library', 'listening-player', 'listening-review', 'musician-decisions', 'listening-comparison'].flatMap(name => [
 			{ kind: 'source' as const, path: `src/lib/musicality/${name}.ts`, revision: 'musicality' },
 			{ kind: 'test' as const, path: `tests/unit/musicality/${name}.test.ts`, revision: 'musicality' }
-		]), { kind: 'test', path: 'tests/unit/musicality/listening-tunes-library.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/unit/musicality/listening-tune-book-integration.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
+		]), { kind: 'test', path: 'tests/unit/musicality/listening-tunes-library.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/unit/musicality/listening-tune-book-integration.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening-lifecycle.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening-local-aaba.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
 	};
 	if (entry.id === 'P57') return { ...entry, assessment: 'Existing rest figures withhold piano attacks. Eligible explicit Coordinated listening-studio returning heads can additionally reserve the two bars after the arrival for piano space while bass and drums carry the groove. Higher-priority reservations and stronger silence remain authoritative.', remaining: 'This is a bounded returning-head gesture, not general phrase recognition or whole-ensemble dropout. Fixed and Original policies remain unchanged; human listening acceptance is pending.', evidence: [...entry.evidence, ...returningMelodyEvidence] };
 	const drumUpdate = drumDeviceUpdates[entry.id];
@@ -687,7 +690,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 				{ kind: 'source' as const, path: 'src/lib/musicality/listening-arc.ts', revision: 'musicality' },
 				{ kind: 'test' as const, path: 'tests/unit/musicality/listening-arc.test.ts', revision: 'musicality' },
 				{ kind: 'test' as const, path: 'tests/e2e/musicality-performance-arc.spec.ts', revision: 'musicality' },
-				{ kind: 'test' as const, path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+				{ kind: 'test' as const, path: 'tests/e2e/musicality-listening-lifecycle.spec.ts', revision: 'musicality' }
 			] : []),
 			...(['S2', 'S38', 'S41', 'S44', 'S46'].includes(entry.id) ? [...checkpointEvidence, { ...test('backing-rolling-snapshot-contract'), revision: 'musicality' }] : []),
 			...(['S27', 'S28', 'S44', 'S46'].includes(entry.id) ? scriptedEvidence : []),

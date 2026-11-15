@@ -1862,6 +1862,38 @@ The P14 ledger now includes both native 0.7 articulation and 0.11 short/held phr
 
 **Binding/build checkpoint.** `MANKUNKU_DOCKER_CONTEXT=colima-mankunku-musicality-tests npm run test:sandbox -- unit tests/unit/musicality/listening-player.test.ts tests/unit/musicality/listening-player-browser.test.ts tests/unit/musicality/listening-feedback.test.ts tests/unit/musicality/listening-comparison.test.ts tests/unit/musicality/spec.test.ts` passed **100/100 across five files in 2.37 s** (`binding-final.log`). `PLAYWRIGHT=1 PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 PUBLIC_SUPABASE_ANON_KEY=local-test-placeholder npm run build` passed (`build-final.log`) with Sentry upload disabled. These checks overlapped and introduced no musical changes. Approximately 50 minutes elapsed through source review and binding; metadata preparation is under one minute. The following metadata-only commit binds the verified engine and records this evidence.
 
+## 2026-11-12 — A slow bar is judged by the lead it left, not by 25 ms
+
+**What happened.** Release 0.16.1's first hosted CI runs (the `musicality` branch ran with hosted CI off) failed on WebKit full takes stopped by `compute_budget`: `musicality-inner-motion` once, then `musicality-playback-budget` seed 243 Piano three attempts in a row (27, 29 and 30 ms), and the deploy needed a rerun.
+
+**Measurement.** The 57 take exports CircleCI kept from e2e jobs 4934 and 4940 (41 WebKit, 16 Chromium; `provenance.renderTimings`) show ordinary bars generating in 1–5 ms on both engines. WebKit alone has isolated 14–31 ms bars near bars 22, 39 and 48 (Organ: 48 only), each surrounded by 2–5 ms neighbours. The same seed spiked at bar 21 in one attempt and 22 in the next, so the spike does not follow the music. The likeliest cause is a JavaScriptCore collector pause set off by allocation volume; this is inferred from the pattern and was not observed directly. In those exports the nine bars the guard refused had **335–381 ms** between the end of their generation and their first note, against the 135 ms the renderer demands (0.1 s lookahead + 0.025 s interval + 0.01 s safety). Every one of them would have sounded on time.
+
+**Why the 25 ms guard could not simply be removed.** Notes cannot drift: each is handed to Web Audio with an absolute time computed from its tick, so a note is on time or the take stops. But the four checks that stop a late take (three deadline checks in `commit`, one at each native `source.start`) all read `AudioContext.currentTime`, and a browser may hold that value still for the whole script task that generated the bar. In such a browser a long pause inside generation is invisible to them, and a note could be armed for a time already past, which Web Audio would play immediately. The 25 ms guard, measured on the wall clock, was the only cover for that case, and it bounded the unseen time at 25 ms, not zero.
+
+**The rule now.** `commit` charges the bar's lead with the generation time the audio clock has not shown yet: `unseen = max(0, renderStartedAt + renderElapsedSeconds − audioNow)`, and all three deadline checks refuse the bar when its first note is not later than `dispatchThrough + unseen`. A slow bar with lead to spare is accepted; a bar that used up its lead is refused with `deadline` whichever clock saw the time pass. The worst-case real lead of an accepted note rises from 110 ms to the full 135 ms. `compute_budget` remains only for an invalid timing record. `maxComputeSeconds` stays as the coordinator's planning allowance in `renderSafeFrom`. Generation, the 250 ms preparation allowance, the native-source check, checkpoint replay and every generated note are unchanged, so the release identity stays 0.16.1 / 469d4bb1.
+
+**Tests.** `backing-rolling-renderer.test.ts` adds four contracts, among them 4,000 seeded combinations of generation time and clock behaviour: every accepted bar has more than 135 ms of real lead and is armed at its written time, and no bar with real lead to spare is refused. With the `unseen` term replaced by zero the stalled-clock contract and that property both fail. Two older assertions pinned the fixed cap (`backing-rolling-renderer.test.ts`, `backing-rolling-native-arming.test.ts`) and now pin the lead-based refusal. In the browser, `musicality-playback-budget` and `musicality-inner-motion` replace "every bar ≤ 25 ms" with `expectEveryBarCommittedWithLead` (`tests/e2e/fixtures/rolling-lead.ts`), which recomputes each bar's real lead from the exported take.
+
+**Limits.** A pause longer than the remaining lead still stops the take; that is the intended fail-closed behaviour. The clock-stall case is proven with a controlled clock, not reproduced in a real browser. Native Safari and human listening acceptance remain pending.
+
+
+## 2026-11-13 — maintenance command update
+
+Historical commands and measurements above remain dated evidence. Keyboard
+calibration now uses explicit diagnostics, preserving the complete release/seed
+matrix and its assertions:
+
+```sh
+npm run test:sandbox -- diagnostics backing-keyboard-level --project=chromium
+npm run test:sandbox -- diagnostics backing-keyboard-phrasing --project=chromium
+```
+
+These require real CDN recordings and are outside normal CI discovery. Native
+ownership cancellation and deterministic stem/rolling-output regressions run in
+normal E2E. See `docs/maintenance/2026-11-13-audit.md` for current validation and
+remaining platform exclusions. Source integration is on main at `ce1e86b5`;
+this audit does not verify production deployment or human musical acceptance.
+
 
 ## 2026-11-13 — 0.17.0 longer musical sentences
 
@@ -1903,3 +1935,15 @@ The P14 ledger now includes both native 0.7 articulation and 0.11 short/held phr
 **Verified engine commit.** `1270f7e8bf8c80651a582a9d56f5abe1c225d4be` contains the tested 0.17.0 source, contracts, ledger and documentation. The release identity now binds to this engine commit. The following metadata-only checkpoint verifies that binding, rebuilds/restarts the local preview and records delivery; no musical behavior changes after this source commit.
 
 **Binding, build and local preview.** `MANKUNKU_DOCKER_CONTEXT=colima-mankunku-musicality-tests npm run test:sandbox -- unit tests/unit/musicality/listening-player.test.ts tests/unit/musicality/listening-player-browser.test.ts tests/unit/musicality/listening-feedback.test.ts tests/unit/musicality/listening-comparison.test.ts tests/unit/musicality/spec.test.ts` passed **100/100 across five files in 2.48 s** (`binding.log`). `PLAYWRIGHT=1 PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 PUBLIC_SUPABASE_ANON_KEY=local-test-placeholder npm run build` succeeded (`build.log`; no Sentry upload). These checks overlapped; no real-time browser check was competing. The owned preview was restarted on **http://127.0.0.1:4387/musicality**, PID **29608**. HTTP readback confirms **0.17.0 / 1270f7e8**, **Load 0.17 example**, and healthy build **1794590553119** (`local-preview.json`). About **60 minutes total wall time** through packaging; metadata preparation is under one minute. The metadata commit only binds the tested engine, pins its assertion and records this evidence. Non-force push to musicality and exact remote-SHA verification follow; production remains unchanged, and musical/native-Safari acceptance remains pending.
+
+## 2026-11-14 — integrate current dev before 0.18.0
+
+**Intent and source.** Merge dev into musicality before new meter/articulation work. The pinned incoming head is `98930189498e88644fdff78c1e6024576467cf31`. While the merge was being validated, dev briefly added Musicality-only playback at `d740e0ba` and reverted it at `98930189`; the final incoming tree is identical to `96558e50`. Both commits remain in ancestry. The other chat has handed over the Musicality-only implementation for deliberate reapplication on this branch alongside meter support, not immediate dev delivery.
+
+**Resolution.** Retain the complete 0.17 sentence policy, example seed, live evidence and dark WebKit controls; retain dev's scheduling-lead reconciliation, lick browser/performed-timing work, recorder fixes, navigation recovery, dependency refresh and split listening specs. Only the architecture document and progress log conflict at the pinned head; both histories are preserved. The 0.17 full-tune assertion now uses the incoming `expectEveryBarCommittedWithLead` contract, retaining completion, dispatch, signal and musical assertions. Current architecture and ledger explain that measured remaining lead supersedes the historical fixed 25 ms rejection. No release identity or generation policy changes in this merge.
+
+**Local validation.** Dedicated Docker context `colima-mankunku-musicality-tests`, no CI or sidecars. `npm run test:sandbox -- unit` passes **9,269 tests across 588 files, with 40 existing expected failures, in 158.39 seconds** (sandbox `mankunku-test-f240f40b-cc10-4f4e-8403-1ce9f2283a67`). This snapshot predates the net-zero dev feature/revert and explanatory ledger text; runtime source is identical. The ordinary `npm run test:sandbox -- check` exhausted Node's default 2 GB heap. Re-running that exact sandbox image `sha256:e2108ceb3e5aaa29d2d77b24dbd400cc314bf083b6cc59cc1728b22a24a8688e` with `docker --context colima-mankunku-musicality-tests run --rm --init --cpus=2 --memory=4g --memory-swap=4g --shm-size=1g --pids-limit=512 --cap-drop=ALL --security-opt=no-new-privileges --env NODE_OPTIONS=--max-old-space-size=3072 <image> npm run check` passes **zero errors/warnings**. The dependency update emits a separate SvelteKit alias deprecation notice. No application source was changed to pass the check. Logs: `/Users/avitus/.codex/artifacts/musicality-2026-11-14/dev-integration/`.
+
+**Review and timing.** Direct inspection of the resolved diff and incoming scheduling/playback integration; no CodeRabbit/CI readiness claim. About seven minutes through merge preparation; reading and resolution interleaved, not separately timed. Unit and type checks ran sequentially. Full-tune browser validation is deferred to the combined upcoming source checkpoint. Resolution files pass whitespace checks; incoming repository `MEMORY.md` retains its existing extra EOF blank line. No dev/main mutation or deployment. This checkpoint is a merge prerequisite, not a new musical release or human listening acceptance.
+
+**Next.** Reapply the handed-over single-engine change deliberately, implement basic meter support and 0.18 cross-bar keyboard articulation, audit app-wide session-musician coverage, then validate and document full-tune listening.

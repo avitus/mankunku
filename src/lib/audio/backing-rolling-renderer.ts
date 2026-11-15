@@ -12,6 +12,11 @@ export interface RollingBackingRendererOptions {
 	ppq: number;
 	totalBars: number;
 	startAudioTime: number;
+	/**
+	 * The generation time the coordinator plans for when it decides a bar can still
+	 * be started (`renderSafeFrom`). It is a planning allowance, not a limit: a bar
+	 * that took longer is accepted or refused by the lead it left (see `commit`).
+	 */
 	maxComputeSeconds?: number;
 	safetySeconds?: number;
 	onUnderrun?(reason: string): void;
@@ -92,6 +97,12 @@ export interface RollingBackingRenderer {
 	stop(): void;
 }
 
+/**
+ * Build the append-only renderer for one finite take. Bars are committed one
+ * at a time; every note of an accepted bar is scheduled at the absolute audio
+ * time its tick names, and a bar that can no longer be scheduled with the full
+ * dispatch lead is refused whole, so a take is on the beat or it stops.
+ */
 export function createRollingBackingRenderer(
 	options: RollingBackingRendererOptions,
 	runtime: RollingBackingRuntime
@@ -234,6 +245,11 @@ export function createRollingBackingRenderer(
 			window.drumEvents.every((event) => event.velocity <= 1 && Object.hasOwn(DRUM_FAMILY_BY_VOICE, event.drum));
 	}
 
+	/**
+	 * Admit the next bar and schedule its notes, or refuse it without changing
+	 * anything. `timing` is the coordinator's measurement of the bar's generation:
+	 * the audio-clock reading when it began and the wall-clock time it took.
+	 */
 	function commit(window: RollingBackingBar, timing?: { renderStartedAt: number; renderElapsedSeconds: number }): RollingBackingCommitResult {
 		if (status !== 'active') return { accepted: false, reason: 'stopped' };
 		if (!runtime.isCurrent() || window.sessionId !== options.sessionId) return { accepted: false, reason: 'stale_session' };
@@ -242,11 +258,27 @@ export function createRollingBackingRenderer(
 		catch { return { accepted: false, reason: 'invalid_window' }; }
 		const before = horizon();
 		if (timing && (!Number.isFinite(timing.renderStartedAt) || timing.renderStartedAt > before.audioNow ||
-			!Number.isFinite(timing.renderElapsedSeconds) || timing.renderElapsedSeconds < 0 || timing.renderElapsedSeconds > maxCompute)) {
+			!Number.isFinite(timing.renderElapsedSeconds) || timing.renderElapsedSeconds < 0)) {
 			return { accepted: false, reason: 'compute_budget' };
 		}
+		// How long generation took does not decide whether the bar can still be
+		// scheduled on time; how much lead is left does. A browser may hold
+		// AudioContext.currentTime still for the whole script task that generated
+		// the bar, so time the wall clock measured but the audio clock has not
+		// shown yet is charged against the lead. A slow bar (a 15–30 ms collector
+		// pause on Linux WebKit, 2026-11-12) with lead to spare is accepted; one
+		// that used up its lead is refused whichever clock saw it.
 		const earliestAudioTime = options.startAudioTime + window.earliestTick * secondsPerTick;
-		if (earliestAudioTime <= before.dispatchThrough) return { accepted: false, reason: 'deadline' };
+		/**
+		 * Whether the bar's first note is too close to `current` to schedule.
+		 * Reconciles each fresh clock reading: once the audio clock catches up,
+		 * its advance already includes the previously unseen generation time.
+		 */
+		const missesDeadline = (current: RollingBackingHorizon): boolean => {
+			const unseen = timing ? Math.max(0, timing.renderStartedAt + timing.renderElapsedSeconds - current.audioNow) : 0;
+			return earliestAudioTime <= current.dispatchThrough + unseen;
+		};
+		if (missesDeadline(before)) return { accepted: false, reason: 'deadline' };
 		let copied: RollingBackingBar;
 		try { copied = deepFreeze(structuredClone(window)); }
 		catch { return { accepted: false, reason: 'invalid_window' }; }
@@ -311,14 +343,14 @@ export function createRollingBackingRenderer(
 			if (!runtime.isCurrent() || status !== 'active') {
 				rollback(); return { accepted: false, reason: 'stale_session' };
 			}
-			if (earliestAudioTime <= horizon().dispatchThrough) {
+			if (missesDeadline(horizon())) {
 				rollback(); return { accepted: false, reason: 'deadline' };
 			}
 			runtime.publishSchedule(nextSchedule);
 			if (!runtime.isCurrent() || status !== 'active') {
 				rollback(); return { accepted: false, reason: 'stale_session' };
 			}
-			if (earliestAudioTime <= horizon().dispatchThrough) {
+			if (missesDeadline(horizon())) {
 				rollback(); runtime.publishSchedule(schedule); return { accepted: false, reason: 'deadline' };
 			}
 		} catch {

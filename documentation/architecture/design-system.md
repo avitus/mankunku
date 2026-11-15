@@ -158,6 +158,27 @@ Podium medals reward good takes; the two teal shades below "decent" keep the low
 
 The three medal tiers are backed by theme-invariant **metal** tokens — `--metal-gold` / `--metal-silver` / `--metal-bronze`, literals, the single source of truth for each coin — which the dark `--accuracy-{gold,silver,bronze}` reference directly; `:root.light` re-points those `--accuracy-*` to darker, paper-legible text accents but leaves `--metal-*` untouched, so a light-theme coin stays metal. The lustre tokens (`--medal-<metal>-hi/mid/lo/label/rim`, `color-mix` over the tier colour) draw the key-ring dots' radial gradient and the report chips (`.lp-medal-chip`): a soft sheen in dark, an opaque struck coin in light.
 
+### Session key map and circle consistency
+
+`SessionKeyMap.svelte` uses `accuracyTierInfo()` and the same `--accuracy-*`
+and `--medal-*` tokens as `KeyProgressRing.svelte`. The key map must not use
+key-unlock/proficiency thresholds to color performance: 72% is bronze, 88% is
+silver, and scores below 70% use teal/deep teal, never error red.
+
+Medal squares reuse `.lp-medal-chip` and `.lp-chip-{gold,silver,bronze}` for
+radial sheen, label and inset rim in both themes. Non-medal squares use the
+circle's flat 20% tier-color mix over `--color-bg`. Current-key outlines,
+unpracticed states and rolling-history markers remain separate from score
+colors. The report's bar follows this session's tier; its history marker is
+neutral. Exact percentages remain visible and grade labels are available.
+
+The approved MagicPath Key Map is component `471114028945670144`, revision
+`472418531414253568`; Design System 1.6 is component `460231915702722560`,
+revision `472419107531280384`. Keep all 12 keys readable with horizontal
+scrolling on small screens and a sticky lick-name column. Canvas sample
+scores are examples only; the application retains real session results,
+written-key transposition, historical scores and Deep Practice actions.
+
 ### Progression identity palette
 
 One muted hue per chord progression — `--prog-<ChordProgressionType>` (`--prog-minor-vamp` … `--prog-ii-V-I-major-long`), consumed only through `progressionColor(type)` in `src/lib/music/progression-display.ts` (an exhaustive `Record`, so a new progression won't type-check without a hue). It tints the library card's category pill and dots and carries into the lick-practice session header, so a lick reads as one thing across both. The hue encodes tonality as a cool→warm spectrum: minor progressions teal→indigo, the cyclic/bluesy turnarounds violet→rose, dominant and major terracotta→gold; `:root.light` re-steps them darker.

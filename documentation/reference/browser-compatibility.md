@@ -26,7 +26,7 @@ Mankunku relies on modern Web APIs. This page documents compatibility requiremen
 | Safari (macOS and iOS) | 16.4+ | Tailwind CSS 4, Vite build target |
 | Edge | 111+ | Chromium-based |
 
-These are toolchain baselines, not a test result for every feature on each minimum version. Tailwind CSS 4 states Chrome 111, Safari 16.4 and Firefox 128 as the versions its core depends on, and `vite.config.ts` sets no `build.target`, so Vite 8's default `baseline-widely-available` target (Chrome/Edge 111, Firefox 114, Safari/iOS 16.4) decides which syntax gets down-levelled. Every audio API above is supported well below that.
+Rechecked against [Vite build targets](https://vite.dev/config/build-options.html#build-target) and [Tailwind compatibility](https://tailwindcss.com/docs/compatibility) on November 13, 2026. These are toolchain baselines, not a test result for every feature on each minimum version. Tailwind CSS 4 states Chrome 111, Safari 16.4 and Firefox 128 as the versions its core depends on, and `vite.config.ts` sets no `build.target`, so Vite 8's default `baseline-widely-available` target (Chrome/Edge 111, Firefox 114, Safari/iOS 16.4) decides which syntax gets down-levelled. Every audio API above is supported well below that.
 
 **Not supported:** Internet Explorer, Opera Mini, browsers older than the interface baseline.
 

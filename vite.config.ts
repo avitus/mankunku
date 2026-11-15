@@ -80,6 +80,11 @@ export default defineConfig({
 		include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
 		environment: 'node',
 		setupFiles: ['./vitest.setup.ts'],
+		// The full-performance Musicality tests generate whole tunes per case:
+		// 2–3 s locally, 7–14 s on CI's shared vCPUs, where Vitest's 5 s default
+		// failed 35 of them on main's first hosted run (2026-11-12) and starved
+		// the anthropic import test beside them.
+		testTimeout: 30_000,
 		...circleciCoverage
 	}
 });

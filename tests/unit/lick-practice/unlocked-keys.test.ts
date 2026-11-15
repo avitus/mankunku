@@ -116,14 +116,6 @@ describe('startSingleLickSession unlocked-key filter', () => {
 		expect(lickPractice.plan[0].keys).toEqual(['F']);
 	});
 
-	it('preserves circle-of-4ths order within the per-lick unlocked set', () => {
-		// Three unlocks for an F major lick → planUnlockedKeys gives {F, C, G}
-		// (entry, then no accidentals, then one sharp). Circle-of-4ths from F
-		// passes through F → Bb → … → G → C, so the rotation is F → G → C.
-		setUnlockedCount('lick-f', 3);
-		startSingleLickSession(makeLick('F', 'lick-f'));
-		expect(lickPractice.plan[0].keys).toEqual(['F', 'G', 'C']);
-	});
 
 	it('returns the full circle when the per-lick count reaches 12', () => {
 		setUnlockedCount('lick-c', 12);

@@ -530,8 +530,18 @@ function getBreathDetune(midi: number, isFirstNote: boolean): number {
  * Uses PPQ (Pulses Per Quarter note) for exact subdivision timing.
  * Applies swing pre-shift (off-beat 8ths only — triplets are immune)
  * and timing humanization for authentic jazz feel.
+ *
+ * A `performed` phrase already carries a player's measured timing (the lick
+ * browser's Weimar performance): its onsets are not humanized and its lengths
+ * are not scaled by articulation. Dynamics and timbre still apply.
  */
-export function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
+export function phraseToEvents(
+	phrase: Phrase,
+	tempo: number,
+	swing: number,
+	ppq: number,
+	{ performed = false }: { performed?: boolean } = {}
+): PlaybackEvent[] {
 	// Rest-skip + tie-merge into sounding notes, then compute per-note musical
 	// expression (dynamics + articulation). The expression pass NEVER touches
 	// timing — onset ticks below are derived exactly as before so the swung grid
@@ -546,13 +556,14 @@ export function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq
 
 		const rawBeats = fractionToFloat(s.offset) * 4;
 		const swungBeats = applySwingToBeats(rawBeats, swing);
-		const ticks = humanizeTiming(Math.round(swungBeats * ppq), ppq, tempo);
+		const gridTicks = Math.round(swungBeats * ppq);
+		const ticks = performed ? gridTicks : humanizeTiming(gridTicks, ppq, tempo);
 		const notatedSeconds = fractionToFloat(s.duration) * 4 * (60 / tempo);
 
 		events.push({
 			time: `${ticks}i`,
 			midi: s.pitch,
-			duration: notatedSeconds * e.durationScale,
+			duration: notatedSeconds * (performed ? 1 : e.durationScale),
 			velocity: humanizeVelocity(e.velocity), // gain jitter only — layer is fixed by layerVelocity
 			layerVelocity: e.layerVelocity,
 			release: e.release,
@@ -662,6 +673,8 @@ function getPhraseBars(phrase: Phrase): number {
  */
 export interface PhrasePlaybackOpts {
 	skipMelody?: boolean;
+	/** The phrase is a recorded performance: play its timing as written (see `phraseToEvents`). */
+	performed?: boolean;
 	loopBacking?: boolean;
 	/** Resolve the returned promise 1 beat after the melody's last note
 	 *  instead of after the harmony extent rounded up to whole bars. Use
@@ -804,7 +817,7 @@ export async function playPhrase(
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
-	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq);
+	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
 	const onNote = opts.onNote;
 	/** Sound one melody note and, at its audible moment, report it to the cursor. */
 	const playMelodyEvent = (time: number, event: PlaybackEvent): void => {
@@ -1095,7 +1108,7 @@ export async function scheduleNextPhrase(
 
 	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq);
+		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
 		const onNote = opts.onNote;
 		currentPart = new Tone.Part((time, event) => {
 			startNote({ ...event, time });

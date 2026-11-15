@@ -1,8 +1,8 @@
 import { buildNativeAabaFixture } from '../fixtures/musicality-native-aaba';
 import { test, expect } from './fixtures/test';
 import { readFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
-import ts from 'typescript';
+import { resolve } from 'node:path';
+import { browserModule } from './fixtures/browser-module';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '../../src/lib/audio/backing-rolling';
 import { BACKING_STYLES } from '../../src/lib/audio/backing-styles';
 import { resolveBackingSwing } from '../../src/lib/audio/backing-generation';
@@ -10,21 +10,10 @@ import { buildNativeBluesFixture } from '../fixtures/musicality-native-blues';
 
 // Keep the real sample-loader and trim implementation in the browser. The pure
 // arrangement is generated in Node; no Web Audio mocks or synthetic oscillators.
-async function browserModule(path: string): Promise<string> {
-	let source = ts.transpileModule(await readFile(path, 'utf8'), {
-		compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
-	}).outputText;
-	for (const match of [...source.matchAll(/from ['"](\.\/[^'"]+)['"]/g)]) {
-		const dependency = await browserModule(resolve(dirname(path), `${match[1]}.ts`));
-		source = source.replace(match[0], `from 'data:text/javascript;base64,${Buffer.from(dependency).toString('base64')}'`);
-	}
-	return source;
-}
 
 for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14', '0.15', '0.16'] as const) for (const seed of release === '0.16' ? [42,7,19,256,1,2] : release === '0.15' ? [42,7,19,147,243] : release === '0.7' ? [42] : ['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? [42,7,19] : [42, 19]) for (const style of ((release==='0.15'&&seed===243||release==='0.16'&&seed===256)?['swing'] as const:release==='0.16'&&seed===1?['ballad'] as const:release==='0.16'&&seed===2?['bossa-nova'] as const:['swing', 'straight', 'bossa-nova', 'ballad'] as const)) for(const tune of release==='0.15'&&style==='ballad'&&seed===7?['blues','aaba']:['blues']) {
 	const releaseEight = release !== '0.7';
 	test(`${release} seed ${seed} ${style}${tune==='aaba'?' AABA':''}: full tune keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
-		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
 		test.setTimeout(240_000);
 		// Keep native network/load/render stalls distinguishable from a musical
 		// assertion failure. These diagnostics do not alter clocks or deadlines.

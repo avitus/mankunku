@@ -3365,3 +3365,20 @@ I had a fix ready: treat the category as the shape. It would have refused Wail o
 ## 2026-11-08 — Test inventories need several categories
 
 A recording tool, an expected-failure regression and a platform-skipped test are three different kinds of evidence. Counting all three as ordinary tests hides what is actually protected. The cross-tab switch test also showed why waiting for a reload is weaker than checking the new account's visible settings and where a subsequent write lands. The useful maintenance target is observable behavior and ownership boundaries, rather than a smaller test count by itself.
+
+
+## 2026-11-12 — A guard can be right for a reason its name does not give
+
+The rolling renderer refused any bar that took over 25 ms to generate. Read by its name it is a performance budget, and as a budget it was wrong: it stopped takes with a third of a second in hand. Its real work was different. It was the only timing check on the wall clock, and so the only one that still worked if the audio clock stood still during a long script task. I recommended deleting it after reading the check that follows it and seeing the same deadline tested again. Both checks read one clock; that was the part I had not asked about. The question that found it was "what does each check measure with", not "what does each check test".
+
+Two habits to keep. When two guards look redundant, compare their inputs before their conditions. And when the person who owns the product says "check again, thoroughly" about a change I called safe, treat it as information: my first pass had argued from the code's structure, and the second argued from what a browser is allowed to do.
+
+## 2026-11-14 — Five takes, one sentence, four rules
+
+The five takes had one description: a soft, short repeat. I expected one fix. There were four, because the detector had learned its repeats from notes with room after them. Every earlier fixture's repeat is a quarter or a half note, so "it comes back to 0.9", "it holds for 300 ms", "the run's median is its tone" and "the first 80 ms after an onset can be thrown away" were all true of everything measured. A swung eighth breaks each of them separately. The assumption was never written down as one rule, so it could not be fixed as one.
+
+What I'd keep: when several failures share a description, list the rules that each quietly assume its opposite before reading any one of them closely. I found the second, third and fourth only because I traced each take on its own instead of fixing the first and re-running.
+
+The other lesson cost me a round. I built a corpus sweep, saw zero regressions and believed it. The sweep covered the corpus I had been looking at. The segmenter has a second customer, the lick recorder, with its own fourteen takes, and the plain unit suite is what told me. A sweep I wrote myself measures what I thought of; the suite measures what other people thought of.
+
+And one thing I did not do. Removing the guard exposed two onsets in an old fixture that a metronome click had manufactured. A band-recovery check deletes both with clean margins. I wrote it, measured it, and took it out: Andy asked for missed tongues to be found, and that check is a way to refuse one. The numbers supported it. The request did not ask for it.

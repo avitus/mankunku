@@ -36,9 +36,7 @@ test('deep links open the original requirement and the docs directory discovers 
 	await expect(page.locator('#D15')).not.toHaveAttribute('open', '');
 	await page.goto('/docs');
 	await page.locator('.docs-directory').getByRole('link', { name: /Rhythm Section Musicality/ }).click();
-	await expect(page).toHaveURL(/\/musicality$/);
-	await page.getByRole('button', { name: 'Specification', exact: true }).click();
-	await page.locator('#original-spec summary').click();
+	await expect(page).toHaveURL(/\/musicality#original-spec$/);
 	await expect(page.locator('#original-spec')).toHaveAttribute('open', '');
 	await expect(page.locator('#original-spec')).toContainText('The performance sounds like three musicians listening to each other.');
 	await page.goto('/docs');

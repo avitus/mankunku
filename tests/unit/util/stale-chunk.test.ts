@@ -37,6 +37,35 @@ const URL_B =
 const FETCH_VARIANT =
 	'Failed to fetch dynamically imported module: https://mankunkujazz.com/_app/immutable/chunks/abc123.js';
 
+describe('cached module export mismatch (MANKUNKU-25)', () => {
+	const chunk = 'https://mankunkujazz.com/_app/immutable/chunks/BGhKKvTc.js';
+	const firefox = `The requested module '${chunk}' doesn't provide an export named: 'l'`;
+	const chromium = `The requested module '${chunk}' does not provide an export named 'l'`;
+
+	it('recovers the clicked destination once, even if the browser changes the error wording', async () => {
+		const store = makeStore();
+		const target = 'https://mankunkujazz.com/progress';
+		expect(shouldDropStaleChunkReport(firefox, store)).toBe(true);
+		expect(await resolveNavRecovery(firefox, store, target, target, async () => true))
+			.toEqual({ kind: 'navigate', href: target });
+		expect(staleChunkKey(firefox)).toBe(chunk);
+		expect(shouldDropStaleChunkReport(chromium, store)).toBe(false);
+		expect(await resolveNavRecovery(chromium, store, target, target, async () => true))
+			.toEqual({ kind: 'none' });
+	});
+
+	it('does not hide or reload ordinary module programming errors', () => {
+		for (const message of [
+			"The requested module '/src/app.ts' does not provide an export named 'l'",
+			"The requested module 'https://example.com/library.js' doesn't provide an export named: 'l'",
+			"SyntaxError: Unexpected token 'export'"
+		]) {
+			expect(isRecoverableNavErrorMessage(message)).toBe(false);
+			expect(shouldDropStaleChunkReport(message, makeStore())).toBe(false);
+		}
+	});
+});
+
 describe('isStaleChunkErrorMessage', () => {
 	it('matches both SvelteKit stale-chunk phrasings', () => {
 		expect(isStaleChunkErrorMessage(URL_A)).toBe(true);

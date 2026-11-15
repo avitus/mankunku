@@ -147,6 +147,9 @@ export function segmentNotes(
 			? [...(workletOnsets ?? []), ...(articulationOnsets ?? [])].sort((a, b) => a - b)
 			: null;
 
+	const sortedArticulations =
+		articulationOnsets !== undefined ? [...articulationOnsets].sort((a, b) => a - b) : null;
+
 	const notes: DetectedNote[] = [];
 
 	for (let i = 0; i < boundaries.length; i++) {
@@ -183,11 +186,19 @@ export function segmentNotes(
 				hasOnsetNear(amplitudeOnsets, segStart, ONSET_GUARD_MATCH_WINDOW));
 		const effectiveStart = guarded ? segStart + onsetGuard : segStart;
 		const staleMidi = notes.length > 0 ? notes[notes.length - 1].midi : null;
+		// A tongued REPEAT is the previous note's pitch, so the same charge
+		// would throw the repeat itself away — see `envelopeRestartsAt`.
+		const repeats =
+			guarded &&
+			staleMidi !== null &&
+			sortedArticulations !== null &&
+			hasOnsetNear(sortedArticulations, segStart, ONSET_GUARD_MATCH_WINDOW) &&
+			envelopeRestartsAt(readings, segStart, effectiveStart, staleMidi);
 		let segReadings = readings.filter(
 			(r) =>
 				r.time < segEnd &&
 				(r.time >= effectiveStart ||
-					(r.time >= segStart && staleMidi !== null && r.midi !== staleMidi))
+					(r.time >= segStart && (repeats || (staleMidi !== null && r.midi !== staleMidi))))
 		);
 		// Fallback: if the guard window ate all readings (very short note),
 		// use the unguarded range so the note isn't silently dropped.
@@ -331,6 +342,63 @@ export function segmentNotes(
 	// adjacent-segment merge above can't reach it. Drop it here on a strong
 	// majority of octave-up-flagged frames.
 	return withGhosts(mergeWholeNoteOctaveUpLocks(octaveMerged, readings));
+}
+
+/**
+ * How far back from a re-articulation onset the stop is looked for, and how
+ * far under the repeat's floor it must have fallen — `hasBandStopAtOnset`'s
+ * stop window and ratio.
+ */
+const REPEAT_STOP_WINDOW = 0.15;
+const REPEAT_STOP_RATIO = 0.5;
+
+/**
+ * Whether the frames just after a re-articulation onset that still read the
+ * previous note's MIDI are a REPEAT of that note and not its tail: the
+ * envelope floor stopped before the onset and those frames carry it restarted.
+ *
+ * The onset guard drops such frames as stale, and for a repeat that is long
+ * enough nothing is lost. For a short one it is most of the note. 2026-11-15
+ * "through-the-blue-to-the-root-2": the envelope tier found the tongued F3
+ * repeat at 0.863 s, the guard dropped its first five frames as the previous
+ * F, and with no onset for the G3 that follows 0.19 s later the two F frames
+ * left never made a stable run. The G took the segment from 0.863 s and the
+ * repeat the tiers had just found was scored MISSED.
+ *
+ * Not every re-articulation onset is a repeat, though, which is why the floor
+ * is asked. The HF and shape tiers also fire on the transient of a slur into
+ * another note, and there the frames after the onset are the old pitch
+ * gliding away; kept, they become a sliver note of their own. Lowest floor
+ * (`rmsMin`) over the REPEAT_STOP_WINDOW before the onset against the median
+ * floor of the previous-MIDI frames inside the guard window:
+ *
+ *   through-the-blue-to-the-root-2, tongued F3 repeat ............. 0.23
+ *   recorder corpus, chromatic-below-chord-tones Db4 slurring to C . 0.88
+ *   recorder corpus, go-chromatic Ab3 slurring to F#3 .............. 0.93
+ *
+ * Only a re-articulation onset is asked. Those are found inside a same-MIDI
+ * run, so the pitch on both sides is one note's by construction; a worklet
+ * onset says nothing about pitch, and extending the rule to it took the A3
+ * out of the 2026-10-03 Honeysuckle Rose take. Readings without `rmsMin`
+ * (pre-2026-07-25 diagnostic JSON) keep the guard.
+ */
+function envelopeRestartsAt(
+	readings: PitchReading[],
+	onset: number,
+	guardEnd: number,
+	midi: number
+): boolean {
+	let stopFloor = Infinity;
+	const repeat: number[] = [];
+	for (const r of readings) {
+		if (r.time < onset - REPEAT_STOP_WINDOW) continue;
+		if (r.time >= guardEnd) break;
+		if (r.midi !== midi || r.rmsMin == null) continue;
+		if (r.time < onset) stopFloor = Math.min(stopFloor, r.rmsMin);
+		else repeat.push(r.rmsMin);
+	}
+	if (stopFloor === Infinity || repeat.length < PITCH_CHANGE_MIN_HOLD) return false;
+	return stopFloor < median(repeat) * REPEAT_STOP_RATIO;
 }
 
 /**
@@ -2063,8 +2131,9 @@ const HF_BLEED_SUPPRESS_AFTER = 0.28;
  * tests/unit/audio/note-segmenter.test.ts — each corroborator alone splits, a
  * bare dip does not.
  *
- * Recovery has a second shape for a repeat that lands softer than the note
- * before it — see `reBloomsAndHolds`.
+ * Recovery has two more shapes for a repeat that lands softer than the note
+ * before it — see `reBloomsAndHolds`, and `floorDipUndone` for one too short
+ * to hold.
  *
  * Dips that coincide with a reading gap ≥ READING_GAP_SPLIT_THRESHOLD are
  * left to the gap tiers (they own that evidence class; double-firing here
@@ -2187,6 +2256,19 @@ function feathersTongueShape(stable: PitchReading[], from: number, to: number): 
  * must clear SHAPE_CLEAN_BASELINE, and the span's deepest break must stand
  * SHAPE_MIN_DROP below it. A shallow break retains SHAPE_MIN_PERIODICITY.
  * A deeper break also needs an instrument-band floor dip AND recovery.
+ *
+ * The deep path takes a second baseline: the ENV_LOCAL_FRAMES before the
+ * span, the frames the dip's own level was measured over. A whole-run median
+ * needs a run long enough for the clean tone to outnumber everything else,
+ * and a swung eighth is not. The 2026-11-15 "through-the-blue-to-the-root" F3
+ * is 28 frames, of which the tongue takes seven and the beat-2 click six, so
+ * the run median reads 0.883 on a tone that sat at 0.985 before the dip; the
+ * reset itself reads 0.843, with the band floor at 0.64 of its level and back
+ * at 1.35× that floor. The shallow path keeps the whole-run median only: its
+ * 0.015 drop is the size of the measurement noise, and against the eight
+ * frames before the dip a held note clears it (2026-08-13 blue-note-roll-off
+ * 0.995 → 0.980, 2026-05-19 octave-flat-seven-drop 0.985 → 0.972). A deep
+ * break is five times that drop and brings its own band evidence.
  * Full-band recovery alone can come from a click during a fade; the band
  * must independently restart (2026-10-10 Blue Note Step-Up).
  * Without that evidence, destroyed periodicity is contamination or a
@@ -2203,18 +2285,24 @@ function resetsReed(stable: PitchReading[], from: number, to: number): boolean {
 	}
 	if (runShapes.length === 0) return false;
 	const baseline = median(runShapes);
-	if (baseline < SHAPE_CLEAN_BASELINE) return false;
 	let minShape = Infinity;
 	for (let p = from; p < to; p++) {
 		const s = stable[p].shapeBreak;
 		if (s == null) return false;
 		if (s < minShape) minShape = s;
 	}
-	return (
-		minShape <= baseline - SHAPE_MIN_DROP &&
-		(minShape >= SHAPE_MIN_PERIODICITY ||
-			(bandFloorDips(stable, from, to) && bandFloorRecovers(stable, from, to)))
-	);
+	if (minShape >= SHAPE_MIN_PERIODICITY) {
+		return baseline >= SHAPE_CLEAN_BASELINE && minShape <= baseline - SHAPE_MIN_DROP;
+	}
+	if (baseline < SHAPE_CLEAN_BASELINE) {
+		const before: number[] = [];
+		for (let p = Math.max(0, from - ENV_LOCAL_FRAMES); p < from; p++) {
+			const s = stable[p].shapeBreak;
+			if (s != null) before.push(s);
+		}
+		if (before.length < ENV_LOCAL_FRAMES || median(before) < SHAPE_CLEAN_BASELINE) return false;
+	}
+	return bandFloorDips(stable, from, to) && bandFloorRecovers(stable, from, to);
 }
 
 /**
@@ -2292,6 +2380,70 @@ function reBloomsAndHolds(stable: PitchReading[], from: number, to: number, loca
 	}
 	if (count < ENV_LOCAL_FRAMES) return -1;
 	return held / count >= local * RE_ARTICULATION_GAP_HOLD ? recovery : -1;
+}
+
+/**
+ * The envelope tier's third recovery shape: a tongued repeat that lands softer
+ * than the note before it AND is over before a hold can be measured. A swung
+ * eighth repeated and then left for the next pitch gives `reBloomsAndHolds`
+ * one to six frames in its 100–400 ms hold window, where it needs
+ * ENV_LOCAL_FRAMES. Three of the five 2026-11-15 takes are that note: the
+ * window RMS came back to 0.90, 0.81 and 0.79 of the pre-dip level, on
+ * repeats that had 0.12–0.18 s left once the dip was over.
+ *
+ * What this shape asks is whether the dip itself was undone, in the measure
+ * that found it. The span is frames whose `rmsMin` floor sits under
+ * ENV_DIP_RATIO of the trailing window RMS, and a note that is only fading
+ * gets there without any dip of its own, because a falling floor runs under a
+ * trailing level. So compare the floor with ITSELF: its median over the
+ * ENV_LOCAL_FRAMES before the span, its minimum inside, and its median over
+ * ENV_RECOVER_WINDOW after. The dip is undone when the floor climbs back at
+ * least ENV_FLOOR_UNDONE of the way it fell. The median, because a bounce
+ * that fades again must not count; ENV_FLOOR_UNDONE_MIN_FRAMES, as
+ * `bandFloorRecovers` asks, because one frame proves nothing.
+ *
+ * Share of the fall recovered, for every dip that neither other shape
+ * recovers, across the 55 ear-training takes × replay / live × trimmed /
+ * untrimmed × worklet onsets / none (2026-11-15):
+ *
+ *   through-the-blue-to-the-root, -3, blue-note-step-up-2 . 0.79, 0.75, 0.66
+ *   locrian-descent F3 (uncorroborated, stays unsplit) .... 0.69
+ *   through-the-blue G3 release, blue-note-roll-off Db4 ... 0.20, 0.15
+ *   the other eight: decays and click ripples ............. below zero
+ *
+ * Returns the first frame whose floor is back over the halfway mark (the
+ * onset anchor), or -1. The corroborators still decide whether it splits.
+ */
+const ENV_FLOOR_UNDONE = 0.5;
+const ENV_FLOOR_UNDONE_MIN_FRAMES = 3;
+
+/** The dip span [from, to) of `stable`, judged by `ENV_FLOOR_UNDONE`. */
+function floorDipUndone(stable: PitchReading[], from: number, to: number): number {
+	const pre: number[] = [];
+	for (let k = Math.max(0, from - ENV_LOCAL_FRAMES); k < from; k++) {
+		const f = stable[k].rmsMin;
+		if (f != null) pre.push(f);
+	}
+	if (pre.length < ENV_LOCAL_FRAMES) return -1;
+	const preFloor = median(pre);
+	let dip = Infinity;
+	for (let k = from; k < to; k++) {
+		const f = stable[k].rmsMin;
+		if (f != null && f < dip) dip = f;
+	}
+	if (!(dip < preFloor)) return -1;
+	const target = dip + (preFloor - dip) * ENV_FLOOR_UNDONE;
+	const spanEnd = stable[to - 1].time;
+	const post: number[] = [];
+	let first = -1;
+	for (let k = to; k < stable.length && stable[k].time - spanEnd <= ENV_RECOVER_WINDOW; k++) {
+		const f = stable[k].rmsMin;
+		if (f == null) return -1;
+		post.push(f);
+		if (first === -1 && f >= target) first = k;
+	}
+	if (post.length < ENV_FLOOR_UNDONE_MIN_FRAMES || first === -1) return -1;
+	return median(post) >= target ? first : -1;
 }
 
 /**
@@ -2413,20 +2565,24 @@ function meanRms(readings: PitchReading[], from: number, to: number): number {
 }
 
 /**
- * Whether any reading falls strictly inside the open interval (from, to).
+ * Whether a WARMUP reading falls strictly inside the open interval (from, to).
  * `readings` must be sorted ascending by time. Used to tell a genuine
- * detector silence (no frames of any kind across a same-MIDI hole) from a
- * warmup-bridged hole: a same-MIDI run skips warmup frames, so a stabilizer
- * reset mid-note leaves a phantom "gap" between two stable readings even
- * though warmup frames were emitted throughout. Passing the FULL reading
- * stream (warmup included) lets the short-gap re-articulation pass reject
- * those phantom gaps.
+ * detector silence across a same-MIDI hole from a warmup-bridged one: a
+ * same-MIDI run skips warmup frames, so a stabilizer reset mid-note leaves a
+ * phantom "gap" between two stable readings even though warmup frames were
+ * emitted throughout. Passing the FULL reading stream (warmup included) lets
+ * the short-gap re-articulation pass reject those phantom gaps.
+ *
+ * Only warmup frames bridge. Until 2026-11-15 nothing else could sit in a
+ * run's hole, so the test read "any reading"; a run now continues across a
+ * stray-pitch excursion (`findSameMidiRuns`), and those one or two frames are
+ * the re-attack speaking, not the note carrying on.
  */
-function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: number): boolean {
+function hasWarmupInOpenInterval(readings: PitchReading[], from: number, to: number): boolean {
 	for (const r of readings) {
 		if (r.time <= from) continue;
 		if (r.time >= to) return false; // sorted ascending — nothing left in range
-		return true;
+		if (r.warmup) return true;
 	}
 	return false;
 }
@@ -2463,8 +2619,10 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
  *   2. HF spike. An `hfRms` burst with a fundamental perturbation and held
  *      energy, or with the feather-tongue shape band; inside a click's window
  *      it is suppressed unless `bandFloorDips` or `feathersTongueShape` rescues it.
- *   3. Envelope dip. An `rmsMin` floor dip that recovers, corroborated by
- *      tongue noise or a pitch wobble; dips at a reading gap are left to tier 1.
+ *   3. Envelope dip. An `rmsMin` floor dip that recovers (three shapes:
+ *      ENV_RECOVER_RATIO, `reBloomsAndHolds`, `floorDipUndone`), corroborated
+ *      by tongue noise, a pitch wobble or a reed reset; dips at a reading gap
+ *      are left to tier 1.
  *   4. Clarity dip-and-recover. A clarity drop paired with an RMS dip and
  *      recovery, anchored where the RMS climbs back. Across a reading gap it
  *      also needs the `rmsMin` floor to collapse (RE_ARTICULATION_GAP_SPAN_FLOOR),
@@ -2568,7 +2726,7 @@ function hasBandStopAtOnset(readings: PitchReading[], onset: number): boolean {
 	);
 }
 
-interface SameMidiRun {
+export interface SameMidiRun {
 	start: number;
 	end: number;
 	readings: PitchReading[];
@@ -2580,8 +2738,32 @@ interface SameMidiRun {
  * MIDI change starts a new run. Runs shorter than 4 frames are dropped
  * because a re-articulation needs at least a baseline-dip-recovery
  * spread of frames to be detectable.
+ *
+ * A MIDI change needs PITCH_CHANGE_MIN_HOLD frames, as it does in the
+ * segmenter's own `splitByPitchChange`: an excursion shorter than that which
+ * returns to the run's MIDI is left out of the run and does not end it. The
+ * 2026-11-15 "blue-note-step-up" F4 pair is the reference. The re-attack
+ * spoke for one frame each on G4 and E4 (clarity 0.81, after two unconfident
+ * frames), which ended the run at the bottom of the tongue's dip and began a
+ * new one after it. The floor fell to 0.17 of the note in the first
+ * run and the level came back to 0.98 in the second, so no tier saw a dip
+ * that recovered, and the segmenter, to which a two-frame excursion was
+ * never a note, kept one 0.67 s F. The hole the excursion leaves is the gap
+ * tiers' to judge, and there the step-up is 1.9×.
+ *
+ * Warmup frames count towards the excursion's length although they are never
+ * part of a run. A breathy note can be all warmup but one frame (2026-10-28
+ * "little-cry": an F3 of one confident and five warmup frames between two
+ * Eb3s), and joining the Ebs across it put a re-articulation onset on the
+ * second Eb that cut the F's warmup window in two.
+ *
+ * The excursion is measured from its FIRST frame. A note whose warmup frames
+ * lead holds a different MIDI for every one of them, and judged again from
+ * its last two frames it would read as a two-frame stray (CodeRabbit on #306:
+ * five warmup frames and one confident one joined the runs either side).
+ * Exported for tests.
  */
-function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
+export function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 	const runs: SameMidiRun[] = [];
 	let curMidi: number | null = null;
 	let curStart = 0;
@@ -2597,7 +2779,18 @@ function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 		}
 	};
 
-	for (const r of readings) {
+	for (let i = 0; i < readings.length; i++) {
+		const r = readings[i];
+		// Only the excursion's first frame decides; a later frame of the same
+		// excursion would see only what remains of it.
+		if (curMidi !== null && r.midi !== curMidi && readings[i - 1]?.midi === curMidi) {
+			let k = i;
+			while (k < readings.length && k - i < PITCH_CHANGE_MIN_HOLD && readings[k].midi !== curMidi) k++;
+			if (k < readings.length && k - i < PITCH_CHANGE_MIN_HOLD && readings[k].midi === curMidi) {
+				i = k - 1;
+				continue;
+			}
+		}
 		if (r.warmup) continue;
 		if (curMidi === null || r.midi !== curMidi) {
 			flush();
@@ -2864,7 +3057,7 @@ function findReArticulationsInSegment(
 			// check: a long enough hole is meaningful even when the stabilizer
 			// re-warms as the new note blooms — it requires energy sustain
 			// across the hole instead.)
-			if (hasReadingInOpenInterval(allReadings, stable[g - 1].time, stable[g].time)) {
+			if (hasWarmupInOpenInterval(allReadings, stable[g - 1].time, stable[g].time)) {
 				continue;
 			}
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
@@ -3072,8 +3265,9 @@ function findReArticulationsInSegment(
 				}
 			}
 			// A repeat may land softer than the note before it — see
-			// `reBloomsAndHolds`.
+			// `reBloomsAndHolds` — and be over too soon to hold: `floorDipUndone`.
 			if (recoveryIdx === -1) recoveryIdx = reBloomsAndHolds(stable, e, j, local);
+			if (recoveryIdx === -1) recoveryIdx = floorDipUndone(stable, e, j);
 			if (recoveryIdx === -1) {
 				e = j + 1;
 				continue;

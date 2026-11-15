@@ -4,7 +4,7 @@
 
 | Technology | Version | Role |
 |---|---|---|
-| [SvelteKit](https://kit.svelte.dev) | ^3.1 | App framework (routing, SSR, adapters) |
+| [SvelteKit](https://kit.svelte.dev) | ^3.2 | App framework (routing, SSR, adapters) |
 | [Svelte 5](https://svelte.dev) | ^5.57 | UI framework (runes mode for reactivity) |
 | [Vite](https://vitejs.dev) | ^8.3 | Build tool and dev server |
 | [TypeScript](https://typescriptlang.org) | ^6.0 | Type safety (strict mode) |
@@ -30,7 +30,6 @@
 |---|---|---|
 | [Vitest](https://vitest.dev) | ^4.1 | Unit testing (node environment) |
 | [Playwright](https://playwright.dev) | ^1.65 | End-to-end browser testing |
-| [@testing-library/svelte](https://testing-library.com/svelte) | ^5.4 | Component testing utilities |
 | [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB) | ^6.2 | IndexedDB polyfill for the node test environment (`vitest.setup.ts`) |
 
 ## Platform & services
@@ -38,13 +37,13 @@
 | Library | Version | Role |
 |---|---|---|
 | [@supabase/supabase-js](https://supabase.com/docs/reference/javascript) + [@supabase/ssr](https://supabase.com/docs/guides/auth/server-side) | ^2.119 / ^0.12 | Auth + Postgres cloud sync; browser and per-request server clients (`src/lib/supabase/`) |
-| [@sentry/sveltekit](https://docs.sentry.io/platforms/javascript/guides/sveltekit/) | ^11.11 | Error monitoring, client replay tunnelled through `/api/monitoring`; source maps uploaded at build when a token is present. Traces are sampled at `TRACES_SAMPLE_RATE` (`$lib/util/sentry-sampling`, 0.1) on both sides — tracing every request spent the organisation's shared span quota by 2026-10-24. The tunnel hands Sentry's 429, `X-Sentry-Rate-Limits` and `Retry-After` back to the SDK so it backs off a limited category instead of retrying into it |
+| [@sentry/sveltekit](https://docs.sentry.io/platforms/javascript/guides/sveltekit/) | ^11.12 | Error monitoring, client replay tunnelled through `/api/monitoring`; source maps uploaded at build when a token is present. Traces are sampled at `TRACES_SAMPLE_RATE` (`$lib/util/sentry-sampling`, 0.1) on both sides — tracing every request spent the organisation's shared span quota by 2026-10-24. The tunnel hands Sentry's 429, `X-Sentry-Rate-Limits` and `Retry-After` back to the SDK so it backs off a limited category instead of retrying into it |
 | [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | ^1.6 | The docs assistant (`/api/chat`) and lead-sheet PDF transcription (`/api/tune-parse`) |
 | [pdfjs-dist](https://mozilla.github.io/pdf.js/) | ^6.5 | Client-side PDF geometry + text-layer extraction for the PDF importer |
 | [driver.js](https://driverjs.com) | ^1.10 | Guided tours (`src/lib/tour/`) |
 | [marked](https://marked.js.org) + [sanitize-html](https://github.com/apostrophecms/sanitize-html) | ^18.1 / ^2.18 | In-app docs rendering (`src/lib/docs/`) |
 
-**Node.** `.nvmrc` pins **26.5.1** (what the production server runs); `package.json` `engines` allows `>=22.17.0`. The `omr/` subsystem is a separate uv-managed **Python 3.12** project (its own `pyproject.toml` / `uv.lock` / `.venv`) that nothing in the app calls yet — see the OMR section of [AGENTS.md](../../AGENTS.md) and `docs/omr/README.md`.
+**Node.** `.nvmrc` pins **26.5.1** (the configured CI/release runtime); `package.json` `engines` allows `>=22.17.0`. The `omr/` subsystem is a separate uv-managed **Python 3.12** project (its own `pyproject.toml` / `uv.lock` / `.venv`) that nothing in the app calls yet — see the OMR section of [AGENTS.md](../../AGENTS.md) and `docs/omr/README.md`.
 
 ## Installable web app (no service worker)
 

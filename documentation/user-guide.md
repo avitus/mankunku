@@ -47,7 +47,7 @@ Ear Training has no in-page settings panel — everything it uses comes from the
 | **Tempo** | 60–200 BPM, in steps of 5 (100 out of the box). The tempo Ear Training plays at, and where a tune starts until you pick a tempo for it (each tune then remembers its own). Lick Practice doesn't use it — every lick carries its own tempo. Most players start in the 80–110 range. |
 | **Swing** | 50% (straight eighths) to 80% (heavy), in 1% steps. 67% is the usual triplet swing; the app ships at 62%, a moderate jazz swing. At exactly 50% the band stops following the knob and swings by tempo instead — slower tunes lope harder, fast ones straighten out. |
 | **Metronome** | On/off, plus a level knob when it's on. The knob sets where the click sits in the mix — halfway by default — and the whole range is trimmed so the click sits under the music rather than beside it. |
-| **Backing** | On/off, the comping voice (Piano or Organ), and a level knob. Despite living in this section, these apply to the *backing track* — Lick Practice and Tune Practice — not to Ear Training, which never plays one. |
+| **Backing** | On/off, the comping voice (Piano or Organ), and a level knob. These control the rhythm section in Ear Training as well as Lick Practice and Tune Practice. Ear Training keeps the band continuous between successive phrases when backing is enabled. |
 
 What you **can't** set: the phrase pool. The app draws from the curated catalog plus your own and adopted licks, caps it at your proficiency level in the active scale, filters it for scale compatibility (see below), and shuffles. There's no category, difficulty, or bar-count dial — difficulty is the adaptive system's job. The tonality controls on the main Settings page are the ones that shape what you hear.
 
@@ -105,6 +105,14 @@ Above the console, a ⚠ line warns you when licks you've tagged for practice ha
 ### The band
 
 The rhythm section is generated, not looped: bass, comping (piano or organ, your pick in Settings), and drums, played fresh each time from a seeded engine. It doesn't repeat a two-bar sample at you.
+
+In **Settings → Rhythm & band**, choose **Musicality 0.16.1** or **Original**.
+The choice stays on this device and takes effect when you next start playback.
+Musicality coordinates the bass, keyboard and drums across the form. It supports
+complete 4/4 forms up to 128 bars; other passages automatically use Original.
+Normal practice prepares the arrangement before playback. Live microphone-driven
+band responses are a listening-lab experiment, not part of ordinary practice.
+
 
 | Style | Bass | Comping | Drums |
 |---|---|---|---|
@@ -319,7 +327,7 @@ The global Settings page controls things that aren't specific to a single sessio
 | **Tempo** | 60–200 BPM. Ear Training's tempo. Tune practice's Tempo knob and the tune desk start here only for a tune you haven't set a tempo for — each tune remembers its own. It's also the tempo the play buttons on your lick pages use. |
 | **Swing** | 50% (straight) to 80% (heavy), in 1% steps; 62% out of the box. 67% is the usual triplet swing. Applies to the **Swing** backing style — you and the band both play it. Bossa Nova, Ballad and Straight set their own feel and ignore this. |
 | **Metronome** + **Metro Vol** | The click on or off, and where it sits in the mix (halfway by default, trimmed to sit under the music). |
-| **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live in **Rhythm & band** and apply to Lick Practice and Tune Practice — Ear Training never plays a backing track. Switching backing off disables its voice and volume controls without moving them or discarding their settings. |
+| **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live in **Rhythm & band** and apply to Ear Training, Lick Practice and Tune Practice. Switching backing off disables its voice and volume controls without moving them or discarding their settings. |
 | **Lick Practice** | Nothing to set here — a **Go to Lick Practice** link, because those settings live on the Lick Practice page. |
 | **Account** | Shown when you're signed in: who you're signed in as, a **Display Name** (shown on the licks and tunes you share; leave it blank to stay anonymous), a **Password** change (*Change* emails you a reset link), and **Delete Account**, which removes your cloud account and its data after a confirmation. |
 | **Tours, help & data** | A **Browse docs** link, a *Take tour* / *Replay* button for each guided tour, and **Reset all tour history** so the first-run prompts and "Need help?" links come back. |
