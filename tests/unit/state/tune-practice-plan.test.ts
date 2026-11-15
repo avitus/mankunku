@@ -1048,6 +1048,20 @@ describe('omitted solo sections retain the actual performed form', () => {
 		harmony: [seg('C', 'maj7', [0, 1], [2, 1]), seg('D', 'min7', [2, 1], [2, 1]), seg('G', '7', [4, 1], [2, 1])],
 		sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 2 }, { sourceSection: 2, barOffset: 4 }]
 	});
+	it('hands matching the shortened playback timeline, not the original section offsets', () => {
+		const seen: FlattenedTune[] = [];
+		buildSessionPlan(planDeps({ flat, notationFlat: flat,
+			detect: () => [mkDet({})],
+			match: (_detection, performed) => {
+				seen.push(performed);
+				return { suggestions: [], uncategorized: [] };
+			}
+		}));
+		expect(seen).toHaveLength(1);
+		expect(seen[0].totalBars).toBe(4);
+		expect(seen[0].harmony.map(h => [h.chord.root, fractionToFloat(h.startOffset)])).toEqual([['C', 0], ['G', 2]]);
+		expect(flat.harmony.map(h => fractionToFloat(h.startOffset))).toEqual([0, 2, 4]);
+	});
 	it.each([true, false])('keeps noncontiguous A+C solos aligned with harmony and chart provenance (head=%s)', playHead => {
 		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
 		const head = [['head', 0, 'C'], ['head', 0, 'C'], ['head', 1, 'D'], ['head', 1, 'D'], ['head', 2, 'G'], ['head', 2, 'G']];

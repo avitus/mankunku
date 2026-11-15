@@ -1,4 +1,4 @@
-import type { Fraction, Mode, Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { Fraction, HarmonicSegment, Mode, Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
 import type {
 	ChordProgressionType,
 	ChordSubstitutionRule,
@@ -9,6 +9,7 @@ import { INSTRUMENTS, type InstrumentConfig } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 import type { DetectedProgression, DetectedSlot } from './progression-detector';
 import type { MajorRegion } from './harmonic-analysis';
+import { assessPhraseFit, comparePhraseFit, type PhraseFit } from './phrase-fit';
 import { chordEvidence } from '$lib/music/chord-evidence';
 import { trickVariantKey } from '$lib/types/tricks';
 import {
@@ -65,6 +66,8 @@ export type MasteryTier = 'known' | 'learning' | 'unknown';
 export type MatchSource = 'prog-tag' | 'category' | 'substitution' | 'major-region';
 
 export interface LickSuggestion {
+	/** Soft musical ordering against the actual tune harmony, never an eligibility filter. */
+	phraseFit?: PhraseFit | null;
 	/** Explicit tag authorizes a tonic-major line across the whole cadence. */
 	placement?: 'progression';
 	/** Availability is separate from harmonic fit, so setup can explain exclusions. */
@@ -118,6 +121,8 @@ export interface LickSuggestionResult {
 }
 
 export interface LickMatcherDeps {
+	/** Exact analyzed playback timeline; absent means no phrase-fit inference. */
+	harmony?: readonly HarmonicSegment[];
 	licks: Phrase[];
 	/** Tune meter, for expressing insertion offsets as bar numbers. */
 	timeSignature: [number, number];
@@ -454,13 +459,18 @@ function rankSuggestions(
 	type?: ChordProgressionType
 ): LickSuggestion[] {
 	const { limit } = options;
+	const phrases = new Map(deps.licks.map(lick => [lick.id, lick]));
 	// Retain the same evidence for setup and automatic selection.
 	let eligible = suggestions.map(s => {
 		const variantKey = s.trick ? trickVariantKey(s.trick.trickId, s.trick.parameters) : null;
 		const practicedTempo = variantKey
 			? (deps.trickProgress?.[variantKey]?.[s.targetKey]?.currentTempo ?? getTrickTempo(deps.trickProgress ?? {}, variantKey))
 			: (deps.progress[s.lickId]?.[s.targetKey]?.currentTempo ?? getLickTempo(deps.progress, s.lickId));
-		return { ...s, readiness: { keyReady: s.masteryTier !== 'unknown',
+		const phrase = s.phrase ?? phrases.get(s.lickId);
+		const phraseFit = phrase && deps.harmony
+			? assessPhraseFit(phrase, s.phrase ? phrase.key : s.targetKey, s.insertionOffset, deps.harmony, deps.timeSignature)
+			: null;
+		return { ...s, phraseFit, readiness: { keyReady: s.masteryTier !== 'unknown',
 			tempoReady: options.sessionTempo === undefined || practicedTempo >= options.sessionTempo, practicedTempo } };
 	});
 	if (!options.includeUnready) {
@@ -472,6 +482,7 @@ function rankSuggestions(
 		(a, b) =>
 			TIER_RANK[a.masteryTier] - TIER_RANK[b.masteryTier] ||
 			SOURCE_RANK[a.matchSources[0]] - SOURCE_RANK[b.matchSources[0]] ||
+			comparePhraseFit(a.phraseFit, b.phraseFit) ||
 			Number(b.inPracticeSet) - Number(a.inPracticeSet) ||
 			(type ? categorySpecificity(type, a.category) - categorySpecificity(type, b.category) : 0) ||
 			a.difficultyLevel - b.difficultyLevel ||
