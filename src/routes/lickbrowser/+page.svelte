@@ -52,7 +52,7 @@
  {#each displayed as {r,score,performance} (r.id)}
   <article><h2>{r.performer} — {r.title}</h2><p>Bar {r.bar}, beat {r.beat} · {Math.round(r.tempo)} BPM · {getInstrument().name}</p>
    <NotationDisplay tune={leadSheetTuneFor(score,Infinity).tune} tuneOptions={{...leadSheetAbcOptions(score,4),omitMasthead:true}} instrument={getInstrument()} variant="practice" frameless staffWidth={750}/>
-   <button onclick={()=>audition.play(performance,{tempo:r.tempo*speed,swing:0.5})}>{audition.state.playingId===performance.id?'Stop':'Listen'}</button> <button disabled={!licksReady||personalLicks.some(lick=>lick.tags.includes(excerptReference(r)))} onclick={()=>steal(score,r)}>{personalLicks.some(lick=>lick.tags.includes(excerptReference(r)))?'Stolen':'Steal'}</button>
+   <button onclick={()=>audition.play(performance,{tempo:r.tempo*speed,swing:0.5,performed:true})}>{audition.state.playingId===performance.id?'Stop':'Listen'}</button> <button disabled={!licksReady||personalLicks.some(lick=>lick.tags.includes(excerptReference(r)))} onclick={()=>steal(score,r)}>{personalLicks.some(lick=>lick.tags.includes(excerptReference(r)))?'Stolen':'Steal'}</button>
    <div class="lick-reference" title="Weimar solo ID and starting chord-change index">Ref: WJD {r.id}</div>
   </article>
  {/each}

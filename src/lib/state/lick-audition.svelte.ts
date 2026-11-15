@@ -10,8 +10,14 @@ export function createLickAudition() {
 	let generation = 0;
 	let disposed = false;
 
-	/** Toggle this lick, or replace the previous preview, including pending setup. */
-	async function play(phrase: Phrase, options: { tempo?: number; swing?: number } = {}): Promise<void> {
+	/**
+	 * Toggle this lick, or replace the previous preview, including pending setup.
+	 * `performed` plays a recorded performance's measured timing as written.
+	 */
+	async function play(
+		phrase: Phrase,
+		options: { tempo?: number; swing?: number; performed?: boolean } = {}
+	): Promise<void> {
 		if (disposed) return;
 		const previous = state.playingId;
 		const request = ++generation;
@@ -36,7 +42,7 @@ export function createLickAudition() {
 				countInBeats: 0,
 				metronomeEnabled: false,
 				metronomeVolume: 0
-			});
+			}, false, { performed: options.performed });
 		} catch (error) {
 			if (!cancelled()) {
 				captureException(error);

@@ -80,3 +80,52 @@ test('Steal waits for cloud hydration before checking for an earlier copy', asyn
  }
  await expect(page.locator('article').first().getByRole('button', { name: 'Steal', exact: true })).toBeEnabled();
 });
+
+test('A copy stolen on another device reads Stolen once its cloud licks arrive', async ({ page, baseURL, browser }) => {
+ const cloud = createStubCloud();
+ const user = { id: 'aaaaaaaa-0000-4000-8000-000000000307', email: 'steal-twice@e2e.dev' };
+ // Device A steals the first excerpt; the copy reaches the shared cloud.
+ await installStubCloud(page.context(), cloud, user, baseURL as string);
+ await seedOnboardedAnonymous(page);
+ await page.goto('/lickbrowser');
+ const firstA = page.locator('article').first();
+ await expect(firstA).toBeVisible({ timeout: 30000 });
+ const name = await firstA.getByRole('heading').innerText();
+ await firstA.getByRole('button', { name: 'Steal', exact: true }).click();
+ await expect(firstA.getByRole('button', { name: 'Stolen', exact: true })).toBeDisabled();
+ await expect.poll(() => cloud.rows('user_licks').some(row =>
+  (row.tags as string[] | undefined)?.some(tag => tag.startsWith('wjazzd:'))), { timeout: 15000 }).toBe(true);
+
+ // Device B: same account, nothing local, its cloud read held back.
+ const contextB = await browser.newContext({ baseURL });
+ const pageB = await contextB.newPage();
+ const errors: string[] = [];
+ pageB.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+ pageB.on('pageerror', err => errors.push(err.message));
+ try {
+  await installStubCloud(contextB, cloud, user, baseURL as string);
+  await seedOnboardedAnonymous(pageB);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let requested = false;
+  await pageB.route('**/rest/v1/user_licks**', async route => {
+   if (route.request().method() === 'GET') {
+    requested = true;
+    await held;
+   }
+   await route.fallback();
+  });
+  await pageB.goto('/lickbrowser');
+  const firstB = pageB.locator('article').first();
+  await expect(firstB).toBeVisible({ timeout: 30000 });
+  await expect(firstB.getByRole('heading')).toHaveText(name);
+  await expect.poll(() => requested).toBe(true);
+  await expect(firstB.getByRole('button', { name: 'Steal', exact: true })).toBeDisabled();
+  release();
+  await expect(firstB.getByRole('button', { name: 'Stolen', exact: true })).toBeDisabled();
+  expect(cloud.rows('user_licks').filter(row => !row.deleted_at)).toHaveLength(1);
+  expect(errors, errors.join('\n')).toEqual([]);
+ } finally {
+  await contextB.close();
+ }
+});
