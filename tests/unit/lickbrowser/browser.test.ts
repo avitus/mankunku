@@ -6,6 +6,7 @@ import { fitLickToRange } from "$lib/phrases/library-loader";
 import { INSTRUMENTS } from "$lib/types/instruments";
 import type { Solo } from "$lib/lickbrowser/types";
 import corpus from "../../../static/data/weimar-licks.json";
+/** A one-solo corpus whose tonic bar starts at the given tick. */
 const fixture = (tonicTick: number): Solo => ({
   melid: 1,
   performer: "Test",

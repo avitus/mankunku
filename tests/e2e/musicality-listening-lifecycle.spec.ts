@@ -129,6 +129,7 @@ test('cancels instrument loading without starting a late take, then allows repla
 	let release!: () => void;
 	let held = false;
 	const gate = new Promise<void>((resolve) => { release = resolve; });
+	/** Holds each sample request until the gate opens, then lets it through. */
 	const holdSamples = async (route: import('@playwright/test').Route) => {
 		held = true;
 		await gate;

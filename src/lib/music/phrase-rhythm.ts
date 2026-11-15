@@ -36,6 +36,7 @@ interface Grid {
   hints?: RhythmHint[];
 }
 const SWINGS = [0.5, 0.6, 2 / 3, 0.75, MAX_SWING];
+/** Whether a tick falls on the second or third triplet partial of its beat. */
 const isTriplet = (tick: number, grid: Grid) => tick % grid.ticks === grid.ticks / 3 || tick % grid.ticks === 2 * grid.ticks / 3;
 
 /** Reject straight and triplet offbeats occupying the same quarter-note beat. */
@@ -226,6 +227,7 @@ export function fitPhraseRhythm(detected: RhythmEvent[], options: RhythmFitOptio
 	const notes: Note[] = [];
 	let collisions = 0;
 	let previousEnd = 0;
+	/** A tick count as a reduced whole-note fraction on this grid. */
 	const fraction = (tick: number) => reduceFraction(tick, 4 * grid.ticks);
 	for (const [position, { tick: start, index: i }] of positions.entries()) {
 		const following = positions[position + 1];

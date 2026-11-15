@@ -7,6 +7,7 @@ import type { Excerpt, Solo } from '$lib/lickbrowser/types';
 import corpus from '../../../static/data/weimar-licks.json';
 import { BROWSER_PROGRESSIONS, searchProgression } from '$lib/lickbrowser/progressions';
 
+/** An excerpt with notes at the given 24-per-beat attack ticks. */
 function excerpt(attacks: number[], end: number, durations = attacks.map((at, i) => (attacks[i + 1] ?? end) - at)): Excerpt {
   return {
     id: 'rhythm', sourceId: 1, performer: 'Test', title: 'Rhythm', instrument: 'ts',
@@ -18,6 +19,7 @@ function excerpt(attacks: number[], end: number, durations = attacks.map((at, i)
   };
 }
 
+/** The written notes' [attack, duration] pairs. */
 const rhythm = (r: Excerpt) => writtenNotes(r).map(([at, duration]) => [at, duration]);
 
 describe('Weimar swing notation', () => {

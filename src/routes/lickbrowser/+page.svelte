@@ -21,11 +21,13 @@
  $effect(()=>{void settings.instrumentId;void settings.highestNote;void speed;untrack(()=>audition.stop());});
  let personalLicks: Phrase[]=$state([]);
  let stolen: Phrase | null=$state(null);
+ /** Saves an excerpt to the player's own licks and refreshes the personal list. */
  function steal(score: Phrase, excerpt: Excerpt){
   error='';stolen=null;
   try{stolen=stealExcerpt(score,excerpt);personalLicks=getUserLicksLocal();}
   catch(e){error=e instanceof Error?e.message:'The lick could not be saved. Please try again.';}
  }
+ /** Searches the corpus for the chosen progression and artist, resetting the page size. */
  function run(){audition.stop();error='';limit=10;try{results=searchProgression(corpus,progression,{artist,transpose:true});}catch(e){results=[];error=e instanceof Error?e.message:'Search failed.';}}
  onMount(()=>{personalLicks=getUserLicksLocal();const controller=new AbortController();fetch('/data/weimar-licks.json',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The Weimar collection could not load. Reload to try again.');corpus=await response.json();run();}).catch(e=>{if(!controller.signal.aborted)error=e.message;}).finally(()=>loading=false);return ()=>controller.abort();});
  onDestroy(()=>audition.dispose());

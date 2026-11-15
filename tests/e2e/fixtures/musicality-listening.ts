@@ -109,6 +109,7 @@ export async function observeAudio(page: Page, seed = TAKE_SEED): Promise<void> 
 	}, seed);
 }
 
+/** Opens /musicality as an onboarded anonymous player with observed audio at 240 BPM. */
 export async function setup(page: Page, seed = TAKE_SEED): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	await observeAudio(page, seed);
@@ -117,6 +118,7 @@ export async function setup(page: Page, seed = TAKE_SEED): Promise<void> {
 	await page.getByTestId('listening-tempo').fill('240');
 }
 
+/** Downloads the take's listening export and parses it. */
 export async function exportTake(page: Page): Promise<ListeningEvidence> {
 	const notes = page.locator('details.take-notes');
 	if (!(await notes.evaluate((element) => (element as HTMLDetailsElement).open))) await notes.locator('summary').click();
@@ -127,6 +129,7 @@ export async function exportTake(page: Page): Promise<ListeningEvidence> {
 	return JSON.parse(await readFile(path!, 'utf8')) as ListeningEvidence;
 }
 
+/** Asserts the take came from the causal rolling engine and returns its provenance. */
 export function causalProvenance(playback: ListeningSnapshot): CausalListeningProvenance {
 	expect(playback.provenance?.engine).toBe('causal-rolling');
 	if (playback.provenance?.engine !== 'causal-rolling') throw new Error('Expected a causal take');
@@ -147,6 +150,7 @@ export function assertCommittedPrefix(previous: ListeningSnapshot, current: List
 		.toEqual(previous.generated!.ensembleDevelopment!.pianoFeedback);
 }
 
+/** Asserts each committed bar's piano feedback matches the comp and drum events that sounded. */
 export function assertActualFeedback(playback: ListeningSnapshot): void {
 	const generated = playback.generated!;
 	const feedback = generated.ensembleDevelopment!.pianoFeedback!;
@@ -173,25 +177,30 @@ export function assertActualFeedback(playback: ListeningSnapshot): void {
 	}
 }
 
+/** Asserts the listening page never requested the microphone. */
 export async function assertNoMicrophone(page: Page): Promise<void> {
 	expect(await page.evaluate(() => (window as unknown as { __listeningAudio: { microphoneCalls: number } }).__listeningAudio.microphoneCalls)).toBe(0);
 }
 
+/** The bar index the listening position row reports, or -1 before playback. */
 export async function soundingBar(page: Page): Promise<number> {
 	const value = await page.getByTestId('listening-position').getAttribute('data-bar-index');
 	return value === null || value === '' ? -1 : Number(value);
 }
 
+/** How many audio buffer sources the page has started. */
 export async function sourceStarts(page: Page): Promise<number> {
 	return page.evaluate(() => (window as unknown as { __listeningAudio: { starts: number } }).__listeningAudio.starts);
 }
 
+/** Starts playback and waits until the given bar is sounding. */
 export async function playToBar(page: Page, bar = 1): Promise<void> {
 	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(bar);
 }
 
+/** Asserts the musician cards show the bar the audio clock is in, and match the score's events for it. */
 export async function assertDecisionClock(page: Page, score?: ListeningSnapshot, tempo = 240): Promise<void> {
 	// Read all positions and the live clock atomically. A 150 ms allowance
 	// covers the 40 ms UI poll; it does not allow scheduling lookahead to
@@ -218,6 +227,7 @@ export async function assertDecisionClock(page: Page, score?: ListeningSnapshot,
 	expect(elapsed).toBeGreaterThanOrEqual(position.bar * barSeconds);
 	expect(elapsed).toBeLessThan((position.bar + 1) * barSeconds + 0.15);
 	if (score?.generated) {
+		/** Whether a scheduled event falls in the sounding bar. */
 		const inBar = (event: { time: string }) => Math.floor(parseInt(event.time, 10) / score.ppq / 4) === position.bar;
 		const plannedArc = score.generated.ensemblePlan?.bars[position.bar]?.performanceEnergy;
 		expect(position.arc).toEqual(plannedArc ? { bar: position.bar, phase: plannedArc.phase } : null);

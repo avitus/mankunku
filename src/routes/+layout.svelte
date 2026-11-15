@@ -263,12 +263,14 @@
 	let accountMenuOpen = $state(false);
 	let accountMenu = $state<HTMLDetailsElement | null>(null);
 
+	/** Closes the open account menu when a press lands outside it. */
 	function closeAccountMenuOnOutsidePress(event: PointerEvent): void {
 		if (!accountMenuOpen || !accountMenu) return;
 		if (event.target instanceof Node && accountMenu.contains(event.target)) return;
 		accountMenuOpen = false;
 	}
 
+	/** Closes the open account menu on Escape and returns focus to its summary. */
 	function closeAccountMenuOnEscape(event: KeyboardEvent): void {
 		if (event.key !== 'Escape' || !accountMenuOpen) return;
 		accountMenuOpen = false;
