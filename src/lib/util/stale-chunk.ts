@@ -34,6 +34,12 @@ export const STALE_CHUNK_RELOAD_KEY = 'stale-chunk-reload-url';
 const STALE_CHUNK_ERROR_PATTERN =
 	/error loading dynamically imported module|Failed to fetch dynamically imported module|Importing a module script failed/i;
 
+// A cached module can download successfully but expose the previous build's
+// exports (MANKUNKU-25). Restrict this to built app modules: an arbitrary missing
+// export is a programming error, not evidence that reloading can recover it.
+const STALE_EXPORT_ERROR_PATTERN =
+	/The requested module ['"]https?:\/\/[^'"\s]+\/_app\/immutable\/[^'"\s]+['"] (?:doesn't provide an export named:|does not provide an export named)/i;
+
 /**
  * Generic navigation-fetch failures (no module URL in the message). Seen when
  * a nav click races a deploy's PM2 restart window or a flaky network: Firefox
@@ -49,10 +55,11 @@ const NAV_FETCH_ERROR_PATTERN =
  * True when the message is a stale dynamic-import failure. Phrasings:
  * Firefox "error loading dynamically imported module", Chromium "Failed to
  * fetch dynamically imported module", WebKit "Importing a module script
- * failed." (Safari/iOS — no URL in the message).
+ * failed." (Safari/iOS — no URL in the message), or a missing named export
+ * from a built app module whose cached contents belong to a different build.
  */
 export function isStaleChunkErrorMessage(msg: string): boolean {
-	return STALE_CHUNK_ERROR_PATTERN.test(msg);
+	return STALE_CHUNK_ERROR_PATTERN.test(msg) || STALE_EXPORT_ERROR_PATTERN.test(msg);
 }
 
 /**
@@ -62,7 +69,7 @@ export function isStaleChunkErrorMessage(msg: string): boolean {
  * arbitrary app errors, where the bare phrasings are too generic.
  */
 export function isRecoverableNavErrorMessage(msg: string): boolean {
-	return STALE_CHUNK_ERROR_PATTERN.test(msg) || NAV_FETCH_ERROR_PATTERN.test(msg.trim());
+	return isStaleChunkErrorMessage(msg) || NAV_FETCH_ERROR_PATTERN.test(msg.trim());
 }
 
 /**
@@ -71,7 +78,7 @@ export function isRecoverableNavErrorMessage(msg: string): boolean {
  * each gets its own one-shot reload.
  */
 export function staleChunkKey(msg: string): string {
-	const match = msg.match(/https?:\/\/\S+/);
+	const match = msg.match(/https?:\/\/[^\s'"]+/);
 	return match ? match[0] : msg.trim();
 }
 

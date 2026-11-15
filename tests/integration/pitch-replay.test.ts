@@ -4994,3 +4994,103 @@ describe('pitch replay regression: Blue Note Drop — F3 stops before the tracki
 		});
 	}
 });
+
+/**
+ * Five ear-training takes from one session (2026-11-15 UTC; tenor, concert C,
+ * 100 BPM, metronome on), each flagged "Missed articulation" and each saved
+ * 4 of 5, "good" (0.781–0.790), with the second note of a tongued pair
+ * MISSED: Blue Note Step Up twice (C4 Eb4 F4 F4 G4, the F pair) and Through
+ * the Blue to the Root three times (F3 F3 G3 Bb3 C4, the F pair). Every
+ * tongue is plain on the audio: the envelope floor falls to 12–54% of the
+ * note and comes back. What the pairs share is that the repeat is a swung
+ * eighth that lands SOFTER than the note before it (0.79–0.90 of its level)
+ * and is over within 0.2 s, when the line moves on. Four rules each assumed
+ * otherwise, and each take needed at least one of them:
+ *
+ *  - step-up-2, through-the-blue, through-the-blue-3: the envelope tier's
+ *    recovery asked the window RMS back to 0.9 of the pre-dip level, or
+ *    (`reBloomsAndHolds`) a level HELD for 100–400 ms after the dip. A soft
+ *    eighth does neither (0.899 with six frames to hold over; 0.812 with
+ *    three; 0.786 with one). `floorDipUndone` is the third recovery shape:
+ *    the short-window floor climbs back at least half of the way it fell.
+ *  - through-the-blue: its tongue is the shallowest (floor 0.54) and leaves
+ *    no tongue noise and a 0.05 st wobble. Its reed reset reads 0.843 on a
+ *    0.985 tone, but the run's own shape median was 0.883, because a 28-frame
+ *    note holding a seven-frame dip and a six-frame click has too few clean
+ *    frames left. `resetsReed`'s deep path also takes the tone BEFORE the dip
+ *    as its baseline.
+ *  - step-up: the re-attack spoke on two stray pitches (one frame each, G4
+ *    and E4), which ended the same-MIDI run the tiers scan at the bottom of
+ *    the dip, so the fall and the recovery sat in different runs. A run now
+ *    continues across an excursion too short to be a note
+ *    (`PITCH_CHANGE_MIN_HOLD`), as the segmenter's own pitch-change split
+ *    already ruled, and the gap tier sees a 1.9× step-up across the hole.
+ *  - through-the-blue-2: the tongue WAS found (0.863 s), and the segmenter
+ *    then threw the repeat away. The onset guard drops frames that still read
+ *    the previous note, which for a repeat is every frame it has; with no
+ *    onset for the G3 that follows, two F frames were left and the G took the
+ *    segment. `envelopeRestartsAt` keeps those frames when the floor stopped
+ *    before the onset and they carry it restarted.
+ */
+describe('pitch replay regression: 2026-11-15 soft swung-eighth repeats (concert C)', () => {
+	const cases = [
+		{ name: 'blue-note-step-up', midis: [60, 63, 65, 65, 67], repeat: [1.75, 2.0] },
+		{ name: 'blue-note-step-up-2', midis: [60, 63, 65, 65, 67], repeat: [1.8, 2.05] },
+		{ name: 'through-the-blue-to-the-root', midis: [53, 53, 55, 58, 60], repeat: [0.6, 0.85] },
+		{ name: 'through-the-blue-to-the-root-2', midis: [53, 53, 55, 58, 60], repeat: [0.7, 0.95] },
+		{ name: 'through-the-blue-to-the-root-3', midis: [53, 53, 55, 58, 60], repeat: [0.75, 1.0] }
+	];
+
+	describe.each(cases)('$name', ({ name, midis, repeat }) => {
+		const fixture = `recordings/2026-11-15-${name}`;
+		const json = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8'));
+		const phrase: Phrase = json.phrase;
+		const { tempo, swing, transportSeconds } = json.context;
+		/** Score this fixture with the saved ear-training settings. */
+		const scoreOf = (detected: DetectedNote[]) => runScorePipeline({
+			detected, phrase, tempo, swing, transportSeconds, bleedFilterEnabled: false
+		}).chosen;
+		const merged = midis.filter((m, i) => i === 0 || m !== midis[i - 1]);
+
+		it('preserves the saved merged pair and reproduces the saved score', () => {
+			expect(json.flag.note).toBe('Missed articulation');
+			expect(json.scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual(merged);
+			const score = scoreOf(json.scoring.savedDetectedNotes);
+			expect(score.notesHit).toBe(4);
+			expect(score.overall).toBeCloseTo(json.scoring.savedScore.overall, 12);
+		});
+
+		it('recovers the repeat from the saved readings', () => {
+			const { readings, rawWorkletOnsets, weakReadings } = json.detection;
+			const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, json.audio.duration);
+			const base = resolveOnsets(rawWorkletOnsets, readings);
+			const articulation = findReArticulations(readings, base, bleed);
+			const detected = segmentNotes(readings, [...base, ...articulation].sort((a, b) => a - b),
+				json.audio.duration, undefined, undefined, undefined, rawWorkletOnsets, bleed, articulation, weakReadings);
+			expect(detected.map((n) => n.midi)).toEqual(midis);
+			const score = scoreOf(detected);
+			expect(score.notesHit).toBe(5);
+			expect(score.extrasCharged).toBe(0);
+			expect(score.pitchAccuracy).toBe(1);
+			expect(score.overall).toBeGreaterThan(0.93);
+		});
+
+		for (const live of [false, true]) {
+			it(`keeps and scores both notes of the pair in the ${live ? 'live' : 'replay'} time base`, async () => {
+				const { trimmed, detected, articulationOnsets } = await replayEarTrainingTake(`${fixture}.wav`, transportSeconds, tempo, { live });
+				const shift = live ? 4096 / 44100 : 0;
+				expect(trimmed.offset).toBeCloseTo(json.audio.captureTrimSeconds + shift, 3);
+				expect(detected.map((n) => n.midi)).toEqual(midis);
+				// One re-articulation, at the repeat and nowhere else.
+				expect(articulationOnsets).toHaveLength(1);
+				expect(articulationOnsets[0]).toBeGreaterThan(repeat[0]);
+				expect(articulationOnsets[0]).toBeLessThan(repeat[1] + shift);
+				const score = scoreOf(detected);
+				expect(score.notesHit).toBe(5);
+				expect(score.extrasCharged).toBe(0);
+				expect(score.pitchAccuracy).toBe(1);
+				expect(score.overall).toBeGreaterThan(0.93);
+			});
+		}
+	});
+});

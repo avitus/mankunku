@@ -1,0 +1,470 @@
+{
+  "scope": "Final six Linux browser shards; opt-in diagnostics and OMR integration are listed separately in the audit",
+  "count": 163,
+  "groups": [
+    {
+      "browser": "chromium",
+      "file": "musicality-playback-budget.spec.ts",
+      "reason": "WebKit-specific budget regression; other engines have full-tune coverage.",
+      "tests": [
+        "completes 52-bar piano take with seed 243",
+        "completes 52-bar organ take with seed 243",
+        "completes 52-bar piano take with seed 7",
+        "completes 52-bar organ take with seed 7",
+        "completes 52-bar piano take with seed 9",
+        "completes 52-bar organ take with seed 9",
+        "completes 52-bar piano take with seed 256",
+        "completes 52-bar organ take with seed 256"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "accompaniment-release.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "normal swing piano completes a whole Blues with continuous native audio",
+        "normal straight organ completes a whole Blues with continuous native audio",
+        "normal bossa-nova piano completes a whole Blues with continuous native audio",
+        "normal ballad organ completes a whole Blues with continuous native audio"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "backing-drum-timing.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "shipped pedal hi-hat attacks with the ride and stick hi-hat in a dry WAV render"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "backing-native-arming.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "already armed audio keeps its exact onset through a 450 ms main-thread pause"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "backing-native-arming.spec.ts",
+      "reason": "Firefox OfflineAudioContext does not implement suspend; other native ownership cases still run",
+      "tests": [
+        "native smplr ownership PCM: cancel-during"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "backing-render-audio.spec.ts",
+      "reason": "Tone-less render path \u2014 verify on Chromium and WebKit, the engines with divergent audio stacks",
+      "tests": [
+        "coordinated bounce and golden-JSON render produce non-silent WAVs"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "backing-render-audio.spec.ts",
+      "reason": "compare Chromium and WebKit sample decoding",
+      "tests": [
+        "isolated bass and piano both render audible samples throughout a fixed phrase"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "ear-training-audio.spec.ts",
+      "reason": "Headless Linux Firefox has no audio output device",
+      "tests": [
+        "ear-training sounds tenor-sax alongside the band (samples: real)",
+        "ear-training sounds tenor-sax alongside the band (samples: valid-wav)",
+        "ear-training sounds tenor-sax alongside the band (samples: decode)",
+        "ear-training sounds tenor-sax alongside the band (samples: stalled)",
+        "ear-training sounds soprano-sax alongside the band (samples: real)",
+        "ear-training sounds soprano-sax alongside the band (samples: valid-wav)",
+        "ear-training sounds soprano-sax alongside the band (samples: decode)",
+        "ear-training sounds soprano-sax alongside the band (samples: stalled)"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "ear-training.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "rapid double-click on play does not start two sessions",
+        "plays listen-only and asks for the microphone, with no error logged",
+        "is saved with its capture timing"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-detail.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "Practice launches a Deep Practice session on this lick"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-daily-report.spec.ts",
+      "reason": "Tone audio clock is unavailable in headless Linux Firefox",
+      "tests": [
+        "Daily recommendations advance through different licks after each Deep follow-up"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-daily-report.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "minor key labels agree across Daily report, recommendation and recommended Deep",
+        "a key-map cell starts Deep Practice and stays usable on mobile"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-deep.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "Deep scrolls completed rows out through keys and cycle rebuilds without moving scores to future rows",
+        "deep practice joins cycles continuously with inline score feedback",
+        "Practice from a transposed view keeps the lick's unlocked keys and sheet",
+        "deep practice keeps the chord box and beat dots below a sheet fully visible"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-focus-drill.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "daily session reports a learning-key focus drill",
+        "daily session reports no extra drill for an isolated lapse"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-focus-target.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "a sheet triple at the target previews and plays a chord-only memory turn even after a miss"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-lead-sheet.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "daily sheet is visible ahead in a taller row and enters without a pause",
+        "deep sheet is visible ahead in a taller row and enters without a pause",
+        "daily sheet keeps its playhead when canvas measurement is unavailable",
+        "daily sheet keeps ledger notes and its cue clear at pitch 45",
+        "daily sheet keeps ledger notes and its cue clear at pitch 78",
+        "a revealed key persists only its final pass: one progress update, one logged attempt, one take"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "lick-practice-session.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "shows a microphone error instead of the key stack when the mic is refused",
+        "shows the setup error instead of hanging when the instrument samples fail to load",
+        "fetches the notation engine and builds the key stack during session setup, before the samples load"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-comparison.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "requires two full actual takes and blind ratings before revealing and saving matched evidence",
+        "an interrupted take stays ineligible and restarting discards its unfinished review",
+        "leaving during sample loading cannot start or complete an obsolete blind take",
+        "a cancelled replay preserves the completed take and its ratings"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-desk.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "pins actual sounding decisions, saves release-labelled feedback and preserves it after reload"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-ensemble-colors.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "0.14 full Blues with piano sounds all three ensemble colors and shows their actual live decisions",
+        "0.14 full Blues with organ sounds all three ensemble colors and shows their actual live decisions"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-feedback-save.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "saves while the music keeps playing and recovers from a storage failure without losing notes"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-inner-motion.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "0.16 full Blues with piano sounds all three inner-motion gestures and shows their actual live decisions",
+        "0.16 full Blues with organ sounds all three inner-motion gestures and shows their actual live decisions"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-listening.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "listens through a complete real tune and follows each chorus on the audio clock",
+        "compares matched Original and Coordinated takes and stops all future dispatch",
+        "bossa-nova keeps its native rhythm throughout the complete generated tune",
+        "ballad keeps its native rhythm throughout the complete generated tune",
+        "straight keeps its native rhythm throughout the complete generated tune",
+        "cancels instrument loading without starting a late take, then allows replay",
+        "navigation releases the current take and returning starts from a fresh session",
+        "shows a real previous drum statement and the pianist breathing in the current sounding bar",
+        "an early committed bar survives a bounded UI stall across the former decision window",
+        "a missed scheduling deadline stops the take without reporting completion or dispatching a catch-up burst",
+        "swing explains an actual shared piano arrival in the sounding bar",
+        "straight explains an actual shared piano arrival in the sounding bar",
+        "explains an actual scalar bass continuation across a real chord change",
+        "swing shows one accepted piano reply and the drummer's commentary space",
+        "straight shows one accepted piano reply and the drummer's commentary space",
+        "shows the actual piano top and its phrase target in the returning head",
+        "swing keeps the piano out while the actual drum phrase returns after its reply",
+        "straight keeps the piano out while the actual drum phrase returns after its reply",
+        "shows Bossa native chord targets without importing Swing dialogue",
+        "reviews a marked Bossa passage after stopping without changing the take or restarting audio",
+        "listens to an existing local AABA tune book chart with captured bridge evidence",
+        "completes all 128 bars of a local tune book AABA on the real audio clock",
+        "swing recalls an actually played piano cell across solo phrases and preserves its review evidence",
+        "straight recalls an actually played piano cell across solo phrases and preserves its review evidence",
+        "swing keeps the Blues bass approach anchored through live playback and review",
+        "straight keeps the Blues bass approach anchored through live playback and review",
+        "swing completes the declared form and reviews an actual shared terminal hold",
+        "straight completes the declared form and reviews an actual shared terminal hold",
+        "Ballad completes its native quiet terminal hold and preserves review evidence",
+        "Bossa C completes its selected native clave-side terminal hold and preserves review evidence",
+        "Bossa F# completes its selected native clave-side terminal hold and preserves review evidence",
+        "Ballad 70 answers its actual snare color with a native late pad and silent review",
+        "Ballad 80 answers its actual crossstick color with a native late pad and silent review"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-mixer.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "mutes the three instrument buses and Master output during coordinated playback and saves the changed mix",
+        "mutes the three instrument buses and Master output during original playback and saves the changed mix",
+        "blind live muting stays concealed and requires a fixed-mix replay before rating"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-performance-arc.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "local AABA Swing: overall arc follows a complete real-clock performance and silent review",
+        "Blues Straight: overall arc follows a complete real-clock performance and silent review",
+        "Blues Bossa: overall arc follows a complete real-clock performance and silent review",
+        "Blues Ballad hold and release: overall arc follows a complete real-clock performance and silent review"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-phrase-colors.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "0.13 full Blues sounds all three phrase colors and shows their actual live decisions"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-phrase-dialogue.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "0.15 full Blues with piano sounds all three dialogue gestures and shows their actual live decisions",
+        "0.15 full Blues with organ sounds all three dialogue gestures and shows their actual live decisions"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-playback-budget.spec.ts",
+      "reason": "WebKit-specific budget regression; other engines have full-tune coverage.",
+      "tests": [
+        "completes 52-bar piano take with seed 243",
+        "completes 52-bar organ take with seed 243",
+        "completes 52-bar piano take with seed 7",
+        "completes 52-bar organ take with seed 7",
+        "completes 52-bar piano take with seed 9",
+        "completes 52-bar organ take with seed 9",
+        "completes 52-bar piano take with seed 256",
+        "completes 52-bar organ take with seed 256"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "musicality-trio-conversation.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "0.12 gestures retained in current full Blues sounds all three gestures and shows their actual live decisions"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "record-lick.spec.ts",
+      "reason": "Headless Linux Firefox has no audio device for Tone.start()",
+      "tests": [
+        "records and saves song suggestion against the live count-in",
+        "records and saves swung eighths against the live count-in",
+        "records and saves even triplets against the live count-in",
+        "shows every beat in both bars, then records and reviews a real synthetic take",
+        "cancels count-in and restarts from the first beat on a phone without overflow",
+        "canceling a pending microphone request releases late audio and never starts counting",
+        "saves the reviewed take directly and allows a fresh recording",
+        "microphone failure is visible and leaves setup usable"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "recorder-editor-pitch.spec.ts",
+      "reason": "Headless Linux Firefox has no audio device for Tone.start()",
+      "tests": [
+        "preserves the recorded tenor register and written key in the editor"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "solo-listening.spec.ts",
+      "reason": "AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "microphone is explicit; a finite take exports causal replay evidence and parameter changes clear it",
+        "cancelled microphone permission cannot start a late pass",
+        "navigation releases microphone permission that resolves after teardown",
+        "rolling microphone take changes later decisions and exports the committed playback",
+        "cross-loop adaptation keeps the microphone, chronology, replay and full bounce across three loops",
+        "stopping in the second adaptive loop releases input and retains an honest partial export",
+        "cancelled rolling permission (1 loops) cannot resume after a new loop starts",
+        "cancelled rolling permission (2 loops) cannot resume after a new loop starts",
+        "rolling adaptive playback (1 loops) produces live audio throughout its committed form",
+        "rolling adaptive playback (3 loops) produces live audio throughout its committed form",
+        "bossa-nova adapts across loops with native events and a single microphone lifetime",
+        "ballad adapts across loops with native events and a single microphone lifetime",
+        "straight adapts across loops with native events and a single microphone lifetime"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tricks.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "Practice this enclosure hands off to setup and starts a trick drill",
+        "ii-V-I-major-long starts a drill with the configured enclosure",
+        "ii-V-I-minor-long starts a drill with the configured enclosure"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-desk.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "playing locks style changes and stopping releases the chart cursor",
+        "transposing a tune and editing a preview note stop the previous playback"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-endings-a-train.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "the playhead sits under the stacked [2] music, not at the line start"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-harmonic-regions.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "Start carries the same major-region suggestion onto the playing chart"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-head-layout.spec.ts",
+      "reason": "Head playback needs an audio device in headless Linux Firefox",
+      "tests": [
+        "Autumn in New York head has four-bar lines with focus false",
+        "Autumn in New York head has four-bar lines with focus true"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-jam-endings.spec.ts",
+      "reason": "Linux Firefox has no audio device for Tone.start",
+      "tests": [
+        "tune desk resolves endings with head and outro",
+        "tune desk resolves endings with solos only",
+        "lick practice resolves endings with head and outro",
+        "lick practice resolves endings with solos only",
+        "a headless tune without alternate endings keeps cues on the last solo",
+        "tune desk fits either blues ending beside bars 9 and 10",
+        "lick practice fits either blues ending beside bars 9 and 10"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-jam.spec.ts",
+      "reason": "Linux Firefox has no audio device for Tone.start",
+      "tests": [
+        "tune desk keeps later solo bars visible on a phone",
+        "tune desk plays head, two solos and outro at 1440px",
+        "tune desk plays head, two solos and outro at 390px",
+        "lick practice keeps later solo bars visible on a phone",
+        "lick practice plays head, two solos and outro at 1440px",
+        "lick practice plays head, two solos and outro at 390px"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-practice-setup.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "Start carries the proposed lick into the existing playing chart by default"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-practice.spec.ts",
+      "reason": "Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "a refused microphone keeps setup on screen with a banner and Start usable",
+        "chart stays visible through first insertion (Mankunku Blues, head on)",
+        "a session runs with the backing switched off",
+        "freestyle with the backing off does not claim the band was listening",
+        "no lick prompts through the head; a minor lick gets its own band on the i chord (Autumn Leaves)",
+        "chart stays visible through first insertion (Autumn Leaves)"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-practice.spec.ts",
+      "reason": "Tone.start() hangs in headless Linux Firefox without an audio device",
+      "tests": [
+        "finishes three practice choruses with the head played once"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "file": "tune-session-options.spec.ts",
+      "reason": "Linux Firefox has no audio device for Tone.start",
+      "tests": [
+        "solos-only form plays the chord chart directly and ends without an outro"
+      ]
+    }
+  ]
+}

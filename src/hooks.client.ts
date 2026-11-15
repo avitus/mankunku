@@ -229,6 +229,12 @@ const handleNavErrorRecovery: HandleClientError = async ({ error, event }) => {
   } else if (action.kind === 'reload') {
     location.reload();
   }
+  if (action.kind !== 'none') {
+    // The replacement document owns the next render. Returning here lets Kit
+    // commit its error navigation and start a second native fallback while this
+    // document is unloading (observable as two loads in WebKit).
+    await new Promise<never>(() => {});
+  }
 };
 
 // If you have a custom error handler, pass it to `handleErrorWithSentry`

@@ -124,3 +124,20 @@ describe('in-app doc links resolve', () => {
 		}
 	);
 });
+
+// Check what readers can actually click after Markdown rewriting, including
+// relative links and fragments. The source-literal sweep above cannot see these.
+describe('rendered documentation links resolve', () => {
+	it.each(ALL_PAGES.map(page => [page.slug]))('%s links to existing pages and headings', (slug) => {
+		const { html } = renderMarkdown(readFileSync(join(DOCS, `${slug}.md`), 'utf8'), slug);
+		for (const match of html.matchAll(/<a\b[^>]*href="([^"]+)"/g)) {
+			const href = match[1];
+			if (!href.startsWith('/docs/') && !href.startsWith('#')) continue;
+			const url = new URL(href, `https://mankunku.test/docs/${slug}`);
+			const target = decodeURIComponent(url.pathname.slice('/docs/'.length));
+			expect.soft(PAGES.has(target), `${slug}: ${href} is not a published page`).toBe(true);
+			if (PAGES.has(target) && url.hash) expect.soft(headingIdsFor(target).has(decodeURIComponent(url.hash.slice(1))),
+				`${slug}: ${href} has no matching heading`).toBe(true);
+		}
+	});
+});

@@ -201,7 +201,7 @@ const pianoRecallEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-keyboard-decorations'), revision: 'musicality' },
 	{ ...test('backing-piano-phrase-recall'), revision: 'musicality' },
 	{ ...test('backing-piano-phrase-recall-integration'), revision: 'musicality' },
-	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-solo-memory.spec.ts', revision: 'musicality' }
 ];
 const terminalEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-terminal'), revision: 'musicality' },
@@ -212,7 +212,8 @@ const terminalEvidence: MusicalityEvidence[] = [
 	{ ...test('backing-bossa-terminal'), revision: 'musicality' },
 	{ ...test('backing-bossa-terminal-integration'), revision: 'musicality' },
 	{ kind: 'test', path: 'tests/unit/musicality/listening-ending.test.ts', revision: 'musicality' },
-	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-terminal.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-bossa-terminal.spec.ts', revision: 'musicality' }
 ];
 const bassDevelopmentEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-bass-turnaround'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
@@ -270,7 +271,9 @@ const rootlessTextureEvidence: MusicalityEvidence[] = [
 const reciprocalFeedbackEvidence: MusicalityEvidence[] = [
 	{ kind: 'source', path: 'src/lib/musicality/listening-player.ts', revision: 'musicality' },
 	{ kind: 'test', path: 'tests/unit/musicality/listening-causal-integration.test.ts', revision: 'musicality' },
-	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-lifecycle.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-replies.spec.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening-returns.spec.ts', revision: 'musicality' },
 	...['backing-ensemble-feedback', 'backing-rolling', 'backing-generation', 'backing-rolling-take'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['backing-drum-piano-feedback', 'backing-drum-piano-feedback-integration', 'backing-development-immutability'].map(file => ({ ...test(file), revision: 'musicality' })),
 	{ kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
@@ -486,7 +489,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		evidence: [...entry.evidence, ...['listening-tunes', 'listening-library', 'listening-player', 'listening-review', 'musician-decisions', 'listening-comparison'].flatMap(name => [
 			{ kind: 'source' as const, path: `src/lib/musicality/${name}.ts`, revision: 'musicality' },
 			{ kind: 'test' as const, path: `tests/unit/musicality/${name}.test.ts`, revision: 'musicality' }
-		]), { kind: 'test', path: 'tests/unit/musicality/listening-tunes-library.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/unit/musicality/listening-tune-book-integration.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
+		]), { kind: 'test', path: 'tests/unit/musicality/listening-tunes-library.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/unit/musicality/listening-tune-book-integration.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening-lifecycle.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening-local-aaba.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
 	};
 	if (entry.id === 'P57') return { ...entry, assessment: 'Existing rest figures withhold piano attacks. Eligible explicit Coordinated listening-studio returning heads can additionally reserve the two bars after the arrival for piano space while bass and drums carry the groove. Higher-priority reservations and stronger silence remain authoritative.', remaining: 'This is a bounded returning-head gesture, not general phrase recognition or whole-ensemble dropout. Fixed and Original policies remain unchanged; human listening acceptance is pending.', evidence: [...entry.evidence, ...returningMelodyEvidence] };
 	const drumUpdate = drumDeviceUpdates[entry.id];
@@ -675,7 +678,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 				{ kind: 'source' as const, path: 'src/lib/musicality/listening-arc.ts', revision: 'musicality' },
 				{ kind: 'test' as const, path: 'tests/unit/musicality/listening-arc.test.ts', revision: 'musicality' },
 				{ kind: 'test' as const, path: 'tests/e2e/musicality-performance-arc.spec.ts', revision: 'musicality' },
-				{ kind: 'test' as const, path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+				{ kind: 'test' as const, path: 'tests/e2e/musicality-listening-lifecycle.spec.ts', revision: 'musicality' }
 			] : []),
 			...(['S2', 'S38', 'S41', 'S44', 'S46'].includes(entry.id) ? [...checkpointEvidence, { ...test('backing-rolling-snapshot-contract'), revision: 'musicality' }] : []),
 			...(['S27', 'S28', 'S44', 'S46'].includes(entry.id) ? scriptedEvidence : []),

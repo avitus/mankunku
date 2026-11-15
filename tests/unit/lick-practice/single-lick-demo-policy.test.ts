@@ -101,6 +101,7 @@ describe('startSingleLickSession worst-first ordering', () => {
 	});
 
 	it('keeps circle order when no rolling data exists', () => {
+		// The F-major unlock ramp admits F, C, G; rotation follows fourths: F, G, C.
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
 		expect(lickPractice.plan[0].keys).toEqual(['F', 'G', 'C']);

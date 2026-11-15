@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findReArticulations, mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
+import { findReArticulations, findSameMidiRuns, mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 
@@ -890,7 +890,13 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 	 * `after(k)` is the level k frames past the stop, as a share of the level
 	 * before it.
 	 */
-	function softReattackRun(opts: { trough?: number; after: (k: number) => number; frames?: number }): PitchReading[] {
+	function softReattackRun(opts: {
+		trough?: number;
+		after: (k: number) => number;
+		frames?: number;
+		/** The sub-window floor in the stop and after it; default a deep notch that comes back with the level. */
+		floor?: { stop: number; after: number };
+	}): PitchReading[] {
 		const out: PitchReading[] = [];
 		const stop = [30, 31, 32, 33];
 		for (let i = 0; i < (opts.frames ?? 70); i++) {
@@ -905,7 +911,7 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 				frequency: 196,
 				rms,
 				hfRms: inStop ? 0.02 : 0.008,
-				rmsMin: inStop ? 0.035 : rms * 0.95,
+				rmsMin: inStop ? (opts.floor?.stop ?? 0.035) : i > 33 && opts.floor ? opts.floor.after : rms * 0.95,
 				bandRmsMin: 0.09,
 				shapeBreak: 0.99,
 				shapeBreakAt: 0.045
@@ -938,14 +944,181 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 	});
 
 	it('does not split a drop to a softer level with no re-bloom — the level never rises from the trough', () => {
-		// Trough 0.08, then 0.088: holds, but only 1.1× the trough.
-		expect(findReArticulations(softReattackRun({ trough: 0.08, after: () => 0.088 / 0.1 }), [0.1])).toEqual([]);
+		// Trough 0.08, then 0.088: holds, but only 1.1× the trough. The floor
+		// drops with the level and stays there too, 0.095 → 0.06 → 0.074: 0.4 of
+		// the way back, so `floorDipUndone` does not recover it either.
+		const readings = softReattackRun({
+			trough: 0.08,
+			after: () => 0.088 / 0.1,
+			floor: { stop: 0.06, after: 0.074 }
+		});
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
 	});
 
-	it('does not split on a soft re-attack when too little of the note follows to measure the hold', () => {
-		// Eleven frames after the stop: only five fall inside the 100–400 ms
-		// hold window, too few to call it held.
-		expect(findReArticulations(softReattackRun({ after: () => 0.88, frames: 45 }), [0.1])).toEqual([]);
+	/**
+	 * A soft repeat with too little of the note after it to measure a hold: a
+	 * swung eighth, repeated, then gone to the next pitch. Eleven frames follow
+	 * the stop and only five fall inside the 100–400 ms hold window, so
+	 * `reBloomsAndHolds` cannot vouch. Until 2026-11-15 that was the end of it,
+	 * and three of that day's five takes merged a tongued pair this way.
+	 * `floorDipUndone` asks the floor instead.
+	 */
+	describe('a soft repeat too short to hold (2026-11-15)', () => {
+		it('splits when the floor climbs back most of the way it fell', () => {
+			// Floor 0.095 → 0.035 → 0.084: 0.81 of the fall recovered.
+			const onsets = findReArticulations(softReattackRun({ after: () => 0.88, frames: 45 }), [0.1]);
+			expect(onsets).toHaveLength(1);
+			// Anchored on the first frame whose floor is back over halfway.
+			expect(onsets[0]).toBeCloseTo(0.1 + 34 / 60 - 0.02, 3);
+		});
+
+		it('does not split when the floor stays down — neither the hold nor the floor can vouch', () => {
+			// The level is back at 0.88, but the floor only reaches 0.074 of a
+			// fall from 0.095 to 0.06: 0.4 of the way.
+			const readings = softReattackRun({ after: () => 0.88, frames: 45, floor: { stop: 0.06, after: 0.074 } });
+			expect(findReArticulations(readings, [0.1])).toEqual([]);
+		});
+
+		it('does not split when the floor comes back for a frame and falls again', () => {
+			const readings = softReattackRun({ after: () => 0.88, frames: 45 });
+			// One frame at the old floor, then a floor still sinking: the median
+			// over the recovery window is what counts.
+			for (let i = 35; i < readings.length; i++) readings[i].rmsMin = 0.074 * Math.pow(0.9, i - 35);
+			expect(findReArticulations(readings, [0.1])).toEqual([]);
+		});
+
+		it('does not split with fewer than three frames after the dip', () => {
+			expect(findReArticulations(softReattackRun({ after: () => 0.88, frames: 36 }), [0.1])).toEqual([]);
+		});
+
+		it('still needs a corroborator — a floor that dips and returns on a held note is a breath pulse', () => {
+			const readings = softReattackRun({ after: () => 0.88, frames: 45 });
+			for (const r of readings) r.hfRms = 0.008;
+			expect(findReArticulations(readings, [0.1])).toEqual([]);
+		});
+	});
+
+	/**
+	 * A reed reset on a note too short for its own shape median to mean
+	 * anything (2026-11-15 through-the-blue-to-the-root: 28 frames, seven in
+	 * the tongue, six under the beat-2 click, run median 0.883 on a 0.985
+	 * tone). The deep path reads the tone BEFORE the dip.
+	 */
+	describe('a deep reed reset on a short note (2026-11-15)', () => {
+		/** `dipRun` cut to a swung eighth pair, its attack and its tail noisy in shape. */
+		function shortRun(opts: { before?: number; bandDip?: boolean; dipShape?: number }): PitchReading[] {
+			const readings = dipRun({ dipShape: opts.dipShape ?? 0.84, rebloom: true }).slice(0, 48);
+			for (let i = 0; i < 30; i++) readings[i].shapeBreak = i < 14 ? 0.9 : (opts.before ?? 0.985);
+			for (let i = 34; i < 48; i++) readings[i].shapeBreak = 0.78;
+			if (opts.bandDip !== false) for (const i of DIP) readings[i].bandRmsMin = 0.05;
+			return readings;
+		}
+
+		it('is a noisy run by its own median', () => {
+			const shapes = shortRun({}).map((r) => r.shapeBreak!).sort((a, b) => a - b);
+			expect(shapes[shapes.length >> 1]).toBeLessThan(0.975);
+		});
+
+		it('splits when the tone before the dip was clean and the band stops and restarts', () => {
+			const onsets = findReArticulations(shortRun({}), [0.1]);
+			expect(onsets).toHaveLength(1);
+			expect(onsets[0]).toBeCloseTo(recovery - 0.02, 3);
+		});
+
+		it('does not split when the tone before the dip was breathy too', () => {
+			expect(findReArticulations(shortRun({ before: 0.96 }), [0.1])).toEqual([]);
+		});
+
+		it('does not split without the instrument-band stop', () => {
+			expect(findReArticulations(shortRun({ bandDip: false }), [0.1])).toEqual([]);
+		});
+
+		it('does not lend the pre-dip baseline to a SHALLOW break — that path keeps the whole-run median', () => {
+			expect(findReArticulations(shortRun({ dipShape: 0.958 }), [0.1])).toEqual([]);
+		});
+	});
+});
+
+/**
+ * A re-attack that speaks for a frame or two on a stray pitch (2026-11-15
+ * blue-note-step-up: an F4 pair whose repeat read G4 then E4, one frame each,
+ * after two unconfident frames). The strays used to end the same-MIDI run at
+ * the bottom of the tongue's dip, so no tier saw the dip recover.
+ */
+describe('findReArticulations: a stray-pitch excursion does not end the run', () => {
+	/**
+	 * F4 at 60 fps: 30 frames falling to a stop, two slots with no reading,
+	 * `strays`, then 20 frames back at full level.
+	 */
+	function strayRun(strays: Array<{ midi: number; warmup?: boolean }>): PitchReading[] {
+		const out: PitchReading[] = [];
+		/** One frame at slot `i`. */
+		const push = (i: number, midi: number, rms: number, warmup = false) => {
+			const r: PitchReading = {
+				midiFloat: midi,
+				midi,
+				cents: 0,
+				clarity: 0.95,
+				time: 0.1 + i / 60,
+				frequency: 349,
+				rms,
+				hfRms: 0.008,
+				rmsMin: rms * 0.9,
+				bandRmsMin: rms * 0.8
+			};
+			if (warmup) r.warmup = true;
+			out.push(r);
+		};
+		for (let i = 0; i < 30; i++) push(i, 65, i < 26 ? 0.12 : 0.12 - (i - 25) * 0.018);
+		strays.forEach((s, k) => push(32 + k, s.midi, 0.07, s.warmup));
+		for (let i = 0; i < 20; i++) push(32 + strays.length + i, 65, 0.115);
+		return out;
+	}
+	/** Time of the first F4 frame after `strays` stray frames. */
+	const resume = (strays: number) => 0.1 + (32 + strays) / 60;
+
+	it('finds the tongue across a two-frame excursion', () => {
+		const onsets = findReArticulations(strayRun([{ midi: 67 }, { midi: 64 }]), [0.1]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(resume(2) - 0.02, 3);
+	});
+
+	it('leaves a three-frame excursion as a pitch change, as the segmenter does', () => {
+		expect(findReArticulations(strayRun([{ midi: 67 }, { midi: 67 }, { midi: 67 }]), [0.1])).toEqual([]);
+	});
+
+	it('counts warmup frames towards the excursion — a breathy note can be all warmup but one frame (2026-10-28 little-cry)', () => {
+		// One confident frame and six warmup: a 167 ms hole, long enough for the
+		// bare-gap tier, which would put an onset on the returning note if the
+		// run were joined across the note in between.
+		const strays = [{ midi: 67 }, ...Array.from({ length: 6 }, () => ({ midi: 67, warmup: true }))];
+		expect(findReArticulations(strayRun(strays), [0.1])).toEqual([]);
+		// The same hole with no note in it IS a re-attack: the join is what the
+		// warmup count withholds, not the tier.
+		const silent = strayRun(strays).filter((r) => r.midi === 65);
+		expect(findReArticulations(silent, [0.1])).toHaveLength(1);
+	});
+
+	it('measures the excursion from its first frame when the warmup frames lead (CodeRabbit on #306)', () => {
+		// Five warmup frames, then the note's one confident frame: six frames in
+		// all. Judged from the fifth warmup frame, only two remained before the
+		// F returned, and the run was joined across the note.
+		const strays = [...Array.from({ length: 5 }, () => ({ midi: 67, warmup: true })), { midi: 67 }];
+		const runs = findSameMidiRuns(strayRun(strays));
+		expect(runs.map((run) => run.readings[0].midi)).toEqual([65, 65]);
+		expect(runs[0].end).toBeLessThan(resume(6));
+		// Two frames is still a stray, whichever comes first.
+		expect(findSameMidiRuns(strayRun([{ midi: 67, warmup: true }, { midi: 67 }]))).toHaveLength(1);
+	});
+
+	it('still refuses a hole that warmup frames of the SAME note bridge — a stabiliser reset', () => {
+		const readings = strayRun([{ midi: 65, warmup: true }, { midi: 65, warmup: true }]);
+		// Fill the two empty slots with warmup frames too: no detector silence.
+		for (const slot of [30, 31]) {
+			readings.push({ ...readings[0], time: 0.1 + slot / 60, rms: 0.07, rmsMin: 0.06, warmup: true });
+		}
+		readings.sort((a, b) => a.time - b.time);
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
 	});
 });
 

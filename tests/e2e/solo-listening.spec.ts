@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
-import { stubCdnInstrumentSamples } from './fixtures/audio';
+import { audibleSample, stubCdnInstrumentSamples } from './fixtures/audio';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
@@ -248,9 +248,10 @@ for (const loopCount of [1, 2]) test(`cancelled rolling permission (${loopCount}
 });
 
 for (const loopCount of [1, 3]) test(`rolling adaptive playback (${loopCount} loops) produces live audio throughout its committed form`, async ({ page, browserName }) => {
-	test.skip(!!process.env.CI || browserName === 'firefox', 'local Chromium/WebKit diagnostic with real CDN samples');
+	requireRealtimeAudio(page);
 	test.setTimeout(180_000);
 	await seedOnboardedAnonymous(page);
+	await stubCdnInstrumentSamples(page, audibleSample());
 	await microphone(page);
 	await page.addInitScript(() => {
 		const readings: { time: number; rms: number }[] = [];

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "claude/ear-training-backing-volume-241e68",
+    "sha": "f6c7a093e56916219676d7af3ec839d4531fbb10",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "claude/pr-review-comments-a85895",
+    "sha": "2802e62906e1b0bb898ef11e41f363960b2c584b",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/blue-note-drop-articulation",
+    "sha": "10c6568b3829562de6ff880a623cd3e40f8b6e7f",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/ear-training-backing-continuity",
+    "sha": "f8205d774302f03c48e11e0b8ca2f9b43f8797a6",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/home-practice-days",
+    "sha": "428f892758d8910480ce9fcdafcb68347c6da2e5",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/lick-report-key-map",
+    "sha": "c3eb5df03cc4c71193e56ec53f098843fd9212d8",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/maintenance-audit",
+    "sha": "b077c49ee821ce89564220afb02af887cc720a0b",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/review-completion-policy",
+    "sha": "50916966c247c03af3c800a4f27efa9fca3c2be8",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  },
+  {
+    "name": "codex/tune-backing-gain",
+    "sha": "0fbb39c0333921a02e15468baa47779df1f126cc",
+    "mergedInto": [
+      "origin/main",
+      "origin/dev"
+    ]
+  }
+]

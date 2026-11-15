@@ -517,5 +517,8 @@ experimental:
     e2e:
       key: e2e-tests-parallelism
       min: 1
-      max: 10
+      # 14, not 10, since the Musicality merge (2026-11-12) more than doubled
+      # e2e test time (88 → 217 min across nodes); at 10 the job sat at ~16 min
+      # even with the listening spec split into balanced files.
+      max: 14
       target: 3m

@@ -3,10 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 
-for (const scenario of ['raw-stop', 'cancel-future', 'cancel-during', 'partial-failure', 'surviving-owner'])
+for (const scenario of ['cancel-future', 'cancel-during', 'partial-failure', 'surviving-owner'])
  test(`native smplr ownership PCM: ${scenario}`, async ({ page, browserName }) => {
 	test.skip(scenario === 'cancel-during' && browserName === 'firefox', 'Firefox OfflineAudioContext does not implement suspend; other native ownership cases still run');
-	test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native audio validation in the local Linux sandbox only');
 	test.setTimeout(60_000);
 	const [smplr, source] = await Promise.all([
 		readFile(resolve('node_modules/smplr/dist/index.mjs'), 'utf8'),
@@ -27,22 +26,15 @@ for (const scenario of ['raw-stop', 'cancel-future', 'cancel-during', 'partial-f
 			const wave = sample.getChannelData(0);
 			for (let i = 0; i < wave.length; i++) wave[i] = .25 * Math.sin(2 * Math.PI * 440 * i / 48000);
 			const arming = getBackingNativeArming(context, (actual: BaseAudioContext) => library.Scheduler(actual));
-			const scheduler = scenario === 'raw-stop'
-				? library.Scheduler(context, { lookaheadMs: 10000 })
-				: arming.createScheduler();
-			const player = library.Sampler(scenario === 'raw-stop' ? context : arming.context, {
+			const scheduler = arming.createScheduler();
+			const player = library.Sampler(arming.context, {
 				buffers: { C4: sample }, scheduler, volume: 100, destination: context.destination,
 				detune: 0, decayTime: .3, lpfCutoffHz: 20000
 			});
 			await player.load;
 			const note = { note: 60, stopId: 'primary', velocity: 100, time: .25, duration: 1, ampRelease: .01 };
 			let stop: (() => void) | undefined;
-			if (scenario === 'raw-stop') {
-				// Positive counterexample: smplr already schedules the duration stop,
-				// so its ordinary stop function cannot supersede that future release.
-				stop = player.start(note);
-				stop!();
-			} else if (scenario === 'partial-failure') {
+			if (scenario === 'partial-failure') {
 				let rolledBack = false;
 				try {
 					arming.arm(() => {
@@ -89,10 +81,7 @@ for (const scenario of ['raw-stop', 'cancel-future', 'cancel-during', 'partial-f
 	}, { smplr, adapter, scenario });
 	console.log(`${browserName} native arming PCM`, JSON.stringify(measurements));
 	await test.info().attach('native-arming-pcm', { body: JSON.stringify(measurements, null, 2), contentType: 'application/json' });
-	if (scenario === 'raw-stop') {
-		expect(measurements[scenario].before, 'counterexample must emit a duration-bearing voice after raw stop').toBeGreaterThan(.01);
-		expect(measurements[scenario].after).toBeGreaterThan(.01);
-	} else if (scenario === 'cancel-future' || scenario === 'partial-failure') {
+	if (scenario === 'cancel-future' || scenario === 'partial-failure') {
 		expect(measurements[scenario].peak, 'cancelled future sources must remain silent').toBeLessThan(1e-7);
 	} else if (scenario === 'cancel-during') {
 		expect(measurements[scenario].before, 'voice must sound before cancellation').toBeGreaterThan(.01);

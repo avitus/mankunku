@@ -493,3 +493,11 @@ All suites run through `circleci testsuite run` (`.circleci/test-suites.yml`); A
 - **Fixed:** a flagged harmonic-lock run of 1–2 frames with the fundamental on both sides folds on the stream (`foldLockRuns`). Through the Blue to the Root's clear take went from 4 of 5 to 5 of 5.
 - **Noted, not built (Andy):** take 1's tongue reads as an ordinary held note on level, timbre and phase, and left the corpus at his call. When an articulation across repeated notes is that subtle but the rest of the lick lines up perfectly, we should probably assume it was played and missed. That is a scoring allowance: ask first, measure on the population.
 - **Measured:** `research/audio-scoring/results/repeat_allowance.md`. 23 of 2839 production takes qualify; full credit makes all perfect and also pays a never-sounded note. Pitch credit alone gives 20 great, 3 good. **Andy's decision: leave scoring as is.**
+
+## Soft swung-eighth repeats (2026-11-15 takes)
+
+- **Fixed:** five takes (Blue Note Step Up ×2, Through the Blue to the Root ×3) missed a tongued repeat that lands softer than the first note and ends within 0.2 s. Four rules in `note-segmenter.ts`: `floorDipUndone` (the floor climbs back ≥ half its fall), `resetsReed`'s deep path reading the tone before the dip, `findSameMidiRuns` continuing across an excursion under three frames, `envelopeRestartsAt` keeping a repeat's own frames past the onset guard.
+- **Check both corpora on any segmenter change:** `tests/fixtures/recordings/` and `tests/fixtures/recorder-baseline/`. The recorder shares the segmenter and its baseline test pins edit totals.
+- **Narrow on purpose:** the guard rule applies to re-articulation onsets only (worklet onsets cost Honeysuckle Rose a note) and only when the floor restarted (slurs cost the recorder corpus four edits).
+- **Declined (Andy, 2026-11-14):** Curl to the Floor has two click-made envelope onsets hidden by the guard. A band-recovery check near clicks removes them (0.98–1.13 against 1.35–7.18 for tongues) but can refuse a real tongue on the beat. Leave it out unless a click-made onset is shown to cost a score.
+
