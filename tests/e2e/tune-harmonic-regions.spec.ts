@@ -60,3 +60,35 @@ test('Start carries the same major-region suggestion onto the playing chart', as
 	await page.getByRole('button', { name: 'End', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible();
 });
+
+test('phrase support ranks the opening suggestion while setup retains both fitting licks', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+		'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [tune]);
+	const lines = [
+		{ id: 'target-line', name: 'Z Target Line', pitches: [62, 65, 64] },
+		{ id: 'tension-line', name: 'A Tension Line', pitches: [61, 61, 61] }
+	];
+	await seedUserLicks(page, lines.map(line => ({ id: line.id, name: line.name, key: 'C', mode: 'major',
+		timeSignature: [4, 4], category: 'major-chord', harmony: [], tags: ['practice'], source: 'user-entered',
+		notes: line.pitches.map((pitch, bar) => ({ pitch, offset: [bar, 1], duration: [1, 1] })),
+		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 3 } })));
+	await seedStorage(page, { 'lick-practice-progress': Object.fromEntries(lines.map(line =>
+		[line.id, { F: { passCount: 1, currentTempo: 120, lastPracticedAt: 1 } }])) });
+	await installAudioMock(page); await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/e2e-autumn-harmony/practice');
+	const inventory = page.getByRole('list', { name: 'Licks that fit this tune', exact: true });
+	for (const line of lines) {
+		await expect(inventory.getByText(line.name, { exact: true })).toBeVisible();
+		await expect(inventory.locator('details').filter({ hasText: line.name }).locator('summary')).toContainText('Ready now');
+	}
+	await expect(page.locator('svg text.range-marker-label').first()).toContainText('Z Target');
+	await page.locator('details.tp-options summary').click();
+	await page.getByRole('switch', { name: 'Play head and outro' }).click();
+	await page.getByRole('button', { name: 'Start', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'End', exact: true })).toBeVisible({ timeout: 45_000 });
+	await expect(page.locator('[data-testid="tune-chord-chart"] [data-marker-id]').first()).toContainText('Z Target Line · G');
+	await page.getByRole('button', { name: 'End', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible();
+});

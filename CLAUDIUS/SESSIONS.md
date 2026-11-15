@@ -6314,3 +6314,20 @@ Andy flagged five ear-training takes, all "Missed articulation": Blue Note Step 
 - **Found, not fixed:** Curl to the Floor holds two click-made envelope onsets, hidden by the guard. A band-recovery check near clicks removes them, but it is a new way to refuse a tongue on the beat. Andy's decision: leave it out.
 - **Also fixed:** dev's unit suite was red before I started. `49242bb5` split `musicality-listening.spec.ts` into nine files and the Musicality manifest still cited the old path in five places.
 - **Not verified:** nothing by ear or on a real microphone; the app's own live path beyond what the replay variants cover.
+
+## 2026-11-15 — Release PR #306 (dev → main), reviewed and merged
+
+Andy asked: open a PR from dev to main, handle all review comments, merge when done.
+
+- **Before opening:** dev CI was green. Docstring coverage over the diff read 70%; I documented 21 functions (100%) on dev first. Opened as a draft, asked `rate limit`, then `gh pr ready`.
+- **Round 1 (6 threads, 3 nitpicks):**
+  - Lick browser: licks were keyed by the last chord (a turnaround saved as G). Chord quality collapsed to the family (C6 became maj7, G7b9 became 7). Slash bass was dropped. Steal ignored pending cloud hydration.
+  - Segmenter: `findSameMidiRuns` judged an excursion from its middle, so five warmup frames plus one confident frame joined two runs.
+  - Also llms.txt wording and explicit types.
+- **Round 2:** Listen humanized and articulated the measured Weimar performance; added a `performed` playback option. CodeRabbit asked for a test with an existing cloud copy, and argued that a FAILED cloud read still settles `whenHydrated()`. Right: the page now reconciles itself through `initUserLicksFromCloud` and pauses Steal on failure, with Try again.
+- **Round 3:** narrowed the new e2e's console exception to the refused request URL.
+- **Evidence:** unit 9,255; lickbrowser e2e 18/18 on three engines; each new e2e red without its fix; svelte-check 0 errors (sandbox image, 3.5 GB heap).
+- **Coverage:** `static/data/weimar-licks.json` (10.5 MB) was never reviewable. Andy authorized the exception; it is recorded on the PR.
+- **Merged** as 3bfa4277. Production `/api/health` reports it (release 20261115-065749-3bfa427), and every deploy-path job passed.
+- **Open:** main's `unit-analysis` (off the deploy path) failed after the merge: `failed to Stat .svelte-kit/generated/dev/env/public/server.js`. It passed on ce1e86b5.
+- **Also:** Andy pushed a commit and its revert to dev mid-review. The net tree diff was zero, so the PR content was unaffected.

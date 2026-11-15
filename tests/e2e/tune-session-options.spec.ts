@@ -12,7 +12,9 @@ const tune = {
 
 const longTune = { ...tune, id: 'long-chord-form', title: 'Long Chord Form', sections: [
 			{ ...tune.sections[0], label: 'Head ending', omitFromSolos: true, notes: [] },
-			{ ...tune.sections[0], label: 'Solo form', bars: 32, notes: [] }
+			{ ...tune.sections[0], label: 'Solo form', bars: 32, notes: [], harmony: [
+				{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [16, 1] },
+				{ chord: { root: 'F', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [16, 1], duration: [16, 1] }]  }
 		] };
 
 test.beforeEach(async ({ page }) => {
@@ -101,7 +103,7 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 });
 
 for (const width of [1440, 390]) {
-	test(`idle chord chart scrolls through the full form and preserves harmony colors at ${width}px`, async ({ page }) => {
+	test(`idle chord chart scrolls through the full form and preserves key centers at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 800 });
 
 		await page.goto('/tunes/long-chord-form');
@@ -110,11 +112,11 @@ for (const width of [1440, 390]) {
 		// Omitted sections keep their chart indices so playback still maps correctly.
 		await expect(chart.locator('.tcc-bar')).toHaveCount(34);
 		await expect(chart.locator('section').nth(1).locator('.tcc-bar').first()).toHaveAttribute('data-bar', '2');
-		await expect(chart.locator('[data-cue-status]').first()).toBeVisible();
-		await page.getByRole('button', { name: 'Harmony colors', exact: true }).click();
-		await expect(chart.locator('[data-cue-status]')).toHaveCount(0);
-		await page.getByRole('button', { name: 'Harmony colors', exact: true }).click();
-		await expect(chart.locator('[data-cue-status]').first()).toBeVisible();
+		await expect(chart.locator('[data-key-center]').first()).toBeVisible();
+		await page.getByRole('button', { name: 'Show Key Centers', exact: true }).click();
+		await expect(chart.locator('[data-key-center]')).toHaveCount(0);
+		await page.getByRole('button', { name: 'Show Key Centers', exact: true }).click();
+		await expect(chart.locator('[data-key-center]').first()).toBeVisible();
 		await expect(chart).toHaveCSS('overflow-y', 'auto');
 		await chart.focus();
 		await expect(chart).toBeFocused();

@@ -30,4 +30,12 @@ describe('coveredSourceFiles', () => {
 			)
 		).toEqual(['src/lib/docs/markdown.ts']);
 	});
+
+	it("drops SvelteKit's generated output even though it exists on disk (2026-11-15: main's analysis failed on .svelte-kit/generated/dev/env/public/server.js)", () => {
+		const generated = '.svelte-kit/generated/dev/env/public/server.js';
+		const onDisk = (path: string): boolean => path === generated || isFile(path);
+		expect(coveredSourceFiles([generated, 'src/lib/docs/markdown.ts'], onDisk)).toEqual([
+			'src/lib/docs/markdown.ts'
+		]);
+	});
 });

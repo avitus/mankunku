@@ -325,17 +325,160 @@ native cadence phrases and tagged major phrases to share the same opportunities.
   candidate row with the chart selection; browser regression checks passed.
 - No database changes, proficiency edits or production-account writes.
 
+## Key-center highlighting
+
+Status: initial implementation and local validation complete (2026-11-15).
+Production verification and human musical acceptance remain separate.
+
+The former “Harmony colors” control calls `tunes/harmony-colors.ts`. It tints
+individual tonic, subdominant (including ii) and dominant chords relative to the
+**whole tune's key**. It neither detects progression spans nor establishes local
+key centers. Neutral chords are simply outside that small role classifier.
+
+Replace the existing control with **Show Key Centers**, as requested on 2026-11-15.
+There is no separate chord-role display mode. Tune detail and practice setup share
+the display preference; editor/import use the same marker builder and control.
+An explicitly saved old display preference is the fallback until the user chooses
+the new one. Show labeled key colors, separate bands for overlapping centers, and
+expandable reading details; keep lick labels and musical notation primary.
+
+Implementation decisions for this increment:
+- Analyze the finite displayed form with expanded repeats, then project contiguous
+  pieces through section/bar provenance. Do not paint across repeat jumps or
+  skipped endings. Retain visit numbers when a printed passage has repeat contexts.
+- Practice and solo charts reuse the session’s solo-form mapping, excluding
+  pickups and head-only sections without shifting their printed bar locations.
+- Show compatible major collections and cornerstone destinations, with their
+  separate explanations. Merge duplicate visual coverage only for the same center;
+  retain each analytical explanation. Stationary chords alone and unsupported
+  symbols do not establish a new center. Minor arrivals describe a destination,
+  not a broad minor-scale region. Blues has its own explicit label.
+- Name an implied progression center explicitly when its tonic is absent; a
+  ii–V can suggest its destination before the arrival appears in the chart.
+- Key colors follow the written tonic; text labels and reading details do not
+  require color discrimination. Minor bands also use a dashed outline.
+- Keep display state outside session planning, readiness, rotation and scoring.
+  Freestyle may show key centers without gaining insertion windows.
+
+- Build from the same `analyzeHarmony` evidence and cadence local keys used by
+  practice. Show full analytical readings (`compatibleMajorRegions`), not only
+  the unreserved exercise windows (`majorRegions`). A cornerstone and its key
+  center can coexist; its reservation must not make that key disappear visually.
+- Distinguish a supported tonal center from mere shared-scale compatibility.
+  Preserve ambiguous readings and unknown gaps. Do not force the song key into
+  passages without supporting evidence, or imply broad minor-region detection
+  merely because a minor cadence supplies a local tonic.
+- Label keys in the player's written pitch (for example, concert F is tenor G),
+  with consistent key colors and a compact legend. Use text as well as color.
+- Show shared chords and transitions with compact bands/boundary cues; do not
+  paint overlapping readings as mutually exclusive harmonic facts. An inspection
+  should explain the competing reading and the chosen practice boundary.
+- Project evidence through notation/playback provenance, including repeats,
+  pickups, partial bars and alternate/closing endings. Distinguish different
+  occurrences when a printed chord participates in different contexts.
+- Keep lick insertion bands and the playhead legible. Turning the display on or
+  off must not change suggestions, backing harmony, capture windows or readiness.
+- Acceptance: Autumn's G-major reading can include the shared Bm7 while its
+  exercise still stops before bar 4; All the Things You Are shows secondary local
+  centers independently of its signature; transposition, ambiguous regions,
+  repeated forms and phone-width labels remain correct.
+
+### Validation evidence (2026-11-15)
+
+- Linux sandbox: 150 focused unit tests passed across analysis, key-center
+  projection, preference migration and practice planning. Replacing full
+  compatible collections with reserved exercise regions caused 13 expected
+  failures, confirming that the overlap regressions detect that mistake.
+- Chromium, Firefox and WebKit: 119 distinct checks passed across seven tune
+  suites, with four existing Linux Firefox audio skips. The final 36-case batch
+  passed 35 with one such skip after correcting fixture seeding and the test's
+  mistaken assumption that a ii–V cannot imply a center before its tonic.
+- Desktop and 390px phone screenshots were inspected; notation, lick labels,
+  legends and shared-chord bands remain legible. Browser assertions also cover
+  preference persistence, transposition, split-bar chord strips, freestyle,
+  All the Things You Are and changes to closing-ending context.
+- TypeScript/Svelte validation reports zero errors and zero warnings. No session
+  eligibility, reservation, capture or scoring rules change in this increment.
+
+## Phase 4: phrase-aware ranking
+
+Status: initial implementation and local validation complete (2026-11-14).
+Listening acceptance remains separate; this is a conservative first ranking rubric.
+
+Existing harmonic fit, explicit tags, own-book membership, readiness, tempo and
+cornerstone reservations remain eligibility rules. Ranking adds no new eligible
+lick and removes none. It never edits notes, stretches timing or moves pickups.
+
+- Assess the transposed notes against the **actual analyzed playback harmony**,
+  not the template or a per-quality `scaleId`. Pass that timeline explicitly to
+  matching, including solo omissions and alternate closing charts.
+- Reward chord-tone attacks on strong beats, duration-weighted support for held
+  notes through chord changes, short offbeat stepwise approaches resolving
+  immediately to a supported target, and a supported final sounding note.
+- Meter matters: 4-beat measures emphasize beats 1 and 3; simple other meters
+  claim the downbeat; compound meters use dotted beats in their stated unit. Asymmetric
+  groupings beyond the downbeat are deferred until explicit grouping exists.
+- Tied continuations are one attack and one sustained event. Rests, pickups and
+  the last sounding end keep their authored timing; trailing rest padding is
+  irrelevant. Do not credit a resolution across a rest or a phrase boundary.
+- Written extensions/alterations/slash bass remain authoritative. Unknown chord
+  evidence, malformed or overlapping timing, gaps under sounding notes, a meter
+  mismatch, or notes beyond the supplied form yield an unassessed/neutral rank.
+  Do not substitute template harmony or cyclic opening chords for missing evidence.
+- Store inspectable counts with a weighted support score, not a probability or
+  proficiency grade. Strong attacks count twice, held notes by beat duration,
+  approaches and the ending once. Unassessed candidates use a neutral midpoint
+  for deterministic sorting; the score is rounded before comparison.
+- Within the existing mastery and match-source tiers, use phrase support before
+  practice-set membership, category specificity, difficulty and alphabetical
+  ordering. Session rotation still avoids repeats and prefers less-used eligible
+  licks; musical rank breaks those ties, so variety is preserved.
+- Synthetic trick examples are already transposed and must not be transposed
+  again during assessment. Real phrase transposition is octave-independent for
+  chord support, while stepwise resolution uses actual melodic intervals.
+
+Limitations: chord-tone support is not a complete model of jazz phrasing. A held
+unwritten ninth or intentional unresolved tension may rank below a more literal
+line, but remains available. Listening calibration, stylistic tension preferences,
+phrase placement alternatives, and richer multi-note resolutions are subsequent
+work. This phase does not claim human musical acceptance or implement the planned
+key-center display.
+
+### Validation evidence (2026-11-14)
+
+- CircleCI Smarter Testing in the isolated Linux sandbox: **258 tests passed in
+  13 files**. Coverage includes actual chord changes, held/tied notes, chromatic
+  approaches, pickups, all 12 transpositions, meter, unknown evidence, readiness,
+  rotation, shortened solo forms and alternate closing harmony.
+- Negative check in the container only: removing phrase support from sorting
+  failed the tagged-major ranking regression, reverting to the alphabetical
+  tension line. Restored the rule before the final passing run.
+- Browser suites `tune-harmonic-regions` and `tune-practice-setup`: **30 passed,
+  3 expected headless Linux Firefox audio skips**, across Chromium, Firefox and
+  WebKit. The new regression verifies that both ready lines remain in setup,
+  the better-supported line wins despite its alphabetical name, and Start uses
+  that same line on the playing chart. Existing setup coverage includes desktop
+  and phone widths, tempo changes, inventory inspection and readiness labels.
+- Sandboxed TypeScript/Svelte check: **0 errors, 0 warnings**. The default 2 GB
+  Node heap was insufficient; the passing run used a 3 GB heap. An overlapping
+  browser build was killed by VM memory pressure before tests began; the final
+  heavy checks ran sequentially and passed. Existing alias deprecation notices
+  remain outside the diagnostics count.
+- Direct source review completed. No database/proficiency changes or production
+  account writes. Dev delivery does not establish production or musical acceptance.
+
 ## Later milestones
 
 | Milestone | Status | Scope / evidence needed |
 | --- | --- | --- |
 | Cross-chorus windows | Pending | Occurrence-aware cadence capture and incoming-resolution reservations; first/middle/final chorus handling |
-| Phrase-aware ranking | Pending | Strong-beat targets, held tensions, resolutions, pickups; rank suggestions without rewriting licks |
+| Key-center highlighting | Initial implementation validated | Shared chart/setup overlays, written-key labels, overlapping readings, repeat provenance and inspectable reasons; human musical acceptance remains |
+| Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
 | Controlled chromaticism | Pending | Secondary dominants, borrowed chords, passing diminished chords; distinguish “key center retained” from “one scale fits every chord” |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
-| Analysis explanations | Pending | Inspectable reasons, rejected alternatives and optional user overrides, with a versioned persistence design if needed |
+| Analysis explanations | Initial reading details implemented | Key-center evidence, implied destinations and chart visits are inspectable; rejected alternatives and optional user overrides remain, with versioned persistence if needed |
 
 ## Acceptance and regression matrix
 
@@ -467,6 +610,18 @@ implementation and tests. Further changes should keep both surfaces on the same
 planning path.
 
 ## Decision log
+
+- 2026-11-15: replace Harmony colors with Show Key Centers rather than retaining
+  multiple coloring modes. Share display state and evidence across tune detail,
+  practice setup, editor and import preview; preserve analytical overlaps and
+  keep cornerstone exercise priority independent of display.
+- 2026-11-15 (PR #307 review): apply the compound dotted-beat ranking grid to
+  6/4 and 6/16 as well as 6/8. Regression cases fail on the original denominator
+  restriction; asymmetric meter still claims only the downbeat.
+
+- 2026-11-14: key-center visualization is a core harmonic-analysis deliverable,
+  distinct from the current global-key chord-role colors. Begin phrase-aware
+  ranking as a soft ordering rule; preserve eligibility, reservations and variety.
 
 - 2026-11-10: explicit long ii–V–I tags authorize whole-cadence placement for
   tonic-major lines. Keep cornerstone identity; prefer a ready phrase before

@@ -125,7 +125,8 @@ export interface BuildPlanDeps {
 	 * plans identically).
 	 */
 	detect: (flat: FlattenedTune) => DetectedProgression[];
-	match: (detection: DetectedProgression) => {
+	/** The same performed timeline used by detection, including any omitted solo sections. */
+	match: (detection: DetectedProgression, flat: FlattenedTune) => {
 		suggestions: LickSuggestion[];
 		uncategorized: unknown[];
 	};
@@ -133,7 +134,8 @@ export interface BuildPlanDeps {
 	harmonicAnalysis?: {
 		key: PitchClass;
 		analyze: (flat: FlattenedTune) => HarmonicAnalysis;
-		match: (region: MajorRegion) => { suggestions: LickSuggestion[]; uncategorized: unknown[] };
+		/** Assess phrase notes against this region's actual performed harmony. */
+		match: (region: MajorRegion, flat: FlattenedTune) => { suggestions: LickSuggestion[]; uncategorized: unknown[] };
 	};
 	/** Cap on suggestions per window, applied after the window is chosen. Absent = unlimited. */
 	suggestionLimit?: number;
@@ -389,7 +391,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const filled: CandidateWindow[] = [];
 	const bare: CandidateWindow[] = [];
 	for (const det of detections) {
-		const { suggestions, uncategorized } = match(det);
+		const { suggestions, uncategorized } = match(det, flat);
 		const formEnd: Fraction = [flat.totalBars * timeSignature[0], timeSignature[1]];
 		// Live windows never capture across choruses. Keep cyclic identity for
 		// the final-bar label, but reserve only occurrences inside this form.
@@ -428,7 +430,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		for (const det of majorRegionTargets(analysis.majorRegions, deps.harmonicAnalysis.key)) {
 			if (fractionToFloat(det.startOffset) < soloStartBar * barWholeNotes - EPSILON ||
 				det.segmentIndices.some((index) => reserved.has(index))) continue;
-			const result = deps.harmonicAnalysis.match(det.region);
+			const result = deps.harmonicAnalysis.match(det.region, flat);
 			// A region never grows to fit a lick. This also guards injected matcher results.
 			const suggestions = result.suggestions.filter((suggestion) =>
 				compareFractions(suggestion.insertionOffset, det.startOffset) === 0 &&

@@ -66,6 +66,8 @@
 
 	/** Tinted bar-range band on a tune chart, in absolute notation bars. */
 	export interface RangeMarker {
+		/** Separate display lanes preserve overlapping tonal readings without covering lick labels. */
+		keyCenter?: { lane: number; lanes: number; label: string; minor: boolean };
 		id: string;
 		startBar: number;
 		endBarExclusive: number;
@@ -656,6 +658,25 @@
 				}
 
 				const spec = barHitRect(run, band);
+				if (marker.keyCenter) {
+					const { lane, lanes, label, minor } = marker.keyCenter;
+					const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+					rect.setAttribute('x', spec.x.toFixed(2));
+					rect.setAttribute('y', (spec.y + lane * spec.h / lanes).toFixed(2));
+					rect.setAttribute('width', Math.max(0, spec.w).toFixed(2));
+					rect.setAttribute('height', (spec.h / lanes - 1).toFixed(2));
+					rect.setAttribute('rx', '2');
+					rect.setAttribute('class', 'range-marker key-center-band');
+					rect.setAttribute('data-key-center', label);
+					rect.setAttribute('data-key-center-lane', String(lane));
+					rect.setAttribute('role', 'img');
+					rect.setAttribute('aria-label', label);
+					rect.style.fill = marker.color ?? 'currentColor';
+					rect.style.stroke = marker.color ?? 'currentColor';
+					if (minor) rect.setAttribute('stroke-dasharray', '4 3');
+					band.wrapper.insertBefore(rect, band.wrapper.firstChild);
+					continue;
+				}
 				const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
 				rect.setAttribute('x', spec.x.toFixed(2));
 				rect.setAttribute('y', spec.y.toFixed(2));
@@ -1901,6 +1922,11 @@
 	.notation-container :global(svg .range-marker) {
 		stroke: none;
 		pointer-events: none;
+	}
+	.notation-container :global(svg .key-center-band) {
+		fill-opacity: 0.09;
+		stroke-opacity: 0.65;
+		stroke-width: 0.8;
 	}
 	.notation-container :global(svg .range-marker.marker-upcoming) {
 		fill: var(--color-accent);
