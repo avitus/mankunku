@@ -96,10 +96,14 @@ describe('phrase-aware support at the actual insertion', () => {
 		expect(comparePhraseFit(score([note(65, [0, 1], [1, 1])]), null)).toBeGreaterThan(0);
 	});
 
-	it('recognizes compound beats and uses only the downbeat in asymmetric meter', () => {
-		const notes = [note(64, [3, 8], [3, 8])];
-		expect(assessPhraseFit(line(notes, { timeSignature: [6, 8] }), 'C', [0, 1], tonic, [6, 8]))
+	it.each([4, 8, 16])('uses dotted beats in compound 6/%i meter', unit => {
+		const notes = [note(64, [3, unit], [3, unit])];
+		expect(assessPhraseFit(line(notes, { timeSignature: [6, unit] }), 'C', [0, 1], tonic, [6, unit]))
 			.toMatchObject({ strongBeatAttacks: 1, heldBeats: 1 });
+	});
+
+	it('uses only the downbeat in asymmetric meter', () => {
+		const notes = [note(64, [3, 8], [3, 8])];
 		expect(assessPhraseFit(line(notes, { timeSignature: [7, 8] }), 'C', [0, 1], tonic, [7, 8])?.strongBeatAttacks).toBe(0);
 	});
 

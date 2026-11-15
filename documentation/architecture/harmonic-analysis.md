@@ -416,7 +416,7 @@ lick and removes none. It never edits notes, stretches timing or moves pickups.
   notes through chord changes, short offbeat stepwise approaches resolving
   immediately to a supported target, and a supported final sounding note.
 - Meter matters: 4-beat measures emphasize beats 1 and 3; simple other meters
-  claim the downbeat; compound eighth-note meters use dotted beats. Asymmetric
+  claim the downbeat; compound meters use dotted beats in their stated unit. Asymmetric
   groupings beyond the downbeat are deferred until explicit grouping exists.
 - Tied continuations are one attack and one sustained event. Rests, pickups and
   the last sounding end keep their authored timing; trailing rest padding is
@@ -615,6 +615,9 @@ planning path.
   multiple coloring modes. Share display state and evidence across tune detail,
   practice setup, editor and import preview; preserve analytical overlaps and
   keep cornerstone exercise priority independent of display.
+- 2026-11-15 (PR #307 review): apply the compound dotted-beat ranking grid to
+  6/4 and 6/16 as well as 6/8. Regression cases fail on the original denominator
+  restriction; asymmetric meter still claims only the downbeat.
 
 - 2026-11-14: key-center visualization is a core harmonic-analysis deliverable,
   distinct from the current global-key chord-role colors. Begin phrase-aware
