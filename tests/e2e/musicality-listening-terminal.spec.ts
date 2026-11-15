@@ -5,7 +5,7 @@ import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { LOCAL_LISTENING_AABA } from '../fixtures/musicality-local-aaba';
 import { observeAudio, setup, exportTake, causalProvenance, assertCommittedPrefix, assertNoMicrophone, soundingBar, sourceStarts } from './fixtures/musicality-listening';
 
-test('keeps terminal arrangement opt-in and resets it across style changes', async ({ page }) => {
+test('keeps terminal arrangement opt-in and resets it across style or mode changes', async ({ page }) => {
 	await setup(page);
 	const ending = page.getByTestId('listening-ending');
 	await expect(ending).toBeVisible();
@@ -25,7 +25,11 @@ test('keeps terminal arrangement opt-in and resets it across style changes', asy
 	await page.getByTestId('listening-style').selectOption('swing');
 	await expect(ending).toHaveValue('continue');
 	await ending.selectOption({ label: 'Hold & release' });
-	await expect(ending).toHaveValue('hold-release');
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Original',exact:true}).click();
+	await expect(ending).toHaveCount(0);
+	await expect(page.getByTestId('listening-play')).toBeEnabled();
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Coordinated',exact:true}).click();
+	await expect(ending).toHaveValue('continue');
 	expect(await sourceStarts(page)).toBe(0);
 	await assertNoMicrophone(page);
 });

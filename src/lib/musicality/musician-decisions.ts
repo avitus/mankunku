@@ -20,7 +20,6 @@ export interface MusicianDecisionContext {
 	ppq: number;
 	beatsPerBar: number;
 	style: BackingStyle;
-	/** Historical exported takes may predate Musicality. This does not select playback. */
 	orchestration: 'original' | 'coordinated';
 }
 const roles: Record<EnsembleRole, string> = {
@@ -136,7 +135,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	const plan = context.orchestration === 'coordinated' ? generated.ensemblePlan?.bars.find((b) => b.barIndex === barIndex) : undefined;
 	const development = context.orchestration === 'coordinated' ? generated.ensembleDevelopment : undefined;
 	const arc = describePerformanceArc(generated, context);
-	const role = (instrument: 'bass' | 'piano' | 'drums') => plan ? roles[plan[instrument].role] : 'Accompaniment';
+	const role = (instrument: 'bass' | 'piano' | 'drums') => plan ? roles[plan[instrument].role] : 'Original pattern';
 	const sharedEvidence = (instrument: 'bass' | 'piano' | 'drums'): string[] => {
 		if (!plan) return [];
 		const evidence = [`Phrase intent: ${plain(plan.phraseIntent)}`];

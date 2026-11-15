@@ -1,4 +1,5 @@
 import { prepareReleasedArrangement } from './backing-arrangement';
+import { getBackingArrangementPreference } from './backing-preference';
 import { BACKING_OUTPUT_GAIN, backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
@@ -24,6 +25,7 @@ import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
 import {
+	generateBackingCached,
 	resolveBackingSwing,
 	type BassEvent,
 	type CompEvent,
@@ -1186,12 +1188,33 @@ function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
-	const generated = prepareReleasedArrangement(harmony, style, {
-		phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
-		sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm,
-		ensemble: { soloFeatures: options.backingSoloFeatures }
-	}, options.backingInstrument ?? currentInstrumentType ?? 'piano', phrase.timeSignature[1], options.backingPerformanceSeed ?? 0);
-	return { harmony, generated };
+	const orchestration = options.backingOrchestration ?? getBackingArrangementPreference();
+	if (orchestration === 'coordinated' && !options.backingSoloFeatures?.length) {
+		const generated = prepareReleasedArrangement(harmony, style, {
+			phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
+			sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm
+		}, options.backingInstrument ?? currentInstrumentType ?? 'piano', phrase.timeSignature[1], options.backingPerformanceSeed ?? 0);
+		if (generated) return { harmony, generated };
+	}
+	// Cached: lick-practice loops and per-key restarts reschedule the same
+	// (phrase, tempo, style) many times — the LRU returns the identical
+	// events without re-running the planners.
+	return {
+		harmony,
+		generated: generateBackingCached(harmony, style, {
+			phraseId: phrase.id,
+			tempo: options.tempo,
+			ppq,
+			beatsPerBar,
+			swing,
+			sectionMap: phrase.sectionMap,
+			// Form coordinates are bars; the legacy generator counts numerator beats.
+			// Do not misapply bar metadata in denominator-based meters until that path is migrated.
+			performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+			ensemble: orchestration === 'coordinated' && !!options.backingSoloFeatures?.length && phrase.timeSignature[1] === 4
+				? { soloFeatures: options.backingSoloFeatures } : undefined
+		})
+	};
 }
 
 /**

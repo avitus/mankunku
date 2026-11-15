@@ -81,7 +81,48 @@ test('listens through a complete real tune and follows each chorus on the audio 
 
 });
 
+test('compares matched Original and Coordinated takes and stops all future dispatch', async ({ page }) => {
+	await setup(page);
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Original',exact:true}).click();
+	await playToBar(page);
+	await page.getByTestId('listening-stop').click();
+	const original = await exportTake(page);
+	const stoppedBar = await soundingBar(page);
+	const stoppedStarts = await sourceStarts(page);
+	await page.waitForTimeout(1_200);
+	expect(await soundingBar(page)).toBe(stoppedBar);
+	expect(await sourceStarts(page)).toBe(stoppedStarts);
+	expect(original.playback.status).toBe('stopped');
+	expect(original.completion).toBe('partial');
+	expect(original.playback.provenance).toMatchObject({ engine: 'fixed', committedBars: 52, totalBars: 52 });
+	expect(original.playback.generated!.ensemblePlan).toBeUndefined();
+	const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
+	await expect(review).toHaveAttribute('max', String(original.playback.barIndex));
+	await review.press('Home');
+	await expect(page.getByTestId('musician-piano')).not.toContainText('Planned performance arc');
+	const revisited = await exportTake(page);
+	const { review: selected, ...unchanged } = revisited;
+	expect(selected?.barIndex).toBe(0);
+	expect(unchanged).toEqual(original);
+	expect(await sourceStarts(page)).toBe(stoppedStarts);
 
+	await expect(page.getByTestId('listening-performance-arc')).not.toBeVisible();
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Coordinated',exact:true}).click();
+	await expect(review).toHaveCount(0);
+	await playToBar(page);
+	await assertDecisionClock(page);
+	await page.getByTestId('listening-stop').click();
+	const coordinated = await exportTake(page);
+	expect(coordinated.playback.generated!.ensemblePlan).toBeDefined();
+	expect(coordinated.playback.provenance?.engine).toBe('causal-rolling');
+	expect(coordinated.playback.provenance!.committedBars).toBeLessThan(52);
+	const coordinatedStarts = await sourceStarts(page);
+	await page.waitForTimeout(1_200);
+	expect(await sourceStarts(page)).toBe(coordinatedStarts);
+	await assertNoMicrophone(page);
+	expect(coordinated.playback.params).toEqual({ ...original.playback.params, orchestration: 'coordinated' });
+	expect(coordinated.playback.startAudioTime).toBeGreaterThan(original.playback.startAudioTime!);
+});
 
 test('cancels instrument loading without starting a late take, then allows replay', async ({ page }) => {
 	await setup(page);

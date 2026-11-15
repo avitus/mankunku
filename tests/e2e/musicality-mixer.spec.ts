@@ -56,12 +56,17 @@ test('shows compact accessible mixer controls and changes the planned arc withou
  await page.screenshot({ path: test.info().outputPath('mixer-desktop.png'), fullPage: true });
  await page.setViewportSize({ width: 390, height: 844 });
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ await page.getByTestId('blind-open').click();
+ await expect(mixer).toBeVisible();
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ await page.screenshot({ path: test.info().outputPath('mixer-blind-mobile.png'), fullPage: true });
 });
 
-for (const mode of ['coordinated']) test(`mutes the three instrument buses and Master output during ${mode} playback and saves the changed mix`, async ({ page }) => {
+for (const mode of ['coordinated', 'original']) test(`mutes the three instrument buses and Master output during ${mode} playback and saves the changed mix`, async ({ page }) => {
  requireRealtimeAudio(page);
  const keyboard = mode === 'coordinated' ? 'Organ' : 'Piano';
  await page.getByTestId('listening-keyboard').selectOption(keyboard.toLowerCase());
+ await page.getByTestId('listening-mode').getByRole('button', { name: mode === 'original' ? 'Original' : 'Coordinated', exact: true }).click();
  await page.getByTestId('listening-tempo').fill('240');
  const stored = await page.evaluate(() => localStorage.getItem('backing-mix-levels-v2'));
  await page.getByTestId('listening-play').click();
@@ -96,4 +101,27 @@ for (const mode of ['coordinated']) test(`mutes the three instrument buses and M
  expect(await page.evaluate(() => localStorage.getItem('backing-mix-levels-v2'))).toBe(stored);
  await page.getByRole('button', { name: /Saved feedback/ }).click();
  await expect(page.getByTestId('listening-feedback-archive')).toContainText('Mix adjusted while listening');
+});
+
+test('blind live muting stays concealed and requires a fixed-mix replay before rating', async ({ page }) => {
+ test.setTimeout(120_000);
+ requireRealtimeAudio(page);
+ await page.getByTestId('blind-open').click();
+ await page.getByTestId('blind-keyboard').selectOption('organ');
+ await page.getByTestId('blind-tempo').fill('240');
+ await page.getByTestId('blind-choruses').selectOption('1');
+ await page.getByTestId('blind-start').click();
+ await expect(page.getByTestId('blind-keyboard')).toBeDisabled();
+ await expect(page.getByRole('slider', { name: 'Organ volume' })).toBeDisabled();
+ await page.getByTestId('blind-play-A').click();
+ await expect(page.getByTestId('blind-status')).toHaveText('Playing take A');
+ await page.getByRole('button', { name: 'Mute Organ', exact: true }).click();
+ await expect(page.locator('body')).not.toContainText(/Original|Coordinated/);
+ await expect(page.getByTestId('blind-status')).toHaveText('Take A complete', { timeout: 55_000 });
+ await expect(page.getByRole('alert')).toContainText('mix changed');
+ await expect(page.getByTestId('blind-rating-A-groove')).toBeDisabled();
+ await page.getByTestId('blind-play-A').click();
+ await expect(page.getByRole('slider', { name: 'Organ volume' })).toHaveValue('1');
+ await expect(page.getByTestId('blind-completed-A')).toHaveText('Full take heard', { timeout: 55_000 });
+ await expect(page.getByTestId('blind-rating-A-groove')).toBeEnabled();
 });

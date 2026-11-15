@@ -33,8 +33,6 @@ import { captureDrumStatement, planDrumPianoFeedback, validateDrumPianoFeedback,
 import { pianoPhraseRecallEnabled, validatePianoPhraseRecall } from './backing-piano-motif-memory';
 
 export interface RollingBackingOptions {
-	/** Normal playback owns a finite timeline; lab capture limits do not apply. */
-	readonly preparedPlayback?: true;
 	/** Explicit finite repetitions of the source form; never an open-ended loop. */
 	readonly loopCount?: number;
 	/** Listening release opt-in; generic rolling and the advanced lab keep their prior policy. */
@@ -179,7 +177,7 @@ const ownedCheckpoints = new WeakMap<RollingBackingCheckpoint, RollingBackingDef
 export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDefinition, params: BackingGenerationParams,
 	options: RollingBackingOptions = {}): RollingBackingDefinition {
 	if (!style.coordinatedStyle || params.beatsPerBar !== 4 || !params.ensemble) throw new Error('Rolling backing requires a supported coordinated style in 4/4');
-	if (!Number.isFinite(params.tempo) || params.tempo <= 0 || (!options.preparedPlayback && (params.tempo < 30 || params.tempo > 320)) || !Number.isSafeInteger(params.ppq) || params.ppq <= 0 || !Number.isFinite(params.swing) || params.swing < 0.5 || params.swing > 0.8) throw new Error('Invalid rolling backing tempo, PPQ or swing');
+	if (!Number.isFinite(params.tempo) || params.tempo < 30 || params.tempo > 320 || !Number.isSafeInteger(params.ppq) || params.ppq <= 0 || !Number.isFinite(params.swing) || params.swing < 0.5 || params.swing > 0.8) throw new Error('Invalid rolling backing tempo, PPQ or swing');
 	if (style.swingModel === 'fixed') params = { ...params, swing: style.defaultSwing };
 	const loopCount = options.loopCount ?? 1;
 	if (!Number.isInteger(loopCount) || loopCount < 1 || loopCount > MAX_ADAPTIVE_LOOPS) throw new Error(`Rolling loop count must be 1–${MAX_ADAPTIVE_LOOPS}`);
@@ -188,13 +186,13 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	for (const segment of copied) {
 		const start = fractionToFloat(segment.startOffset) * 4;
 		const length = fractionToFloat(segment.duration) * 4;
-		if (!Number.isFinite(start) || (options.preparedPlayback ? Math.abs(start - end) > 1e-8 : start !== end) || !Number.isFinite(length) || (!options.preparedPlayback && !Number.isInteger(length)) || length <= 0) throw new Error('Rolling harmony must cover complete contiguous quarter beats');
-		end = start + length;
+		if (start !== end || !Number.isInteger(length) || length <= 0) throw new Error('Rolling harmony must cover complete contiguous quarter beats');
+		end += length;
 	}
 	const sourceBars = end / 4;
-	if (!Number.isInteger(sourceBars) || sourceBars < 1 || (!options.preparedPlayback && sourceBars > 128)) throw new Error('Rolling source requires 1–128 complete bars');
+	if (!Number.isInteger(sourceBars) || sourceBars < 1 || sourceBars > 128) throw new Error('Rolling source requires 1–128 complete bars');
 	const totalBars = sourceBars * loopCount;
-	if (!options.preparedPlayback && totalBars > MAX_ADAPTIVE_BARS) throw new Error(`Rolling performance exceeds the ${MAX_ADAPTIVE_BARS}-bar limit`);
+	if (totalBars > MAX_ADAPTIVE_BARS) throw new Error(`Rolling performance exceeds the ${MAX_ADAPTIVE_BARS}-bar limit`);
 	let form: PerformanceForm = params.performanceForm ? JSON.parse(JSON.stringify(params.performanceForm)) : buildPerformanceForm({ totalBars: sourceBars,
 		sectionMap: params.sectionMap ?? [], choruses: [{ role: 'solo', startBar: 0, endBarExclusive: sourceBars }] });
 	if (form.totalBars !== sourceBars) throw new Error('Rolling performance form must match complete harmony');

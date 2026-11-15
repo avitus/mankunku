@@ -3,11 +3,23 @@ import { seedOnboardedAnonymous, seedStorage, seedTunes, SETTINGS_ONBOARDED, TOU
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { MANKUNKU_BLUES } from '../../src/lib/data/tunes';
 
-test('settings does not expose an engine selector or implementation limits', async ({ page }) => {
+test('offers a persistent device-local Original rollback alongside the released arrangement', async ({ page }, info) => {
  await seedOnboardedAnonymous(page);
  await page.goto('/settings');
- await expect(page.getByRole('radiogroup', { name: 'Accompaniment arrangement' })).toHaveCount(0);
- await expect(page.getByText('Musicality supports', { exact: false })).toHaveCount(0);
+ const bank = page.getByRole('radiogroup', { name: 'Accompaniment arrangement' });
+ await expect(bank.getByRole('radio', { name: 'Musicality 0.16.1', exact: true })).toBeChecked();
+ await bank.getByRole('radio', { name: 'Original', exact: true }).click();
+ await page.reload();
+ await expect(bank.getByRole('radio', { name: 'Original', exact: true })).toBeChecked();
+ await bank.getByRole('radio', { name: 'Musicality 0.16.1', exact: true }).click();
+ await page.reload();
+ await expect(bank.getByRole('radio', { name: 'Musicality 0.16.1', exact: true })).toBeChecked();
+ for (const width of [1440, 390]) {
+  await page.setViewportSize({ width, height: 900 });
+  await bank.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: info.outputPath(`arrangement-${width}.png`) });
+ }
 });
 
 // Exercise the actual tune desk and bundled instrument samples, not the lab's

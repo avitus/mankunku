@@ -1041,7 +1041,6 @@
 			progressionType: item.progressionType,
 			targetKey: nextKey,
 			backingStyle: lickPractice.config.backingStyle ?? 'swing',
-			backingInstrument: settings.backingInstrument,
 			tempo: lickPractice.currentTempo,
 			swing: effectiveSwing,
 			ppq,

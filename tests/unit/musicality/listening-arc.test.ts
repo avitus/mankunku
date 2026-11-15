@@ -33,6 +33,14 @@ describe('full-performance listening arc', () => {
 		expect(Object.isFrozen(arc.passes) && arc.passes.every(Object.isFrozen)).toBe(true);
 	});
 
+	it('shows the declared form in Original without inventing a shared energy plan', () => {
+		const form = formFor([['head', 16], ['solo', 12], ['head', 12]]);
+		const original = buildListeningArc(form, 'original');
+		expect(original.passes).toEqual(buildListeningArc(form, 'coordinated').passes);
+		expect(original.passes.map(pass => pass.label)).toEqual(['Head in', 'Solo 1', 'Head out']);
+		expect(original.totalBars).toBe(40);
+		expect(original.points).toEqual([]);
+	});
 
 	it('does not invent opening or closing heads around solo-only or head-only forms', () => {
 		expect(buildListeningArc(formFor([['solo', 4], ['solo', 8]]), 'coordinated').passes.map(pass => pass.label))
@@ -57,7 +65,7 @@ describe('full-performance listening arc', () => {
 		expect(arc).toEqual(captured);
 	});
 
-	it.each(['coordinated'] as const)('handles empty forms and rejects malformed coverage in %s', mode => {
+	it.each(['original', 'coordinated'] as const)('handles empty forms and rejects malformed coverage in %s', mode => {
 		expect(buildListeningArc(formFor([]), mode)).toEqual({ totalBars: 0, passes: [], points: [] });
 		const form = formFor([['head', 4], ['solo', 8]]);
 		expect(() => buildListeningArc({ ...form, totalBars: 13 }, mode)).toThrow('complete contiguous');
@@ -66,9 +74,10 @@ describe('full-performance listening arc', () => {
 	});
 });
 
-it('draws the captured seeded policy exactly', () => {
+it('draws the captured seeded policy exactly while leaving Original as form only', () => {
  const form = formFor([['head',16],['solo',12],['solo',12],['head',12]]);
  const arc = buildListeningArc(form, 'coordinated', 42);
  expect(arc.points).toEqual(planPerformanceEnergy(form, { seed:42 }).map(({phase,targetEnergy},barIndex)=>({barIndex,phase,targetEnergy})));
  expect(arc.points).not.toEqual(buildListeningArc(form,'coordinated',43).points);
+ expect(buildListeningArc(form,'original',42).points).toEqual([]);
 });

@@ -30,31 +30,12 @@ describe('normal playback uses the released musical vocabulary', () => {
    expect(actual!.drumEvents).toEqual(bars.flatMap(b => b.drumEvents));
   });
  }
- it('rejects unsupported meters and supports short and long 4/4 passages', () => {
+ it('declines unsupported meters, incomplete quarter-beat harmony and oversized forms before preparation', () => {
   const p = params('swing'), style = BACKING_STYLES.swing;
-  expect(() => prepareReleasedArrangement(phrase.harmony,style,{...p,beatsPerBar:3},'piano',4,1)).toThrow('4/4');
-  expect(() => prepareReleasedArrangement(phrase.harmony,style,p,'piano',8,1)).toThrow('4/4');
-  const short = prepareReleasedArrangement([{...phrase.harmony[0],duration:[1,8]}],style,{...p,performanceForm:undefined,sectionMap:undefined},'piano',4,1)!;
-  expect(short.bassEvents.length).toBeGreaterThan(0);
-  expect([...short.bassEvents,...short.compEvents,...short.drumEvents].every(e => e.absBeat < .5)).toBe(true);
-  const long = prepareReleasedArrangement([{...phrase.harmony[0],duration:[129,1]}],style,{...p,performanceForm:undefined,sectionMap:undefined},'piano',4,1)!;
-  expect(long.bassEvents.some(e => e.absBeat >= 128 * 4)).toBe(true);
- });
- it('supports fractional chord changes and positive tempos beyond lab limits', () => {
-  const harmony = [
-   { ...phrase.harmony[0], startOffset: [0,1] as [number,number], duration: [1,8] as [number,number] },
-   { ...phrase.harmony[1], startOffset: [1,8] as [number,number], duration: [7,8] as [number,number] }
-  ];
-  for (const tempo of [20, 360]) {
-   const result = prepareReleasedArrangement(harmony, BACKING_STYLES.swing,
-    { ...params('swing'), tempo, performanceForm: undefined, sectionMap: undefined }, 'piano', 4, 1)!;
-   expect(result.bassEvents.length).toBeGreaterThan(0);
-   expect(result.compEvents.every(e => Number.isFinite(e.duration) && e.duration > 0)).toBe(true);
-  }
- });
- it('reports malformed harmony instead of silently substituting Original', () => {
-  expect(() => prepareReleasedArrangement([{ ...phrase.harmony[0], startOffset: [1,4] }],
-   BACKING_STYLES.swing, params('swing'), 'piano', 4, 1)).toThrow('contiguous');
+  expect(prepareReleasedArrangement(phrase.harmony,style,{...p,beatsPerBar:3},'piano',4,1)).toBeNull();
+  expect(prepareReleasedArrangement(phrase.harmony,style,p,'piano',8,1)).toBeNull();
+  expect(prepareReleasedArrangement([{...phrase.harmony[0],duration:[1,8]}],style,{...p,performanceForm:undefined},'piano',4,1)).toBeNull();
+  expect(prepareReleasedArrangement([{...phrase.harmony[0],duration:[129,1]}],style,{...p,performanceForm:undefined},'piano',4,1)).toBeNull();
  });
  it('keeps cached performances isolated and keys them by keyboard and variation', () => {
   const p=params('swing'), style=BACKING_STYLES.swing;
@@ -65,7 +46,7 @@ describe('normal playback uses the released musical vocabulary', () => {
   expect(prepareReleasedArrangement(phrase.harmony,style,p,'organ',4,7)?.compEvents).not.toEqual(clean.compEvents);
   expect(prepareReleasedArrangement(phrase.harmony,style,p,'piano',4,256)?.compEvents).not.toEqual(clean.compEvents);
  });
- it('supports a short practice phrase without inventing a head, and reports mismatched form metadata', () => {
+ it('supports a short practice phrase without inventing a head, and declines mismatched form metadata', () => {
   const harmony = [{ ...phrase.harmony[0], startOffset: [0,1] as [number,number], duration: [2,1] as [number,number] }];
   const p = { ...params('ballad'), performanceForm: undefined, sectionMap: undefined };
   expect(BACKING_STYLES.ballad.defaultSwing).toBe(.53);
@@ -74,6 +55,6 @@ describe('normal playback uses the released musical vocabulary', () => {
   expect(score.compEvents.length).toBeGreaterThan(0);
   expect(score.drumEvents.length).toBeGreaterThan(0);
   expect([...score.bassEvents, ...score.compEvents, ...score.drumEvents].every(e => e.absBeat! < 8)).toBe(true);
-  expect(() => prepareReleasedArrangement(harmony, BACKING_STYLES.ballad, params('ballad'), 'organ', 4, 256)).toThrow('form must match');
+  expect(prepareReleasedArrangement(harmony, BACKING_STYLES.ballad, params('ballad'), 'organ', 4, 256)).toBeNull();
  });
 });

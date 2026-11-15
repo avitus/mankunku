@@ -174,7 +174,8 @@ test('explains unavailable local arrangements without truncating or starting aud
 	await expect(page.getByTestId('listening-play')).toBeEnabled();
 	await expect(page.getByTestId('listening-unavailable')).toHaveCount(0);
 	await expect(page.locator('.transport')).toContainText('52 bars');
-
+	await page.getByTestId('blind-open').click();
+	await expect(page.locator(`option[value="${LOCAL_LISTENING_AABA.id}"]`)).toHaveCount(0);
 });
 
 test('completes all 128 bars of a local tune book AABA on the real audio clock', async ({ page }) => {
