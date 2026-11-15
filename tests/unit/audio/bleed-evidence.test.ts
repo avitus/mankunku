@@ -71,3 +71,9 @@ describe('resolveBleedEvidence', () => {
 		expect(onsets).toBeUndefined();
 	});
 });
+
+it('uses the written click unit in compound meter without changing quarter-note BPM',()=>{
+ const eighths=resolveBleedEvidence({schedule:null,recordingTransportSeconds:0,tempo:120,recordingDuration:1.5,backingTrackEnabled:false,metronomeEnabled:true,metronomeDenominator:8});
+ expect(eighths).toEqual([-.25,0,.25,.5,.75,1,1.25,1.5]);
+ expect(resolveBleedEvidence({...base,backingTrackEnabled:true,metronomeEnabled:true,metronomeDenominator:8})).toEqual(resolveBleedEvidence({...base,backingTrackEnabled:true,metronomeEnabled:true}));
+});

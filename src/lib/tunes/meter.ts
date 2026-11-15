@@ -30,3 +30,8 @@ export function isSupportedMeter(value: unknown): value is [number, number] {
 		METER_DENOMINATORS.includes(value[1])
 	);
 }
+
+/** Duration of a printed bar on the application's quarter-note/BPM clock. */
+export function quarterBeatsPerBar(meter: readonly [number, number]): number {
+	return meter[0] * 4 / meter[1];
+}

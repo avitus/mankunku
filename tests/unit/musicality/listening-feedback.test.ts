@@ -184,3 +184,15 @@ it('keeps pre-Master listening notes readable without rewriting captured setting
  saved.settings.mix.master = -1;
  expect(restoreListeningFeedback(JSON.stringify(saved))).toBeNull();
 });
+
+it('preserves historical Original notes when new Musicality feedback is saved', () => {
+ const storage=memoryStorage();
+ const current=createListeningFeedback(input(),options);
+ const historical={...current,id:'historical-original',settings:{...current.settings,mode:'original'}};
+ storage.setItem(LISTENING_FEEDBACK_STORAGE_KEY,JSON.stringify([historical]));
+ expect(readListeningFeedback(storage)).toEqual([historical]);
+ expect(restoreListeningFeedback(JSON.stringify(historical))).toEqual(historical);
+ expect(saveListeningFeedback(storage,current)).toEqual([current,historical]);
+ expect(readListeningFeedback(storage)).toEqual([current,historical]);
+ expect(current.settings.mode).toBe('coordinated');
+});

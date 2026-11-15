@@ -11,7 +11,11 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
  await seedOnboardedAnonymous(page);await page.goto('/musicality');
  await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
- await page.getByTestId('listening-release-example').click();
+ // Pin the 0.17 audition recipe independently of the current release example.
+ await page.getByTestId('listening-tune').selectOption('ls-mankunku-blues');
+ await page.getByTestId('listening-key').selectOption('F');
+ await page.evaluate(()=>{const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{if(array instanceof Uint32Array&&array.length===1){array[0]=3;return array;}return random(array);}) as typeof crypto.getRandomValues;});
+ await page.getByTestId('listening-new-arc').click();
  await expect(page.getByTestId('listening-keyboard')).toHaveValue(keyboard);
  await page.getByTestId('listening-play').click();
  await expect(page.getByTestId('listening-status')).toHaveText('Playing',{timeout:90_000});

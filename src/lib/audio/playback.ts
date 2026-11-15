@@ -1,3 +1,4 @@
+import { quarterBeatsPerBar } from '$lib/tunes/meter';
 /**
  * Phrase playback engine.
  *
@@ -625,7 +626,7 @@ export function getPhraseEndTicks(
 			return Math.round(melodyEndBeats * ppq) + ppq;
 		}
 	}
-	const barTicks = phrase.timeSignature[0] * ppq;
+	const barTicks = printedBarTicks(phrase.timeSignature, ppq);
 	return getPhraseBars(phrase) * barTicks + ppq;
 }
 
@@ -636,7 +637,7 @@ export function getPhraseEndTicks(
  * rely on note durations alone.
  */
 function getPhraseBars(phrase: Phrase): number {
-	const beatsPerBar = phrase.timeSignature[0];
+	const beatsPerBar = quarterBeatsPerBar(phrase.timeSignature);
 	let maxEndBeat = 0;
 	for (const note of phrase.notes) {
 		const startBeat = fractionToFloat(note.offset) * 4;
@@ -731,8 +732,7 @@ export interface PhrasePlaybackOpts {
  * count in by tempo, drum-count-in.ts); silent when no click or drummer is
  * asked for. A chart cursor reading the transport clock subtracts the
  * lead-in, or it marks the bar after the music.
- * The engine's bar is `timeSignature[0]` QUARTER notes, so in 6/8 the
- * lead-in spans two printed bars.
+ * The lead-in follows printed bars: 6/8 lasts three quarter notes on the BPM clock.
  */
 export const PHRASE_LEAD_IN_BARS = 1;
 
@@ -792,7 +792,7 @@ export async function playPhrase(
 
 	// Configure transport
 	transport.bpm.value = options.tempo;
-	transport.timeSignature = phrase.timeSignature[0];
+	transport.timeSignature = quarterBeatsPerBar(phrase.timeSignature);
 
 	// Swing is applied per-note in `phraseToEvents` so triplets stay
 	// immune. Keep Transport.swing at 0 so Tone.js does not double-shift
@@ -800,7 +800,7 @@ export async function playPhrase(
 	transport.swing = 0;
 
 	const ppq = transport.PPQ;
-	const beatsPerBar = phrase.timeSignature[0];
+	const beatsPerBar = quarterBeatsPerBar(phrase.timeSignature);
 	const barTicks = beatsPerBar * ppq;
 	const skipMelody = opts.skipMelody ?? false;
 	const loopBacking = opts.loopBacking ?? keepMetronome;
@@ -887,14 +887,14 @@ export async function playPhrase(
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
 		if (backingWillPlay) {
-			await scheduleMetronome(beatsPerBar, countBars, 0, isStillCurrent); // count-in bars only
+			await scheduleMetronome(phrase.timeSignature[0], countBars, 0, isStillCurrent, phrase.timeSignature[1]); // count-in bars only
 		} else if (keepMetronome || loop) {
 			// Loop indefinitely — will keep playing during recording, or until
 			// a looping form's last pass disposes it
-			await scheduleMetronome(beatsPerBar, null, 0, isStillCurrent);
+			await scheduleMetronome(phrase.timeSignature[0], null, 0, isStillCurrent, phrase.timeSignature[1]);
 		} else {
 			const bars = getPhraseBars(phrase) + leadInBars;
-			await scheduleMetronome(beatsPerBar, bars, 0, isStillCurrent);
+			await scheduleMetronome(phrase.timeSignature[0], bars, 0, isStillCurrent, phrase.timeSignature[1]);
 		}
 		if (scheduleId !== currentScheduleId) return;
 	}
@@ -903,10 +903,15 @@ export async function playPhrase(
 	if (options.backingTrackEnabled && isBackingLoaded()) {
 		// A looping form's band enters on bar 1 and loops on the form alone —
 		// the pickup is the melody's, played once over the count.
+		// Finite jams have the same entrance. Slice their silent pickup out of
+		// the band's score, including form metadata, and keep its transport delay.
+		const finitePickup = !loop && opts.countIn?.pickup;
+		const backingPhrase = finitePickup
+			? loopBodyPhrase(phrase, { startBar: 1, endBar: getPhraseBars(phrase) }) : phrase;
 		await (loop
 			? scheduleBackingTrack(loopBodyPhrase(phrase, loop), options, loopStartTicks, true, isStillCurrent, undefined,
 				(loop.endBar - loop.startBar) * printedBarTicks(phrase.timeSignature, ppq))
-			: scheduleBackingTrack(phrase, options, formStartTicks, loopBacking, isStillCurrent));
+			: scheduleBackingTrack(backingPhrase, options, formStartTicks + (finitePickup ? barTicks : 0), loopBacking, isStillCurrent));
 		if (scheduleId !== currentScheduleId) return;
 		// The way out is decided inside Tone's tick dispatch, where an await
 		// would miss its downbeat, so its band is generated now.
@@ -921,7 +926,7 @@ export async function playPhrase(
 	// kit near-now (playBackingHitsNow's contract), so a stop cancels the
 	// rest of the count with the transport.
 	if (drumsCountIn) {
-		for (const hit of drumCountInHits(countBars, beatsPerBar, ppq)) {
+		for (const hit of drumCountInHits(countBars, phrase.timeSignature[0], ppq, phrase.timeSignature[1])) {
 			transport.scheduleOnce((time) => {
 				if (scheduleId !== currentScheduleId) return;
 				playBackingHitsNow([{ kind: 'drum', drum: hit.drum, velocity: hit.velocity }], time);
@@ -1093,7 +1098,7 @@ export async function scheduleNextPhrase(
 	// When the caller supplies startTick, use it directly so the backing
 	// track lands on the exact same bar boundary the caller computed
 	// synchronously (before the await introduced by this async function).
-	const beatsPerBar = phrase.timeSignature[0];
+	const beatsPerBar = quarterBeatsPerBar(phrase.timeSignature);
 	const ticksPerBar = beatsPerBar * ppq;
 	let nextBarTicks: number;
 	if (opts.startTick != null) {

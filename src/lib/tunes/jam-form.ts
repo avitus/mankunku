@@ -39,5 +39,6 @@ export function buildJamForm(tune: Tune, choruses: number, includeHead: boolean 
 	const form = headBarsForFlat(flat);
 	return { ...built, flat, sheet, closingSheet, closingFlat, practiceStartBar: (form.formRepeats ? form.headBars : 0) + pickupBars,
 		phrase: { ...expanded.phrase, notes: built.notes, harmony: built.harmony, sectionMap: built.sectionMap,
+			performanceForm: built.performanceForm,
 			difficulty: { ...expanded.phrase.difficulty, lengthBars: built.phraseBars } } };
 }

@@ -722,7 +722,8 @@ function hasOnsetNear(
  * Used as bleed evidence by `mergeSamePitchWithoutAttack`. The metronome
  * schedules a click on every beat starting at Transport time 0 (see
  * `audio/metronome.ts`), so click times in Transport seconds are integer
- * multiples of `60 / tempo`; we convert to recording-time by subtracting
+ * multiples of `60 / tempo * 4 / denominator`; legacy captures default to
+ * quarter notes. We convert to recording-time by subtracting
  * `recordingTransportSeconds`.
  *
  * Includes a 250 ms pre-recording lookback so a click that fired just
@@ -732,10 +733,11 @@ function hasOnsetNear(
 export function getMetronomeBleedOnsets(
 	recordingTransportSeconds: number,
 	tempo: number,
-	recordingDuration: number
+	recordingDuration: number,
+	denominator = 4
 ): number[] {
-	if (tempo <= 0 || recordingDuration <= 0) return [];
-	const beatDuration = 60 / tempo;
+	if (!Number.isFinite(tempo) || tempo <= 0 || recordingDuration <= 0 || ![1,2,4,8,16,32,64].includes(denominator)) return [];
+	const beatDuration = 60 / tempo * 4 / denominator;
 	const PRE_RECORDING_LOOKBACK = 0.250;
 	const scanStartTransport = recordingTransportSeconds - PRE_RECORDING_LOOKBACK;
 	const scanEndTransport = recordingTransportSeconds + recordingDuration;

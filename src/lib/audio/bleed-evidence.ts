@@ -23,6 +23,8 @@ export interface BleedEvidenceContext {
 	/** Transport clock at the first sample of the recording. */
 	recordingTransportSeconds: number;
 	tempo: number;
+	/** Written click unit; legacy captures used quarter notes. */
+	metronomeDenominator?: number;
 	recordingDuration: number;
 }
 
@@ -35,7 +37,7 @@ export function resolveBleedEvidence(ctx: BleedEvidenceContext): number[] | unde
 		return ctx.schedule.bleedEventsIn(ctx.recordingTransportSeconds, ctx.recordingDuration);
 	}
 	if (ctx.metronomeEnabled) {
-		return getMetronomeBleedOnsets(ctx.recordingTransportSeconds, ctx.tempo, ctx.recordingDuration);
+		return getMetronomeBleedOnsets(ctx.recordingTransportSeconds, ctx.tempo, ctx.recordingDuration, ctx.metronomeDenominator);
 	}
 	return undefined;
 }

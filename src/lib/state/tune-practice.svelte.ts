@@ -445,7 +445,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	let plan = buildSessionPlan(planDeps);
 	if (!playHead && separateClosingChart) {
 		const closingStart = built.closingStartBar!;
-		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * ppq;
+		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * 4 / transposed.timeSignature[1] * ppq;
 		plan = plan.filter(ip => ip.openTick < closingTick);
 		const lastSolo = buildSessionPlan({ ...planDeps, flat: closingFlat, notationFlat: flattenTune(closingSheet),
 			pickupBars: closingPickupBars, choruses: 1, head: { bars: closingStart, mode: 'shift' },

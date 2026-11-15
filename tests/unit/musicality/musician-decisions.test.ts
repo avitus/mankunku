@@ -170,14 +170,14 @@ describe('explicit terminal arrangement evidence', () => {
  });
 });
 describe('musician decisions from the actual score', () => {
-	it('counts actual onset ticks in the sounding bar without inventing decisions for original mode', () => {
+	it('counts actual onset ticks in the sounding bar without inventing unplanned decisions', () => {
 		const generated: GeneratedBacking = { bassEvents: [
 			{ time: '767i', absBeat: 4, midi: 48, duration: 0.4, velocity: 70 },
 			{ time: '768i', absBeat: 4, midi: 50, duration: 0.4, velocity: 70 }
 		], compEvents: [], drumEvents: [] };
 		const cards = describeMusicianDecisions(generated, { ...context, orchestration: 'original' });
 		expect(cards.map((c) => c.eventCount)).toEqual([1, 0, 0]);
-		expect(cards.every((c) => c.role === 'Original pattern')).toBe(true);
+		expect(cards.every((c) => c.role === 'Accompaniment')).toBe(true);
 		expect(cards[0].action).toBe('Carry the bass line');
 		expect(cards[1].action).toBe('No new chord attack');
 		expect(cards[1].detail).toContain('sustain');

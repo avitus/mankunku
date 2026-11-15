@@ -101,11 +101,9 @@ describe('buildTurnaroundBarEvents', () => {
 		expect(bassMidis(f)).not.toEqual(bassMidis(g));
 	});
 
-	it('respects the meter', () => {
+	it('plays a three-quarter turnaround within its bar', () => {
 		const events = build({ beatsPerBar: 3 });
-		const barTicks = 3 * PPQ;
-		for (const ev of events) {
-			expect(ev.tickOffset).toBeLessThan(barTicks);
-		}
+		expect(new Set(events.map(e => e.hit.kind))).toEqual(new Set(['bass', 'comp', 'drum']));
+		expect(events.every(e => e.tickOffset >= 0 && e.tickOffset < 3 * PPQ)).toBe(true);
 	});
 });

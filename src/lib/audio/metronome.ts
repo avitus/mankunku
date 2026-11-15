@@ -145,7 +145,8 @@ export async function scheduleMetronome(
 	beatsPerBar: number,
 	bars: number | null,
 	startAt: string | number = 0,
-	isStillCurrent: () => boolean = () => true
+	isStillCurrent: () => boolean = () => true,
+	denominator = 4
 ): Promise<void> {
 	await ensureSynths();
 	const Tone = await getTone();
@@ -180,7 +181,7 @@ export async function scheduleMetronome(
 				}
 			}),
 			allBeats,
-			'4n'
+			`${denominator}n`
 		);
 		sequence.start(startAt);
 		sequence.loop = false;
@@ -201,7 +202,7 @@ export async function scheduleMetronome(
 				}
 			}),
 			pattern,
-			'4n'
+			`${denominator}n`
 		);
 		sequence.start(startAt);
 		sequence.loop = true;

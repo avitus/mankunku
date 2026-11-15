@@ -20,6 +20,7 @@ export interface MusicianDecisionContext {
 	ppq: number;
 	beatsPerBar: number;
 	style: BackingStyle;
+	/** Historical exported takes may predate Musicality. This does not select playback. */
 	orchestration: 'original' | 'coordinated';
 }
 const roles: Record<EnsembleRole, string> = {
@@ -135,7 +136,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	const plan = context.orchestration === 'coordinated' ? generated.ensemblePlan?.bars.find((b) => b.barIndex === barIndex) : undefined;
 	const development = context.orchestration === 'coordinated' ? generated.ensembleDevelopment : undefined;
 	const arc = describePerformanceArc(generated, context);
-	const role = (instrument: 'bass' | 'piano' | 'drums') => plan ? roles[plan[instrument].role] : 'Original pattern';
+	const role = (instrument: 'bass' | 'piano' | 'drums') => plan ? roles[plan[instrument].role] : 'Accompaniment';
 	const sharedEvidence = (instrument: 'bass' | 'piano' | 'drums'): string[] => {
 		if (!plan) return [];
 		const evidence = [`Phrase intent: ${plain(plan.phraseIntent)}`];
@@ -766,6 +767,18 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   }
  }
 
+ const held=context.orchestration==='coordinated' && piano.find(e=>e.barLineSustain?.version===1 && e.barLineSustain.releaseTick>(barIndex+1)*beatsPerBar*ppq && e.duration>e.barLineSustain.originalDuration);
+ if(held){
+  pianoCard.action='Carry harmony across the bar line';
+  pianoCard.detail='This existing chord sustains briefly into the same written harmony in the next bar. Its release is already committed; the next decision cannot extend it again.';
+  pianoCard.evidence.push(`Release: next bar, beat ${((held.barLineSustain!.releaseTick/ppq)%beatsPerBar+1).toFixed(2)}`);
+ }
+ const carried=context.orchestration==='coordinated' && generated.compEvents.find(e=>e.barLineSustain?.version===1 && parseInt(e.time,10)>=firstTick-beatsPerBar*ppq && parseInt(e.time,10)<firstTick && e.barLineSustain.releaseTick>firstTick);
+ if(carried && development?.pianoMotifs.some(t=>t.barIndex===barIndex&&t.carriedReleaseTick===carried.barLineSustain!.releaseTick) && piano.length && piano.every(e=>parseInt(e.time,10)>=carried.barLineSustain!.releaseTick)){
+  pianoCard.action='Breathe over the held harmony';
+  pianoCard.detail='The preceding chord covers the bar line, then the keyboard re-enters on its native rhythm. The band leaves commentary space around that supported breath.';
+  if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
+ }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

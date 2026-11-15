@@ -24,6 +24,8 @@ import type { SoloEvidence } from './ensemble-plan';
 import { pianoPhraseRecallEnabled, retainPianoPhraseRecall, capturePianoMotifSource, proposePianoMotifRecall, type PianoPhraseRecallMemory } from './backing-piano-motif-memory';
 
 export interface RollingPianoMemory {
+ /** Immutable gate inherited from the preceding bar, consumed once. */
+ readonly crossBarReleaseTick?: number;
 	readonly recentFigures: readonly string[];
 	readonly motif: { readonly startBar: number; readonly sourceBar?: number; readonly sourceId: string | null; readonly shift: number; readonly repeat: boolean } | null;
 	readonly segmentIndex: number | null;
@@ -218,7 +220,21 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		realized = [{ ...realized[0], beatOffset: 2, durationBeats: 1.8, velocity: realized[0].velocity - 2 }];
 		hits = [{ b: 2, d: 1.8 }]; reason = 'native_drum_reply';
 	}
-	let proposal = !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
+ // A preceding committed gate owns the first fraction of this bar. Re-enter
+ // after it, retaining an attack rather than replacing support with silence.
+ const carry = score.keyboardSustainVersion ? memory.crossBarReleaseTick : undefined;
+ const canBreathe = !!carry && !arrival && !ensemble.coordinatedAccent && !nativeLatePad && !ensemble.setupFor && !ensemble.terminalArrangement && ensemble.responseOwner === 'nobody';
+ if (canBreathe && carry && realized.length) {
+  const first = Math.ceil(((carry / score.ppq - bar * 4) + .04) * 2) / 2;
+  if (realized.some(hit=>hit.beatOffset < first)) {
+   const early = realized.filter(hit=>hit.beatOffset < first).at(-1)!;
+   realized = [{...early,beatOffset:first},...realized.filter(hit=>hit.beatOffset >= first+.08)];
+   hits=realized.map(hit=>({b:hit.beatOffset,d:hit.durationBeats}));
+   development=undefined;answerFigureId=undefined;transform='fallback';shift=0;reason='cross_bar_breath';
+   if(motif.sourceBar===bar)motif={startBar:phraseStart,sourceId:null,shift:0,repeat:false};
+  }
+ }
+	let proposal = reason !== 'cross_bar_breath' && !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
 		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
 	let segmentIndex = memory.segmentIndex;
@@ -344,6 +360,6 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(score.keyboardSuspensionsVersion && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(rhythmicSentence && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: answer || arrival ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(canBreathe && carry && !answer && events.length && events.every(e=>parseInt(e.time,10)>=carry) ? {carriedReleaseTick:carry} : {}), ...(rhythmicSentence && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: reason !== 'cross_bar_breath' && reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: answer || arrival || reason === 'cross_bar_breath' ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

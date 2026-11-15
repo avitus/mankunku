@@ -28,7 +28,7 @@ test('coordinated bounce and golden-JSON render produce non-silent WAVs', async 
 		}) as typeof URL.createObjectURL;
 	});
 	await page.goto('/diagnostics/backing-mixer');
-	await page.getByTestId('lab-orchestration').selectOption('coordinated');
+	await expect(page.getByTestId('lab-orchestration')).toHaveCount(0);
 
 	/**
 	 * Peak + coverage profile of the last rendered WAV. Coverage is the

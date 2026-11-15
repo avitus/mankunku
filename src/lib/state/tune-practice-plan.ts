@@ -344,7 +344,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		return buildSessionPlan({ ...deps, flat: solo.flat, pickupBars: 0 });
 	}
 	const { flat, notationFlat, timeSignature, ppq, detect, match, suggestionLimit } = deps;
-	const barTicks = timeSignature[0] * ppq;
+	const barTicks = timeSignature[0] * 4 / timeSignature[1] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const head = deps.head;
 	const pickupBars = deps.pickupBars ?? 0;

@@ -527,7 +527,7 @@
 		ppqNR = transport.PPQ;
 		const plan = startTunePracticeSession(baseSheet, ppqNR);
 		audioPlan = plan;
-		barTicksNR = plan.sheet.timeSignature[0] * ppqNR;
+		barTicksNR = plan.sheet.timeSignature[0] * 4 / plan.sheet.timeSignature[1] * ppqNR;
 		countInTicksNR = plan.countInBars * barTicksNR;
 		currentBar = -1;
 		playheadBarF = -1;
@@ -695,6 +695,7 @@
 			metronomeEnabled: tunePractice.config.metronomeEnabled,
 			recordingTransportSeconds: win.recordingTransportSeconds,
 			tempo,
+			metronomeDenominator: audioPlan?.sheet.timeSignature[1] ?? 4,
 			recordingDuration: windowSeconds
 		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);

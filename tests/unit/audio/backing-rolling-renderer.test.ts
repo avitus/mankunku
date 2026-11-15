@@ -487,3 +487,19 @@ it('marks a legacy future dispatch cancelled when stopped before it can sound', 
  expect(h.voiceStops[0]).toHaveBeenCalledOnce();
  expect(h.renderer.snapshot().dispatches[0].status).toBe('cancelled');
 });
+
+it('owns a bounded keyboard gate across the bar line and cancels it with the take',()=>{
+ const h=harness(), releaseTick=864;
+ const source=bar(0);
+ const held={...source,checkpoint:{...source.checkpoint,piano:{...source.checkpoint.piano,crossBarReleaseTick:releaseTick}},compEvents:[{...source.compEvents[0],duration:releaseTick/384,
+  barLineSustain:{version:1,releaseTick,instrument:'organ',originalDuration:1}}]} as RollingBackingBar;
+ expect(h.renderer.commit(held).accepted).toBe(true);
+ expect(h.renderer.commit(bar(1)).accepted).toBe(true);
+ h.now(11); for(const event of [...h.pending.values()].filter(e=>e.tick===0))event.callback(11);
+ h.renderer.stop();expect(h.voiceStops.length).toBeGreaterThan(0);for(const stop of h.voiceStops)expect(stop).toHaveBeenCalledOnce();
+ for(const invalid of [
+  {...held,compEvents:[{...held.compEvents[0],barLineSustain:undefined}]},
+  {...held,compEvents:[{...held.compEvents[0],barLineSustain:{...held.compEvents[0].barLineSustain!,releaseTick:1000}}]},
+  {...held,checkpoint:{...held.checkpoint,piano:{...held.checkpoint.piano,crossBarReleaseTick:800}}}
+ ])expect(harness().renderer.commit(invalid)).toMatchObject({accepted:false,reason:'invalid_window'});
+});

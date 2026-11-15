@@ -107,11 +107,7 @@ for (const example of cases) {
 		await page.getByTestId('listening-tempo').fill('240');
 		await page.getByTestId('listening-style').selectOption(example.style);
 		await page.getByTestId('listening-choruses').selectOption('2');
-		const modes = page.getByTestId('listening-mode');
-		await modes.getByRole('button', { name: 'Original', exact: true }).click();
-		await expect(page.getByTestId('listening-arc')).toContainText('Tune form');
-		await expect(page.getByTestId('listening-arc-curve')).toHaveCount(0);
-		await modes.getByRole('button', { name: 'Coordinated', exact: true }).click();
+		await expect(page.getByTestId('listening-mode')).toHaveCount(0);
 		await page.getByTestId('listening-ending').selectOption(example.ending);
 		await expect(page.getByTestId('listening-arc-curve')).toBeVisible();
 		await expect(page.getByTestId('listening-arc-pass')).toHaveText(['Head in', 'Solo 1', 'Solo 2', 'Head out']);

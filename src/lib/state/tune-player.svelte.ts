@@ -162,8 +162,8 @@ export class TunePlayer {
 						if (!playback) return;
 						const seconds = playback.getAudibleTransportSeconds();
 						// The form starts after the count-in, not at transport 0. The engine's
-						// bar is timeSignature[0] quarter notes (two printed bars of 6/8).
-						const leadInQuarters = countInBars * tune.timeSignature[0];
+						// bar follows the printed meter (three quarter notes in 6/8).
+						const leadInQuarters = countInBars * tune.timeSignature[0] * 4 / tune.timeSignature[1];
 						const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
 						const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
 						// Past the last bar a looping form is back at its first (never the

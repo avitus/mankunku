@@ -344,8 +344,7 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
-	// playPhrase's lead-in is timeSignature[0] QUARTER notes: in 6/8 that is
-	// two printed bars, not one (CodeRabbit on #284).
+	// A count-in now follows the printed meter: six eighths, three quarters.
 	it('waits out the whole lead-in in compound meter', async () => {
 		const sixEight: Tune = {
 			...tune, timeSignature: [6, 8],
@@ -353,7 +352,7 @@ describe('tune desk playback', () => {
 		};
 		let finish!: () => void;
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
-		player.setTempo(120); // lead-in = 6 quarters = 3 s; a 6/8 bar = 1.5 s
+		player.setTempo(120); // lead-in = 3 quarters = 1.5 s; a 6/8 bar = 1.5 s
 		const started = player.toggle(sixEight, 'swing');
 		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
 		const callbacks = audio.playPhrase.mock.calls[0][3];
@@ -363,9 +362,9 @@ describe('tune desk playback', () => {
 			callbacks.onStarted();
 			return player.chartBar;
 		};
-		expect(at(2.5)).toBeNull();
-		expect(at(3.3)).toBeCloseTo(0.2);
-		expect(at(4.6)).toBeCloseTo(1.0667, 3);
+		expect(at(1.4)).toBeNull();
+		expect(at(1.8)).toBeCloseTo(0.2);
+		expect(at(3.1)).toBeCloseTo(1.0667, 3);
 		finish();
 		await started;
 	});
@@ -392,7 +391,7 @@ describe('tune desk playback', () => {
 			callbacks.onStarted();
 			return player.chartBar;
 		};
-		expect(at(2.5)).toBeNull(); // still in the second count bar
+		expect(at(1.4)).toBeNull(); // still in the second count bar
 		expect(at(8 / 3 + 0.4)).toBeCloseTo(0.3); // the form's first bar
 		finish();
 		await started;

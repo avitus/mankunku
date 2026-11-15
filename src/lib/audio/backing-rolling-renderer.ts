@@ -234,8 +234,11 @@ export function createRollingBackingRenderer(
 			if (!Number.isSafeInteger(tick) || tick < start || tick >= end ||
 				!Number.isFinite(event.velocity) || event.velocity < 0) return false;
 			earliest = Math.min(earliest, tick);
+			const carry = 'barLineSustain' in event ? event.barLineSustain : undefined;
+			const permittedEnd = carry ? carry.releaseTick : end;
+			if (carry && (!window.compEvents.includes(event as import('./backing-generation').CompEvent) || !('duration' in event) || Math.abs(tick + event.duration / secondsPerTick - carry.releaseTick) > 1e-6 || carry.originalDuration >= event.duration || carry.version !== 1 || !['piano','organ'].includes(carry.instrument) || !Number.isFinite(carry.originalDuration) || carry.originalDuration <= 0 || !Number.isSafeInteger(carry.releaseTick) || carry.releaseTick <= end || carry.releaseTick > end + options.ppq || nextBar + 1 >= options.totalBars || window.checkpoint.piano.crossBarReleaseTick !== carry.releaseTick)) return false;
 			if ('duration' in event && (!Number.isFinite(event.duration) || event.duration <= 0 ||
-				tick * secondsPerTick + event.duration > end * secondsPerTick + 1e-8)) return false;
+				tick * secondsPerTick + event.duration > permittedEnd * secondsPerTick + 1e-8)) return false;
 		}
 		if (window.earliestTick !== (all.length ? earliest : start)) return false;
 		const validMidi = (midi: number) => Number.isInteger(midi) && midi >= 0 && midi <= 127;

@@ -23,7 +23,6 @@ import { createBackingSampleLoader } from './backing-sample-loader';
 import { backingKeyboardTrim } from './backing-keyboard-level';
 import { loadBackingBass } from './backing-bass-instrument';
 import {
-	generateBacking,
 	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
@@ -87,8 +86,8 @@ export interface BounceParams {
 	instrument: BackingInstrument;
 	volume: number;
 	mix: BackingMixLevels;
-	/** Same generation policy as live playback; original is an A/B reference. */
-	orchestration?: 'original' | 'coordinated';
+	/** Musicality provenance for exported takes. */
+	orchestration?: 'coordinated';
 	/** Explicit finite ending; omitted/continue retains the current accompaniment. */
 	ending?: 'continue' | 'hold-release';
 	/** Scripted observation trace for the lab, shared with live preview generation. */
@@ -104,7 +103,7 @@ export interface BounceResult {
 
 /** Validate declared listening intent before an audio graph or ordinary score is prepared. */
 export function resolveListeningTerminalArrangement(params: BounceParams): TerminalArrangementInput | undefined {
-	if (params.ending !== 'hold-release' || params.orchestration !== 'coordinated' || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(params.style)) return undefined;
+	if (params.ending !== 'hold-release' || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(params.style)) return undefined;
 	const phrase = params.phrase;
 	const terminalArrangement: TerminalArrangementInput = { ending: 'hold-release', melody: phrase.notes };
 	const assessment = assessTerminalArrangement(phrase.harmony, BACKING_STYLES[params.style], {
@@ -144,16 +143,10 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		sectionMap: phrase.sectionMap,
 		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
 		...(terminalArrangement ? { terminalArrangement } : {}),
-		ensemble: params.orchestration === 'coordinated' && phrase.timeSignature[1] === 4
+		ensemble: phrase.timeSignature[1] === 4
 			? { soloFeatures: params.soloFeatures } : undefined
 	};
-	if (params.orchestration === 'coordinated' && !params.soloFeatures?.length && !terminalArrangement) {
-		const released = prepareReleasedArrangement(phrase.harmony, style, generation, params.instrument, phrase.timeSignature[1], params.performanceEnergySeed ?? 0);
-		if (released) return released;
-		// The normal transport also falls back to Original for unsupported score shapes.
-		return generateBacking(phrase.harmony, style, { ...generation, ensemble: undefined });
-	}
-	return generateBacking(phrase.harmony, style, generation);
+	return prepareReleasedArrangement(phrase.harmony, style, generation, params.instrument, phrase.timeSignature[1], params.performanceEnergySeed ?? 0);
 }
 
 export interface RenderOpts {

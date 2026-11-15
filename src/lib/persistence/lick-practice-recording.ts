@@ -68,6 +68,7 @@ export async function saveLickPracticeRecording(
 		bleedFilterLog: input.bleedFilterLog,
 		transportSeconds: input.transportSeconds,
 		metronomeEnabled: input.metronomeEnabled,
+		metronomeDenominator: input.phrase.timeSignature[1],
 		backingBleedOnsets: input.backingBleedOnsets,
 		captureTiming: input.captureTiming
 	};

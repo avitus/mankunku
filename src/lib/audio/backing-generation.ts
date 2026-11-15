@@ -110,6 +110,8 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ /** Committed cross-bar gate; omitted by every historical policy. */
+ readonly barLineSustain?: { readonly version: 1; readonly releaseTick: number; readonly instrument: 'piano' | 'organ'; readonly originalDuration: number };
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;

@@ -234,7 +234,6 @@ describe('scheduleBackingTrack supersession', () => {
 		expect(currentSchedule).not.toBeNull();
 		await mod.scheduleBackingTrack(PHRASE, {
 			...OPTIONS,
-			backingOrchestration: 'coordinated',
 			backingSoloFeatures: scriptedSoloFeatures('dense', 1)
 		}, 960, false, supersedeAtCheck(2));
 		expect(parts).toEqual(currentParts);

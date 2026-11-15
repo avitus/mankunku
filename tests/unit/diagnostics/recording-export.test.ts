@@ -138,6 +138,10 @@ describe('buildDiagnosticsPayload', () => {
 		expect(payload.captureAlignment).toBeNull();
 	});
 
+	it('retains a compound click grid while leaving legacy exports on quarters',()=>{
+		expect(buildDiagnosticsPayload(summary({...metadata(),metronomeDenominator:8}),replay(),{instrument:INSTRUMENT}).context.metronomeDenominator).toBe(8);
+		expect(buildDiagnosticsPayload(summary(),replay(),{instrument:INSTRUMENT}).context.metronomeDenominator).toBeUndefined();
+	});
 	it('tolerates a recording saved without metadata', () => {
 		const payload = buildDiagnosticsPayload(summary(null), replay(), { instrument: INSTRUMENT });
 		expect(payload.context.phraseId).toBeNull();

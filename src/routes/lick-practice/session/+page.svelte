@@ -1041,6 +1041,7 @@
 			progressionType: item.progressionType,
 			targetKey: nextKey,
 			backingStyle: lickPractice.config.backingStyle ?? 'swing',
+			backingInstrument: settings.backingInstrument,
 			tempo: lickPractice.currentTempo,
 			swing: effectiveSwing,
 			ppq,
@@ -1363,6 +1364,7 @@
 			metronomeEnabled: settings.metronomeEnabled,
 			recordingTransportSeconds: window.recordingTransportSeconds,
 			tempo: lickPractice.currentTempo,
+			metronomeDenominator: window.phrase.timeSignature[1],
 			recordingDuration
 		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);

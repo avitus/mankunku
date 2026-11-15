@@ -94,12 +94,12 @@ test('listening-lab controls render and the checklist records verdicts', async (
 	await expect(page.getByRole('button', { name: 'Copy listening report' })).toBeVisible();
 });
 
-test('scripted scenarios export the actual coordinated plan and retain an original comparison', async ({ page }) => {
+test('scripted scenarios export the released plan and compare dense solo evidence with ordinary support', async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 	await page.goto('/diagnostics/backing-mixer');
 	await page.getByTestId('lab-preset').selectOption('lab-aaba-c');
 	await page.getByRole('combobox', { name: 'Style', exact: true }).selectOption('swing');
-	await page.getByTestId('lab-orchestration').selectOption('coordinated');
+	await expect(page.getByTestId('lab-orchestration')).toHaveCount(0);
 	await page.getByTestId('lab-solo-scenario').selectOption('dense');
 	await expect(page.getByTestId('lab-ensemble-scope')).toContainText('No solo audio or microphone listening');
 	const exportEvents = async () => {
@@ -130,14 +130,13 @@ test('scripted scenarios export the actual coordinated plan and retain an origin
 	}
 	expect(dense.ensemblePlan?.trace.every((bar) => bar.soloEvidence === 'active')).toBe(true);
 	expect(dense.drumEvents.filter((event) => event.role === 'commentary')).toHaveLength(0);
-	await page.getByTestId('lab-orchestration').selectOption('original');
-	await expect(page.getByTestId('lab-solo-scenario')).toBeDisabled();
-	const original = await exportEvents();
-	expect(original.ensemblePlan).toBeUndefined();
-	expect(original.ensembleMemory).toBeUndefined();
-	expect(original.ensembleTiming).toBeUndefined();
-	expect(original.ensembleDevelopment).toBeUndefined();
-	expect(original.compEvents.length).toBeGreaterThan(dense.compEvents.length);
+	await page.getByTestId('lab-solo-scenario').selectOption('unavailable');
+	await expect(page.getByTestId('lab-solo-scenario')).toBeEnabled();
+	const ordinary = await exportEvents();
+	expect(ordinary.ensemblePlan?.bars).toHaveLength(96);
+	expect(ordinary.ensembleMemory?.nextBar).toBe(96);
+	expect(ordinary.ensemblePlan?.trace.every(bar=>bar.soloEvidence==='unavailable')).toBe(true);
+	expect(ordinary.compEvents.length).toBeGreaterThan(dense.compEvents.length);
 	await expect(page.getByRole('link', { name: 'Musicality specification & progress' })).toHaveAttribute('href', '/musicality');
 });
 
@@ -147,7 +146,7 @@ for (const style of ['bossa-nova', 'ballad', 'straight']) {
 		await page.goto('/diagnostics/backing-mixer');
 		await page.getByTestId('lab-preset').selectOption('lab-aaba-c');
 		await page.getByRole('combobox', { name: 'Style', exact: true }).selectOption(style);
-		await page.getByTestId('lab-orchestration').selectOption('coordinated');
+		await expect(page.getByTestId('lab-orchestration')).toHaveCount(0);
 		await page.getByTestId('lab-solo-scenario').selectOption('dense');
 		await expect(page.getByRole('button', { name: 'Adapt across loops', exact: true })).toBeEnabled();
 		const pending = page.waitForEvent('download');
