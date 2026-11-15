@@ -20,7 +20,7 @@ function excerpt(attacks: number[], end: number, durations = attacks.map((at, i)
 }
 
 /** The written notes' [attack, duration] pairs. */
-const rhythm = (r: Excerpt) => writtenNotes(r).map(([at, duration]) => [at, duration]);
+const rhythm = (r: Excerpt): number[][] => writtenNotes(r).map(([at, duration]) => [at, duration]);
 
 describe('Weimar swing notation', () => {
   it('Fits the corpus across every supported progression without empty or overlapping notation', () => {

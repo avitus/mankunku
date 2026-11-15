@@ -1,26 +1,20 @@
-import type { Phrase, ChordQuality } from "$lib/types/music";
+import type { Phrase } from "$lib/types/music";
 import { PITCH_CLASSES } from "$lib/types/music";
 import type { InstrumentConfig } from "$lib/types/instruments";
 import { fitLickToRange } from "$lib/phrases/library-loader";
 import { reduceFraction } from "$lib/music/intervals";
 import { writtenNotes } from "./rhythm";
-import { parseChord } from "./search";
+import { chordQuality, parseChord } from "./search";
 import type { Excerpt } from "./types";
-const qualities: Record<string, ChordQuality> = {
-  major: "maj7",
-  minor: "min7",
-  dominant: "7",
-  "half-diminished": "min7b5",
-  diminished: "dim7",
-  augmented: "aug",
-  suspended: "sus4",
-};
-/** Use one native range fit for both engraving and performed audio. */
+/**
+ * Use one native range fit for both engraving and performed audio. The key is
+ * the progression's tonic when the search knew it, else the last chord's root.
+ */
 export function excerptPhrases(
   r: Excerpt,
   instrument: InstrumentConfig,
   highest: number,
-) {
+): { score: Phrase; performance: Phrase } {
   const start =
     r.bars.filter((b) => b[0] <= r.notationStart).at(-1)?.[0] ??
     r.notationStart;
@@ -28,8 +22,8 @@ export function excerptPhrases(
   const base: Phrase = {
     id: r.id,
     name: `${r.performer} — ${r.title}`,
-    key: PITCH_CLASSES[last.root],
-    mode: last.family === "minor" ? "minor" : "major",
+    key: PITCH_CLASSES[r.tonic ?? last.root],
+    mode: r.mode ?? (last.family === "minor" ? "minor" : "major"),
     timeSignature: [4, 4],
     category: "user",
     source: "Weimar Jazz Database",
@@ -47,10 +41,12 @@ export function excerptPhrases(
     })),
     harmony: r.chords.map((c, i) => {
       const parsed = parseChord(c.label)!;
+      const bass = parsed.bass ? parseChord(parsed.bass) : null;
       return {
         chord: {
           root: PITCH_CLASSES[parsed.root],
-          quality: qualities[parsed.family],
+          quality: chordQuality(parsed),
+          ...(bass ? { bass: PITCH_CLASSES[bass.root] } : {}),
         },
         symbol: c.label,
         scaleId: "",

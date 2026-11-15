@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findReArticulations, mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
+import { findReArticulations, findSameMidiRuns, mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 
@@ -1097,6 +1097,18 @@ describe('findReArticulations: a stray-pitch excursion does not end the run', ()
 		// warmup count withholds, not the tier.
 		const silent = strayRun(strays).filter((r) => r.midi === 65);
 		expect(findReArticulations(silent, [0.1])).toHaveLength(1);
+	});
+
+	it('measures the excursion from its first frame when the warmup frames lead (CodeRabbit on #306)', () => {
+		// Five warmup frames, then the note's one confident frame: six frames in
+		// all. Judged from the fifth warmup frame, only two remained before the
+		// F returned, and the run was joined across the note.
+		const strays = [...Array.from({ length: 5 }, () => ({ midi: 67, warmup: true })), { midi: 67 }];
+		const runs = findSameMidiRuns(strayRun(strays));
+		expect(runs.map((run) => run.readings[0].midi)).toEqual([65, 65]);
+		expect(runs[0].end).toBeLessThan(resume(6));
+		// Two frames is still a stray, whichever comes first.
+		expect(findSameMidiRuns(strayRun([{ midi: 67, warmup: true }, { midi: 67 }]))).toHaveLength(1);
 	});
 
 	it('still refuses a hole that warmup frames of the SAME note bridge — a stabiliser reset', () => {

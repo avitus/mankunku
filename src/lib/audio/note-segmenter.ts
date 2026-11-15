@@ -2726,7 +2726,7 @@ function hasBandStopAtOnset(readings: PitchReading[], onset: number): boolean {
 	);
 }
 
-interface SameMidiRun {
+export interface SameMidiRun {
 	start: number;
 	end: number;
 	readings: PitchReading[];
@@ -2756,8 +2756,14 @@ interface SameMidiRun {
  * "little-cry": an F3 of one confident and five warmup frames between two
  * Eb3s), and joining the Ebs across it put a re-articulation onset on the
  * second Eb that cut the F's warmup window in two.
+ *
+ * The excursion is measured from its FIRST frame. A note whose warmup frames
+ * lead holds a different MIDI for every one of them, and judged again from
+ * its last two frames it would read as a two-frame stray (CodeRabbit on #306:
+ * five warmup frames and one confident one joined the runs either side).
+ * Exported for tests.
  */
-function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
+export function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 	const runs: SameMidiRun[] = [];
 	let curMidi: number | null = null;
 	let curStart = 0;
@@ -2775,7 +2781,9 @@ function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 
 	for (let i = 0; i < readings.length; i++) {
 		const r = readings[i];
-		if (curMidi !== null && r.midi !== curMidi) {
+		// Only the excursion's first frame decides; a later frame of the same
+		// excursion would see only what remains of it.
+		if (curMidi !== null && r.midi !== curMidi && readings[i - 1]?.midi === curMidi) {
 			let k = i;
 			while (k < readings.length && k - i < PITCH_CHANGE_MIN_HOLD && readings[k].midi !== curMidi) k++;
 			if (k < readings.length && k - i < PITCH_CHANGE_MIN_HOLD && readings[k].midi === curMidi) {

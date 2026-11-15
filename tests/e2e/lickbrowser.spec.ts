@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures/test";
+import { createStubCloud, installStubCloud } from "./fixtures/stub-cloud";
 import { seedOnboardedAnonymous } from "./fixtures/storage";
 test("Chord browser renders native scores and selects supported progressions", async ({
   page,
@@ -51,3 +52,31 @@ test(`WJD ${reference} engraves its eighth-note line`, async ({ page }) => {
   await lick.screenshot({ path: test.info().outputPath(`wjd-${reference}-eighths.png`) });
 });
 }
+
+// CodeRabbit on #306: a signed-in device that mounts before its cloud licks
+// arrive must not Steal a second copy of an excerpt the cloud already holds.
+test('Steal waits for cloud hydration before checking for an earlier copy', async ({ page, baseURL }) => {
+ await installStubCloud(page.context(), createStubCloud(), { id: 'aaaaaaaa-0000-4000-8000-000000000306', email: 'steal@e2e.dev' }, baseURL as string);
+ await seedOnboardedAnonymous(page);
+ let release!: () => void;
+ const held = new Promise<void>(resolve => { release = resolve; });
+ let requested = false;
+ // A page route runs before the context's stub cloud; fallback hands it on.
+ await page.route('**/rest/v1/user_licks**', async route => {
+  if (route.request().method() === 'GET') {
+   requested = true;
+   await held;
+  }
+  await route.fallback();
+ });
+ try {
+  await page.goto('/lickbrowser');
+  const first = page.locator('article').first();
+  await expect(first).toBeVisible({ timeout: 30000 });
+  await expect.poll(() => requested).toBe(true);
+  await expect(first.getByRole('button', { name: 'Steal', exact: true })).toBeDisabled();
+ } finally {
+  release();
+ }
+ await expect(page.locator('article').first().getByRole('button', { name: 'Steal', exact: true })).toBeEnabled();
+});

@@ -1,3 +1,4 @@
+import type { ChordQuality } from "$lib/types/music";
 import type { Excerpt, Solo, MetricNote } from "./types";
 import { coversProgression } from "./rhythm";
 import { beatAtTime } from "$lib/music/beat-map";
@@ -24,8 +25,24 @@ export const names = [
   "Bb",
   "B",
 ];
+/** The family a chord is compared by when matching a progression. */
+export type ChordFamily =
+  | "major"
+  | "minor"
+  | "dominant"
+  | "half-diminished"
+  | "diminished"
+  | "augmented"
+  | "suspended";
+/** A chord read by `parseChord`: root pitch class, family, raw suffix, slash bass. */
+export interface ParsedChord {
+  root: number;
+  family: ChordFamily;
+  suffix: string;
+  bass?: string;
+}
 /** Normalize user and Weimar chord spellings into comparable families. */
-export function parseChord(raw: string) {
+export function parseChord(raw: string): ParsedChord | null {
   const s = raw
     .trim()
     .replaceAll("♭", "b")
@@ -47,7 +64,7 @@ export function parseChord(raw: string) {
     )
   )
     return null;
-  let family = /^(m7b5|min7b5|-7b5)/.test(q)
+  const family: ChordFamily = /^(m7b5|min7b5|-7b5)/.test(q)
     ? "half-diminished"
     : /^(dim|o)/.test(q)
       ? "diminished"
@@ -64,22 +81,56 @@ export function parseChord(raw: string) {
                 : "major";
   return { root, family, suffix: q, bass: m[4] };
 }
+/**
+ * The native `ChordQuality` a chord's suffix names, on the app's own
+ * conventions (`chordSymbolToQuality`): a bare triad or a 6/9 voices as maj6,
+ * one dominant alteration names its quality and two or more read as altered.
+ * Weimar writes alterations after the degree (79b, 7911#), the app before.
+ */
+export function chordQuality(c: ParsedChord): ChordQuality {
+  const s = c.suffix;
+  switch (c.family) {
+    case "half-diminished":
+      return "min7b5";
+    case "diminished":
+      return /7/.test(s) ? "dim7" : "dim";
+    case "suspended":
+      return /sus2/.test(s) ? "sus2" : "sus4";
+    case "augmented":
+      return /\d/.test(s) ? "aug7" : "aug";
+    case "minor":
+      return /^(?:min|m|-)6/.test(s) ? "min6" : "min7";
+    case "major":
+      return /^(?:maj|Maj|M|j)?7/.test(s) || /^(?:maj|Maj|M|j)\d/.test(s) ? "maj7" : "maj6";
+  }
+  if (/alt/.test(s)) return "7alt";
+  const alterations = (
+    [
+      [/9b|b9/, "7b9"],
+      [/9#|#9/, "7#9"],
+      [/11#|#11/, "7#11"],
+      [/13b|b13/, "7b13"],
+    ] as const
+  ).filter(([pattern]) => pattern.test(s));
+  if (alterations.length > 1) return "7alt";
+  return alterations[0]?.[1] ?? "7";
+}
 /** Parse a bounded concert-pitch progression, rejecting unreadable symbols. */
-export function parseQuery(text: string) {
+export function parseQuery(text: string): ParsedChord[] {
   const tokens = text
     .trim()
     .split(/[\s|,→]+/)
     .filter(Boolean);
   if (!tokens.length || tokens.length > 12)
     throw Error("Enter between 1 and 12 chord symbols.");
-  return tokens.map((t) => {
+  return tokens.map((t: string): ParsedChord => {
     const c = parseChord(t);
     if (!c) throw Error(`Could not read “${t}”. Try Dm7, G7, Cmaj7 or Bm7b5.`);
     return c;
   });
 }
 /** Spell a source chord in the requested concert key. */
-export function displayChord(raw: string, shift = 0) {
+export function displayChord(raw: string, shift: number = 0): string {
   const c = parseChord(raw);
   if (!c) return raw;
   return (
@@ -91,10 +142,10 @@ export function displayChord(raw: string, shift = 0) {
 /** Find populated excerpts ending within the first bar of the final chord. */
 export function search(
   solos: Solo[],
-  query: ReturnType<typeof parseQuery>,
-  { transpose = true, artist = "" } = {},
-) {
-  const results = [];
+  query: ParsedChord[],
+  { transpose = true, artist = "" }: { transpose?: boolean; artist?: string } = {},
+): Excerpt[] {
+  const results: Excerpt[] = [];
   for (const solo of solos) {
     if (artist && solo.performer !== artist) continue;
     for (let i = 0; i + query.length < solo.changes.length; i++) {

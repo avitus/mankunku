@@ -1,3 +1,4 @@
+import type { Mode } from "$lib/types/music";
 /** Twelfths of a quarter: written onset, length, grid, pitch, raw length,
  * optional performed onset and release interpolated on the annotated beat map. */
 export type MetricNote = [number, number, number, number, number?, number?, number?];
@@ -31,4 +32,8 @@ export interface Excerpt {
   notationEnd: number;
   bars: Solo["bars"];
   chords: { label: string; original: string; time: number; tick: number }[];
+  /** Concert tonic pitch class (0 = C) when a catalog progression supplied it. */
+  tonic?: number;
+  /** The progression's mode, beside `tonic`. */
+  mode?: Mode;
 }

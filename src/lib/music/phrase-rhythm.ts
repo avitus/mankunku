@@ -1,4 +1,4 @@
-import type { Note } from '$lib/types/music';
+import type { Fraction, Note } from '$lib/types/music';
 import { reduceFraction } from '$lib/music/intervals';
 import { applySwingToBeats, MAX_SWING } from '$lib/music/swing';
 import { articulationGapBeats, tripletAttackEvidence } from '$lib/music/rhythm-evidence';
@@ -17,6 +17,16 @@ export interface RhythmHint {
   fixed?: boolean;
 }
 
+/** The fitted notation: notes on the grid, the clock offset it chose, how
+ * many attacks shared a slot, and which input indices it left out. */
+export interface RhythmFit {
+  notes: Note[];
+  phaseSeconds: number;
+  collisions: number;
+  omittedIndices: number[];
+}
+
+/** The beat clock, grid and evidence a fit runs against. */
 export interface RhythmFitOptions {
   endBeat: number;
   beatSeconds: number;
@@ -37,10 +47,10 @@ interface Grid {
 }
 const SWINGS = [0.5, 0.6, 2 / 3, 0.75, MAX_SWING];
 /** Whether a tick falls on the second or third triplet partial of its beat. */
-const isTriplet = (tick: number, grid: Grid) => tick % grid.ticks === grid.ticks / 3 || tick % grid.ticks === 2 * grid.ticks / 3;
+const isTriplet = (tick: number, grid: Grid): boolean => tick % grid.ticks === grid.ticks / 3 || tick % grid.ticks === 2 * grid.ticks / 3;
 
 /** Reject straight and triplet offbeats occupying the same quarter-note beat. */
-function mixesSubdivisions(from: number, to: number, grid: Grid) {
+function mixesSubdivisions(from: number, to: number, grid: Grid): boolean {
 	return Math.floor(from / grid.ticks) === Math.floor(to / grid.ticks) &&
 		from % grid.ticks !== 0 && isTriplet(from, grid) !== isTriplet(to, grid);
 }
@@ -124,7 +134,7 @@ function align(times: number[], input: RhythmEvent[], tripletEvidence: boolean[]
 }
 
 /** Fit a release to a conventional duration without crossing the next attack. */
-function releaseTick(start: number, limit: number, releaseBeat: number, phase: number, swing: number, grid: Grid) {
+function releaseTick(start: number, limit: number, releaseBeat: number, phase: number, swing: number, grid: Grid): number {
 	let bestEnd = limit;
 	let bestCost = Infinity;
 	for (let end = start + 1; end <= limit; end++) {
@@ -147,14 +157,14 @@ function releaseTick(start: number, limit: number, releaseBeat: number, phase: n
 
 /** Jointly fit phrase attacks, swing, clock phase and written releases.
  * Recorder and annotated-corpus callers supply their own clock and grid policy. */
-export function fitPhraseRhythm(detected: RhythmEvent[], options: RhythmFitOptions) {
+export function fitPhraseRhythm(detected: RhythmEvent[], options: RhythmFitOptions): RhythmFit {
   const { skipCosts, firstTick, endingRelease } = options;
   const beatSec = options.beatSeconds;
   const ticks = options.ticksPerBeat ?? 6;
   const grid: Grid = { ticks, end: options.endBeat * ticks,
     slots: options.slots ?? [0, ticks / 3, ticks / 2, 2 * ticks / 3], hints: options.hints };
   const input = detected.filter(n => n.at < options.endBeat);
-  if (!input.length) return { notes: [], phaseSeconds: 0, collisions: 0, omittedIndices: [] as number[] };
+  if (!input.length) return { notes: [], phaseSeconds: 0, collisions: 0, omittedIndices: [] };
   const times = input.map(n => Math.max(0, n.at));
 	// Three near-equal attacks spaced by a third or two-thirds of a beat
 	// support a true tuplet. A long–short swung pair alone never qualifies.
@@ -228,7 +238,7 @@ export function fitPhraseRhythm(detected: RhythmEvent[], options: RhythmFitOptio
 	let collisions = 0;
 	let previousEnd = 0;
 	/** A tick count as a reduced whole-note fraction on this grid. */
-	const fraction = (tick: number) => reduceFraction(tick, 4 * grid.ticks);
+	const fraction = (tick: number): Fraction => reduceFraction(tick, 4 * grid.ticks);
 	for (const [position, { tick: start, index: i }] of positions.entries()) {
 		const following = positions[position + 1];
 		const next = following?.tick ?? grid.end;

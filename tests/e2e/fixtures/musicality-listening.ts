@@ -84,7 +84,7 @@ export function assertTopNoteLines(text: string, playback: ListeningSnapshot, ba
 }
 
 /** Observe real Web Audio dispatch without replacing its clock or the renderer. */
-export async function observeAudio(page: Page, seed = TAKE_SEED): Promise<void> {
+export async function observeAudio(page: Page, seed: number = TAKE_SEED): Promise<void> {
 	await page.addInitScript((seed) => {
 		// The desk's only single-word draw is its energy seed; everything else keeps real entropy.
 		const random = crypto.getRandomValues.bind(crypto);
@@ -110,7 +110,7 @@ export async function observeAudio(page: Page, seed = TAKE_SEED): Promise<void> 
 }
 
 /** Opens /musicality as an onboarded anonymous player with observed audio at 240 BPM. */
-export async function setup(page: Page, seed = TAKE_SEED): Promise<void> {
+export async function setup(page: Page, seed: number = TAKE_SEED): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	await observeAudio(page, seed);
 	await stubCdnInstrumentSamples(page);
@@ -194,14 +194,14 @@ export async function sourceStarts(page: Page): Promise<number> {
 }
 
 /** Starts playback and waits until the given bar is sounding. */
-export async function playToBar(page: Page, bar = 1): Promise<void> {
+export async function playToBar(page: Page, bar: number = 1): Promise<void> {
 	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(bar);
 }
 
 /** Asserts the musician cards show the bar the audio clock is in, and match the score's events for it. */
-export async function assertDecisionClock(page: Page, score?: ListeningSnapshot, tempo = 240): Promise<void> {
+export async function assertDecisionClock(page: Page, score?: ListeningSnapshot, tempo: number = 240): Promise<void> {
 	// Read all positions and the live clock atomically. A 150 ms allowance
 	// covers the 40 ms UI poll; it does not allow scheduling lookahead to
 	// advance the cards to a future bar.
@@ -228,7 +228,7 @@ export async function assertDecisionClock(page: Page, score?: ListeningSnapshot,
 	expect(elapsed).toBeLessThan((position.bar + 1) * barSeconds + 0.15);
 	if (score?.generated) {
 		/** Whether a scheduled event falls in the sounding bar. */
-		const inBar = (event: { time: string }) => Math.floor(parseInt(event.time, 10) / score.ppq / 4) === position.bar;
+		const inBar = (event: { time: string }): boolean => Math.floor(parseInt(event.time, 10) / score.ppq / 4) === position.bar;
 		const plannedArc = score.generated.ensemblePlan?.bars[position.bar]?.performanceEnergy;
 		expect(position.arc).toEqual(plannedArc ? { bar: position.bar, phase: plannedArc.phase } : null);
 		const heardThree = score.generated.ensembleDevelopment?.pianoVoicings?.some(entry => inBar(entry) &&

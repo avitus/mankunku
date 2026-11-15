@@ -4,7 +4,7 @@ import { beatAtTime } from '$lib/music/beat-map';
 import { annotatedRhythmHints } from '$lib/music/annotated-rhythm';
 
 /** The pitched notes' [offset, duration] in beats. */
-const pitched = (result: ReturnType<typeof fitPhraseRhythm>) => result.notes
+const pitched = (result: ReturnType<typeof fitPhraseRhythm>): number[][] => result.notes
   .filter(n => n.pitch !== null)
   .map(n => [n.offset[0] / n.offset[1] * 4, n.duration[0] / n.duration[1] * 4]);
 

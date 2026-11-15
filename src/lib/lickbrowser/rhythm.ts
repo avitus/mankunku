@@ -24,7 +24,7 @@ export function writtenNotes(r: Excerpt): MetricNote[] {
   ]]);
 }
 /** Require entrances at both ends and activity throughout the progression. */
-export function coversProgression(r: Excerpt) {
+export function coversProgression(r: Excerpt): boolean {
   const notes = writtenNotes(r);
   if (!notes.length) return false;
   const boundaries = [...r.chords.map((c) => c.tick), r.notationEnd];
