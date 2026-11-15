@@ -100,7 +100,12 @@ test('A copy stolen on another device reads Stolen once its cloud licks arrive, 
  const contextB = await browser.newContext({ baseURL });
  const pageB = await contextB.newPage();
  const errors: string[] = [];
- pageB.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+ pageB.on('console', msg => {
+  if (msg.type() !== 'error') return;
+  // The browser reports each read the test refuses; that one resource only.
+  if (msg.location().url.includes('/rest/v1/user_licks') && msg.text().includes('500')) return;
+  errors.push(`${msg.text()} (${msg.location().url})`);
+ });
  pageB.on('pageerror', err => errors.push(err.message));
  try {
   await installStubCloud(contextB, cloud, user, baseURL as string);
@@ -138,8 +143,7 @@ test('A copy stolen on another device reads Stolen once its cloud licks arrive, 
   await expect(firstB.getByRole('button', { name: 'Stolen', exact: true })).toBeDisabled();
   await expect(pageB.getByRole('alert').filter({ hasText: 'Steal is paused' })).toHaveCount(0);
   expect(cloud.rows('user_licks').filter(row => !row.deleted_at)).toHaveLength(1);
-  // The browser reports each refused read; nothing else may error.
-  expect(errors.filter(text => !text.includes('status of 500')), errors.join('\n')).toEqual([]);
+  expect(errors, errors.join('\n')).toEqual([]);
  } finally {
   await contextB.close();
  }
