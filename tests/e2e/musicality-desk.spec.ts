@@ -27,11 +27,7 @@ test('shows a real score beside factual band insights with a release and compact
  await expect(page.getByTestId('listening-arc-position')).toHaveText('Whole tune');
  await expect(page.getByTestId('listening-arc-marker')).toHaveCount(0);
  await expect(page.getByTestId('listening-arc-curve')).toBeVisible();
- await page.getByTestId('listening-mode').getByRole('button',{name:'Original',exact:true}).click();
- await expect(page.getByTestId('listening-release-focus')).toHaveCount(0);
- await expect(page.getByTestId('listening-arc-curve')).toHaveCount(0);
- await expect(page.getByTestId('listening-arc')).toContainText('no shared energy plan');
- await page.getByTestId('listening-mode').getByRole('button',{name:'Coordinated',exact:true}).click();
+ await expect(page.getByTestId('listening-release-focus')).toBeVisible();
  await expect(page.getByTestId('listening-arc-curve')).toBeVisible();
  const intention=await page.locator('.intention').boundingBox();
  const panel=await page.locator('.score-panel').boundingBox();
@@ -65,8 +61,6 @@ test('shows a real score beside factual band insights with a release and compact
  await expect.poll(()=>scroll.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
  await assertMixBelowNarrative();
  await page.screenshot({path:testInfo.outputPath('mobile.png'),fullPage:true});
- await page.getByTestId('blind-open').click();
- await expect(page.getByRole('heading',{name:'Blind comparison',exact:true})).toBeVisible();
 });
 
 test('pins actual sounding decisions, saves release-labelled feedback and preserves it after reload', async ({ page }) => {
@@ -125,12 +119,6 @@ test('keeps the current curated catalog within the unchanged full-tune listening
  await page.getByTestId('listening-choruses').selectOption('1');
  await expect(page.locator('.transport')).toContainText('96 bars');
  await expect(page.getByTestId('listening-play')).toBeEnabled();
- await page.getByTestId('blind-open').click();
- await page.getByTestId('blind-tune').selectOption('ls-rhythm-changes');
- await page.getByTestId('blind-choruses').selectOption('3');
- await page.getByTestId('blind-start').click();
- await expect(page.getByRole('alert')).toContainText('128');
- await expect(page.getByTestId('blind-play-A')).toHaveCount(0);
 });
 
 

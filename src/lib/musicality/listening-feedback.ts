@@ -26,7 +26,7 @@ export interface ListeningFeedback {
 	readonly musicalityRelease?: Readonly<MusicalityRelease>;
 	readonly tune: { readonly id: string; readonly title: string };
 	readonly settings: {
-		readonly style: BackingStyle; readonly mode: 'original' | 'coordinated'; readonly tempo: number; readonly key: PitchClass; readonly soloChoruses: number;
+		readonly style: BackingStyle; readonly mode: 'coordinated'; readonly tempo: number; readonly key: PitchClass; readonly soloChoruses: number;
 		/** Absent together on early v1 summaries; never reconstruct missing historic settings. */
 		readonly performanceEnergySeed?: number;
 		readonly phraseId?: string; readonly swing?: number; readonly volume?: number;
@@ -70,7 +70,7 @@ function isFeedback(value: unknown): value is ListeningFeedback {
 	if (value.monitoring !== undefined && (!object(value.monitoring) || typeof value.monitoring.adjusted !== 'boolean' || !object(value.monitoring.mix) || mixKeys.some(key => { const level = (value.monitoring as {mix: Record<string, unknown>}).mix[key]; return !(key === 'master' && level === undefined) && !within(level, 3); }))) return false;
 	const settings = value.settings;
 	if (settings.performanceEnergySeed !== undefined && !integer(settings.performanceEnergySeed, 0, 0xffffffff)) return false;
-	if (!['swing', 'straight', 'bossa-nova', 'ballad'].includes(String(settings.style)) || !['original', 'coordinated'].includes(String(settings.mode)) ||
+	if (!['swing', 'straight', 'bossa-nova', 'ballad'].includes(String(settings.style)) || !['coordinated'].includes(String(settings.mode)) ||
 		typeof settings.tempo !== 'number' || !Number.isFinite(settings.tempo) || settings.tempo < 40 || settings.tempo > 240 ||
 		!PITCH_CLASSES.includes(settings.key as PitchClass) || !integer(settings.soloChoruses, 1, 4)) return false;
 	if (capturedSettingNames.some(key => settings[key] !== undefined) &&
@@ -107,7 +107,7 @@ export function createListeningFeedback(input: ListeningFeedbackInput, options: 
 		...(playback.musicalityRelease !== undefined ? { musicalityRelease: { ...playback.musicalityRelease } } : {}),
 		...(playback.monitoring ? { monitoring: { adjusted: playback.monitoring.adjusted, mix: Object.fromEntries(mixKeys.map(key => [key, playback.monitoring!.mix[key]])) as unknown as BackingMixLevels } } : {}),
 		tune: { id: session.tune.id, title: session.tune.title },
-		settings: { ...(params.performanceEnergySeed === undefined ? {} : { performanceEnergySeed: params.performanceEnergySeed }), style: params.style, mode: params.orchestration ?? 'original', tempo: params.tempo, key: params.phrase.key, soloChoruses: session.soloChoruses,
+		settings: { ...(params.performanceEnergySeed === undefined ? {} : { performanceEnergySeed: params.performanceEnergySeed }), style: params.style, mode: params.orchestration ?? 'coordinated', tempo: params.tempo, key: params.phrase.key, soloChoruses: session.soloChoruses,
 			phraseId: params.phrase.id, swing: params.swing, volume: params.volume, ending: params.ending ?? 'continue', instrument: params.instrument,
 			mix: Object.fromEntries(mixKeys.map(key => [key, params.mix[key]])) as unknown as BackingMixLevels },
 		completion: complete ? 'complete' : 'partial', reachedBars: extent.barCount, totalBars: session.bars.length,

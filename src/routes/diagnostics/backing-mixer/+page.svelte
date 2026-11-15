@@ -82,7 +82,7 @@
 	const VOICE_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters — 100% is the ear-tuned baseline' },
 		{ key: 'ride', label: 'Ride', hint: 'Spang-a-lang voice (3 velocity layers)' },
-		{ key: 'hihat', label: 'Hi-hat', hint: 'Stick-hat voice and original-mode backbeat' },
+		{ key: 'hihat', label: 'Hi-hat', hint: 'Stick hi-hat voice' },
 		{ key: 'snare', label: 'Snare', hint: 'Commentary and section setups (3 layers)' },
 		{ key: 'crash', label: 'Crash', hint: 'Section-boundary punctuation (vocabulary increment)' },
 		{ key: 'crossstick', label: 'Cross-stick', hint: 'Bossa clave / sparse color (vocabulary increment)' },
@@ -94,7 +94,7 @@
 	let volume = $state(settings.backingTrackVolume);
 	let tempo = $state(140);
 	let style = $state<BackingStyle>(settings.backingStyle);
-	let orchestration = $state<'original' | 'coordinated'>('coordinated');
+	const orchestration = 'coordinated' as const;
 	let soloScenario = $state<LabSoloScenario>('unavailable');
 	let instrument = $state<BackingInstrument>(settings.backingInstrument);
 	let presetId = $state(BACKING_LAB_PRESETS[0].id);
@@ -244,7 +244,7 @@
 					backingInstrument: instrument,
 					backingTrackVolume: volume,
 					backingStyle: style, backingOutputLevel: BACKING_OUTPUT_GAIN,
-					backingOrchestration: orchestration,
+
 					backingSoloFeatures: soloFeatures
 				},
 				0,
@@ -560,14 +560,7 @@
 				</select>
 			</label>
 
-			<label class="text-sm">
-				<span class="block text-[var(--color-text-secondary)] mb-1">Ensemble</span>
-				<select bind:value={orchestration} onchange={onRenderParamsChanged} data-testid="lab-orchestration"
-					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5">
-					<option value="coordinated">Coordinated · preview</option>
-					<option value="original">Original</option>
-				</select>
-			</label>
+
 
 			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Soloist scenario</span>
@@ -613,10 +606,8 @@
 				Recorded microphone observations drive this coordinated replay. It generates a new comparison from the captured evidence.
 			{:else if listening}
 				The band plays its fixed plan while the microphone measures completed bars. Replay becomes available after the take.
-			{:else if orchestration === 'coordinated'}
-				Coordinated 4/4 is a listening preview for all four styles. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
 			{:else}
-				Original accompaniment. Choose Coordinated to preview shared musical decisions in this style.
+				Coordinated 4/4 is a listening preview for all four styles. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
 			{/if}
 		</p>
 		<div class="flex flex-wrap items-end gap-4">

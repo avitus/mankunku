@@ -101,11 +101,7 @@ describe('buildTurnaroundBarEvents', () => {
 		expect(bassMidis(f)).not.toEqual(bassMidis(g));
 	});
 
-	it('respects the meter', () => {
-		const events = build({ beatsPerBar: 3 });
-		const barTicks = 3 * PPQ;
-		for (const ev of events) {
-			expect(ev.tickOffset).toBeLessThan(barTicks);
-		}
+	it('rejects unsupported meters without legacy accompaniment', () => {
+		expect(() => build({ beatsPerBar: 3 })).toThrow('4/4');
 	});
 });

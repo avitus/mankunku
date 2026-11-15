@@ -5,7 +5,7 @@
  let { form, orchestration, seed, barIndex = null, reviewing = false }: {
   form: PerformanceForm;
   seed?: number;
-  orchestration: 'original' | 'coordinated';
+  orchestration: 'coordinated';
   barIndex?: number | null;
   reviewing?: boolean;
  } = $props();
@@ -44,7 +44,6 @@
     <span class:current={currentPass?.index === pass.index} style:flex={pass.endBarExclusive - pass.startBar} data-testid="listening-arc-pass" aria-current={currentPass?.index === pass.index ? 'step' : undefined}>{pass.label}</span>
    {/each}
   </div>
-  {#if orchestration === 'original'}<p>Original arrangement · no shared energy plan.</p>{/if}
  </figure>
 {/if}
 
@@ -66,5 +65,4 @@
  .passes{display:flex;gap:0;font-size:.57rem;text-align:center;line-height:1.5}
  .passes span{min-width:0;padding:.25rem .1rem;color:#8195aa}
  .passes .current{color:#f0d8a6}
- p{margin:.55rem 0 0;font-size:.55rem;color:#8298ae;line-height:1.5}
 </style>

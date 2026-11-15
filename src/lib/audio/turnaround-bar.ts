@@ -1,3 +1,4 @@
+import { prepareReleasedArrangement } from './backing-arrangement';
 /**
  * One bar of rhythm-section turnaround (ii-V into a target key) as plain,
  * schedulable data — the glue between deep-practice cycles.
@@ -12,17 +13,17 @@
  * callbacks whose handlers trigger instruments near-now (the proven
  * `playTransitionChords` pattern — see `playBackingHitsNow`).
  *
- * Pure and seeded: realization goes through `generateBacking`, so the same
+ * Pure and seeded: realization goes through Musicality, so the same
  * inputs always produce the same bar (the seed varies with the target key,
  * so different keys get different figures).
  */
 
 import type { PitchClass, HarmonicSegment } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
-import type { BackingStyle } from '$lib/types/instruments';
+import type { BackingStyle, BackingInstrument } from '$lib/types/instruments';
 import { turnaroundHarmony } from '$lib/data/progressions';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
-import { generateBacking, resolveBackingSwing } from './backing-generation';
+import { resolveBackingSwing } from './backing-generation';
 
 /**
  * The bar's harmony lives with the progression templates
@@ -53,6 +54,7 @@ export function buildTurnaroundBarEvents(args: {
 	progressionType: ChordProgressionType;
 	targetKey: PitchClass;
 	backingStyle: BackingStyle;
+	backingInstrument?: BackingInstrument;
 	tempo: number;
 	swing: number;
 	ppq: number;
@@ -62,13 +64,13 @@ export function buildTurnaroundBarEvents(args: {
 	const style = BACKING_STYLES[backingStyle];
 	const harmony = turnaroundHarmony(progressionType, targetKey, beatsPerBar);
 
-	const generated = generateBacking(harmony, style, {
+	const generated = prepareReleasedArrangement(harmony, style, {
 		phraseId: `turnaround:${progressionType}:${targetKey}`,
 		tempo,
 		ppq,
 		beatsPerBar,
 		swing: resolveBackingSwing(swing, style, tempo)
-	});
+	}, args.backingInstrument ?? 'piano', 4, 0);
 
 	const barTicks = beatsPerBar * ppq;
 	const events: TurnaroundEvent[] = [];

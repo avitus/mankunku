@@ -3,11 +3,9 @@
  import SeoHead from '$lib/components/seo/SeoHead.svelte';
  import MusicalityLedger from '$lib/components/musicality/MusicalityLedger.svelte';
  import ListeningStudio from '$lib/components/musicality/ListeningStudio.svelte';
- import BlindListeningReview from '$lib/components/musicality/BlindListeningReview.svelte';
  import type { PageData } from './$types';
  let { data }: { data: PageData } = $props();
  let tab = $state<'listen' | 'specification'>('listen');
- let comparison = $state(false);
  function reveal(hash: string) {
   if(hash === '#original-spec' || data.requirements.some(entry => `#${entry.id}` === hash.toUpperCase())) tab = 'specification';
  }
@@ -18,10 +16,10 @@
 <div class="musicality">
  {#if tab==='specification'}<h1>Musicality</h1>{/if}
  {#if tab === 'listen'}
-  {#if comparison}<BlindListeningReview buildVersion={data.buildVersion} onexit={() => comparison = false} />{:else}<ListeningStudio buildVersion={data.buildVersion} oncompare={() => comparison = true} />{/if}
+  <ListeningStudio buildVersion={data.buildVersion} />
  {:else}<MusicalityLedger {data} />{/if}
  <nav class="tabs" aria-label="Musicality views">
-  <button class:active={tab === 'listen'} aria-pressed={tab === 'listen'} onclick={() => { tab = 'listen'; comparison = false; }}>Listen</button>
+  <button class:active={tab === 'listen'} aria-pressed={tab === 'listen'} onclick={() => { tab = 'listen'; }}>Listen</button>
   <button class:active={tab === 'specification'} aria-pressed={tab === 'specification'} onclick={() => tab = 'specification'}>Specification</button>
   <a href="/diagnostics/backing-mixer">Advanced listening lab ↗</a><span>In development · Listening review pending</span>
  </nav>

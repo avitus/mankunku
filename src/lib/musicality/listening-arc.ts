@@ -22,9 +22,9 @@ export interface ListeningArc {
 
 /**
  * Present the engine's nominal structural intention, not measured loudness or
- * future played notes. Original keeps the form but has no shared energy plan.
+ * future played notes. The form carries the shared energy plan.
  */
-export function buildListeningArc(form: PerformanceForm, orchestration: 'original' | 'coordinated', seed?: number): ListeningArc {
+export function buildListeningArc(form: PerformanceForm, orchestration: 'coordinated', seed?: number): ListeningArc {
 	// Validate the same declared form in both modes. Do not repair gaps or
 	// normalize unequal pass lengths merely to draw a convenient chart.
 	const energy = planPerformanceEnergy(form, { seed });
@@ -43,8 +43,6 @@ export function buildListeningArc(form: PerformanceForm, orchestration: 'origina
 		}
 		return Object.freeze({ index: pass.index, label, startBar: pass.startBar, endBarExclusive: pass.endBarExclusive });
 	});
-	const points = orchestration === 'coordinated'
-		? energy.map(({ phase, targetEnergy }, barIndex) => Object.freeze({ barIndex, phase, targetEnergy }))
-		: [];
+	const points = energy.map(({ phase, targetEnergy }, barIndex) => Object.freeze({ barIndex, phase, targetEnergy }));
 	return Object.freeze({ totalBars: form.totalBars, passes: Object.freeze(passes), points: Object.freeze(points) });
 }
