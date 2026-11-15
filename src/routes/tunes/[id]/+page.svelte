@@ -15,7 +15,8 @@
 	import TuneSessionOptions from '$lib/components/tunes/TuneSessionOptions.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
 	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
-	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
+	import { tuneKeyCenters } from '$lib/tunes/key-centers';
+	import KeyCenterLegend from '$lib/components/tunes/KeyCenterLegend.svelte';
 	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
 	import '$lib/components/step-entry/lick-editor.css';
 	import '$lib/components/tunes/tune-desk.css';
@@ -156,9 +157,9 @@
 	const closingPreview = $derived(player.soloChoruses === 1 && solosOnly);
 	const displayedSheet = $derived(player.closing || closingPreview ? jamCharts?.closing : jamCharts?.returning);
 	const totalBars = $derived(displayedSheet?.sections.reduce((sum, section) => sum + section.bars, 0) ?? 0);
-	let harmonyColors = $state(true);
+	let showKeyCenters = $state(true);
 	onMount(() => {
-		harmonyColors = savedTuneDisplay('harmony-colors', true);
+		showKeyCenters = savedTuneDisplay('key-centers', true);
 		tuneDeskView.focus = savedTuneDisplay('focus', false);
 	});
 	/** Persist an explicit focus change; route teardown only clears the live view. */
@@ -169,8 +170,9 @@
 		selectedWrittenKey = key;
 		if (baseId) saveTuneKey(baseId, writtenKeyToConcert(key, getInstrument()));
 	}
+	const keyCenters = $derived(displayedSheet ? tuneKeyCenters(displayedSheet, getInstrument(), { solo: showChordChart }) : null);
 	const markers: RangeMarker[] = $derived([
-		...(displayedSheet && harmonyColors ? tuneHarmonyMarkers(displayedSheet) : []),
+		...(showKeyCenters ? keyCenters?.markers ?? [] : []),
 		...(player.chartBar === null ? [] : [{ id: 'tune-playhead', startBar: Math.floor(player.chartBar), endBarExclusive: Math.floor(player.chartBar) + 1, status: 'playhead' as const }])
 	]);
 
@@ -278,8 +280,9 @@
 				<section class="le-panel td-detail-chart" aria-label="Tune chart">
 					<div class="td-score-top">
 						<div class="td-chart-context">{#if tuneDeskView.focus}<h1>{baseSheet.title}</h1>{:else}<strong>{displayedSheet?.sections[0]?.label || '♪'}</strong><span>Full tune <i>/</i> {totalBars} bars</span>{/if}</div>
-						<div class="td-chart-tools"><button aria-pressed={harmonyColors} onclick={() => harmonyColors = saveTuneDisplay('harmony-colors', !harmonyColors)}><i class="td-color-dot" aria-hidden="true"></i><span>Harmony colors</span><i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => setFocus(!tuneDeskView.focus)}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
+						<div class="td-chart-tools"><button aria-pressed={showKeyCenters} onclick={() => showKeyCenters = saveTuneDisplay('key-centers', !showKeyCenters)}><i class="td-color-dot" aria-hidden="true"></i><span>Show Key Centers</span><i class="td-switch" class:active={showKeyCenters} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => setFocus(!tuneDeskView.focus)}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
 					</div>
+					{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
 					<div class="td-score-well" bind:clientWidth={chartWidth}>{#if showChordChart}<TuneChordChart tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />{:else}<NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} cursorIndex={player.cursorIndex} playheadStyle="under-bar" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />{/if}</div>
 					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />

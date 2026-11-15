@@ -325,20 +325,40 @@ native cadence phrases and tagged major phrases to share the same opportunities.
   candidate row with the chart selection; browser regression checks passed.
 - No database changes, proficiency edits or production-account writes.
 
-## Key-center highlighting — next visual milestone
+## Key-center highlighting
 
-Status: planned (2026-11-14). This is a core part of understanding lick placement.
+Status: initial implementation and local validation complete (2026-11-15).
+Production verification and human musical acceptance remain separate.
 
-The current “Harmony colors” control calls `tunes/harmony-colors.ts`. It tints
+The former “Harmony colors” control calls `tunes/harmony-colors.ts`. It tints
 individual tonic, subdominant (including ii) and dominant chords relative to the
 **whole tune's key**. It neither detects progression spans nor establishes local
 key centers. Neutral chords are simply outside that small role classifier.
 
-Add an explicit **Key centers** display choice, with clear distinction from the
-existing chord-role colors. A compact Off / Chord roles / Key centers control is
-the initial direction; avoid making one unlabeled color mean both function and
-key. First connect the tune detail chart and tune-practice setup. Editor/import
-parity should follow the same shared marker builder rather than another detector.
+Replace the existing control with **Show Key Centers**, as requested on 2026-11-15.
+There is no separate chord-role display mode. Tune detail and practice setup share
+the display preference; editor/import use the same marker builder and control.
+An explicitly saved old display preference is the fallback until the user chooses
+the new one. Show labeled key colors, separate bands for overlapping centers, and
+expandable reading details; keep lick labels and musical notation primary.
+
+Implementation decisions for this increment:
+- Analyze the finite displayed form with expanded repeats, then project contiguous
+  pieces through section/bar provenance. Do not paint across repeat jumps or
+  skipped endings. Retain visit numbers when a printed passage has repeat contexts.
+- Practice and solo charts reuse the session’s solo-form mapping, excluding
+  pickups and head-only sections without shifting their printed bar locations.
+- Show compatible major collections and cornerstone destinations, with their
+  separate explanations. Merge duplicate visual coverage only for the same center;
+  retain each analytical explanation. Stationary chords alone and unsupported
+  symbols do not establish a new center. Minor arrivals describe a destination,
+  not a broad minor-scale region. Blues has its own explicit label.
+- Name an implied progression center explicitly when its tonic is absent; a
+  ii–V can suggest its destination before the arrival appears in the chart.
+- Key colors follow the written tonic; text labels and reading details do not
+  require color discrimination. Minor bands also use a dashed outline.
+- Keep display state outside session planning, readiness, rotation and scoring.
+  Freestyle may show key centers without gaining insertion windows.
 
 - Build from the same `analyzeHarmony` evidence and cadence local keys used by
   practice. Show full analytical readings (`compatibleMajorRegions`), not only
@@ -362,6 +382,23 @@ parity should follow the same shared marker builder rather than another detector
   exercise still stops before bar 4; All the Things You Are shows secondary local
   centers independently of its signature; transposition, ambiguous regions,
   repeated forms and phone-width labels remain correct.
+
+### Validation evidence (2026-11-15)
+
+- Linux sandbox: 150 focused unit tests passed across analysis, key-center
+  projection, preference migration and practice planning. Replacing full
+  compatible collections with reserved exercise regions caused 13 expected
+  failures, confirming that the overlap regressions detect that mistake.
+- Chromium, Firefox and WebKit: 119 distinct checks passed across seven tune
+  suites, with four existing Linux Firefox audio skips. The final 36-case batch
+  passed 35 with one such skip after correcting fixture seeding and the test's
+  mistaken assumption that a ii–V cannot imply a center before its tonic.
+- Desktop and 390px phone screenshots were inspected; notation, lick labels,
+  legends and shared-chord bands remain legible. Browser assertions also cover
+  preference persistence, transposition, split-bar chord strips, freestyle,
+  All the Things You Are and changes to closing-ending context.
+- TypeScript/Svelte validation reports zero errors and zero warnings. No session
+  eligibility, reservation, capture or scoring rules change in this increment.
 
 ## Phase 4: phrase-aware ranking
 
@@ -435,13 +472,13 @@ key-center display.
 | Milestone | Status | Scope / evidence needed |
 | --- | --- | --- |
 | Cross-chorus windows | Pending | Occurrence-aware cadence capture and incoming-resolution reservations; first/middle/final chorus handling |
-| Key-center highlighting | Planned next | Shared analysis overlays, local-key labels, overlapping readings and chart/practice provenance |
+| Key-center highlighting | Initial implementation validated | Shared chart/setup overlays, written-key labels, overlapping readings, repeat provenance and inspectable reasons; human musical acceptance remains |
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
 | Controlled chromaticism | Pending | Secondary dominants, borrowed chords, passing diminished chords; distinguish “key center retained” from “one scale fits every chord” |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
-| Analysis explanations | Pending | Inspectable reasons, rejected alternatives and optional user overrides, with a versioned persistence design if needed |
+| Analysis explanations | Initial reading details implemented | Key-center evidence, implied destinations and chart visits are inspectable; rejected alternatives and optional user overrides remain, with versioned persistence if needed |
 
 ## Acceptance and regression matrix
 
@@ -573,6 +610,11 @@ implementation and tests. Further changes should keep both surfaces on the same
 planning path.
 
 ## Decision log
+
+- 2026-11-15: replace Harmony colors with Show Key Centers rather than retaining
+  multiple coloring modes. Share display state and evidence across tune detail,
+  practice setup, editor and import preview; preserve analytical overlaps and
+  keep cornerstone exercise priority independent of display.
 
 - 2026-11-14: key-center visualization is a core harmonic-analysis deliverable,
   distinct from the current global-key chord-role colors. Begin phrase-aware

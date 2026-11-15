@@ -47,10 +47,12 @@ export function saveTunePracticeStyle(tuneId: string, style: BackingStyle): void
 	save(`tune-practice-style:${tuneId}`, style);
 }
 
-type TuneDisplayPreference = 'harmony-colors' | 'focus' | 'practice-focus' | 'practice-options-open' | 'options-open';
+type TuneDisplayPreference = 'key-centers' | 'harmony-colors' | 'focus' | 'practice-focus' | 'practice-options-open' | 'options-open';
 /** Restore a display choice while preserving an explicitly saved false. */
 export function savedTuneDisplay(preference: TuneDisplayPreference, fallback: boolean): boolean {
 	const value = load<unknown>(`tune-display:${preference}`);
+	// Preserve the user's explicit old display choice until they choose the replacement.
+	if (preference === 'key-centers' && typeof value !== 'boolean') return savedTuneDisplay('harmony-colors', fallback);
 	return typeof value === 'boolean' ? value : fallback;
 }
 /** Remember a chart display choice and return it for immediate UI updates. */

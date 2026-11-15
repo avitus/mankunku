@@ -101,6 +101,8 @@ main.tune-desk-focus { padding-top:18px; }
  .tune-detail .td-chart-context>span { font-size:9px; }
  .tune-detail .td-chart-context i { margin:0 3px; }
  .tune-detail .td-chart-tools button { font-size:9px; gap:5px; }
+ .tune-detail .td-score-top { flex-wrap:wrap; row-gap:8px; }
+ .tune-detail .td-chart-tools { margin-left:auto; }
  .tune-detail .td-chart-context h1 { font-size:16px; }
  .tune-detail .td-focus-button { padding-left:7px; }
  .tune-detail .td-score-well { padding:10px 0; }
