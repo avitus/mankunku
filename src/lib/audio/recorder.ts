@@ -17,7 +17,7 @@ export interface RecordedAudio {
 }
 
 export interface RecorderHandle {
-	/** Begin capturing audio. */
+	/** Begin this single-use take. Create a fresh handle for another take. */
 	start(contextTime?: number): void;
 	/** Stop both captures and return the playback mix and microphone scoring WAV. */
 	stop(): Promise<RecordedAudio>;
@@ -67,6 +67,7 @@ export function createRecorder(
 	let mediaRecorder: MediaRecorder | null = null;
 	let chunks: Blob[] = [];
 	let disposed = false;
+	let hasStarted = false;
 	let timing: RecorderTiming | null = null;
 	let stopping: Promise<RecordedAudio> | null = null;
 	const now = () => ({ contextTime: audioCtx.currentTime, performanceNowMs: performance.now() });
@@ -74,6 +75,8 @@ export function createRecorder(
 	return {
 		start(contextTime = audioCtx.currentTime) {
 			if (disposed) return;
+			if (hasStarted) throw new Error('Recorder handles are single-use. Create a new recorder for each take.');
+			hasStarted = true;
 			chunks = [];
 			const mimeType = preferredMimeType();
 			const recorder = new MediaRecorder(

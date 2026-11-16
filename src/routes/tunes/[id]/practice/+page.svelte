@@ -399,6 +399,8 @@
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
 			// A new tune starts from its saved tempo, whatever moved the knob before.
 			tempoChosenFor = null;
+			retrySpots = [];
+			retryUnavailable = false;
 			initTunePractice(baseSheet);
 		}
 	});

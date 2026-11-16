@@ -645,7 +645,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	return {
 		...entry, status: 'partial', assessment: foundationAssessments[entry.id],
 		remaining: foundationRemaining[entry.id] ?? 'Broader vocabulary, general ensemble conflict resolution and human listening acceptance remain incomplete.',
-		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Released accompaniment is the default for supported normal 4/4 playback; Original remains the device-local rollback and unsupported-score fallback. Human listening acceptance remains pending.',
+		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Released accompaniment is the default for supported normal 4/4 playback; Original remains the automatic fallback for unsupported passages. Human listening acceptance remains pending.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
 			...(['S25', 'S33', 'S38', 'S40', 'S41', 'S44', 'S46'].includes(entry.id) ? returningMelodyEvidence : []),

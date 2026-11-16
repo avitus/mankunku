@@ -325,6 +325,7 @@
 			await prepareScoringCapture(micCapture.context).catch(error => {
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
+			if (destroyed) return false;
 			session.micPermission = 'granted';
 			levelInterval = setInterval(() => {
 				session.inputLevel = captureModule!.getInputLevel();
@@ -426,6 +427,7 @@
 			// (fresh page load). Calling getUserMedia() mid-Transport forces a
 			// full-duplex mode switch that disrupts metronome timing.
 			await ensureMicCapture();
+			if (destroyed) return;
 
 			if (!playback.isInstrumentLoaded()) {
 				session.isLoadingInstrument = true;
@@ -736,7 +738,8 @@
 						transportSeconds: transportForRescore,
 						metronomeEnabled: metronomeEnabledForRescore,
 						captureTiming,
-						scoringAudio: scoringBlob ? 'microphone' as const : 'unavailable' as const
+						scoringAudio: scoringBlob ? 'microphone' as const : 'unavailable' as const,
+						scoreSource: 'live' as const
 					};
 					await saveRecording(sessionId, blob, {
 						metadata: baseMetadata,
@@ -940,6 +943,7 @@
 				await updateRecordingMetadata(sessionId, {
 					...baseMetadata,
 					score: result.chosen,
+					scoreSource: 'replay',
 					detectedNotes: authoritativeNotes,
 					bleedFilterLog: result.bleedLog,
 					// Recording-relative backing onsets so /diagnostics replays this

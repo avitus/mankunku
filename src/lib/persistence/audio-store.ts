@@ -78,6 +78,8 @@ function openRawDb(name: string): Promise<IDBDatabase> {
 export interface RecordingMetadata {
 	/** Absent on legacy mixed-only takes. New takes never fall back to scoring the mix. */
 	scoringAudio?: 'microphone' | 'unavailable';
+	/** Whether persisted score/notes came from live detection or the completed replay. */
+	scoreSource?: 'live' | 'replay';
 	phraseId: string;
 	phraseName: string;
 	source: 'ear-training' | 'lick-practice';

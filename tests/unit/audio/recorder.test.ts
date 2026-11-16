@@ -92,11 +92,22 @@ describe('createRecorder', () => {
 		expect(instances[0].options).toEqual({ mimeType: 'audio/webm;codecs=opus' });
 		expect(instances[0].stream).toBe(g.dest.stream);
 		supported = ['audio/mp4'];
-		rec.start();
+		createRecorder(g.mic, g.master, g.ctx).start();
 		expect(instances[1].options).toEqual({ mimeType: 'audio/mp4' });
 		supported = [];
-		rec.start();
+		createRecorder(g.mic, g.master, g.ctx).start();
 		expect(instances[2].options).toBeUndefined();
+	});
+
+	it('rejects a second start while recording and after stopping so scoring audio cannot be reused', async () => {
+		const g = graph();
+		const rec = createRecorder(g.mic, g.master, g.ctx);
+		rec.start();
+		expect(() => rec.start()).toThrow('single-use');
+		await rec.stop();
+		expect(() => rec.start()).toThrow('single-use');
+		expect(instances).toHaveLength(1);
+		rec.dispose();
 	});
 
 	it('stop with nothing recording resolves an empty blob', async () => {

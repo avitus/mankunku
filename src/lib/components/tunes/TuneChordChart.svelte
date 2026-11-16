@@ -5,7 +5,7 @@
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import { followOffsetPx, type FollowSystem } from '$lib/notation/follow-scroll';
 	import { tuneChordBars } from '$lib/tunes/chord-bars';
-	import { keyCenterBarSpan } from '$lib/tunes/key-centers';
+	import { keyCenterBarSpan, keyCenterLabelStartsRow } from '$lib/tunes/key-centers';
 	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [], playing = true, highlightCurrentBeat = true }: {
 		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; playing?: boolean; highlightCurrentBeat?: boolean;
 	} = $props();
@@ -74,7 +74,7 @@
 							{#if keyCenterLanes}<div class="tcc-key-centers" style:height={`${keyCenterLanes * 18}px`}>
 								{#each centers as center}
 									{@const span = keyCenterBarSpan(center, bar.index, tune.timeSignature[0] / tune.timeSignature[1])}
-									<div class="tcc-key-center" class:minor={center.keyCenter!.minor} role="img" aria-label={center.keyCenter!.label} data-key-center={center.keyCenter!.label} data-key-center-lane={center.keyCenter!.lane} style:color={center.color} style:left={`${span.left}%`} style:width={`${span.width}%`} style:top={`${center.keyCenter!.lane * 18}px`}>{#if span.width > 40}<span class:continued={center.startBar !== bar.index} class:rail-row-start={barInSection % 4 === 0} class:rail-mobile-row-start={barInSection % 2 === 0}>{center.keyCenter!.label.replace(/ major$/, ' maj').replace(/ minor$/, ' min')}</span>{/if}</div>
+									<div class="tcc-key-center" class:minor={center.keyCenter!.minor} role="img" aria-label={center.keyCenter!.label} data-key-center={center.keyCenter!.label} data-key-center-lane={center.keyCenter!.lane} style:color={center.color} style:left={`${span.left}%`} style:width={`${span.width}%`} style:top={`${center.keyCenter!.lane * 18}px`}>{#if span.width > 40}<span class:rail-row-start={keyCenterLabelStartsRow(center, bar.index, bar.index - barInSection % 4, tune.timeSignature[0] / tune.timeSignature[1])} class:rail-mobile-row-start={keyCenterLabelStartsRow(center, bar.index, bar.index - barInSection % 2, tune.timeSignature[0] / tune.timeSignature[1])}>{center.keyCenter!.label.replace(/ major$/, ' maj').replace(/ minor$/, ' min')}</span>{/if}</div>
 								{/each}
 							</div>{/if}
 						</div>
@@ -100,10 +100,10 @@
 	.tcc-key-center.minor { border-top-style:dashed; }
 	.tcc-cue[data-cue-status="active"] { opacity:1; }
 	.tcc-key-center span { position:absolute; left:4px; top:-8px; padding:0 3px; font-size:10px; line-height:14px; white-space:nowrap; background:var(--studio-well, var(--color-bg)); }
-	.tcc-key-center span.continued:not(.rail-row-start) { display:none; }
+	.tcc-key-center span:not(.rail-row-start) { display:none; }
 	small:not(.row-first) { visibility:hidden; }
 	small { color:var(--color-text-secondary); font-size:9px; padding-left:4px; }
 	p { font-size:11px; line-height:1.4; padding:5px; overflow-wrap:anywhere; }
 	.tcc-empty { height:88px; display:grid; place-items:center; color:var(--color-text-secondary); }
-	@media(max-width:600px) { .tcc-bars { grid-template-columns:repeat(2,minmax(0,1fr)); } small.mobile-row-first { visibility:visible; } .tcc-key-center span.continued.rail-mobile-row-start { display:block; } }
+	@media(max-width:600px) { .tcc-bars { grid-template-columns:repeat(2,minmax(0,1fr)); } small.mobile-row-first { visibility:visible; } .tcc-key-center span:not(.rail-mobile-row-start) { display:none; } .tcc-key-center span.rail-mobile-row-start { display:block; } }
 </style>

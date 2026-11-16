@@ -763,7 +763,7 @@ The tune detail reference is MagicPath component `459518519676121088`, revision
 the prototype's illustrative score and playback data are not production inputs.
 
 - Show key centers as 2.5px muted rails below the staff, with compact names
-  (`G maj`, `A min`) at each span/system start. Minor rails are dashed. Retain
+  (`G maj`, `A min`) at each span/system start. Chord-only rows show the first span wide enough for a label, including when a center begins late in the preceding bar. Minor rails are dashed. Retain
   partial-bar boundaries and separate lanes for overlapping centers; the normal
   layout accommodates two simultaneous readings without truncating analysis.
 - Keep the wrapping legend suitable for seven or more distinct centers. Use

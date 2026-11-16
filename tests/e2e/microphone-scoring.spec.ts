@@ -65,7 +65,7 @@ for (const mode of ['ear-training', 'lick-practice']) test(`${mode}: keeps micro
 		try {
 			const row = await new Promise<{
 				bytes: ArrayBuffer; scoringBytes?: ArrayBuffer;
-				metadata?: { score?: unknown; scoringAudio?: string; detectedNotes: { midi: number }[] };
+				metadata?: { score?: unknown; scoringAudio?: string; scoreSource?: string; detectedNotes: { midi: number }[] };
 			} | undefined>(resolve => {
 				const req = db.transaction('recordings').objectStore('recordings').getAll();
 				req.onsuccess = () => resolve(req.result[0]);
@@ -88,14 +88,17 @@ for (const mode of ['ear-training', 'lick-practice']) test(`${mode}: keeps micro
 					}
 					return (re * re + im * im) / ((to - from) ** 2);
 				};
-				return { masterBass: (window as unknown as { __masterBass: number }).__masterBass, mixBytes: row.bytes.byteLength, micBass: power(mic, 110), micNote: power(mic, 440), mixBass: power(mix, 110), mixNote: power(mix, 440), source: row.metadata.scoringAudio, notes: row.metadata.detectedNotes.map((note: { midi: number }) => note.midi) };
+				return { masterBass: (window as unknown as { __masterBass: number }).__masterBass, mixBytes: row.bytes.byteLength, micBass: power(mic, 110), micNote: power(mic, 440), mixBass: power(mix, 110), mixNote: power(mix, 440), source: row.metadata.scoringAudio, scoreSource: row.metadata.scoreSource, notes: row.metadata.detectedNotes.map((note: { midi: number }) => note.midi) };
 			} finally { await ctx.close(); }
 		} finally { db.close(); }
 	});
 	await expect.poll(readTake, { timeout: 60_000 }).not.toBeNull();
-	// The first visible score waits for the authoritative replay, not the
-	// provisional metadata saved just before it.
-	if (mode === 'ear-training') await expect(page.getByText('Last take', { exact: true })).toBeVisible();
+	// The score is revealed after replay but before its metadata write commits.
+	// Poll the persisted source marker before asserting authoritative notes.
+	if (mode === 'ear-training') {
+		await expect(page.getByText('Last take', { exact: true })).toBeVisible();
+		await expect.poll(async () => (await readTake())?.scoreSource).toBe('replay');
+	}
 	const take = (await readTake())!;
 	expect(take.source).toBe('microphone');
 	expect(take.micNote).toBeGreaterThan(0.01);
@@ -113,4 +116,57 @@ for (const mode of ['ear-training', 'lick-practice']) test(`${mode}: keeps micro
 		expect(take.notes.length).toBeGreaterThan(0);
 		expect(take.notes.every((midi: number) => midi === 69)).toBe(true);
 	}
+});
+
+test('leaving during scoring preparation does not recreate detection resources', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
+	await seedOnboardedAnonymous(page);
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.addInitScript(() => {
+		const probe = window as unknown as { __scoringPending: boolean; __releaseScoring: () => Promise<void>; __scoringSettled: boolean; __lateLevelTimers: number };
+		probe.__scoringPending = false;
+		probe.__scoringSettled = false;
+		probe.__lateLevelTimers = 0;
+		const addModule = AudioWorklet.prototype.addModule;
+		AudioWorklet.prototype.addModule = async function (url, options) {
+			const address = String(url);
+			const source = address.startsWith('data:')
+				? address.slice(0, address.indexOf(',')).includes(';base64')
+					? atob(address.slice(address.indexOf(',') + 1)) : decodeURIComponent(address.slice(address.indexOf(',') + 1))
+				: address;
+			const scoring = source.includes('scoring-capture');
+			if (scoring) {
+				await new Promise<void>(resolve => {
+					probe.__scoringPending = true;
+					probe.__releaseScoring = async () => {
+						const interval = window.setInterval;
+						window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+							if (timeout === 50) probe.__lateLevelTimers++;
+							return interval(handler, timeout, ...args);
+						}) as typeof window.setInterval;
+						resolve();
+					};
+				});
+			}
+			await addModule.call(this, url, options);
+			if (scoring) probe.__scoringSettled = true;
+		};
+	});
+	await page.goto('/ear-training', { waitUntil: 'networkidle' });
+	await page.locator('[data-tour="play-button"]').click();
+	await expect.poll(() => page.evaluate(() => (window as unknown as { __scoringPending: boolean }).__scoringPending)).toBe(true);
+	await page.evaluate(() => {
+		const link = document.createElement('a');
+		link.href = '/settings';
+		link.textContent = 'Leave pending practice';
+		document.querySelector('main')!.append(link);
+	});
+	await page.getByRole('link', { name: 'Leave pending practice' }).click();
+	await expect(page).toHaveURL(/\/settings$/);
+	await page.evaluate(() => (window as unknown as { __releaseScoring: () => Promise<void> }).__releaseScoring());
+	await expect.poll(() => page.evaluate(() => (window as unknown as { __scoringSettled: boolean }).__scoringSettled)).toBe(true);
+	// Let the resumed continuation and any mistakenly-created level timer run.
+	await page.waitForTimeout(300);
+	expect(await page.evaluate(() => (window as unknown as { __lateLevelTimers: number }).__lateLevelTimers)).toBe(0);
 });

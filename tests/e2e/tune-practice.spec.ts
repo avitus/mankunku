@@ -570,7 +570,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 				'e2e-minor-lick': { E: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }
 			}
 		});
-		await seedTunes(page, [autumnLeaves]);
+		await seedTunes(page, [autumnLeaves, SAINTS_USER_TUNE]);
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
@@ -634,8 +634,18 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await report.getByRole('button', { name: '+ Practice this spot', exact: true }).click();
 		await report.getByRole('button', { name: 'Practice 1 selected spot', exact: true }).click();
 		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toBeVisible();
-		await page.getByRole('button', { name: 'Practice all spots', exact: true }).click();
+		// A same-route client navigation reuses the page component: retry IDs
+		// from Autumn Leaves must not filter a different tune's setup.
+		await page.evaluate(() => {
+			const link = document.createElement('a');
+			link.href = '/tunes/e2e-when-the-saints/practice';
+			link.textContent = 'Switch practice tune';
+			document.querySelector('main')!.append(link);
+		});
+		await page.getByRole('link', { name: 'Switch practice tune' }).click();
+		await expect(page).toHaveURL(/e2e-when-the-saints\/practice$/);
 		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Practice all spots', exact: true })).toHaveCount(0);
 	});
 
 	test('chart stays visible through first insertion (Autumn Leaves)', async ({

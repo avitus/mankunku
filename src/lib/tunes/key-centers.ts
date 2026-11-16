@@ -150,6 +150,15 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 	return display;
 }
 
+/** The first span wide enough for a label on this responsive chart row. */
+export function keyCenterLabelStartsRow(marker: RangeMarker, bar: number, rowStart: number, barLength: number): boolean {
+	if (keyCenterBarSpan(marker, bar, barLength).width <= 40) return false;
+	for (let previous = Math.max(rowStart, marker.startBar); previous < bar; previous++) {
+		if (keyCenterBarSpan(marker, previous, barLength).width > 40) return false;
+	}
+	return true;
+}
+
 /** Half-open coverage within an individual chart bar, including split-bar transitions. */
 export function keyCenterBarSpan(marker: RangeMarker, bar: number, barLength: number): { left: number; width: number } {
 	const start = Math.max(bar * barLength, marker.timeRange?.start ?? marker.startBar * barLength);

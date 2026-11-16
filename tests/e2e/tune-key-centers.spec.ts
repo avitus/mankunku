@@ -118,3 +118,21 @@ test('the displayed closing ending supplies its own center', async ({ page }) =>
 	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).blur();
 	await expect(page.getByTestId('tune-chord-chart').locator('[data-bar="1"] [data-key-center="D major"]')).toBeVisible();
 });
+
+for (const width of [1440, 390]) test(`chord rails label a late entrance on the first fitting span at ${width}px`, async ({ page }) => {
+	await page.setViewportSize({ width, height: 1000 });
+	await seedTunes(page, [{ id: 'late-key-center', title: 'Late Key Center', key: 'C', timeSignature: [4, 4], source: 'user', tags: [],
+		sections: [{ label: 'A', bars: 4, notes: [], harmony: [
+			{ chord: { root: 'C', quality: 'maj7' }, startOffset: [3, 4], duration: [5, 4], scaleId: 'major.ionian' },
+			{ chord: { root: 'F', quality: 'maj7' }, startOffset: [2, 1], duration: [2, 1], scaleId: 'major.ionian' }
+		] }]
+	}]);
+	await page.goto('/tunes/late-key-center');
+	const chart = page.getByTestId('tune-chord-chart');
+	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"]')).toBeVisible();
+	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"] span')).toHaveCount(0);
+	await expect(chart.locator('[data-bar="1"] [data-key-center="D major"] span')).toBeVisible();
+	const nextRow = chart.locator('[data-bar="2"] [data-key-center="D major"] span');
+	if (width === 390) await expect(nextRow).toBeVisible();
+	else await expect(nextRow).toBeHidden();
+});

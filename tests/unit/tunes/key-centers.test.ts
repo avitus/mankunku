@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { tuneKeyCenters, keyCenterBarSpan } from '$lib/tunes/key-centers';
+import { tuneKeyCenters, keyCenterBarSpan, keyCenterLabelStartsRow } from '$lib/tunes/key-centers';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { transposeTune } from '$lib/tunes/book-loader';
@@ -10,6 +10,14 @@ import { section, sheet, seg } from '../../helpers/tune-fixtures';
 const autumn = sheet(JSON.parse(readFileSync('tests/fixtures/leadsheets/autumn-in-new-york.json', 'utf8')));
 
 describe('key-center chart evidence', () => {
+	it('labels the first fitting span on desktop, mobile and section rows after a narrow entrance', () => {
+		const marker = { id: 'late-center', startBar: 0, endBarExclusive: 7, status: 'upcoming' as const, timeRange: { start: .75, end: 6.25 } };
+		expect([0, 1, 2, 3].map(bar => keyCenterLabelStartsRow(marker, bar, 0, 1))).toEqual([false, true, false, false]);
+		expect(keyCenterLabelStartsRow(marker, 2, 2, 1)).toBe(true);
+		expect(keyCenterLabelStartsRow(marker, 4, 4, 1)).toBe(true);
+		expect(keyCenterLabelStartsRow(marker, 5, 5, 1)).toBe(true);
+		expect(keyCenterLabelStartsRow(marker, 6, 6, 1)).toBe(false);
+	});
 	it('finds several local centers in the stored All the Things You Are chart', () => {
 		const tune = sheet(JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8')));
 		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
