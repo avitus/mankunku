@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import { drumBufferForVelocity } from '$lib/audio/sample-maps';
@@ -625,7 +625,10 @@ describe('tune backing output level', () => {
 	});
 });
 
-it('normal playback installs the released full-tune attacks and explicit Original still selects the reference engine', async () => {
+afterEach(() => vi.unstubAllGlobals());
+
+it('normal playback ignores the retired saved Original choice while explicit lab overrides still work', async () => {
+ vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'backing-arrangement-v1' ? 'original' : null });
  const { buildListeningTuneSession } = await import('$lib/musicality/listening-tunes');
  const { MANKUNKU_BLUES } = await import('$lib/data/tunes');
  const { prepareReleasedArrangement } = await import('$lib/audio/backing-arrangement');

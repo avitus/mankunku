@@ -1,5 +1,4 @@
 import { prepareReleasedArrangement } from './backing-arrangement';
-import { getBackingArrangementPreference } from './backing-preference';
 import { BACKING_OUTPUT_GAIN, backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
@@ -1188,7 +1187,7 @@ function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
-	const orchestration = options.backingOrchestration ?? getBackingArrangementPreference();
+	const orchestration = options.backingOrchestration ?? 'coordinated';
 	if (orchestration === 'coordinated' && !options.backingSoloFeatures?.length) {
 		const generated = prepareReleasedArrangement(harmony, style, {
 			phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,

@@ -3,22 +3,21 @@ import { seedOnboardedAnonymous, seedStorage, seedTunes, SETTINGS_ONBOARDED, TOU
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { MANKUNKU_BLUES } from '../../src/lib/data/tunes';
 
-test('offers a persistent device-local Original rollback alongside the released arrangement', async ({ page }, info) => {
+test('settings omits the retired arrangement selector for returning devices', async ({ page }, info) => {
  await seedOnboardedAnonymous(page);
+ await page.addInitScript(() => localStorage.setItem('backing-arrangement-v1', 'original'));
  await page.goto('/settings');
- const bank = page.getByRole('radiogroup', { name: 'Accompaniment arrangement' });
- await expect(bank.getByRole('radio', { name: 'Musicality 0.16.1', exact: true })).toBeChecked();
- await bank.getByRole('radio', { name: 'Original', exact: true }).click();
- await page.reload();
- await expect(bank.getByRole('radio', { name: 'Original', exact: true })).toBeChecked();
- await bank.getByRole('radio', { name: 'Musicality 0.16.1', exact: true }).click();
- await page.reload();
- await expect(bank.getByRole('radio', { name: 'Musicality 0.16.1', exact: true })).toBeChecked();
+ const rhythm = page.getByRole('region', { name: 'Rhythm & band' });
  for (const width of [1440, 390]) {
   await page.setViewportSize({ width, height: 900 });
-  await bank.scrollIntoViewIfNeeded();
+  await expect(rhythm).toBeVisible();
+  await expect(page.getByRole('radiogroup', { name: 'Accompaniment arrangement' })).toHaveCount(0);
+  await expect(rhythm).not.toContainText('other passages use Original');
+  await expect(rhythm.getByRole('radiogroup', { name: 'Backing instrument' })).toBeVisible();
+  await rhythm.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: info.outputPath(`arrangement-${width}.png`) });
+  await page.reload();
  }
 });
 
