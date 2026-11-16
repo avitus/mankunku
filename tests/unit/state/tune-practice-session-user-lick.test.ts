@@ -15,6 +15,7 @@ import {
 	suggestionNameFor,
 	tunePractice
 } from '$lib/state/tune-practice.svelte';
+import { buildPracticeReport, MissingPracticeSpotsError } from '$lib/tunes/practice-report';
 import { fractionToFloat } from '$lib/music/intervals';
 
 /**
@@ -133,6 +134,25 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		const longs = tunePractice.plan.filter((ip) => ip.progressionType !== 'minor-vamp');
 		expect(longs.length).toBeGreaterThan(0);
 		for (const ip of longs) expect(ip.suggestions).toEqual([]);
+	});
+
+	it('retries a selected report spot in each solo while preserving the complete band form', () => {
+		tunePractice.config.choruses = 3;
+		const initial = startTunePracticeSession(autumnLeaves, 480);
+		const allPoints = [...tunePractice.plan];
+		const report = buildPracticeReport(initial.playedPhrase, allPoints, [], { barTicks: 1920, countInTicks: initial.countInBars * 1920 });
+		const spot = report.spots.find(s => s.attempts.every(a => a.point.suggestions.length > 0))!;
+		expect(spot).toBeDefined();
+		expect(spot.attempts).toHaveLength(3);
+		resetTunePractice();
+		const retry = startTunePracticeSession(autumnLeaves, 480, [spot.id]);
+		expect(tunePractice.plan.map(p => p.id)).toEqual(spot.attempts.map(a => a.point.id));
+		expect(retry.playedPhrase.harmony).toEqual(initial.playedPhrase.harmony);
+		expect(retry.playedPhrase.performanceForm).toEqual(initial.playedPhrase.performanceForm);
+		resetTunePractice();
+		expect(() => startTunePracticeSession(autumnLeaves, 480, ['removed-spot'])).toThrow(MissingPracticeSpotsError);
+		expect(tunePractice.phase).toBe('setup');
+		expect(tunePractice.plan).toEqual([]);
 	});
 
 	it('offers no curated lick anywhere in the plan, in Points or Suggest', () => {

@@ -9,6 +9,8 @@
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
+	import { MissingPracticeSpotsError } from '$lib/tunes/practice-report';
+	import TunePracticeReport from '$lib/components/tune-practice/TunePracticeReport.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
 	import { transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
@@ -62,8 +64,6 @@
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
-	import { GRADE_LABELS } from '$lib/scoring/grades';
-	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { practiceTargetColor } from '$lib/tunes/practice-target';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
@@ -163,6 +163,8 @@
 	let micError = $state(false);
 	let loadError = $state(false);
 	let audioPlan = $state<TunePracticeAudioPlan | null>(null);
+	let retrySpots = $state<string[]>([]);
+	let retryUnavailable = $state(false);
 	let cursorIndex = $state<number | null>(null);
 	/** 0-based playback bar (negative during the count-in). */
 	let currentBar = $state(-1);
@@ -320,9 +322,6 @@
 
 	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
-	const hitCount = $derived(
-		tunePractice.results.filter((r) => r.grade !== null && r.grade !== 'try-again').length
-	);
 
 	// Points mode: the pick card always targets the NEXT window to open (the
 	// open window already locked in its pick at open time).
@@ -525,7 +524,17 @@
 
 		const transport = toneModule.getTransport();
 		ppqNR = transport.PPQ;
-		const plan = startTunePracticeSession(baseSheet, ppqNR);
+		let plan: TunePracticeAudioPlan;
+		retryUnavailable = false;
+		try {
+			plan = startTunePracticeSession(baseSheet, ppqNR, tunePractice.config.mode === 'freestyle' ? [] : retrySpots);
+		} catch (error) {
+			if (!(error instanceof MissingPracticeSpotsError)) throw error;
+			stopAll();
+			retryUnavailable = true;
+			if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
+			return;
+		}
 		audioPlan = plan;
 		barTicksNR = plan.sheet.timeSignature[0] * ppqNR;
 		countInTicksNR = plan.countInBars * barTicksNR;
@@ -827,7 +836,9 @@
 		completeTunePracticeSession();
 	}
 
-	function practiceAgain() {
+	function practiceAgain(spots: string[] = []) {
+		retrySpots = spots;
+		retryUnavailable = false;
 		resetTunePractice();
 		audioPlan = null;
 		// The teardown cleared the elapsed-time interval; re-arm for the next run.
@@ -875,6 +886,13 @@
 			<a href="/tunes" class="mt-2 inline-block text-sm text-[var(--color-accent)]">Back to Tunes</a>
 		</div>
 	{:else if tunePractice.phase === 'setup'}
+		{#if retryUnavailable && retrySpots.length}<p role="alert">Selected spots no longer match these settings. Restore the previous setup or practice all spots.</p>{/if}
+		{#if retrySpots.length && tunePractice.config.mode !== 'freestyle'}
+			<div class="flex items-center justify-between gap-3 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm">
+				<span>{retrySpots.length} selected {retrySpots.length === 1 ? 'spot' : 'spots'} · full tune backing</span>
+				<button class="text-[var(--color-brass)]" onclick={() => retrySpots = []}>Practice all spots</button>
+			</div>
+		{/if}
 		<TunePracticeSetup
 			tune={baseSheet}
 			{previewSheet}
@@ -964,6 +982,13 @@
 				playheadBarFraction={followBarFraction}
 			/>
 		{/if}
+	{:else if tunePractice.config.mode !== 'freestyle' && audioPlan}
+		<TunePracticeReport tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
+			clock={{ barTicks: barTicksNR, countInTicks: countInTicksNR }}
+			results={tunePractice.results} picked={tunePractice.pickedSuggestion} instrument={getInstrument()}
+			tempo={tunePractice.config.tempo} elapsed={formatElapsed(tunePractice.elapsedSeconds)}
+			points={tunePractice.config.mode === 'points' ? { total: tunePractice.totalPoints, streak: tunePractice.bestStreak } : null}
+			onretry={practiceAgain} />
 	{:else}
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<h1 class="text-2xl font-bold">Take complete</h1>
@@ -1002,52 +1027,11 @@
 					</div>
 				{/if}
 			</div>
-		{:else}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<p class="text-sm text-[var(--color-text-secondary)]">
-				{hitCount} of {tunePractice.plan.length} insertion point{tunePractice.plan.length === 1
-					? ''
-					: 's'} landed
-				{#if tunePractice.config.mode === 'points'}
-					&middot; {tunePractice.totalPoints} points &middot; best streak {tunePractice.bestStreak}
-				{/if}
-			</p>
-
-			<div class="mt-3 space-y-2">
-				{#each tunePractice.plan as ip (ip.id)}
-					{@const result = resultByInsertion.get(ip.id)}
-					<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
-						<span class="w-8 shrink-0 font-mono text-xs text-[var(--color-text-secondary)]">
-							b{ip.notationBarRange.start + 1}
-						</span>
-						<span class="shrink-0 font-medium text-[var(--color-brass)]">
-							{concertKeyToWritten(ip.keyCenter, getInstrument())}
-						</span>
-						<span class="min-w-0 flex-1 truncate">
-							{ip.bandName}
-							{#if result?.lickName}
-								<span class="text-[var(--color-text-secondary)]"> — {result.lickName}</span>
-							{/if}
-						</span>
-						{#if result?.score && result.grade}
-							<span
-								class="smallcaps shrink-0 text-xs font-medium"
-								style="color: {accuracyTierInfo(result.score.overall).color}"
-							>
-								{GRADE_LABELS[result.grade]}
-							</span>
-						{:else}
-							<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">No take</span>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		</div>
 		{/if}
 
 		<div class="flex gap-3">
 			<button
-				onclick={practiceAgain}
+				onclick={() => practiceAgain()}
 				class="flex-1 rounded-lg bg-[var(--color-accent)] py-2.5 font-medium text-white transition-opacity hover:opacity-90"
 			>
 				Practice again

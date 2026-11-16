@@ -373,7 +373,16 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expectChartVisibleInFollowViewport(page);
 		await expect(page.locator('.tcc-bar.active').first()).toBeVisible();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText(/of 3 insertion points landed/i)).toBeVisible();
+		await expect(page.getByText('No matching licks in this take.', { exact: true })).toBeVisible();
+		const report = page.getByTestId('tune-practice-report');
+		await expect(report.locator('[data-report-chorus]')).toHaveCount(3);
+		await expect(report.locator('[data-report-status="unavailable"]')).toHaveCount(3);
+		await expect(report.locator('[data-report-status="open"]')).toHaveCount(0);
+		await page.screenshot({ path: test.info().outputPath('chorus-report-desktop.png'), fullPage: true });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(report).toBeVisible();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+		await page.screenshot({ path: test.info().outputPath('chorus-report-mobile.png'), fullPage: true });
 	});
 
 	test('chart stays visible through first insertion (Mankunku Blues, head on)', async ({
@@ -614,10 +623,19 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
-		// The report names the window by its chord: bar, key F#, "Minor" (the
-		// take ended before the window played, so no lick is recorded on it).
-		const minorRows = page.locator('div', { hasText: /b8\s*F#\s*Minor\s*No take/ });
-		await expect(minorRows.first()).toBeVisible();
+		const report = page.getByTestId('tune-practice-report');
+		await expect(report).toBeVisible();
+		const unplayed = report.locator('[data-report-status="unplayed"]').filter({ hasText: 'E2E Minor Lick' }).first();
+		await expect(unplayed).toBeVisible();
+		await page.screenshot({ path: test.info().outputPath('chorus-report-autumn-leaves.png'), fullPage: true });
+		await unplayed.click();
+		await expect(report.locator('.tr-selection-title')).toContainText('F#');
+		await expect(report.locator('.tr-selection-title')).toContainText('Minor');
+		await report.getByRole('button', { name: '+ Practice this spot', exact: true }).click();
+		await report.getByRole('button', { name: 'Practice 1 selected spot', exact: true }).click();
+		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: 'Practice all spots', exact: true }).click();
+		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toHaveCount(0);
 	});
 
 	test('chart stays visible through first insertion (Autumn Leaves)', async ({
