@@ -1,4 +1,4 @@
-/* Native translation of MagicPath Tune Detail, revision 463528645374382080. */
+/* Native translation of MagicPath Tune Detail, revision 472893533464973312. */
 .tune-detail .td-detail-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin:0 0 28px; }
 .tune-detail .td-detail-heading h1 { font:500 clamp(26px,2.8vw,38px)/1.2 var(--font-display); letter-spacing:-1px; margin:8px 0 10px; }
 .tune-detail .td-heading-meta { display:flex; flex-wrap:wrap; align-items:center; gap:10px; color:var(--studio-muted); font-size:12px; }
@@ -22,7 +22,7 @@
 .tune-detail .td-status { padding:15px 0; font-size:10px; }
 .tune-detail .td-status strong { font-weight:500; color:var(--studio-text); }
 .tune-detail .td-desk-transport { position:relative; z-index:5; margin:0 -1px; padding:14px 0; background:var(--studio-panel); gap:18px; }
-.tune-detail .td-desk-transport .le-play { background:linear-gradient(color-mix(in srgb,var(--color-brass) 90%,white),var(--color-brass)); color:#172334; border-color:var(--color-brass); box-shadow:inset 0 1px #fff4,0 2px 5px #0003; }
+.tune-detail .td-desk-transport .le-play { background:var(--studio-panel); color:var(--studio-text); border-color:var(--studio-border); box-shadow:inset 0 1px #fff4,0 2px 5px #0003; }
 .tune-detail .td-desk-transport .le-play kbd { color:inherit; opacity:.65; border:1px solid currentColor; border-radius:2px; padding:2px 4px; }
 .tune-detail .td-play-summary { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px; font-size:10px; color:var(--studio-muted); }
 .tune-detail .td-play-summary strong { color:var(--studio-text); font-size:12px; font-weight:500; }

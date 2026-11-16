@@ -21,12 +21,31 @@ for (const width of [1440, 390]) {
 		const a = page.locator('svg [data-key-center="A minor"]').first();
 		await expect(g).toBeVisible(); await expect(a).toBeVisible();
 		expect(await g.getAttribute('data-key-center-lane')).not.toBe(await a.getAttribute('data-key-center-lane'));
-		await page.getByText('Key-center readings', { exact: true }).click();
-		await expect(page.locator('.key-center-guide')).toContainText('Bar 1, beat 1 → Bar 4, beat 3');
-		await expect(page.locator('.key-center-guide')).toContainText('Minor arrival');
-		await page.getByText('Key-center readings', { exact: true }).click();
+		await expect(page.getByText('Key-center readings', { exact: true })).toHaveCount(0);
+		await expect(g.locator('text')).toHaveText('G maj');
+		await expect(a.locator('text')).toHaveText('A min');
+		await expect(g.locator('line')).toHaveCSS('stroke-width', '2.5px');
+		// Both overlapping rails remain below the music and inside the SVG,
+		// including the last system and the narrower mobile engraving.
+		const railsFit = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.every(rail => {
+			const box = rail.getBoundingClientRect();
+			const svg = rail.closest('svg')!.getBoundingClientRect();
+			const notes = rail.parentElement!.querySelectorAll('.abcjs-note');
+			const wrappers = [...rail.closest('svg')!.querySelectorAll('.abcjs-staff-wrapper')];
+			const next = wrappers[wrappers.indexOf(rail.parentElement!) + 1];
+			const nextInk = next?.querySelectorAll('.abcjs-note, .abcjs-chord, .abcjs-part, .abcjs-bar-number') ?? [];
+			return box.bottom <= svg.bottom && [...notes].every(note => note.getBoundingClientRect().bottom < box.top)
+				&& [...nextInk].every(ink => ink.getBoundingClientRect().top > box.bottom);
+		}));
+		expect(railsFit).toBe(true);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-${width}.png`), fullPage: true });
+		await page.evaluate(() => document.documentElement.classList.add('light'));
+		const lightColor = await g.evaluate(el => getComputedStyle(el).color);
+		await expect(g.locator('line')).toHaveCSS('stroke', lightColor);
+		await expect(g.locator('text')).toHaveCSS('fill', lightColor);
+		await page.screenshot({ path: info.outputPath(`key-centers-tune-light-${width}.png`), fullPage: true });
+		await page.evaluate(() => document.documentElement.classList.remove('light'));
 		await toggle.click();
 		await expect(page.locator('[data-key-center]')).toHaveCount(0);
 		await page.getByRole('button', { name: /Practice licks/ }).click();

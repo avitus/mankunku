@@ -954,6 +954,7 @@
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
 			<NotationDisplay
+				keyCenterRails
 				tune={displayedSheet}
 				instrument={getInstrument()}
 				tuneOptions={audioPlan?.chartOptions}

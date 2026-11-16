@@ -756,6 +756,29 @@ or its MagicPath skill does not update every existing page.
   distinct. Playback moves the highlight using the audio clock without
   re-engraving the score. Color is supplementary to labels and geometry.
 
+### Tune key-center rails
+
+The tune detail reference is MagicPath component `459518519676121088`, revision
+`472893533464973312`. Use the shared harmonic analysis and native Svelte notation;
+the prototype's illustrative score and playback data are not production inputs.
+
+- Show key centers as 2.5px muted rails below the staff, with compact names
+  (`G maj`, `A min`) at each span/system start. Minor rails are dashed. Retain
+  partial-bar boundaries and separate lanes for overlapping centers; the normal
+  layout accommodates two simultaneous readings without truncating analysis.
+- Keep the wrapping legend suitable for seven or more distinct centers. Use
+  stable tonic hues at 25% saturation and the theme's `--key-center-lightness`
+  so labels remain legible on dark and light score wells.
+- The tune desk uses only a neutral current-bar wash (4.5% ink), without a
+  moving pointer or highlighted individual note/chord. Keep practice feedback
+  and exercise cues independent of harmonic identity.
+- Retain native Fraunces/Edwin chord symbols, baseline minor signs and raised
+  extensions. Number only the first bar of each system; do not add repeated-chord
+  dots. Do not restore the removed key-center readings disclosure.
+- Reuse these rails and the same legend in practice setup, active practice and
+  import preview. Reserve their vertical space even when hidden so toggling
+  centers does not reflow the score or interrupt playback.
+
 ### Shared editing controls
 
 Lick Editor and Tune Editor use the same `DurationSelector`,

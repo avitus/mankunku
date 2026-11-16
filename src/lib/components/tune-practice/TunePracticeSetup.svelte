@@ -110,7 +110,7 @@
 					</div>
 				</div>
 				{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
-				{#if previewSheet}<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay tune={previewSheet} instrument={getInstrument()} staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} rangeMarkers={[...(showKeyCenters ? keyCenters?.markers ?? [] : []), ...(tunePractice.config.mode === 'freestyle' ? [] : chartMarkers)]} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} frameless /></div>{/if}
+				{#if previewSheet}<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay keyCenterRails tune={previewSheet} instrument={getInstrument()} staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} rangeMarkers={[...(showKeyCenters ? keyCenters?.markers ?? [] : []), ...(tunePractice.config.mode === 'freestyle' ? [] : chartMarkers)]} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} frameless /></div>{/if}
 				<div class="td-transport td-desk-transport tp-start">
 					<button class="le-button le-play" onclick={onstart} disabled={isLoading || !audioModulesReady}><EditorIcon name="play" size={16} />{isLoading ? 'Setting up…' : 'Start'}</button>
 					<div class="td-play-summary"><strong>{tunePractice.config.backingTrackEnabled ? `${BACKING_STYLE_NAMES[tunePractice.config.backingStyle]} backing` : 'Backing off'} · {tunePractice.config.tempo} BPM</strong><p>{startCaption}</p></div>

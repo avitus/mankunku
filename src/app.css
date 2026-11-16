@@ -159,6 +159,9 @@
 	--medal-bronze-label: var(--accuracy-bronze);
 	--medal-bronze-rim: color-mix(in srgb, var(--accuracy-bronze) 24%, transparent);
 
+	/* Key-center rails keep their tonic hue in both themes. */
+	--key-center-lightness: 58%;
+
 	/* Progression identity palette — one muted hue per chord progression, used
 	   on the library card (tinted category pill + dots) and carried through to
 	   the lick-practice session header so a lick reads as one thing across both.
@@ -194,6 +197,7 @@
 }
 
 :root.light {
+	--key-center-lightness: 38%;
 	--color-bg: #f8fafc;
 	--color-bg-secondary: #e2e8f0;
 	--color-bg-tertiary: #cbd5e1;
