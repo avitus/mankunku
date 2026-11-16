@@ -1,19 +1,26 @@
 /**
- * Mix microphone input + master audio output into a single recording.
- * Captures the user's playing along with the metronome click via
- * MediaStreamDestination + MediaRecorder.
+ * Capture separate scoring and playback audio. Microphone PCM goes to the
+ * scorer; MediaRecorder preserves the microphone + master listening mix.
  */
 
+import { createScoringCapture, type ScoringCapture } from './scoring-capture';
 import type { RecorderTiming } from './capture-timing';
 
 /** Attenuate raw mic signal (~-8 dB) so it balances with the metronome/playback mix. */
 const MIC_RECORDING_GAIN = 0.4;
 
+export interface RecordedAudio {
+	/** Microphone plus master output, for listening. */
+	blob: Blob;
+	/** Microphone only, aligned to start(contextTime); null on capture failure. */
+	scoringBlob: Blob | null;
+}
+
 export interface RecorderHandle {
 	/** Begin capturing audio. */
-	start(): void;
-	/** Stop capturing and return the recorded audio as a Blob. */
-	stop(): Promise<Blob>;
+	start(contextTime?: number): void;
+	/** Stop both captures and return the playback mix and microphone scoring WAV. */
+	stop(): Promise<RecordedAudio>;
 	/** Disconnect recording nodes from the audio graph. Safe to call multiple times. */
 	dispose(): void;
 	/**
@@ -54,14 +61,18 @@ export function createRecorder(
 	micGain.connect(dest);
 	masterGain.connect(dest);
 
+	let scoring: ScoringCapture | null = null;
+	try { scoring = createScoringCapture(micSource, audioCtx); }
+	catch (error) { console.warn('Microphone scoring capture unavailable:', error); }
 	let mediaRecorder: MediaRecorder | null = null;
 	let chunks: Blob[] = [];
 	let disposed = false;
 	let timing: RecorderTiming | null = null;
+	let stopping: Promise<RecordedAudio> | null = null;
 	const now = () => ({ contextTime: audioCtx.currentTime, performanceNowMs: performance.now() });
 
 	return {
-		start() {
+		start(contextTime = audioCtx.currentTime) {
 			if (disposed) return;
 			chunks = [];
 			const mimeType = preferredMimeType();
@@ -82,23 +93,34 @@ export function createRecorder(
 			recorder.onstart = () => {
 				started.startEvent = now();
 			};
+			scoring?.start(contextTime);
 			recorder.start();
 		},
 
-		stop(): Promise<Blob> {
-			return new Promise((resolve) => {
-				if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+		stop(): Promise<RecordedAudio> {
+			if (stopping) return stopping;
+			const recorder = mediaRecorder;
+			if (!recorder) return Promise.resolve({ blob: new Blob([], { type: 'audio/webm' }), scoringBlob: null });
+			const scoringAudio = scoring?.stop(audioCtx.currentTime) ?? Promise.resolve(null);
+			const playbackAudio = new Promise<Blob>((resolve) => {
+				if (recorder.state === 'inactive') {
 					resolve(new Blob([], { type: 'audio/webm' }));
 					return;
 				}
-				mediaRecorder.onstop = () => {
-					const blob = new Blob(chunks, { type: mediaRecorder!.mimeType });
+				recorder.onstop = () => {
+					const blob = new Blob(chunks, { type: recorder.mimeType });
 					chunks = [];
 					mediaRecorder = null;
 					resolve(blob);
 				};
-				mediaRecorder.stop();
+				recorder.stop();
 			});
+			// stopAll can arrive while a completed window is still saving. Share
+			// the pending stop rather than replacing the recorder's callback.
+			stopping = Promise.all([playbackAudio, scoringAudio])
+				.then(([blob, scoringBlob]) => ({ blob, scoringBlob }))
+				.finally(() => { stopping = null; });
+			return stopping;
 		},
 
 		timing() {
@@ -108,6 +130,7 @@ export function createRecorder(
 		dispose() {
 			if (disposed) return;
 			disposed = true;
+			scoring?.dispose();
 			try { micSource.disconnect(micGain); } catch { /* already disconnected */ }
 			try { micGain.disconnect(dest); } catch { /* already disconnected */ }
 			try { masterGain.disconnect(dest); } catch { /* already disconnected */ }

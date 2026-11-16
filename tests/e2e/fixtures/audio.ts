@@ -47,6 +47,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 
 interface AudioMockOptions {
+	/** Keep the native recorder to verify the real playback graph in Linux. */
+	recordLiveGraph?: boolean;
 	/** Path relative to tests/fixtures/recordings/ */
 	fixturePath?: string;
 	/**
@@ -87,7 +89,7 @@ export async function installAudioMock(
 	}
 
 	await page.addInitScript(
-		([fixtureArr, mime, countCalls]) => {
+		([fixtureArr, mime, countCalls, recordLiveGraph]) => {
 			const fixtureUint8 = new Uint8Array(fixtureArr as number[]);
 			if (countCalls) (window as unknown as { __gumCount: number }).__gumCount = 0;
 
@@ -131,6 +133,8 @@ export async function installAudioMock(
 			} else if (navigator.mediaDevices) {
 				navigator.mediaDevices.getUserMedia = syntheticGetUserMedia;
 			}
+
+			if (recordLiveGraph) return;
 
 			// ── MediaRecorder stub ──────────────────────────────────────
 			// Replaces the constructor. Inherits from EventTarget so calls
@@ -181,9 +185,10 @@ export async function installAudioMock(
 			(window as unknown as { MediaRecorder: typeof MediaRecorder }).MediaRecorder =
 				MockMediaRecorder as unknown as typeof MediaRecorder;
 		},
-		[fixtureBytes, fixtureMime, options.countGetUserMediaCalls === true] as [
+		[fixtureBytes, fixtureMime, options.countGetUserMediaCalls === true, options.recordLiveGraph === true] as [
 			number[],
 			string,
+			boolean,
 			boolean
 		]
 	);

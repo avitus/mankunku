@@ -26,6 +26,8 @@ export interface SaveLickPracticeRecordingInput {
 	sessionId: string;
 	/** Captured audio for this window (empty blob is tolerated by saveRecording). */
 	blob: Blob;
+	/** Microphone-only WAV for diagnostic replay of the live mic score. */
+	scoringBlob?: Blob;
 	/** The per-key phrase used to score this window. */
 	phrase: Phrase;
 	tempo: number;
@@ -56,6 +58,7 @@ export async function saveLickPracticeRecording(
 	input: SaveLickPracticeRecordingInput
 ): Promise<void> {
 	const metadata: RecordingMetadata = {
+		scoringAudio: input.scoringBlob ? 'microphone' : 'unavailable',
 		phraseId: input.phrase.id,
 		phraseName: input.phrase.name ?? input.phrase.id,
 		source: 'lick-practice',
@@ -73,6 +76,7 @@ export async function saveLickPracticeRecording(
 	};
 	await saveRecording(input.sessionId, input.blob, {
 		metadata,
+		scoringBlob: input.scoringBlob,
 		supabase: input.supabase,
 		userId: input.userId
 	});

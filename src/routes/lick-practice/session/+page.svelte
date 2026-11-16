@@ -90,6 +90,7 @@
 	import { durationThroughLastReading } from '$lib/audio/capture-window';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
@@ -498,6 +499,9 @@
 		if (micCapture) return true;
 		try {
 			micCapture = await captureModule.startMicCapture();
+			await prepareScoringCapture(micCapture.context).catch(error => {
+				console.warn('Microphone scoring capture unavailable, using live detection:', error);
+			});
 			if (destroyed) {
 				// Teardown ran while the prompt was open: onDestroy's stopAll()
 				// found nothing to release, so release it here, publish nothing.
@@ -1289,9 +1293,9 @@
 				: null
 		};
 
-		// Spin up a recorder that mixes mic + master (metronome + backing)
-		// exactly as ear-training does, so /diagnostics can replay what the
-		// user heard alongside what they played. A failed recorder init is
+		// Keep the listening mix plus microphone-only PCM for diagnostics.
+		// The score above continues to use the live microphone detector;
+		// replay must not add the master bus to what that detector heard. A failed recorder init is
 		// non-fatal — scoring and progress still work without the audio blob.
 		// A rehearsal pass keeps no recording: nothing in keyResults would
 		// reference it, and /diagnostics would list an orphan take.
@@ -1303,7 +1307,7 @@
 					getMasterGain(),
 					micCapture.context
 				);
-				tmpRecorder.start();
+				tmpRecorder.start(currentWindow.micStartTime);
 				recorderHandle = tmpRecorder;
 			} catch (err) {
 				// If createRecorder succeeded but start() threw, the audio
@@ -1540,11 +1544,12 @@
 				: undefined;
 			void handle
 				.stop()
-				.then(async (blob) => {
+				.then(async ({ blob, scoringBlob }) => {
 					if (blob.size === 0) return;
 					await saveLickPracticeRecording({
 						sessionId: windowForSave.sessionId,
 						blob,
+						scoringBlob: scoringBlob ?? undefined,
 						phrase: windowForSave.phrase,
 						tempo: tempoForSave,
 						swing: swingForSave,

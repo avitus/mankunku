@@ -12,6 +12,14 @@ The algorithm Mankunku uses is called the **McLeod Pitch Method**. It's an autoc
 
 Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes. Frames between 0.50 and 0.80 are set aside rather than thrown away: they're how the app hears a ghosted note (see below).
 
+## Scoring audio and playback recordings
+
+Saved playback includes your instrument, metronome and backing track. Scoring uses microphone audio separately: ear training reprocesses a microphone-only recording for its final score; lick practice scores its live microphone readings. App output is never digitally added to either scoring input. Speakers can still bleed into the microphone, so the existing bleed checks remain useful.
+
+Rhythm comes from the timing of your note attacks against the phrase's tempo and swing. The microphone capture shares the app's audio clock, so it does not need recorded clicks to know where the beats fall. Ear training still removes the reaction-time lead-in; lick practice still starts each window on its scheduled bar line.
+
+New recordings keep a microphone WAV locally alongside the listening mix, under the same recording limit. Diagnostics replay and scoring-error exports use that WAV. Cloud playback keeps the mixed recording; the microphone WAV and diagnostic metadata remain local. Older recordings retain their original mixed-audio diagnostic replay. If microphone capture fails, ear training keeps its live microphone score and does not rescore the listening mix.
+
 ## When the app starts listening
 
 In ear training the microphone opens the moment your turn starts — before you play a note. That matters more than it sounds: a recording that waits for a confident pitch reading before it starts can't contain the attack of the note that triggered it, because a confident reading needs most of one analysis window of the note first. So the app arms the mic early and then trims the take back to a fixed third of a second before your first *played* note. Your reaction time is discarded, not scored, and you can take a breath before coming in.

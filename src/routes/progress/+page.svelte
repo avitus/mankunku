@@ -195,7 +195,7 @@
 				phrase: phraseForScoringExport(s),
 				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
 			});
-			const wav = await exporter.decodeToWav(full.blob);
+			const wav = await exporter.decodeToWav(exporter.scoringRecordingBlob(full));
 			// Both files are ready before either download starts, so the pair
 			// goes out together (a browser may ask once to allow the second).
 			const base = exporter.fixtureBaseName(full.timestamp, full.metadata?.phraseName ?? s.phraseName);

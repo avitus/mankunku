@@ -8,6 +8,7 @@
 	import { selectEarTrainingLicks, transposeEarTrainingLick } from '$lib/phrases/ear-training-pool';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
+	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -321,6 +322,9 @@
 		if (micCapture) return true;
 		try {
 			micCapture = await captureModule.startMicCapture();
+			await prepareScoringCapture(micCapture.context).catch(error => {
+				console.warn('Microphone scoring capture unavailable, using live detection:', error);
+			});
 			session.micPermission = 'granted';
 			levelInterval = setInterval(() => {
 				session.inputLevel = captureModule!.getInputLevel();
@@ -523,13 +527,13 @@
 				)
 			: null;
 
-		// Record the mic + master mix from the same instant, so the blob the
-		// authoritative rescore replays covers the attack too.
+		// Capture microphone PCM for scoring and the listening mix from this
+		// arm instant, before the first attack. Only the mic reaches the rescore.
 		if (micCapture) {
 			let armed: RecorderHandle | null = null;
 			try {
 				armed = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
-				armed.start();
+				armed.start(armContextTime);
 				recorderHandle = armed;
 			} catch (err) {
 				// createRecorder wires its nodes into the graph before start() is
@@ -665,8 +669,8 @@
 			if (dir) showLevelSignal(dir, SCALE_TYPE_NAMES[scaleType], newScaleLevel);
 		}
 
-		// Save audio recording in the background, then re-score from the
-		// saved blob. The replay path is deterministic (no rAF jitter,
+		// Save the listening mix and microphone audio, then re-score only
+		// the microphone WAV. The replay path is deterministic (no rAF jitter,
 		// no AudioWorklet scheduling); live readings drift across runs even
 		// on identical audio, so the replay score is authoritative. The UI
 		// holds the previous take's score until the replay resolves
@@ -698,7 +702,7 @@
 			const revealProvisionalFallback = () => {
 				if (rescoreId === latestRescoreId && provisionalScore) revealScore(provisionalScore);
 			};
-			handle.stop().then(async (blob) => {
+			handle.stop().then(async ({ blob, scoringBlob }) => {
 				handle.dispose();
 				if (blob.size > 0 && sessionId) {
 					const { saveRecording } = await import('$lib/persistence/audio-store');
@@ -731,15 +735,17 @@
 						bleedFilterLog: provisionalBleedLog,
 						transportSeconds: transportForRescore,
 						metronomeEnabled: metronomeEnabledForRescore,
-						captureTiming
+						captureTiming,
+						scoringAudio: scoringBlob ? 'microphone' as const : 'unavailable' as const
 					};
 					await saveRecording(sessionId, blob, {
 						metadata: baseMetadata,
+						scoringBlob: scoringBlob ?? undefined,
 						supabase,
 						userId: user?.id
 					});
-					const produced = await rescoreFromBlob(
-						blob,
+					const produced = scoringBlob ? await rescoreFromBlob(
+						scoringBlob,
 						phraseForRescore,
 						tempoForRescore,
 						transportForRescore,
@@ -753,7 +759,7 @@
 					).catch((err) => {
 						console.warn('post-hoc rescore failed', err);
 						return false;
-					});
+					}) : false;
 					if (!produced) revealProvisionalFallback();
 				} else {
 					revealProvisionalFallback();
@@ -761,7 +767,7 @@
 			}).catch((err) => {
 				console.error(err);
 				revealProvisionalFallback();
-			});
+			}).finally(() => handle.dispose());
 		} else if (session.lastScore) {
 			// No recorder → no rescore is coming; the live score IS the final
 			// one. Bump the id so a still-in-flight rescore chain from an
