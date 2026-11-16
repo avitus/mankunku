@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mankunku · Acoustic bleed lab</title><link rel="stylesheet" href="./lab.css"></head>
+<body><main>
+  <header><span class="eyebrow">Mankunku / Local research</span><h1>Acoustic bleed lab</h1><p>Hear what the microphone hears. Keep the playing intact.</p></header>
+  <section class="panel"><fieldset id="setup"><legend>Set up a take</legend>
+    <div class="controls"><label>Practice mode<select id="mode"><option value="ear">Ear training</option><option value="lick">Lick practice</option></select></label>
+    <label class="wide">Phrase<select id="phrase"></select></label>
+    <label>Concert key<select id="key"></select></label><label>Octave shift<select id="octave"><option value="-12">Down one octave</option><option value="0" selected>Original register</option><option value="12">Up one octave</option></select></label>
+    <label>Tempo<input id="tempo" type="number" min="60" max="240" step="5" value="120"></label>
+    <label>Accompaniment<select id="accompaniment"><option value="metro">Metronome</option><option value="backing">Backing track</option></select></label>
+    <label>Speaker level<input id="volume" type="range" min="0.05" max="0.8" step="0.05" value="0.3"></label>
+    <label>Swing<select id="swing"><option value="0.5">Straight</option><option value="0.67">Swing</option></select></label></div>
+    <label class="import">Use your own lick: Import a phrase or diagnostic JSON<input id="import" type="file" accept=".json,application/json"></label>
+  </fieldset><div class="transport"><button id="start">Start a take</button><button id="stop" disabled>Stop</button><span id="status" role="status" aria-live="polite">Ready</span></div>
+  <div class="cue" id="cue">Ready to listen</div><p id="instruction">Use speakers. Stay silent during calibration, then play only at the Play cue.</p>
+  <details><summary>How this research session works</summary><p>Calibrate quietly → Hear the phrase → Count in → Play → Stay quiet for a final room measurement. Both modes use the app’s real phrase playback, samples, metronome, backing engine and scoring functions. This lab does not write practice progress.</p><p>Original microphone audio and stereo app output are captured on the same audio clock. Cleaning runs in the local Linux sandbox after the take. Saved playback remains the original microphone + app-output mix.</p><p>Keep the speakers and microphone still. A higher score does not prove better audio. Listen for missing attacks, altered notes and shifted rhythm. Calibration is experimental; no real-room guarantee has been established.</p></details></section>
+  <section class="panel" id="comparison" hidden><h2>Compare the same take</h2><p id="verdict"></p><div class="players" id="players"></div>
+    <div class="table-scroll"><table><thead><tr><th>Analysis</th><th>Pitch</th><th>Rhythm</th><th>Notes</th><th>Timing correction</th></tr></thead><tbody id="scores"></tbody></table></div>
+    <canvas id="plot" width="1080" height="240" aria-label="Detected pitch over time: Original in grey, cleaned in teal" role="img"></canvas><p class="muted">Grey: Original microphone. Teal: Cleaned microphone. The two analysis windows use identical timestamps.</p>
+    <details><summary>Measurements and detected notes</summary><pre id="metrics"></pre><pre id="notes"></pre></details>
+    <div id="downloads" class="downloads"></div>
+  </section><footer>Local research only · No cloud uploads · No production scoring changes</footer>
+</main><script type="module" src="./lab.ts"></script></body></html>

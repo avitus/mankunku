@@ -1,0 +1,5 @@
+results/*.wav
+results/*.f32
+results/*.npz
+results/*.png
+__pycache__/
