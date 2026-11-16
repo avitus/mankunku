@@ -1,41 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Phrase } from '$lib/types/music';
 import type { InsertionPoint, InsertionResult } from '$lib/state/tune-practice-plan';
-import type { LickSuggestion } from '$lib/tunes/lick-matcher';
-import type { Score } from '$lib/types/scoring';
 import { buildPracticeReport as buildReport, focusPracticePlan as focusPlan, reportTiles } from '$lib/tunes/practice-report';
 import { seg } from '../../helpers/tune-fixtures';
+import { point, phrase, result, suggestion } from '../../helpers/tune-practice-report';
 
 const clock = { barTicks: 1920, countInTicks: 1920 };
 const buildPracticeReport = (phrase: Phrase, plan: InsertionPoint[], results: InsertionResult[], picked: Record<string, number> = {}) => buildReport(phrase, plan, results, clock, picked);
 const focusPracticePlan = (plan: InsertionPoint[], phrase: Phrase, ids: string[]) => focusPlan(plan, phrase, ids, clock);
 
-const suggestion: LickSuggestion = { lickId: 'a', lickName: 'First lick', category: 'major-chord', targetKey: 'C',
-	insertionOffset: [0, 1], insertionBar: 0, templateAlignmentOffset: [0, 1], masteryTier: 'known', matchSources: ['category'],
-	substitution: null, inPracticeSet: true, difficultyLevel: 20, lengthBars: 2, mode: 'major' };
-function point(id: string, start: number, extra: Partial<InsertionPoint> = {}): InsertionPoint {
-	return { id, progressionType: 'major-vamp', bandName: 'Major', detectedType: 'major-vamp', localKey: 'C', keyCenter: 'C',
-		degreeLabel: '1', startOffset: [start, 1], duration: [2, 1], playbackBarRange: { start, endExclusive: start + 2 },
-		notationSegmentIndices: [0], notationBarRange: { start: 0, endExclusive: 2 }, notationLabelBar: 0,
-		notationTimeRange: { start: 0, end: 2 }, markerKey: 'same-notation-marker', suggestions: [suggestion], uncategorizedCount: 0,
-		openTick: (start + 1) * 1920, closeTick: (start + 3) * 1920, ...extra };
-}
-function phrase(): Phrase {
-	return { id: 'tune', name: 'Tune', key: 'C', timeSignature: [4, 4], notes: [], category: 'user', tags: [], source: 'user',
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 16 },
-		harmony: [seg('C', 'maj7', [0, 1], [16, 1])],
-		performanceForm: { version: 1, totalBars: 16, sections: [], choruses: [
-			{ index: 0, role: 'head', startBar: 0, endBarExclusive: 4 },
-			{ index: 1, role: 'solo', startBar: 4, endBarExclusive: 8 },
-			{ index: 2, role: 'solo', startBar: 8, endBarExclusive: 12 },
-			{ index: 3, role: 'head', startBar: 12, endBarExclusive: 16 }
-		] } };
-}
-function result(id: string, percent: number | null): InsertionResult {
-	const grade = percent === null ? null : percent >= 55 ? 'good' : 'try-again';
-	return { insertionId: id, lickName: percent === null ? null : 'Played lick', grade, basePoints: 0, connectionBonus: 0,
-		score: percent === null ? null : { overall: percent / 100, grade } as Score };
-}
 describe('tune practice chorus report', () => {
 	it('joins results by insertion id and compares solo passes, excluding both heads', () => {
 		const report = buildPracticeReport(phrase(), [point('a', 4), point('b', 8)], [result('b', 90), result('a', 40)]);

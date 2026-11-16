@@ -7,6 +7,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { displayPitchClass } from '$lib/music/notation';
 	import { tunePath } from '$lib/tunes/tune-slug';
+	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import './tune-practice-report.css';
 
@@ -21,6 +22,8 @@
 	let focus = $state(false);
 	let queued = $state<string[]>([]);
 	const report = $derived(buildPracticeReport(phrase, plan, results, clock, picked));
+	// Use the original 0–1 score; rounding the displayed percentage must not promote a tier.
+	const tiers = $derived(new Map(results.map(result => [result.insertionId, result.score ? accuracyTierInfo(result.score.overall) : null])));
 	const needsWork = $derived(report.spots.filter(s => s.needsWork));
 	const selected = $derived(report.spots.find(s => s.id === selectedId) ?? needsWork[0] ?? report.spots[0]);
 	const selectedAttempt = $derived(selected?.attempts.at(-1));
@@ -33,7 +36,7 @@
 	function filterNeedsWork(): void { focus = true; selectedId = needsWork[0]?.id ?? null; }
 </script>
 
-<div class="tune-report" data-testid="tune-practice-report">
+<div class="studio-desk tune-report" data-testid="tune-practice-report">
 	<div class="tr-masthead"><span>Take complete</span><time>{elapsed}</time></div>
 	<header class="tr-heading">
 		<div><h1><span class="sr-only">Take complete — </span>{tune.title}</h1><p>{displayPitchClass(writtenKey, writtenKey)} <span>·</span> {tempo} BPM <span>·</span> {tune.style}</p></div>
@@ -68,14 +71,17 @@
 					<div class="tr-lane" style:height={`${Math.max(1, ...tiles.map(t => t.lane + 1)) * 40}px`}>
 						{#each tiles as tile (tile.attempt.point.id)}
 							{@const attempt = tile.attempt}
+							{@const tier = tiers.get(attempt.point.id)}
+							{@const medal = tier && ['gold', 'silver', 'bronze'].includes(tier.key)}
 							{@const spot = report.spots.find(s => s.id === attempt.spotId)!}
 							{@const previous = spot.attempts.find(a => a.chorus === chorus.index - 1)}
 							{@const movement = previous && ['hit','miss','open'].includes(previous.status) && ['hit','miss','open'].includes(attempt.status) ? previous.status !== 'hit' && attempt.status === 'hit' ? 'Recovered' : previous.status === 'hit' && attempt.status !== 'hit' ? 'Slipped' : '' : ''}
-							<button class="tr-take {attempt.status}" class:chosen={selected?.id === attempt.spotId} class:dimmed={focus && !spot.needsWork}
+							<button class="tr-take {attempt.status} {medal ? `lp-medal-chip lp-chip-${tier.key}` : tier ? 'flat-score' : ''}"
+								style:--score-tone={tier?.color} data-accuracy-tier={tier?.key} class:chosen={selected?.id === attempt.spotId} class:dimmed={focus && !spot.needsWork}
 								style:left={`${tile.left}%`} style:width={`calc(${tile.width}% - 6px)`} style:top={`${tile.lane * 40}px`}
 								aria-pressed={selected?.id === attempt.spotId} data-report-status={attempt.status} data-insertion-id={attempt.point.id}
-								aria-label={`Chorus ${chorus.index + 1}, bars ${Math.floor(attempt.start) + 1}–${Math.ceil(attempt.end)}: ${labels[attempt.status]}, ${attempt.name}${attempt.score === null ? '' : `, ${attempt.score}%`}`}
-								title={`${attempt.name} · ${labels[attempt.status]}`} onclick={() => selectedId = attempt.spotId}>
+								aria-label={`Chorus ${chorus.index + 1}, bars ${Math.floor(attempt.start) + 1}–${Math.ceil(attempt.end)}: ${labels[attempt.status]}, ${attempt.name}${attempt.score === null ? '' : `, ${attempt.score}%, ${tier?.label}`}`}
+								title={`${attempt.name} · ${labels[attempt.status]}${tier ? ` · ${tier.label}` : ''}`} onclick={() => selectedId = attempt.spotId}>
 								<span class="tr-symbol" aria-hidden="true">{symbols[attempt.status]}</span>
 								<span class="tr-name">{#if ['open','unplayed','unavailable'].includes(attempt.status)}{labels[attempt.status]}<small>{attempt.name}</small>{:else}{attempt.name}{/if}</span>
 								{#if queued.includes(attempt.spotId)}<span title="Added to practice">+</span>{/if}
@@ -93,7 +99,15 @@
 	{#if selected && selectedAttempt}
 		<div class="tr-selection" aria-live="polite">
 			<div class="tr-selection-title"><span>Bars {Math.floor(selected.start) + 1}–{Math.ceil(selected.end)} · {concertKeyToWritten(selectedAttempt.point.keyCenter, instrument)} · {selectedAttempt.point.bandName}</span><h2>{selectedAttempt.name}</h2></div>
-			<div class="tr-selected-scores">{#each selected.attempts as attempt}<div class={attempt.status}><span>Chorus {attempt.chorus + 1}</span><strong>{symbols[attempt.status]} {attempt.score === null ? labels[attempt.status] : `${attempt.score}%`}</strong></div>{/each}</div>
+			<div class="tr-selected-scores">
+				{#each selected.attempts as attempt}
+					{@const tier = tiers.get(attempt.point.id)}
+					<div class={attempt.status} style:color={tier?.color} data-accuracy-tier={tier?.key} title={tier?.label}>
+						<span>Chorus {attempt.chorus + 1}</span>
+						<strong>{symbols[attempt.status]} {attempt.score === null ? labels[attempt.status] : `${attempt.score}%`}{#if tier}<span class="sr-only"> — {tier.label}</span>{/if}</strong>
+					</div>
+				{/each}
+			</div>
 			{#if selected.attempts.some(a => a.point.suggestions.length > 0)}<button class="tr-action" class:queued={queued.includes(selected.id)} aria-pressed={queued.includes(selected.id)} onclick={() => toggleSpot(selected.id)}>{queued.includes(selected.id) ? '✓ Added to practice' : '+ Practice this spot'}</button>{/if}
 		</div>
 	{/if}

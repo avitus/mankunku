@@ -179,6 +179,24 @@ scrolling on small screens and a sticky lick-name column. Canvas sample
 scores are examples only; the application retains real session results,
 written-key transposition, historical scores and Deep Practice actions.
 
+### Tune chorus report
+
+`TunePracticeReport.svelte` applies the Studio Desk palette to the existing
+chorus-comparison layout. Its source design is MagicPath component
+`472917335972401152`, revision `473223231814402048`.
+
+Each scored insertion uses `accuracyTierInfo()` on the original 0–1 result,
+before rounding its displayed percentage. Gold, silver and bronze reuse
+`.lp-medal-chip` and `.lp-chip-*`; teal and deep teal use the shared flat 20%
+tier-color mix. The selected-spot readout uses the same tier and exposes its
+short grade label. Both themes inherit the application's existing tokens.
+
+Outcome symbols (✓ / × / ○), landed counts, filters and retry actions retain
+their existing meaning. They do not determine the score color. Unscored
+openings, unreached windows and unavailable licks stay neutral; selection and
+keyboard focus use brass independently of performance. The report retains real
+session data and does not persist practice progress or import prototype scores.
+
 ### Progression identity palette
 
 One muted hue per chord progression — `--prog-<ChordProgressionType>` (`--prog-minor-vamp` … `--prog-ii-V-I-major-long`), consumed only through `progressionColor(type)` in `src/lib/music/progression-display.ts` (an exhaustive `Record`, so a new progression won't type-check without a hue). It tints the library card's category pill and dots and carries into the lick-practice session header, so a lick reads as one thing across both. The hue encodes tonality as a cool→warm spectrum: minor progressions teal→indigo, the cyclic/bluesy turnarounds violet→rose, dominant and major terracotta→gold; `:root.light` re-steps them darker.
