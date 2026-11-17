@@ -761,6 +761,14 @@ describe('loadProgressFromCloud', () => {
 // ═════════════════════════════════════════════════════════════════════
 
 describe('syncSettingsToCloud', () => {
+	it('omits untouched settings so another browser cannot reset the account instrument or swing', async () => {
+		const mock = createMockSupabase();
+		await syncSettingsToCloud(mock as any, { masterVolume: 0.4 });
+		expect(mock._upsertFn).toHaveBeenCalledWith({
+			user_id: 'test-user-id', master_volume: 0.4, updated_at: expect.any(String)
+		}, { onConflict: 'user_id' });
+	});
+
 	beforeEach(() => {
 		vi.restoreAllMocks();
 	});

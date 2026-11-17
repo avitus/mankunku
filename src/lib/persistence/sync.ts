@@ -83,6 +83,27 @@ interface SyncableSettings {
 	bleedFilterEnabled: boolean;
 }
 
+/** Exhaustive field mapping; a partial settings save must omit every untouched column. */
+const SETTINGS_COLUMNS = {
+	instrumentId: 'instrument_id',
+	defaultTempo: 'default_tempo',
+	masterVolume: 'master_volume',
+	metronomeEnabled: 'metronome_enabled',
+	metronomeVolume: 'metronome_volume',
+	backingTrackEnabled: 'backing_track_enabled',
+	backingInstrument: 'backing_instrument',
+	backingTrackVolume: 'backing_track_volume',
+	swing: 'swing',
+	theme: 'theme',
+	onboardingComplete: 'onboarding_complete',
+	tonalityOverride: 'tonality_override',
+	highestNote: 'highest_note',
+	backingStyle: 'backing_style',
+	tuneBackingStyles: 'tune_backing_styles',
+	tuneTempos: 'tune_tempos',
+	bleedFilterEnabled: 'bleed_filter_enabled'
+} as const satisfies Record<keyof SyncableSettings, keyof Database['public']['Tables']['user_settings']['Insert']>;
+
 // ── Constants ────────────────────────────────────────────────────────
 
 /** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
@@ -647,41 +668,46 @@ export async function deleteDailySummariesFromCloud(
 // ═════════════════════════════════════════════════════════════════════
 
 /**
- * Upsert user settings to the `user_settings` table.
+ * Upsert changed user settings to the `user_settings` table. Omitted fields
+ * stay untouched, including choices made on another device since hydration.
  *
  * The `settings` parameter is typed via the `SyncableSettings` interface
  * which mirrors the fields from `settings.svelte.ts` defaults.
  */
 export async function syncSettingsToCloud(
 	supabase: SupabaseDB,
-	settings: SyncableSettings
+	settings: Partial<SyncableSettings>
 ): Promise<boolean> {
 	try {
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return false;
 
+		const row = {
+			user_id: userId,
+			instrument_id: settings.instrumentId,
+			default_tempo: settings.defaultTempo,
+			master_volume: settings.masterVolume,
+			metronome_enabled: settings.metronomeEnabled,
+			metronome_volume: settings.metronomeVolume,
+			backing_track_enabled: settings.backingTrackEnabled,
+			backing_instrument: settings.backingInstrument,
+			backing_track_volume: settings.backingTrackVolume,
+			swing: settings.swing,
+			theme: settings.theme,
+			onboarding_complete: settings.onboardingComplete,
+			tonality_override: (settings.tonalityOverride ?? null) as Json,
+			highest_note: settings.highestNote ?? null,
+			backing_style: settings.backingStyle,
+			tune_backing_styles: settings.tuneBackingStyles ?? {},
+			tune_tempos: settings.tuneTempos ?? {},
+			bleed_filter_enabled: settings.bleedFilterEnabled,
+			updated_at: new Date().toISOString()
+		};
+		for (const key of Object.keys(SETTINGS_COLUMNS) as (keyof SyncableSettings)[]) {
+			if (!Object.hasOwn(settings, key)) Reflect.deleteProperty(row, SETTINGS_COLUMNS[key]);
+		}
 		const { error } = await supabase.from('user_settings').upsert(
-			{
-				user_id: userId,
-				instrument_id: settings.instrumentId,
-				default_tempo: settings.defaultTempo,
-				master_volume: settings.masterVolume,
-				metronome_enabled: settings.metronomeEnabled,
-				metronome_volume: settings.metronomeVolume,
-				backing_track_enabled: settings.backingTrackEnabled,
-				backing_instrument: settings.backingInstrument,
-				backing_track_volume: settings.backingTrackVolume,
-				swing: settings.swing,
-				theme: settings.theme,
-				onboarding_complete: settings.onboardingComplete,
-				tonality_override: (settings.tonalityOverride ?? null) as Json,
-				highest_note: settings.highestNote ?? null,
-				backing_style: settings.backingStyle,
-				tune_backing_styles: settings.tuneBackingStyles ?? {},
-				tune_tempos: settings.tuneTempos ?? {},
-				bleed_filter_enabled: settings.bleedFilterEnabled,
-				updated_at: new Date().toISOString()
-			},
+			row,
 			{ onConflict: 'user_id' }
 		);
 

@@ -90,6 +90,113 @@ describe('shipped defaults', () => {
 });
 
 describe('loadSettingsFromCloud', () => {
+	it('loads the account instrument even when another setting was edited before hydration', async () => {
+		settingsModule.settings.theme = 'light';
+		settingsModule.saveSettings();
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax', highestNote: 87, theme: 'dark' });
+
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+
+		expect(settingsModule.settings.instrumentId).toBe('soprano-sax');
+		expect(settingsModule.settings.highestNote).toBe(87);
+		expect(settingsModule.settings.theme).toBe('light');
+	});
+
+	it('preserves only edited fields across a reload before the outbox drains', async () => {
+		settingsModule.settings.defaultTempo = 144;
+		settingsModule.saveSettings();
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax', defaultTempo: 100 });
+
+		await reloaded.loadSettingsFromCloud(mockSupabase() as any);
+
+		expect(reloaded.settings.instrumentId).toBe('soprano-sax');
+		expect(reloaded.settings.defaultTempo).toBe(144);
+	});
+
+	it('a no-op save does not prevent loading account settings', async () => {
+		settingsModule.saveSettings();
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax' });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.instrumentId).toBe('soprano-sax');
+	});
+
+	it('does not push an old instrument or swing when a browser changes only its volume', async () => {
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax', swing: 0.5 });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		settingsModule.settings.masterVolume = 0.4;
+		settingsModule.saveSettings();
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
+		expect(syncSettingsToCloud).toHaveBeenLastCalledWith(expect.anything(), { masterVolume: 0.4 });
+
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax', swing: 0.62, masterVolume: 0.4 });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.instrumentId).toBe('soprano-sax');
+		expect(settingsModule.settings.swing).toBe(0.62);
+	});
+
+	it('keeps a pending edit when its flush finishes before an older read returns', async () => {
+		mockFetchSettings.mockResolvedValue({ swing: 0.5 });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		settingsModule.settings.swing = 0.62;
+		settingsModule.saveSettings();
+		let answer!: (value: unknown) => void;
+		mockFetchSettings.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+		const reading = settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		answer({ instrumentId: 'soprano-sax', swing: 0.5 });
+		await reading;
+		expect(settingsModule.settings.swing).toBe(0.62);
+		expect(settingsModule.settings.instrumentId).toBe('soprano-sax');
+	});
+
+	it('retains a newer edit made during a push, including after restarting', async () => {
+		mockFetchSettings.mockResolvedValue({ swing: 0.5 });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
+		let finish!: (value: boolean) => void;
+		vi.mocked(syncSettingsToCloud).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+		settingsModule.settings.swing = 0.62;
+		settingsModule.saveSettings();
+		const flushing = settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		settingsModule.settings.swing = 0.67;
+		settingsModule.saveSettings();
+		finish(true);
+		await flushing;
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax', swing: 0.62 });
+		await reloaded.loadSettingsFromCloud(mockSupabase() as any);
+		expect(reloaded.settings.swing).toBe(0.67);
+		expect(reloaded.settings.instrumentId).toBe('soprano-sax');
+	});
+
+	it('keeps legacy unsent edits when a returning browser has no per-field metadata yet', async () => {
+		store.set('mankunku:settings', JSON.stringify({ instrumentId: 'soprano-sax', swing: 0.62 }));
+		store.set('mankunku:settings-local-rev', '3');
+		store.set('mankunku:settings-synced-rev', '2');
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax', swing: 0.5 });
+		await reloaded.loadSettingsFromCloud(mockSupabase() as any);
+		expect(reloaded.settings.instrumentId).toBe('soprano-sax');
+		expect(reloaded.settings.swing).toBe(0.62);
+	});
+
+	it('sends the range reset with an instrument change even when it was already null locally', async () => {
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax', highestNote: null });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		settingsModule.settings.instrumentId = 'soprano-sax';
+		settingsModule.saveSettings();
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
+		expect(syncSettingsToCloud).toHaveBeenLastCalledWith(expect.anything(), {
+			instrumentId: 'soprano-sax', highestNote: null
+		});
+	});
+
 	it('merges cloud settings into reactive state', async () => {
 		mockFetchSettings.mockResolvedValue({
 			instrumentId: 'alto-sax',
