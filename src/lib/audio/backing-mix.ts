@@ -118,8 +118,10 @@ export function loadBackingMix(): BackingMixLevels {
   if (current) return normalizeBackingMix(JSON.parse(current));
   const old=localStorage.getItem(VELOCITY_STORAGE_KEY);
   const mix=old ? migrateBackingMix(JSON.parse(old)) : { ...DEFAULT_BACKING_MIX };
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(mix));
-  localStorage.removeItem(LEGACY_STORAGE_KEY);
+  try {
+   localStorage.setItem(STORAGE_KEY,JSON.stringify(mix));
+   localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch { /* Keep the migrated balance; retry persistence on the next load. */ }
   return mix;
  } catch { return { ...DEFAULT_BACKING_MIX }; }
 }

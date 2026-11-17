@@ -301,7 +301,7 @@ export async function renderEventsToWav(
 					: new Soundfont(context, { ...SOUNDFONT_OPTIONS, instrument: 'drawbar_organ', kit: 'MusyngKite', destination: compGain, scheduler }).load,
 				createDrumMixer(context, Sampler, drumBuffers, drumPans, () => scheduler)
 			]);
-			drums.setMix(mix);
+			drums.setMix(mix, true);
 			const drumSamplers = drums.samplers;
 
 			for (const e of generated.bassEvents) {

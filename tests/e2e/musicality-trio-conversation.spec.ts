@@ -30,7 +30,7 @@ test('0.12 gestures retained in current full Blues sounds all three gestures and
     const label=document.querySelector(`[data-testid="musician-${instrument}"] h4`)?.textContent;
     if(label)labels.add(label);
    }
-   for(const [i,label] of ['Bass','Piano','Drums','Master'].entries()){
+   for(const [i,label] of ['Bass','Piano','Drums','Backing'].entries()){
     const db=Number(document.querySelector(`[role="meter"][aria-label="${label} audio signal"]`)?.getAttribute('aria-valuenow')??-60);
     if(Number.isFinite(db))peaks[i]=Math.max(peaks[i],db);
    }
@@ -40,7 +40,7 @@ test('0.12 gestures retained in current full Blues sounds all three gestures and
 
  expect(observed.labels).toEqual(expect.arrayContaining(['Repeat, then move','Catch the bass figure','Color the dominant']));
  for(const peak of observed.peaks)expect(peak).toBeGreaterThan(-46);
- expect(observed.peaks[3]).toBeLessThan(0);
+ // This tap is before the shared output limiter; audio-mixer.spec.ts pins its ceiling.
  await page.locator('details.take-notes > summary').click();
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByTestId('listening-export').click()]);
  const path=(await download.path())!;

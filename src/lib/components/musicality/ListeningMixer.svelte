@@ -8,6 +8,7 @@
  } = $props();
  const instruments = $derived([{ key: 'bass', label: 'Bass' }, { key: 'comp', label: keyboardLabel }, { key: 'drums', label: 'Drums' }, { key: 'room', label: 'Room' }] as const);
  let remembered = $state({ bass: 1, comp: 1, drums: 1, room: 1 });
+ const outputDb = $derived(playing && signal?.master?.peak ? Math.max(-60,20*Math.log10(signal.master.peak)) : -60);
  /** Toggle silence while remembering the previous instrument balance. */
  function mute(key: 'bass' | 'comp' | 'drums' | 'room') {
   if (mix[key] > 0) { remembered[key] = mix[key]; onchange({ ...mix, [key]: 0 }); }
@@ -16,6 +17,10 @@
 </script>
 <section class="mixer" class:dark aria-label="Listening mix" data-testid="listening-mixer">
  <div class="heading"><h3>Listening mix</h3><span>0 dB = reference balance</span></div>
+ <div class="band-signal" role="meter" aria-label="Backing audio signal" aria-valuemin={-60} aria-valuemax={Math.max(0,outputDb)} aria-valuenow={outputDb}
+  aria-valuetext={playing && !signal?.master ? 'Signal unavailable' : `${Math.round(outputDb)} dBFS`} title="Combined band after Backing volume, before listening Master">
+  <span>Backing output</span><span>{playing && !signal?.master ? 'Unavailable' : `${Math.round(outputDb)} dBFS`}</span>
+ </div>
  <div class="channels">{#each instruments as instrument}
   {@const level=signal?.[instrument.key]}
   {@const db=playing && mix[instrument.key]>0 && level?.peak ? Math.max(-60,Math.min(0,20*Math.log10(level.peak))) : -60}
@@ -37,6 +42,7 @@
  .mixer{--ink:var(--color-text);--subtle:var(--color-text-secondary);--line:var(--color-bg-tertiary);--accent:var(--color-brass);padding:1rem 0;border-block:1px solid var(--line);color:var(--ink);margin-bottom:1.25rem}
  .dark{--ink:#dbe0e5;--subtle:#9aaabc;--line:#425267;--accent:#d5ad6c}
  .heading{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.65rem}.heading h3{margin:0;font-size:.7rem;font-weight:500}.heading span{font-size:.55rem;color:var(--subtle)}
+ .band-signal{display:flex;justify-content:space-between;gap:.5rem;font-size:.65rem;color:var(--subtle);font-variant-numeric:tabular-nums;margin-bottom:.4rem}
  .channels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;padding:.4rem 0}
  .channel{display:flex;flex-direction:column;align-items:center;gap:.55rem;font-size:.68rem;border-right:1px solid color-mix(in srgb,var(--line) 45%,transparent)}.channel:last-child{border-right:0}
  .channel label{font-weight:500;letter-spacing:.025em}.fader{position:relative;height:118px;width:44px;display:flex;justify-content:center}

@@ -1,11 +1,8 @@
 import { test, expect } from './fixtures/test';
-import { readFile } from 'node:fs/promises';
-import ts from 'typescript';
+import { audioReferenceBundle } from './fixtures/audio-reference-bundle';
 
-test('band Master adds exactly 6 dB after compression, scales independently and mutes', async ({ page }) => {
- const source = ts.transpileModule(await readFile('src/lib/audio/backing-output.ts', 'utf8'), {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
- }).outputText;
+test('shared Backing reference scales only after compression and mutes exactly', async ({ page }) => {
+ const source = await audioReferenceBundle();
  const measurements = await page.evaluate(async source => {
   const { connectBackingOutput } = await import(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
   async function render(master: number | null) {
@@ -20,12 +17,12 @@ test('band Master adds exactly 6 dB after compression, scales independently and 
    return Array.from((await context.startRendering()).getChannelData(0));
   }
   const reference = await render(null);
-  const boosted = await render(1), half = await render(.5), muted = await render(0);
+  const boosted = await render(.6), half = await render(.3), muted = await render(0);
   const rms = (samples: number[]) => Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
   return { db: 20 * Math.log10(rms(boosted) / rms(reference)), half: rms(half) / rms(boosted), muted: rms(muted),
-   maxError: Math.max(...boosted.map((value, i) => Math.abs(value - reference[i] * 10 ** (6 / 20)))) };
+   maxError: Math.max(...boosted.map((value, i) => Math.abs(value - reference[i] * 4))) };
  }, source);
- expect(measurements.db).toBeCloseTo(6, 5);
+ expect(measurements.db).toBeCloseTo(20 * Math.log10(4), 5);
  expect(measurements.half).toBeCloseTo(.5, 6);
  expect(measurements.muted).toBe(0);
  expect(measurements.maxError).toBeLessThan(1e-6);

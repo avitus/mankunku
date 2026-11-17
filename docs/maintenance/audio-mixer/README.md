@@ -121,12 +121,16 @@ release; no automated test plays sound on the developer's desktop.
   replacing the dB taper/clamp then failed all four PCM tests and all three policy
   tests. These mutations were confined to the disposable container.
 
-The WebKit replay regression is specifically covered: temporarily muting a media
-element while its source is constructed can leave its Web Audio output silent.
-The action now pauses and restores the original mute state **before** creating the
-source, connects it once, then starts playback. Tests wait for media progress and
-check startup mute, unmute, half amplitude, and re-mute. Type checking completed
-with no errors or warnings. All browser playback ran in Linux sandboxes.
+Native media replay is covered in Chromium and WebKit.
+The action uses volume zero as its startup guard, pauses and restores the original
+volume **before** creating the source, connects it once, then starts playback.
+Native mute remains under user control. Tests start through a real Play click and
+wait for actual PCM rather than assuming that an advancing media clock means the
+decoder is producing samples. Linux WebKit can report `muted` after routing because
+[its GStreamer provider mutes the direct speaker branch](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/platform/audio/gstreamer/AudioSourceProviderGStreamer.cpp);
+the test measures the Web Audio output itself. It checks startup silence, unmute,
+half amplitude, recording isolation, and re-mute. All browser playback ran in Linux
+sandboxes.
 
 Integration onto `dev` retained separate scoring capture, per-field cloud sync,
 and the retired arrangement selector. The six affected unit suites passed in

@@ -125,11 +125,6 @@
 
 	/** Toggle one recorded take through Master, ignoring superseded async loads. */
 	async function toggleAudio(sessionId: string) {
-		// If a lick is playing, stop it first so audio sources don't overlap.
-		if (playingLickSessionId) {
-			await stopLickPlayback();
-		}
-
 		// Capture before stopping — stopRecordingPlayback() nulls
 		// playingSessionId, so checking it afterwards would always miss.
 		const wasPlayingSameSession = playingSessionId === sessionId;
@@ -137,6 +132,11 @@
 		const generation = replayGeneration;
 		if (wasPlayingSameSession) {
 			return;
+		}
+		// Claim this request before any await, including stopping a synthesized lick.
+		if (playingLickSessionId) {
+			await stopLickPlayback();
+			if (generation !== replayGeneration) return;
 		}
 
 		try {

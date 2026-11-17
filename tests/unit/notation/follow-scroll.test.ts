@@ -166,6 +166,14 @@ describe('followOffsetPx — reading line + clamp', () => {
 });
 
 describe('followOffsetPx — current-line visibility', () => {
+	it('keeps the final system fully visible when the previous system cannot fit', () => {
+		const systems = buildFollowSystems([{ absBar: 0, systemIdx: 0 }, { absBar: 1, systemIdx: 1 }], [30, 430], [280, 690]);
+		for (const barFraction of [1, 1.5, 1.99, 2]) {
+			const offset = followOffsetPx({ systems, barFraction, viewportPx: 300, contentPx: 700 });
+			expect(430 + offset).toBeGreaterThanOrEqual(8);
+			expect(690 + offset).toBeLessThanOrEqual(300);
+		}
+	});
 	// Key-center rails increased row spacing, even with the rails hidden.
 	const systems: FollowSystem[] = [
 		{ firstBar: 0, lastBarExclusive: 4, topPx: 30 },

@@ -41,15 +41,15 @@ export async function createDrumMixer(context: BaseAudioContext, Instrument: typ
   }
   await Promise.all([...Object.values(samplers), ...(countoff ? [countoff] : [])].map(s=>s.load));
   return { samplers, countoff, dispose,
-  /** Apply amplitude faders without changing articulation velocity. */
-  setMix(mix: BackingMixLevels) {
+  /** Apply amplitude faders; offline setup is immediate, live edits are smoothed. */
+  setMix(mix: BackingMixLevels, immediate = false) {
    for (const voice of DRUM_VOICES) {
     const param = gains[voice].gain;
     const previous = param.value;
     param.cancelScheduledValues(0);
     param.value = previous;
     const value = drumCalibration(voice) * mix[voice];
-    if (value === 0) param.value = 0;
+    if (immediate || value === 0) param.value = value;
     else param.setTargetAtTime(value,context.currentTime,.005);
    }
   } };

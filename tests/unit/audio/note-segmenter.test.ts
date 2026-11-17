@@ -44,6 +44,12 @@ describe('segmentNotes: semitone-boundary flutter', () => {
 		expect(notes[0].cents).toBe(-46);
 	});
 
+	it('preserves supplied onset boundaries when provenance is omitted', () => {
+		const readings = contour([70.4, 70.6]);
+		expect(segmentNotes(readings, [0, .3], .6).map(n => n.midi)).toEqual([70, 71]);
+		expect(segmentNotes(readings, [0], .6)).toHaveLength(1);
+	});
+
 	it('does not round a mostly lower-side note up toward an expected pitch', () => {
 		const notes = detect(contour([70.48, 70.54, 70.47, 70.46]));
 		expect(notes).toHaveLength(1);

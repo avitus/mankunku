@@ -52,7 +52,7 @@
 		border-bottom: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent);
 		background: transparent;
 	}
-	.compact h3 { font-family: var(--font-sans); font-size: 15px; }
+	.compact h3 { font-family: inherit; font-size: 15px; }
 	.compact .attribution { grid-column: 2; }
 	.compact .origin { grid-column: 3; grid-row: 1; }
 	.compact .arrow { grid-column: 4; grid-row: 1; }

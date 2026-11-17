@@ -293,7 +293,9 @@ export function segmentNotes(
 	}
 
 	const boundaryMerged = mergeSemitoneBoundaryFragments(
-		notes, readings, workletOnsets ?? [], bleedOnsets ?? [], articulationOnsets ?? []
+		notes, readings,
+		workletOnsets === undefined && articulationOnsets === undefined ? onsets : workletOnsets ?? [],
+		bleedOnsets ?? [], articulationOnsets ?? []
 	);
 
 	// Sandwich rule: a note that is ±12 from BOTH neighbors when those

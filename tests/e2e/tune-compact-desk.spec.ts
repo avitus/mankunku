@@ -104,6 +104,9 @@ for (const width of [1440, 768, 390]) {
 				await expect(page.getByRole('complementary', { name: 'Browse and manage tunes' })).toBeHidden();
 				await page.getByRole('button', { name: 'Browse', exact: true }).click();
 				await expect(page.getByRole('button', { name: 'Browse', exact: true })).toHaveAttribute('aria-expanded', 'true');
+				await page.getByRole('searchbox', { name: 'Search tunes' }).focus();
+				await page.keyboard.press('Tab');
+				await expect(page.getByRole('button', { name: /^All tunes/ })).toBeFocused();
 			}
 			await page.getByLabel('Tune view').selectOption('cards');
 			await expect(page.locator('.library-cards')).toBeVisible();

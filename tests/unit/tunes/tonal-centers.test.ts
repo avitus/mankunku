@@ -35,6 +35,16 @@ describe('governing major centers and brief tonicizations', () => {
 		expect(result.contextualMajorRegions[0]).toMatchObject({ key: 'C', duration: [5, 1],
 			secondaryDominant: { targetKey: 'D', targetDegree: 'ii' } });
 	});
+	it('times the return at the chord entrance, independently of notation splits', () => {
+		const held = passage(['Dm7', 'Fmaj7', 'G7']);
+		held.sections[0].harmony.at(-1)!.duration = [2, 1];
+		held.sections[0].bars = 7;
+		const split = passage(['Dm7', 'Fmaj7', 'G7', 'G7', 'G7', 'G7']);
+		const a = analyze(held).contextualMajorRegions[0];
+		const b = analyze(split).contextualMajorRegions[0];
+		expect(a).toMatchObject({ key: 'C', duration: [13, 2] });
+		expect(b).toMatchObject({ key: a.key, duration: a.duration });
+	});
 	it.each([
 		['B7', 'Em7', 'iii'], ['C7', 'Fmaj7', 'IV'], ['D7', 'G7', 'V'], ['E7', 'Am7', 'vi']
 	])('explains %s resolving to %s as V/%s', (dominant, target, degree) => {

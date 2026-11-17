@@ -211,3 +211,12 @@ it('migrates old velocity faders once and folds the retired band master into ins
  expect(loadBackingMix()).toEqual(mix);
  expect(migrateBackingMix({kick:3,master:3})).toMatchObject({kick:3,bass:3});
 });
+
+it('retains migrated mute and balance when saving the migration fails', () => {
+ const store = stubStorage();
+ store['backing-mix-levels-v2'] = JSON.stringify({ bass: 0, ride: .5 });
+ localStorage.setItem = () => { throw new Error('Quota exceeded'); };
+ expect(loadBackingMix()).toMatchObject({ bass: 0, ride: .25 });
+ expect(loadBackingMix()).toMatchObject({ bass: 0, ride: .25 });
+ expect(store).not.toHaveProperty('backing-mix-levels-v3');
+});

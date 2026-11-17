@@ -102,6 +102,30 @@
 			<input type="search" aria-label="Search tunes" placeholder="Find a tune or composer…" bind:value={searchQuery} data-tour="tune-search" />
 		</header>
 
+	<aside id="tune-browse" class="studio-panel tune-browse" class:open={browseOpen} aria-label="Browse and manage tunes">
+		<h2>Browse</h2>
+		<div class="browse-content">
+			<div>
+				<div class="collection-controls studio-well" role="group" aria-label="Collection filters">
+					{#each [{ value: 'all', label: 'All tunes', count: allSheets.length }, { value: 'personal', label: 'Your book', count: personalCount }, { value: 'curated', label: 'Curated', count: allSheets.length - personalCount }] as scope}
+						<button aria-pressed={collectionScope === scope.value} onclick={() => collectionScope = scope.value}><span>{scope.label}</span><span>{scope.count}</span></button>
+					{/each}
+				</div>
+				<label class="browse-field"><span class="studio-label">View</span><select aria-label="Tune view" bind:value={libraryView}><option value="compact">Compact</option><option value="cards">Cards</option></select></label>
+				<label class="browse-field"><span class="studio-label">Tunes per page</span><select aria-label="Tunes per page" bind:value={pageSize}><option value={20}>20</option><option value={40}>40</option><option value={Number.MAX_SAFE_INTEGER}>All</option></select></label>
+			</div>
+			<div class="browse-actions">
+				<a href="/tunes/add" class="studio-action" data-tour="add-tune">Add a tune <span aria-hidden="true">+</span></a>
+				<a href="/tunes/community" class="browse-link" data-tour="browse-tune-community">Browse community ↗&#xfe0e;</a>
+				<details><summary>Import a tune</summary><div class="import-links">
+					{#each [['MuseScore', 'musescore'], ['iReal Pro', 'ireal'], ['Band-in-a-Box', 'biab'], ['PDF', 'pdf']] as [label, route]}<a href="/tunes/import/{route}">{label} ↗&#xfe0e;</a>{/each}
+				</div></details>
+				<a href="/docs/tunes" class="browse-link">Help with tunes ↗&#xfe0e;</a>
+				<TourTrigger tourId="tunes" steps={tunesTour} label="How your songbook works" />
+			</div>
+		</div>
+	</aside>
+
 		<div class="tune-collection">
 			{#if recentSheets.length}
 				<section class="recent-tunes" aria-labelledby="recent-tunes-heading">
@@ -146,35 +170,13 @@
 		</div>
 
 	</div>
-	<aside id="tune-browse" class="studio-panel tune-browse" class:open={browseOpen} aria-label="Browse and manage tunes">
-		<h2>Browse</h2>
-		<div class="browse-content">
-			<div>
-				<div class="collection-controls studio-well" role="group" aria-label="Collection filters">
-					{#each [{ value: 'all', label: 'All tunes', count: allSheets.length }, { value: 'personal', label: 'Your book', count: personalCount }, { value: 'curated', label: 'Curated', count: allSheets.length - personalCount }] as scope}
-						<button aria-pressed={collectionScope === scope.value} onclick={() => collectionScope = scope.value}><span>{scope.label}</span><span>{scope.count}</span></button>
-					{/each}
-				</div>
-				<label class="browse-field"><span class="studio-label">View</span><select aria-label="Tune view" bind:value={libraryView}><option value="compact">Compact</option><option value="cards">Cards</option></select></label>
-				<label class="browse-field"><span class="studio-label">Tunes per page</span><select aria-label="Tunes per page" bind:value={pageSize}><option value={20}>20</option><option value={40}>40</option><option value={Number.MAX_SAFE_INTEGER}>All</option></select></label>
-			</div>
-			<div class="browse-actions">
-				<a href="/tunes/add" class="studio-action" data-tour="add-tune">Add a tune <span aria-hidden="true">+</span></a>
-				<a href="/tunes/community" class="browse-link" data-tour="browse-tune-community">Browse community ↗&#xfe0e;</a>
-				<details><summary>Import a tune</summary><div class="import-links">
-					{#each [['MuseScore', 'musescore'], ['iReal Pro', 'ireal'], ['Band-in-a-Box', 'biab'], ['PDF', 'pdf']] as [label, route]}<a href="/tunes/import/{route}">{label} ↗&#xfe0e;</a>{/each}
-				</div></details>
-				<a href="/docs/tunes" class="browse-link">Help with tunes ↗&#xfe0e;</a>
-				<TourTrigger tourId="tunes" steps={tunesTour} label="How your songbook works" />
-			</div>
-		</div>
-	</aside>
+
 </div>
 
 <style>
 	.tune-library { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 24px; align-items: start; }
-	.tune-main { min-width: 0; }
-	.tune-heading { margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; }
+	.tune-main { display: contents; }
+	.tune-heading { grid-column: 1; margin-bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; }
 	.tune-heading h1 { font: 500 48px/1 var(--font-display); letter-spacing: -0.03em; }
 	.tune-heading h1 span { color: var(--color-brass); }
 	.tune-heading input { width: min(340px, 60%); min-width: 0; padding: 11px 12px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 4px; color: var(--studio-text); font-size: 14px; }
@@ -187,7 +189,7 @@
 	.tune-rows { border: 1px solid var(--studio-border); border-radius: 6px; background: var(--studio-panel); overflow: hidden; }
 	.recent-rows { background: var(--studio-well); }
 	.tune-rows.library-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; border: 0; background: transparent; overflow: visible; }
-	.tune-browse { padding: 24px 16px 16px; }
+	.tune-browse { grid-column: 2; grid-row: 1 / span 2; padding: 24px 16px 16px; }
 	.tune-browse > h2 { font: 500 24px/1.2 var(--font-display); margin-bottom: 20px; }
 	.collection-controls { display: grid; gap: 4px; padding: 4px; }
 	.collection-controls button { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; min-height: 44px; border: 1px solid transparent; border-radius: 4px; color: var(--studio-text); font-size: 13px; text-align: left; }

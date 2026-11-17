@@ -78,7 +78,7 @@ export function contextualMajorRegions(
 			const prefix = tail.slice(0, i + 1).map(j => evidence[j]!.root);
 			return new Set(prefix).size >= 3 && prefix.some(root => root === region.key || root === transposePitchClass(region.key, 7)) &&
 				new Set(prefix.filter(root => root !== resolution.root && precedingRoots.has(root))).size >= 2 &&
-				fractionToFloat(subtractFractions(endOf(index), harmony[resolutionIndex].startOffset)) <= 2 * barLength;
+				fractionToFloat(subtractFractions(harmony[index].startOffset, harmony[resolutionIndex].startOffset)) <= 2 * barLength;
 		});
 		if (roots.size < 3 || returnEnd < 0 ||
 			fractionToFloat(subtractFractions(endOf(tail.at(-1)!), harmony[resolutionIndex].startOffset)) < barLength) continue;

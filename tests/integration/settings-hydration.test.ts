@@ -90,6 +90,34 @@ describe('shipped defaults', () => {
 });
 
 describe('loadSettingsFromCloud', () => {
+	it('uploads an explicit null reset while ordinary no-op saves send nothing', async () => {
+		mockFetchSettings.mockResolvedValue({ tonalityOverride: null });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
+		vi.mocked(syncSettingsToCloud).mockClear();
+		settingsModule.saveSettings();
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		expect(syncSettingsToCloud).not.toHaveBeenCalled();
+		settingsModule.saveSettings(undefined, ['tonalityOverride']);
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		expect(syncSettingsToCloud).toHaveBeenLastCalledWith(expect.anything(), { tonalityOverride: null });
+	});
+
+	it('keeps an edited range paired with its instrument across reload and cloud hydration', async () => {
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax', highestNote: null });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		settingsModule.settings.highestNote = 78;
+		settingsModule.saveSettings();
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax', highestNote: 90, swing: .67 });
+		await reloaded.loadSettingsFromCloud(mockSupabase() as any);
+		expect(reloaded.settings).toMatchObject({ instrumentId: 'tenor-sax', highestNote: 78, swing: .67 });
+		await reloaded.flushSettingsToCloud(mockSupabase() as any);
+		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
+		expect(syncSettingsToCloud).toHaveBeenLastCalledWith(expect.anything(), { instrumentId: 'tenor-sax', highestNote: 78 });
+	});
+
 	it('keeps melody balance on the device without sending a cloud patch', async () => {
 		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax' });
 		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);

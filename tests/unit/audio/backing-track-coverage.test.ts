@@ -231,6 +231,16 @@ describe('backing track covers the full phrase', () => {
 		vi.resetModules();
 		recorded.length = 0;
 	});
+	it('provides a stable room monitor tap before an impulse response can decode', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const monitor = await import('$lib/audio/backing-signal-monitor');
+		const create = vi.spyOn(monitor, 'createSignalMonitor').mockReturnValue(null);
+		try {
+			mod.createBackingSignalMonitor();
+			expect(create.mock.calls[0][0].room).toBeTruthy();
+		} finally { create.mockRestore(); }
+	});
 
 	it('schedules drums for every bar of the melody, not just the harmony', async () => {
 		const mod = await import('$lib/audio/backing-track');

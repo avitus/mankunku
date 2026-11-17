@@ -246,6 +246,11 @@ function ensureBackingGraph(audioCtx: AudioContext): void {
 		compGain = audioCtx.createGain();
 		compGain.connect(compPan);
 	}
+	// Keep the tap stable while the best-effort impulse response loads in the background.
+	if (!roomReturn) {
+		roomReturn = audioCtx.createGain();
+		roomReturn.connect(backingGain);
+	}
 	buildRoomGraph(audioCtx);
 }
 
@@ -284,9 +289,7 @@ function buildRoomGraph(audioCtx: AudioContext): void {
 	if (!roomConvolver) {
 		roomConvolver = audioCtx.createConvolver();
 		roomConvolver.buffer = roomIrBuffer;
-		roomReturn = audioCtx.createGain();
-		roomConvolver.connect(roomReturn);
-		roomReturn.connect(backingGain);
+		roomConvolver.connect(roomReturn!);
 	}
 	const tap = (source: AudioNode | null, key: 'bass' | 'comp' | DrumFamily): void => {
 		if (!source || roomSends[key]) return;

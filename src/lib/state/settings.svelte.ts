@@ -88,6 +88,11 @@ let localRev = load<number>(LOCAL_REV_KEY) ?? 0;
 let syncedRev = load<number>(SYNCED_REV_KEY) ?? 0;
 const pendingFields: FieldRevisions = load<FieldRevisions>(PENDING_FIELDS_KEY) ??
 	(localRev > syncedRev ? Object.fromEntries(settingsKeys.map((key) => [key, localRev])) : {});
+// An instrument and its range form one edit, including pending edits from older builds.
+if (pendingFields.instrumentId !== undefined || pendingFields.highestNote !== undefined) {
+	const revision = Math.max(pendingFields.instrumentId ?? 0, pendingFields.highestNote ?? 0);
+	pendingFields.instrumentId = pendingFields.highestNote = revision;
+}
 // Also remember already-sent edits for reads that began BEFORE those edits.
 const lastEdited: FieldRevisions = { ...pendingFields };
 let savedSnapshot: Settings = snapshotSettings();
@@ -96,12 +101,16 @@ function snapshotSettings(): Settings {
 	return JSON.parse(JSON.stringify(settings)) as Settings;
 }
 
-export function saveSettings(supabase?: SupabaseClient<Database>): void {
+/** Persist edits, with explicit fields for resets that must replace a stale cloud value. */
+export function saveSettings(supabase?: SupabaseClient<Database>, explicitFields: readonly SettingsKey[] = []): void {
 	const snapshot = snapshotSettings();
-	const changed = settingsKeys.filter((key) => JSON.stringify(snapshot[key]) !== JSON.stringify(savedSnapshot[key]));
+	const changed = settingsKeys.filter((key) => explicitFields.includes(key) || JSON.stringify(snapshot[key]) !== JSON.stringify(savedSnapshot[key]));
 	// A range reset belongs to the instrument choice, including null → null:
 	// another browser may have saved an explicit range for the previous instrument.
-	if (changed.includes('instrumentId') && !changed.includes('highestNote')) changed.push('highestNote');
+	if (changed.includes('instrumentId') || changed.includes('highestNote')) {
+		if (!changed.includes('instrumentId')) changed.push('instrumentId');
+		if (!changed.includes('highestNote')) changed.push('highestNote');
+	}
 	if (changed.length > 0) {
 		localRev++;
 		for (const key of changed) pendingFields[key] = lastEdited[key] = localRev;

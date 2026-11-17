@@ -39,18 +39,18 @@ test('drum faders halve waveform amplitude without changing velocity layers or c
    for(let i=0;i<pcm.length;i++) pcm[i]=.05*Math.sin(i*2*Math.PI*440/48000);
    const drums=await lib.createDrumMixer(ctx,lib.sampler.Sampler,{snare_ghost:buffer,snare_med:buffer,snare_acc:buffer,crossstick:buffer},
     {kick:band,snare:band,cymbals:band},()=>new lib.sampler.Scheduler(ctx,{lookaheadMs:1000}),click);
-   drums.setMix({...lib.DEFAULT_BACKING_MIX,snare:level,crossstick:0});
-   drums.samplers.snare.start({note:lib.drumBufferForVelocity('snare',.8),velocity:102,time:.05});
-   drums.countoff.start({note:'crossstick',velocity:76,time:.05});
+   drums.setMix({...lib.DEFAULT_BACKING_MIX,snare:level,crossstick:0},true);
+   drums.samplers.snare.start({note:lib.drumBufferForVelocity('snare',.8),velocity:102,time:0});
+   drums.countoff.start({note:'crossstick',velocity:76,time:0});
    const audio=await ctx.startRendering();
    return Array.from({length:2},(_,c)=>Array.from(audio.getChannelData(c)));
   };
   const a=await render(1),b=await render(.5),mute=await render(0);
-  let error=0,clickError=0,peak=0,mutePeak=0;
-  for(let i=2400;i<a[0].length;i++) {error=Math.max(error,Math.abs(a[0][i]*.5-b[0][i]));clickError=Math.max(clickError,Math.abs(a[1][i]-b[1][i]),Math.abs(a[1][i]-mute[1][i]));peak=Math.max(peak,Math.abs(a[0][i]));mutePeak=Math.max(mutePeak,Math.abs(mute[0][i]));}
-  return {error,clickError,peak,mutePeak};
+  let error=0,clickError=0,clickPeak=0,peak=0,mutePeak=0;
+  for(let i=0;i<a[0].length;i++) {error=Math.max(error,Math.abs(a[0][i]*.5-b[0][i]));clickPeak=Math.max(clickPeak,Math.abs(a[1][i]));clickError=Math.max(clickError,Math.abs(a[1][i]-b[1][i]),Math.abs(a[1][i]-mute[1][i]));peak=Math.max(peak,Math.abs(a[0][i]));mutePeak=Math.max(mutePeak,Math.abs(mute[0][i]));}
+  return {error,clickError,clickPeak,peak,mutePeak};
  },source);
- expect(result.peak).toBeGreaterThan(.001);expect(result.error).toBeLessThan(1e-6);expect(result.clickError).toBeLessThan(1e-6);expect(result.mutePeak).toBeLessThan(1e-6);
+ expect(result.clickPeak).toBeGreaterThan(.001);expect(result.peak).toBeGreaterThan(.001);expect(result.error).toBeLessThan(1e-6);expect(result.clickError).toBeLessThan(1e-6);expect(result.mutePeak).toBeLessThan(1e-6);
 });
 
 test('WAV export retains fader amplitude, exact mute and compressor behavior', async ({page}) => {
@@ -64,19 +64,20 @@ test('WAV export retains fader amplitude, exact mute and compressor behavior', a
   const buffer = decode.createBuffer(1,44100,44100);
   const data = buffer.getChannelData(0);
   for (let i=0;i<data.length;i++) data[i]=.1*Math.sin(i*2*Math.PI*220/44100)*Math.exp(-i/10000);
-  const generated = { bassEvents:[],compEvents:[],drumEvents:[{time:'96i',absBeat:.5,drum:'kick',velocity:.4}],totalBeats:2 };
+  const generated = { bassEvents:[],compEvents:[],drumEvents:[{time:'0i',absBeat:0,drum:'kick',velocity:.4}],totalBeats:2 };
   const rows=[];
-  for (const volume of [.6,.3,0]) {
-   const blob = await lib.renderEventsToWav(generated,{kick:buffer},{instrument:'piano',style:'swing',tempo:120,volume,mix:{...lib.DEFAULT_BACKING_MIX,room:0},durationSeconds:2});
+  for (const [volume,kick] of [[.6,1],[.3,1],[0,1],[.6,.5]]) {
+   const blob = await lib.renderEventsToWav(generated,{kick:buffer},{instrument:'piano',style:'swing',tempo:120,volume,mix:{...lib.DEFAULT_BACKING_MIX,room:0,kick},durationSeconds:2});
    rows.push((await decode.decodeAudioData(await blob.arrayBuffer())).getChannelData(0));
   }
-  let peak=0,error=0,muted=0;
-  for (let i=0;i<rows[0].length;i++) {peak=Math.max(peak,Math.abs(rows[0][i]));error=Math.max(error,Math.abs(rows[0][i]/2-rows[1][i]));muted=Math.max(muted,Math.abs(rows[2][i]));}
-  return {peak,error,muted};
+  let peak=0,error=0,initialMixError=0,muted=0;
+  for (let i=0;i<rows[0].length;i++) {peak=Math.max(peak,Math.abs(rows[0][i]));error=Math.max(error,Math.abs(rows[0][i]/2-rows[1][i]));initialMixError=Math.max(initialMixError,Math.abs(rows[0][i]/2-rows[3][i]));muted=Math.max(muted,Math.abs(rows[2][i]));}
+  return {peak,error,initialMixError,muted};
  },source);
  expect(result.peak).toBeGreaterThan(.01);
  expect(result.peak).toBeLessThan(.8);
  expect(result.error).toBeLessThan(2/32768);
+ expect(result.initialMixError).toBeLessThan(2/32768);
  expect(result.muted).toBe(0);
 });
 
@@ -85,7 +86,7 @@ test('recording media obeys saved Master from first playback and never enters th
  requireRealtimeAudio(page);
  await page.goto('/');
  const source=await audioReferenceBundle();
- const result=await page.evaluate(async source => {
+ await page.evaluate(async source => {
   const lib=await import(URL.createObjectURL(new Blob([source],{type:'text/javascript'})));
   lib.setMixerLevels({master:0});
   const decoder=new OfflineAudioContext(1,1,44100);
@@ -94,25 +95,43 @@ test('recording media obeys saved Master from first playback and never enters th
   for (let i=0;i<pcm.length;i++) pcm[i]=.1*Math.sin(2*Math.PI*441*i/44100);
   const url=URL.createObjectURL(lib.audioBufferToWav16(tone));
   const audio=new Audio(url);audio.loop=true;
+  const events: unknown[] = [];
+  for (const name of ['play','pause','playing','volumechange']) audio.addEventListener(name, () => events.push({name, paused:audio.paused, muted:audio.muted,time:audio.currentTime}));
   const action=lib.mixAudio(audio);
-  await audio.play().catch(error => { if (error.name !== 'AbortError') throw error; });
+  const button=document.createElement('button');button.textContent='Play reference recording';
+  button.onclick=()=>void audio.play().catch(error=>{if(error.name!=='AbortError')throw error;});
+  document.body.append(button);
+  Object.assign(window,{referenceReplay:{lib,audio,events,action,url}});
+ },source);
+ await page.getByRole('button',{name:'Play reference recording',exact:true}).click();
+ const result=await page.evaluate(async () => {
+  const {lib,audio,events,action,url}=(window as unknown as {referenceReplay:{lib:typeof import('../../src/lib/audio/audio-context') & typeof import('../../src/lib/audio/mixer'),audio:HTMLAudioElement,events:unknown[],action:{destroy():void},url:string}}).referenceReplay;
   // Wait for actual media progress: WebKit can decode after the initial play event.
-  for (let attempt=0; attempt<100 && (audio.paused || audio.currentTime < .1); attempt++) {
+  for (let attempt=0; attempt<100 && (audio.paused || audio.volume === 0 || audio.currentTime < .1); attempt++) {
    await new Promise(resolve=>setTimeout(resolve,20));
   }
-  if (audio.paused || audio.currentTime < .1) throw new Error('Replay did not begin');
+  if (audio.paused || audio.volume === 0 || audio.currentTime < .1) throw new Error(`Replay did not begin: ${JSON.stringify({events,initialized:lib.isAudioInitialized(),paused:audio.paused,muted:audio.muted})}`);
   const ctx=await lib.getAudioContext();
-  const listen=ctx.createAnalyser(),program=ctx.createAnalyser();
-  lib.getMasterGain().connect(listen);lib.getProgramGain().connect(program);
+  const listen=ctx.createAnalyser(),program=ctx.createAnalyser(),replay=ctx.createAnalyser();
+  lib.getMasterGain().connect(listen);lib.getProgramGain().connect(program);lib.getReplayGain().connect(replay);
   const peak=(analyser:AnalyserNode)=>{const data=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(data);return Math.max(...data.map(Math.abs));};
-  const muted=peak(listen);
-  lib.setMixerLevels({master:.8});await new Promise(resolve=>setTimeout(resolve,150));const full=peak(listen);
+  // Native decoding may lag the transport clock. Prove PCM arrived while Master is muted.
+  for (let attempt=0;attempt<100 && peak(replay)<.05;attempt++) await new Promise(resolve=>setTimeout(resolve,30));
+  if(peak(replay)<.05)throw new Error(`Replay PCM did not arrive: ${JSON.stringify(events)}`);
+  // Wait on the audio clock for the 5 ms ramp and analyser window to settle.
+  const settle=async()=>{
+   const target=ctx.currentTime+.15;
+   for(let attempt=0;attempt<100 && ctx.currentTime<target;attempt++)await new Promise(resolve=>setTimeout(resolve,20));
+   if(ctx.currentTime<target)throw new Error('Audio clock stopped');
+  };
+  await settle();const muted=peak(listen);
+  lib.setMixerLevels({master:.8});await settle();const full=peak(listen);
   const playbackState={context:ctx.state,contextTime:ctx.currentTime,mediaTime:audio.currentTime,paused:audio.paused,muted:audio.muted,master:lib.getMasterGain().gain.value};
-  lib.setMixerLevels({master:.4});await new Promise(resolve=>setTimeout(resolve,150));const half=peak(listen),recording=peak(program);
-  lib.setMixerLevels({master:0});await new Promise(resolve=>setTimeout(resolve,150));const remuted=peak(listen);
+  lib.setMixerLevels({master:.4});await settle();const half=peak(listen),recording=peak(program);
+  lib.setMixerLevels({master:0});await settle();const remuted=peak(listen);
   action.destroy();URL.revokeObjectURL(url);
-  return {muted,full,half,recording,remuted,playbackState};
- },source);
+  return {muted,full,half,recording,remuted,playbackState,events};
+ });
  expect(result.muted).toBe(0);
  expect(result.full,JSON.stringify(result)).toBeGreaterThan(.05);
  expect(result.half/result.full).toBeCloseTo(.5,2);
