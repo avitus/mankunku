@@ -24,6 +24,8 @@ export interface KeyCenterReading {
 	repeated: boolean;
 	reason: string;
 	rangeLabel: string;
+	/** A short arrival explained inside this governing center, retained without a competing rail. */
+	contextKey?: PitchClass;
 }
 
 export interface KeyCenterDisplay {
@@ -68,7 +70,7 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 		}
 	}
 	/** Project one evidenced interpretation, retaining its separate functional explanation. */
-	function add(key: PitchClass, mode: KeyCenterReading['mode'], indices: number[], reason: string): void {
+	function add(key: PitchClass, mode: KeyCenterReading['mode'], indices: number[], reason: string, contextKey?: PitchClass): void {
 		if (indices.some(i => !chordEvidence(flat.harmony[i]))) return;
 		const written = concertKeyToWritten(key, instrument);
 		const label = mode === 'blues' ? `${keyLabel(written)} blues` : keyLabelLong(written, mode);
@@ -87,30 +89,43 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 					piece.end = end;
 					piece.repeated ||= repeated;
 				} else {
-					piece = { key, mode, label, color: centerColor(written), start, end, visits: [source.visit], repeated, reason, rangeLabel: '' };
+					piece = { key, mode, label, color: centerColor(written), start, end, visits: [source.visit], repeated, reason, rangeLabel: '', contextKey };
 					display.readings.push(piece);
 				}
 			}
 		}
 	}
+	/** Only subordinate readings of this specific resolved event, not arbitrary overlaps. */
+	const contextFor = (key: PitchClass, indices: number[]) => analysis.contextualMajorRegions.find(region =>
+		region.secondaryDominant.targetKey === key &&
+		region.secondaryDominant.segmentIndices.every(index => indices.includes(index)) &&
+		indices.every(index => region.segmentIndices.includes(index)));
 	for (const region of analysis.compatibleMajorRegions) {
+		const context = contextFor(region.key, region.segmentIndices);
 		add(region.key, 'major', region.segmentIndices, region.evidence.cadences.length
 			? 'Compatible major collection with a V–I arrival.'
-			: 'Compatible major collection with a tonic chord; other readings may also fit.');
+			: 'Compatible major collection with a tonic chord; other readings may also fit.', context?.key);
+	}
+	for (const region of analysis.contextualMajorRegions) {
+		add(region.key, 'major', region.segmentIndices,
+			`Continuing major center: a brief V/${region.secondaryDominant.targetDegree} resolves to a diatonic chord and returns to the established harmony. This is not one compatible scale over every chord.`);
 	}
 	for (const cornerstone of analysis.cornerstones) {
+		const key = cornerstone.kind === 'minor-arrival' ? cornerstone.localKey : cornerstone.detection.localKey;
+		const context = contextFor(key, cornerstone.segmentIndices);
+		const explanation = context ? ` Brief tonicization within ${keyLabelLong(concertKeyToWritten(context.key, instrument), 'major')} (V/${context.secondaryDominant.targetDegree}); cornerstone priority is retained for practice.` : '';
 		if (cornerstone.kind === 'minor-arrival') add(cornerstone.localKey, 'minor', cornerstone.segmentIndices,
-			'Minor arrival: ii–V–i. A local destination, not one minor scale over every chord.');
+			'Minor arrival: ii–V–i. A local destination, not one minor scale over every chord.' + explanation, context?.key);
 		else {
 			const detection = cornerstone.detection;
 			const hasTonic = detection.segmentIndices.some(i => flat.harmony[i].chord.root === detection.localKey);
 			add(detection.localKey, detection.type === 'blues' ? 'blues' : progressionMode(detection.type), detection.segmentIndices,
-				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.`);
+				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation, context?.key);
 		}
 	}
 	const unique = new Map<string, KeyCenterReading>();
 	for (const reading of display.readings) {
-		const id = `${reading.key}/${reading.mode}/${reading.start}/${reading.end}/${reading.reason}`;
+		const id = `${reading.key}/${reading.mode}/${reading.start}/${reading.end}/${reading.reason}/${reading.contextKey ?? ''}`;
 		const existing = unique.get(id);
 		if (existing) {
 			existing.visits = [...new Set([...existing.visits, ...reading.visits])];
@@ -130,8 +145,9 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 	for (const reading of display.readings) reading.rangeLabel = `${position(reading.start)} → ${position(reading.end, true)}`;
 	// Union duplicate coverage of the SAME center only; keep all evidence above.
 	const spans: KeyCenterReading[] = [];
-	for (const label of new Set(display.readings.map(r => r.label))) {
-		const readings = display.readings.filter(r => r.label === label);
+	const centers = display.readings.filter(r => r.contextKey === undefined);
+	for (const label of new Set(centers.map(r => r.label))) {
+		const readings = centers.filter(r => r.label === label);
 		display.legend.push({ label, color: readings[0].color });
 		let previous: KeyCenterReading | undefined;
 		for (const reading of readings) {

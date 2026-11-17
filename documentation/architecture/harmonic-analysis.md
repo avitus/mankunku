@@ -3,6 +3,11 @@
 Living implementation plan. Started 2026-11-07 (Pacific). Update the milestone
 status, decisions, acceptance cases and remaining limitations as work lands.
 
+Current increment (2026-11-17): contextual major centers with brief secondary
+dominants. This work follows the released Show Key Centers feature and its
+reserved-gutter presentation. Validation and dev delivery are recorded below;
+dated phase statuses describe their original implementation checkpoints.
+
 ## Purpose
 
 Tune lick practice should recognize useful stretches of harmony even when they
@@ -28,16 +33,21 @@ Tenor sax displays G. Each listed chord lasts half a bar:
 | 1 | Gm7, Am7 | Am7, Bm7 | ii, iii |
 | 2 | Bbmaj7, C7 | Cmaj7, D7 | IV, V |
 | 3 | Fmaj7, Gm7 | Gmaj7, Am7 | I, ii |
-| 4 | Am7, D7 | Bm7, E7 | Beginning of the next ii–V–i |
-| 5, first half | Gm7 | Am7 | Minor arrival |
+| 4 | Am7, D7 | Bm7, E7 | iii, V/ii; overlapping short minor arrival |
+| 5 | Gm7, Am7 | Am7, Bm7 | ii, iii: return to the opening harmony |
+| 6 | Bbmaj7, C7 | Cmaj7, D7 | IV, V |
 
 Bars 1–3 contain only notes of F major (G major written for tenor), including
 a dominant-to-tonic arrival in bar 3. Bar 4's first chord also belongs to that
 scale, but belongs functionally to the following cornerstone. The major practice
 window therefore ends at the **start of bar 4**, not at its E7 or at the next
-barline after it. The analytical G-major reading continues through Bm7 to the
-E7 entrance: Bm7 has both functions. The exercise boundary cannot depend on the
-available lick library.
+barline after it. The strictly scale-compatible G-major reading continues through
+Bm7 to the E7 entrance. The **governing G-major center continues through bar 6**:
+E7 is a brief secondary dominant, V/ii, resolved by Am7 before the opening harmony
+returns. These are different analytical layers. A G-major key-center rail must
+not authorize a G-major lick across E7. The exercise boundary cannot depend on
+the available lick library. Production's stored chart was checked read-only on
+2026-11-17 and confirms these six bars; bar 7 changes to Bm7♭5 in tenor.
 
 The bar-4 ii is m7, not m7b5. Preserve the authored chord. Recognize the
 m7–V7–minor-tonic variant for harmonic reservation without declaring an ordinary
@@ -81,7 +91,7 @@ and a major label on a lick does not guarantee every placement sounds convincing
 
 ## Phase 1: analysis foundation
 
-Status: implemented locally and sandbox-validated on 2026-11-07. No production
+Historical checkpoint (2026-11-07): implemented locally and sandbox-validated. No production
 caller is switched in this phase; existing chart annotations and practice
 suggestions retain their behavior. Nothing has been deployed.
 
@@ -339,8 +349,9 @@ Replace the existing control with **Show Key Centers**, as requested on 2026-11-
 There is no separate chord-role display mode. Tune detail and practice setup share
 the display preference; editor/import use the same marker builder and control.
 An explicitly saved old display preference is the fallback until the user chooses
-the new one. Show labeled key colors, separate bands for overlapping centers, and
-expandable reading details; keep lick labels and musical notation primary.
+the new one. Show compact labeled rails in reserved gutters, with separate lanes
+for genuinely competing centers. Analytical explanations remain in the display
+model; the current compact UI has no expandable reading panel.
 
 Implementation decisions for this increment:
 - Analyze the finite displayed form with expanded repeats, then project contiguous
@@ -467,6 +478,71 @@ key-center display.
 - Direct source review completed. No database/proficiency changes or production
   account writes. Dev delivery does not establish production or musical acceptance.
 
+## Contextual key centers — 2026-11-17
+
+Status: implemented and sandbox-validated. This increment takes priority
+over cross-chorus windows following the production Autumn review.
+
+- Add `contextualMajorRegions` to the analysis result, separately from strict
+  `compatibleMajorRegions` and reserved `majorRegions`. No matcher or planner
+  consumes the new regions as lick eligibility.
+- Require an established V–I arrival in at least two bars of compatible harmony.
+  Do not use the song signature to force a center. Inspect all twelve possible
+  keys, using authored chord evidence rather than per-chord scale defaults.
+- Permit one applied dominant event of at most one bar, immediately resolving by
+  fifth to a diatonic major/minor triad on ii, iii, IV, V or vi. Repeated notation
+  segments of the same chord count as one event. Require the dominant-seventh
+  core and reject unexplained chromatic extensions or bass tones.
+- Require prompt return to varied established harmony: at least three roots,
+  two shared non-target roots, and the parent's tonic or dominant within two
+  bars. The returning compatible span must last at least one bar. A prolonged
+  destination, unexplained chord, gap or section/repeat boundary prevents bridging.
+- Paint the continuing major rail. Retain contained cornerstone readings with
+  `contextKey` and V/degree explanations as subordinate tonicizations rather
+  than equally prominent competing key rails. Other overlapping readings remain.
+- Autumn acceptance: G-major rail covers bars 1–6; A-minor arrival at bar 4 is
+  retained as a tonicization, while the later minor cadence from bar 7 is still
+  visible. Strict G compatibility ends at bar 4 beat 3 and the major exercise
+  still ends before bar 4. The rule must work in every transposition and away
+  from the tune's signature. Tune chart and setup use the same projection.
+
+This is intentionally a conservative first contextual rule, not a full modulation
+model. Multiple chromatic events in one region, altered secondary dominants,
+tonic-free context, borrowed chords and passing diminished harmony remain future
+work. The returning-vocabulary thresholds need musical calibration on more tunes.
+
+### Validation and delivery
+
+- CircleCI Smarter Testing in the isolated Linux sandbox: **375 unit tests passed
+  across 17 selected files** (575 unrelated files excluded, no selected file
+  skipped), covering analysis, all 12 transpositions, unrelated signatures,
+  applied degrees, counterexamples, repeat projection and existing lick planning.
+- Disabling contextual analysis in the sandbox caused **33 expected regression
+  failures**; restoring it returned the complete selected suite to green.
+- TypeScript/Svelte: **0 errors, 0 warnings**. The first check exhausted Node's
+  default heap; the successful run used a 3 GB heap inside the 4 GB container.
+- Chromium, Firefox and WebKit: **66 distinct browser checks passed**, with
+  **3 existing Linux Firefox audio skips**, across `tune-key-centers`,
+  `tune-harmonic-regions` and `tune-practice-setup` (126 unrelated files excluded).
+  A new assertion initially queried the chord-only renderer after navigating to
+  the engraved setup chart. Correcting that locator yielded a fresh **36/36**
+  pass for the full key-center file across all three browsers.
+- Inspected desktop tune-chart and mobile setup screenshots: continuous G-major
+  rails through bar 6, the later minor cadence visible, existing lick windows
+  retained. Reports and screenshots are retained under
+  `test-results/harmonic-analysis-contextual-centers/` (gitignored).
+- Direct source review completed. Delivery target: `dev`; no schema, account
+  data or proficiency changes, and no production deployment in this increment.
+
+Commands inside the isolated container:
+
+```sh
+circleci testsuite run 'unit tests' --local --run-tests=all --analyze-tests=none \
+  -t 'tests/unit/(tunes/(tonal-centers|key-centers|harmonic-analysis|major-region-matcher|lick-matcher|progression-detector)|state/tune-practice.*|music/chord-evidence|lick-practice/progression-fit)\.test\.ts$'
+circleci testsuite run 'e2e tests' --local --run-tests=all --analyze-tests=none \
+  -t '^(tune-key-centers|tune-harmonic-regions|tune-practice-setup)\.spec\.ts$'
+```
+
 ## Later milestones
 
 | Milestone | Status | Scope / evidence needed |
@@ -476,9 +552,9 @@ key-center display.
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
-| Controlled chromaticism | Pending | Secondary dominants, borrowed chords, passing diminished chords; distinguish “key center retained” from “one scale fits every chord” |
+| Controlled chromaticism | First conservative secondary-dominant rule implemented | Brief resolved tonicizations with an established parent center; altered/chained dominants, borrowed chords and passing diminished chords remain |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
-| Analysis explanations | Initial reading details implemented | Key-center evidence, implied destinations and chart visits are inspectable; rejected alternatives and optional user overrides remain, with versioned persistence if needed |
+| Analysis explanations | Structured reasons implemented | Key-center evidence, implied destinations, subordinate tonicizations and chart visits remain in the model; compact user-facing inspection and optional overrides remain |
 
 ## Acceptance and regression matrix
 
@@ -610,6 +686,11 @@ implementation and tests. Further changes should keep both surfaces on the same
 planning path.
 
 ## Decision log
+
+- 2026-11-17: favor the simplest supported governing center over a new key for
+  every short arrival. Autumn's first six bars remain G major in tenor, with
+  E7 as V/ii. Retain the minor-arrival reading and cornerstone reservation;
+  distinguish tonal continuity from strict scale and lick compatibility.
 
 - 2026-11-15: replace Harmony colors with Show Key Centers rather than retaining
   multiple coloring modes. Share display state and evidence across tune detail,

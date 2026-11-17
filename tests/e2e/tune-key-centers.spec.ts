@@ -21,7 +21,6 @@ for (const width of [1440, 390]) {
 		const g = page.locator('svg [data-key-center="G major"]').first();
 		const a = page.locator('svg [data-key-center="A minor"]').first();
 		await expect(g).toBeVisible(); await expect(a).toBeVisible();
-		expect(await g.getAttribute('data-key-center-lane')).not.toBe(await a.getAttribute('data-key-center-lane'));
 		await expect(page.getByText('Key-center readings', { exact: true })).toHaveCount(0);
 		await expect(g.locator('text')).toHaveText('G maj');
 		await expect(a.locator('text')).toHaveText('A min');
@@ -67,15 +66,22 @@ for (const width of [1440, 390]) {
 	});
 }
 
-test('chord-only chart clips the shared major reading at the middle of bar 4', async ({ page }) => {
+test('chord-only chart keeps G major through the secondary dominant and returning bars 5–6', async ({ page }) => {
 	await seedTunes(page, [{ ...autumn, sections: autumn.sections.map((s: object) => ({ ...s, notes: [] })) }]);
 	await page.goto('/tunes/key-center-autumn');
 	const bar = page.getByTestId('tune-chord-chart').locator('[data-bar="3"]');
 	const major = bar.locator('[data-key-center="G major"]');
 	await expect(major).toBeVisible();
-	await expect(bar.locator('[data-key-center="A minor"]')).toBeVisible();
+	await expect(bar.locator('[data-key-center="A minor"]')).toHaveCount(0);
 	const widths = await major.evaluate(el => ({ band: el.getBoundingClientRect().width, bar: el.parentElement!.getBoundingClientRect().width }));
-	expect(widths.band / widths.bar).toBeCloseTo(.5, 2);
+	expect(widths.band / widths.bar).toBeCloseTo(1, 2);
+	const chart = page.getByTestId('tune-chord-chart');
+	for (const index of [4, 5]) await expect(chart.locator(`[data-bar="${index}"] [data-key-center="G major"]`)).toBeVisible();
+	await expect(chart.locator('[data-bar="6"] [data-key-center="G major"]')).toHaveCount(0);
+	await expect(chart.locator('[data-bar="6"] [data-key-center="A minor"]')).toBeVisible();
+	await page.getByRole('button', { name: /Practice licks/ }).click();
+	// Setup uses the engraved staff even when the tune has no melody.
+	await expect(page.locator('svg [data-key-center="G major"]').nth(1)).toBeVisible();
 });
 
 test('freestyle keeps key centers without adding insertion windows', async ({ page }) => {
