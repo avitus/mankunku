@@ -292,6 +292,10 @@ export function segmentNotes(
 		notes[k] = { ...cur, midi: prev.midi };
 	}
 
+	const boundaryMerged = mergeSemitoneBoundaryFragments(
+		notes, readings, workletOnsets ?? [], bleedOnsets ?? [], articulationOnsets ?? []
+	);
+
 	// Sandwich rule: a note that is ±12 from BOTH neighbors when those
 	// neighbors share the same midi is a stuck-octave artifact — typically
 	// the pitch detector locking onto the 2nd harmonic for a stretch in the
@@ -299,7 +303,7 @@ export function segmentNotes(
 	// regardless of the middle note's duration. Genuine fast octave
 	// displacement is rare enough, and bracketing same-pitch neighbors is
 	// strong evidence the middle is detection error rather than music.
-	const sandwiched = collapseSandwichArtifacts(notes);
+	const sandwiched = collapseSandwichArtifacts(boundaryMerged);
 
 	// Same-pitch attack-evidence merge. Both extractOnsetsFromReadings and
 	// splitOnReadingGaps can manufacture a same-MIDI boundary from a pure
@@ -419,6 +423,82 @@ const ONSET_GUARD_MATCH_WINDOW = 0.02;
  * never get merged.
  */
 const SAME_PITCH_ATTACK_WINDOW = 0.075;
+
+/**
+ * A held pitch near a rounding boundary can alternate between adjacent MIDI
+ * numbers without changing note (2026-11-17 soprano Third–Fifth Rise: roughly
+ * 70.48–70.57 became five notes). Join only continuous, attack-free fragments
+ * whose central 80% of measured pitches all stay within 15 cents of ONE
+ * shared rounding boundary. Real semitone steps, silence and re-articulations
+ * keep their boundaries. The whole run is checked so gradual drift cannot
+ * chain together different pitches. No expected phrase enters this decision.
+ */
+function mergeSemitoneBoundaryFragments(
+	notes: DetectedNote[],
+	readings: PitchReading[],
+	workletOnsets: number[],
+	bleedOnsets: number[],
+	articulationOnsets: number[]
+): DetectedNote[] {
+	const sortedWorklet = [...workletOnsets].sort((a, b) => a - b);
+	const sortedBleed = [...bleedOnsets].sort((a, b) => a - b);
+	const sortedArticulations = [...articulationOnsets].sort((a, b) => a - b);
+	const result: DetectedNote[] = [];
+	let group: DetectedNote[] = [];
+	// Use the measured frequency: the stabilizer's warmup vote can shift
+	// midiFloat by a semitone at this very boundary (70.50 reported as 69.50
+	// while the seed still says MIDI 70). That is not a physical pitch change.
+	const measuredPitch = (r: PitchReading) => 69 + 12 * Math.log2(r.frequency / 440);
+	const framesFor = (parts: DetectedNote[]) => readings.filter(r =>
+		r.time >= parts[0].onsetTime &&
+		r.time < parts[parts.length - 1].onsetTime + parts[parts.length - 1].duration);
+	const flush = () => {
+		if (group.length === 0) return;
+		if (group.length === 1) result.push(group[0]);
+		else {
+			const frames = framesFor(group);
+			const pitch = median(frames.filter(r => !r.warmup).map(measuredPitch));
+			const midi = Math.round(pitch);
+			result.push({
+				midi,
+				// Include both sides of the boundary in the intonation estimate.
+				cents: Math.round(100 * (pitch - midi)),
+				onsetTime: group[0].onsetTime,
+				duration: group[group.length - 1].onsetTime + group[group.length - 1].duration - group[0].onsetTime,
+				clarity: frames.reduce((sum, r) => sum + r.clarity, 0) / frames.length
+			});
+		}
+	};
+	for (const cur of notes) {
+		const candidate = [...group, cur];
+		const low = Math.min(...candidate.map(n => n.midi));
+		const high = Math.max(...candidate.map(n => n.midi));
+		const boundary = low + 0.5;
+		const nearBoundary = high - low === 1 && candidate.every(n =>
+			Math.abs(n.midi + n.cents / 100 - boundary) <= 0.15);
+		const hasAttack = hasRealAttackNear(sortedWorklet, cur.onsetTime, SAME_PITCH_ATTACK_WINDOW, sortedBleed) ||
+			hasOnsetNear(sortedArticulations, cur.onsetTime, SAME_PITCH_ATTACK_WINDOW);
+		if (group.length > 0 && nearBoundary && !hasAttack) {
+			const frames = framesFor(candidate);
+			const pitches = frames.map(measuredPitch).sort((a, b) => a - b);
+			const continuous = frames.every((r, i) => i === 0 || r.time - frames[i - 1].time <= 0.05);
+			// A leading fragment may be entirely warmup. Keep those frames for
+			// continuity, but choose the nearest semitone from the confirmed
+			// body's median so attack transients cannot choose its pitch.
+			if (frames.length >= PITCH_CHANGE_MIN_HOLD * 2 &&
+				frames.filter(r => !r.warmup).length >= PITCH_CHANGE_MIN_HOLD && continuous &&
+				pitches[Math.floor(pitches.length * 0.1)] >= boundary - 0.15 &&
+				pitches[Math.ceil(pitches.length * 0.9) - 1] <= boundary + 0.15) {
+				group.push(cur);
+				continue;
+			}
+		}
+		flush();
+		group = [cur];
+	}
+	flush();
+	return result;
+}
 
 /**
  * Merge consecutive same-MIDI notes whose boundary has no worklet onset

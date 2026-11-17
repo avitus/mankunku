@@ -2309,6 +2309,56 @@ async function replayEarTrainingTake(
 	return { trimmed, articulationOnsets, detected };
 }
 
+describe('pitch replay regression: Third–Fifth Rise — soprano semitone-boundary flutter (2026-11-17)', () => {
+	const fixture = 'recordings/2026-11-17-third-fifth-rise';
+	const json = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8'));
+	const phrase: Phrase = json.phrase;
+	const { tempo, swing, transportSeconds } = json.context;
+	const scoreOf = (detected: DetectedNote[]) => runScorePipeline({
+		detected, phrase, tempo, swing, transportSeconds, bleedFilterEnabled: false
+	}).chosen;
+
+	it('reproduces both credited notes but two charged fragments in the saved score', () => {
+		expect(json.scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual([70, 71, 70, 71, 70, 74]);
+		const score = scoreOf(json.scoring.savedDetectedNotes);
+		expect(score.notesHit).toBe(2);
+		expect(score.extrasCharged).toBe(2);
+		expect(score.overall).toBeCloseTo(json.scoring.savedScore.overall, 12);
+	});
+
+	function expectTwoNotes(detected: DetectedNote[]) {
+		expect(detected.map(n => n.midi)).toEqual([71, 74]);
+		// Preserve the measured flat intonation; never snap toward the prompt.
+		expect(detected[0].cents).toBeLessThan(-40);
+		const score = scoreOf(detected);
+		expect(score.notesHit).toBe(2);
+		expect(score.extrasCharged).toBe(0);
+		expect(score.pitchAccuracy).toBe(1);
+		expect(score.overall).toBeGreaterThan(0.9);
+	}
+
+	it('keeps the first held note whole from the saved readings', () => {
+		const { readings, rawWorkletOnsets, weakReadings } = json.detection;
+		const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, json.audio.duration);
+		const base = resolveOnsets(rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		expectTwoNotes(segmentNotes(readings, [...base, ...articulation].sort((a, b) => a - b),
+			json.audio.duration, undefined, undefined, undefined, rawWorkletOnsets, bleed, articulation, weakReadings));
+	});
+
+	for (const live of [false, true]) {
+		it(`keeps two notes from the microphone WAV on the ${live ? 'live' : 'replay'} clock`, async () => {
+			const { trimmed, detected } = await replayEarTrainingTake(`${fixture}.wav`, transportSeconds, tempo, { live });
+			expectTwoNotes(detected);
+			const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, trimmed.duration);
+			const base = resolveOnsets([], trimmed.readings);
+			const articulation = findReArticulations(trimmed.readings, base, bleed);
+			expectTwoNotes(segmentNotes(trimmed.readings, [...base, ...articulation].sort((a, b) => a - b),
+				trimmed.duration, undefined, undefined, undefined, [], bleed, articulation, trimmed.weakReadings));
+		});
+	}
+});
+
 describe('pitch replay regression: Curl to the Floor pre-spike tongue stop under a click (concert G, 2026-08-11)', () => {
 	const TRANSPORT_SECONDS = 72.94741496598644;
 	const TEMPO = 105;
@@ -3547,13 +3597,17 @@ describe('metronome fixtures: the clicks sit one lookahead after the exported gr
 	const here = dirname(fileURLToPath(import.meta.url));
 	const recordings = resolve(here, '../fixtures/recordings');
 	interface Diagnostic {
-		context?: { metronomeEnabled?: boolean; transportSeconds?: number | null; tempo?: number };
+		context?: { metronomeEnabled?: boolean; transportSeconds?: number | null; tempo?: number; scoringAudio?: string };
 		audio?: { captureTrimSeconds?: number };
 	}
 	const takes = readdirSync(recordings)
 		.filter((f) => f.endsWith('.json') && existsSync(resolve(recordings, f.replace('.json', '.wav'))))
 		.map((f) => ({ file: f, diag: JSON.parse(readFileSync(resolve(recordings, f), 'utf8')) as Diagnostic }))
-		.filter((t) => t.diag.context?.metronomeEnabled && t.diag.context.transportSeconds != null);
+		// This comb measures digitally mixed clicks. Microphone-only scoring
+		// WAVs intentionally omit that bus: metronomeEnabled describes playback,
+		// not the presence of a click train in the exported PCM.
+		.filter((t) => t.diag.context?.metronomeEnabled && t.diag.context.transportSeconds != null &&
+			t.diag.context.scoringAudio !== 'microphone');
 
 	/** Seconds from each grid beat to the click nearest after it, folded into one beat. */
 	function clickLag(channel: Float32Array, sampleRate: number, diag: Diagnostic): number {
