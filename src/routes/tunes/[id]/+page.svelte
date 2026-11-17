@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { savedTuneKey, saveTuneKey, savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
+	import { recordRecentTune } from '$lib/persistence/recent-tunes';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -120,6 +121,9 @@
 	const baseKey = $derived(baseSheet?.key);
 	const baseId = $derived(baseSheet?.id);
 	$effect(() => {
+		if (baseId) recordRecentTune(baseId);
+	});
+	$effect(() => {
 		void baseId;
 		if (baseKey && baseId) selectedWrittenKey = concertKeyToWritten(savedTuneKey(baseId, baseKey), getInstrument());
 	});
@@ -138,6 +142,10 @@
 	const player = new TunePlayer({
 		tuneId: () => baseSheet?.id,
 		save: (tuneId, tempo) => saveTuneTempo(tuneId, tempo, supabase ?? undefined)
+	});
+	// A new playback also counts when another tab has opened a different tune.
+	$effect(() => {
+		if (player.playing && baseId) recordRecentTune(baseId);
 	});
 	let settingsDialog = $state<HTMLDialogElement>();
 	let chartWidth = $state(800);

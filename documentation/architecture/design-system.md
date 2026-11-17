@@ -1040,3 +1040,25 @@ Canvas references: catalog `459518182248550400`, triad detail
 `459518232861229056`, enclosure detail `461351673714057216`. The native Svelte
 components are the functional source of truth for unlocks, persistence, audio
 and drill handoff.
+
+
+### Tunes · Compact Desk
+
+`/tunes` uses the refined Compact Desk layout approved on 2026-11-17, translated
+into native Svelte 5 runes and the existing neutral Studio Desk tokens. A single
+48px Fraunces title shares its row with search. The 240px right rail owns collection,
+view, page-size, add/community/import and help controls. Below 900px, Browse reveals
+the rail above the list; it is collapsed by default. No repeated introductory panel
+or top pagination precedes the music. Bottom pagination appears only when needed;
+changing pages returns scroll and keyboard focus to the result heading before the
+list changes height.
+
+`TuneCard` is a real navigation link with compact divided rows or optional cards.
+Composer, contributor attribution and origin badges remain; catalog key, meter,
+length and instrument readouts are removed. Chart and playback settings are unchanged.
+The two latest available tunes in the selected collection occupy Recent, with no
+repetition in the alphabetical paginated remainder. Search includes Recent and shows
+all matches together. History uses canonical tune IDs in the existing per-user local
+storage namespace (`recent-tunes`, bounded to 50 IDs); detail/practice visits and new
+playback starts record activity. Unknown/deleted IDs are skipped. History is local to
+this browser, starts with actual activity, and is not synthesized from creation dates.

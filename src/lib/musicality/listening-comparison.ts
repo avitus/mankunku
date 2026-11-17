@@ -73,6 +73,7 @@ function boundedJson(value: unknown, depth = 0, budget = { nodes: 0 }): boolean 
  if (Array.isArray(value)) return value.length <= 50_000 && value.every(item => boundedJson(item, depth + 1, budget));
  return object(value) && Object.keys(value).length <= 100 && Object.values(value).every(item => boundedJson(item, depth + 1, budget));
 }
+/** Validate captured mix levels, retaining optional legacy Master metadata. */
 function validInputs(value: unknown): value is ListeningComparisonInputs {
  if (!object(value) || 'orchestration' in value || !object(value.phrase) || !boundedJson(value)) return false;
  // Original has no opt-in terminal arrangement, so this would not be a matched pair.
@@ -86,7 +87,7 @@ function validInputs(value: unknown): value is ListeningComparisonInputs {
   !['swing', 'straight', 'bossa-nova', 'ballad'].includes(String(value.style)) ||
   !['piano', 'organ'].includes(String(value.instrument)) || !object(value.mix)) return false;
  const mix = value.mix;
- if (!Object.keys(DEFAULT_BACKING_MIX).every(key => (key === 'master' && mix[key] === undefined) || (finite(mix[key]) && mix[key] >= 0 && mix[key] <= 3))) return false;
+ if (![...Object.keys(DEFAULT_BACKING_MIX), 'master'].every(key => (key === 'master' && mix[key] === undefined) || (finite(mix[key]) && mix[key] >= 0 && mix[key] <= 3))) return false;
  for (const segment of phrase.harmony) {
   if (!object(segment) || !object(segment.chord) || !Array.isArray(segment.startOffset) || !Array.isArray(segment.duration)) return false;
   const start = segment.startOffset; const duration = segment.duration;

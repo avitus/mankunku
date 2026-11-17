@@ -76,6 +76,7 @@ let drumKitLoads = 0;
 let failDrumLoad = false;
 
 class FakeInstrument {
+ output = { addInsert: vi.fn() };
 	load = Promise.resolve();
 	start = vi.fn((hit: { time?: number }) => { instrumentHits.push(hit); });
 	stop = vi.fn();
@@ -134,7 +135,9 @@ vi.mock('$lib/audio/audio-context', async () => {
 			}
 		}),
 		getAudioContext: () => fakeAudioContext(),
-		getMasterGain: () => fakeGain()
+		getProgramGain: () => fakeGain(),
+		getClickGain: () => fakeGain(),
+		getMelodyGain: () => fakeGain(),
 	};
 });
 
@@ -259,13 +262,13 @@ describe('scheduleBackingTrack supersession', () => {
 	it('preloads the drum kit with the pitched instruments', async () => {
 		// The kit await now precedes the first audible commit, so it must not be
 		// a cold sample fetch on a running transport. One kit load constructs
-		// the three family samplers (kick / snare / cymbals).
+		// eight voice samplers plus the independent count-off.
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
-		expect(drumKitLoads).toBe(3);
+		expect(drumKitLoads).toBe(9);
 
 		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, false, () => true);
-		expect(drumKitLoads).toBe(3); // scheduling reused the kit, no second load
+		expect(drumKitLoads).toBe(9); // scheduling reused the kit, no second load
 	});
 
 	it('reports a voice playable only once its samples decoded, until disposal', async () => {
@@ -287,7 +290,7 @@ describe('scheduleBackingTrack supersession', () => {
 	it('reports no voice playable from a kit that decoded nothing', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
-		expect(drumKitLoads).toBe(3);
+		expect(drumKitLoads).toBe(9);
 		expect(mod.canPlayDrum('crossstick')).toBe(false);
 	});
 

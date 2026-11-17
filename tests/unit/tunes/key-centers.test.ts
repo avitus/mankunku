@@ -6,6 +6,7 @@ import { PITCH_CLASSES } from '$lib/types/music';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { analyzeHarmony } from '$lib/tunes/harmonic-analysis';
 import { flattenTune } from '$lib/tunes/flatten';
+import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 import { section, sheet, seg, threeLaneSheet } from '../../helpers/tune-fixtures';
 const autumn = sheet(JSON.parse(readFileSync('tests/fixtures/leadsheets/autumn-in-new-york.json', 'utf8')));
 
@@ -29,21 +30,21 @@ describe('key-center chart evidence', () => {
 		expect(display.legend.length).toBeGreaterThan(3);
 		expect(display.readings.some(r => r.key !== tune.key && r.reason.includes('progression center'))).toBe(true);
 	});
-	it('retains Autumn’s shared chord and minor arrival without changing cornerstone practice boundaries', () => {
+	it('keeps Autumn in G through bar 6 while retaining its tonicization and cornerstone practice boundaries', () => {
 		const before = structuredClone(autumn);
 		const display = tuneKeyCenters(autumn, INSTRUMENTS['tenor-sax']);
 		const major = display.markers.find(m => m.keyCenter?.label === 'G major' && m.timeRange?.start === 0)!;
-		const minor = display.markers.find(m => m.keyCenter?.label === 'A minor' && m.timeRange?.start === 3)!;
-		expect(major.timeRange?.end).toBe(3.5);
-		expect(minor.timeRange?.end).toBeGreaterThan(3.5);
-		expect(major.keyCenter?.lane).not.toBe(minor.keyCenter?.lane);
-		expect(keyCenterBarSpan(major, 3, 1)).toEqual({ left: 0, width: 50 });
+		expect(major.timeRange?.end).toBe(6);
+		expect(display.markers.some(m => m.keyCenter?.label === 'A minor' && m.timeRange?.start === 3)).toBe(false);
+		expect(display.readings.find(r => r.label === 'A minor' && r.start === 3)).toMatchObject({ contextKey: 'F', reason: expect.stringContaining('V/ii') });
+		expect(display.markers.some(m => m.keyCenter?.label === 'A minor' && m.timeRange?.start === 6)).toBe(true);
+		expect(keyCenterBarSpan(major, 3, 1)).toEqual({ left: 0, width: 100 });
 		expect(analyzeHarmony(flattenTune(autumn), autumn, { reservationScope: 'form' }).majorRegions[0].duration).toEqual([3, 1]);
 		expect(autumn).toEqual(before);
 	});
 	it.each(PITCH_CLASSES)('preserves analysis boundaries when transposing the tune to %s', key => {
 		const display = tuneKeyCenters(transposeTune(autumn, key), INSTRUMENTS.concert);
-		expect(display.markers.some(m => m.keyCenter?.label === `${key} major` && m.timeRange?.start === 0 && m.timeRange.end === 3.5)).toBe(true);
+		expect(display.markers.some(m => m.keyCenter?.label === `${key} major` && m.timeRange?.start === 0 && m.timeRange.end === 6)).toBe(true);
 	});
 	it('keeps competing compatible collections instead of forcing the tune signature', () => {
 		const tune = sheet({ key: 'D', sections: [section({ bars: 2, harmony: [seg('C', 'maj6', [0, 1], [1, 1]), seg('F', 'maj6', [1, 1], [1, 1])] })] });
@@ -51,6 +52,15 @@ describe('key-center chart evidence', () => {
 		expect(display.legend.map(l => l.label).sort()).toEqual(['C major', 'F major']);
 		expect(display.markers.map(m => m.keyCenter?.lane)).toEqual([0, 1]);
 		expect(display.readings.every(r => r.reason.includes('other readings'))).toBe(true);
+	});
+	it('subordinates a brief V/IV collection too, retaining its evidence and repeated visits', () => {
+		const symbols = ['Dm7', 'Em7', 'Fmaj7', 'G7', 'Cmaj7', 'Em7', 'C7', 'Fmaj7', 'Em7', 'G7'];
+		const tune = sheet({ sections: [section({ bars: 5, repeatStart: true, repeatEnd: true,
+			harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 2], [1, 2])!) })] });
+		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
+		expect(display.markers.map(m => m.keyCenter?.label)).toEqual(['C major']);
+		expect(display.markers[0].timeRange).toEqual({ start: 0, end: 5 });
+		expect(display.readings.find(r => r.key === 'F')).toMatchObject({ contextKey: 'C', visits: [1, 2] });
 	});
 	it('does not invent a key from an isolated chord, unknown symbol, or malformed timeline', () => {
 		for (const harmony of [[seg('C', 'maj7', [0, 1], [2, 1])],

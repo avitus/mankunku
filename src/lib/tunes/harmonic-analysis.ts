@@ -6,6 +6,7 @@ import { pitchClassInterval, transposePitchClass } from '$lib/music/transpositio
 import { DOMINANT_QUALITIES, MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { detectProgressions, type DetectedProgression } from './progression-detector';
 import type { FlattenedTune } from './flatten';
+import { contextualMajorRegions, type ContextualMajorRegion } from './tonal-centers';
 
 interface HarmonicSpan {
 	/** Indices into the supplied flatten, never notation indices guessed from bars. */
@@ -39,6 +40,8 @@ export interface HarmonicAnalysis {
 	reservedSegmentIndices: number[];
 	/** Scale-compatible readings, including chords also belonging to cornerstones. */
 	compatibleMajorRegions: MajorRegion[];
+	/** Governing centers with explained chromatic events; NEVER scale-based practice candidates. */
+	contextualMajorRegions: ContextualMajorRegion[];
 	/** Practice candidates after cornerstone reservation; competing keys can overlap. */
 	majorRegions: MajorRegion[];
 	issues: ('invalid-timeline')[];
@@ -130,7 +133,7 @@ export function analyzeHarmony(
 	options: { cyclic?: boolean; reservationScope?: 'cyclic' | 'form' } = {}
 ): HarmonicAnalysis {
 	const empty: HarmonicAnalysis = {
-		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], majorRegions: [], issues: []
+		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorRegions: [], issues: []
 	};
 	const [beats, unit] = tune.timeSignature;
 	if (!Number.isSafeInteger(beats) || beats <= 0 || !Number.isSafeInteger(unit) || unit <= 0 ||
@@ -208,5 +211,6 @@ export function analyzeHarmony(
 	const compatibleMajorRegions = scanRegions(new Set());
 	const majorRegions = scanRegions(reserved);
 	return { progressions, cornerstones, reservedSegmentIndices: order.filter((index) => reserved.has(index)),
-		compatibleMajorRegions, majorRegions, issues: [] };
+		compatibleMajorRegions, majorRegions,
+		contextualMajorRegions: contextualMajorRegions(flat, order, evidence, compatibleMajorRegions, beats / unit, sectionBoundaries), issues: [] };
 }

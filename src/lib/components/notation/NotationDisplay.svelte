@@ -267,6 +267,7 @@
 	/** Per-system vertical geometry, measured before any hit rects go in. */
 	interface SystemBand extends BandGeometry {
 		wrapper: SVGGElement;
+		bottom: number;
 	}
 
 	// Non-reactive per-render caches consumed by the positioning effect.
@@ -584,7 +585,8 @@
 				absBar: bases[z.sectionIdx] + z.bar,
 				systemIdx: z.systemIdx
 			})),
-			systemBands.map((b) => b.top * scale)
+			systemBands.map((b) => b.top * scale),
+			systemBands.map((b) => b.bottom * scale)
 		);
 		followOffsetPx = computeFollowOffset({
 			systems,
@@ -885,7 +887,8 @@
 			if (!staffEl) break; // keep index alignment: stop at the first oddity
 			const staffBox = staffEl.getBBox();
 			const wrapBox = wrapper.getBBox();
-			systemBands.push({ wrapper, ...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
+			systemBands.push({ wrapper, bottom: Math.max(wrapBox.y + wrapBox.height, staffBox.y + staffBox.height),
+				...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
 		}
 		// Wrapper↔system alignment is load-bearing (follow-scroll + range markers
 		// index into systemBands by system number). A short count means the break

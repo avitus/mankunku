@@ -51,7 +51,9 @@ vi.mock('smplr', () => {
 });
 vi.mock('$lib/audio/audio-context', () => ({
 	initAudio: async () => audio.context,
-	getMasterGain: () => ({}), setMasterVolume: vi.fn()
+	getProgramGain: () => ({}),
+	getClickGain: () => ({}),
+	getMelodyGain: () => ({}), setMasterVolume: vi.fn(),
 }));
 vi.mock('$lib/audio/metronome', () => ({
 	warmUpMetronome: vi.fn(), disposeMetronome: vi.fn(),

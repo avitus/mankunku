@@ -85,7 +85,7 @@ describe('resetAllPracticeData', () => {
 	it('clears the tonality override and persists it', async () => {
 		await resetAllPracticeData(supabase);
 		expect(settings.tonalityOverride).toBeNull();
-		expect(saveSettings).toHaveBeenCalledWith(supabase);
+		expect(saveSettings).toHaveBeenCalledWith(supabase, ['tonalityOverride']);
 	});
 
 	it('forwards the supabase client to the progress reset', async () => {

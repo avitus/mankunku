@@ -157,6 +157,9 @@ async function runKind(kind: OutboxKind, supabase: SupabaseClient<Database>): Pr
  */
 export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<void> {
 	if (_draining) return;
+	// In particular, pagehide must not start an auth fetch for an empty queue:
+	// document teardown aborts it (WebKit reports an access-control page error).
+	if (Object.keys(loadOutbox()).length === 0) return;
 	_draining = true;
 	try {
 		// Identity gate: the queue is namespaced to a user, but confirm the

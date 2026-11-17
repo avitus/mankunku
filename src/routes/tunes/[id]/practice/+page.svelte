@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { recordRecentTune } from '$lib/persistence/recent-tunes';
 	import { isInPickupLeadIn } from '$lib/music/pickup';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
@@ -21,8 +22,7 @@
 	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
 	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
-	import { TUNE_BACKING_LEVEL } from '$lib/audio/backing-mix';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+		import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
 		initTunePractice,
@@ -108,6 +108,14 @@
 	const baseSheet = $derived.by(() => {
 		void cacheVersion;
 		return resolveTuneRef(page.params.id ?? '');
+	});
+
+	const recentTuneId = $derived(baseSheet?.id);
+	$effect(() => {
+		if (recentTuneId) recordRecentTune(recentTuneId);
+	});
+	$effect(() => {
+		if (tunePractice.phase === 'count-in' && recentTuneId) recordRecentTune(recentTuneId);
 	});
 
 	// ── Audio modules + live handles (lick-practice session pattern) ──────────
@@ -462,7 +470,7 @@
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
 			backingTrackVolume: settings.backingTrackVolume,
-			backingOutputLevel: TUNE_BACKING_LEVEL,
+
 			backingStyle: tunePractice.config.backingStyle
 		};
 	}

@@ -5,6 +5,7 @@ export interface BackingSignalLevel {
 	readonly peakSoFar: number;
 }
 export interface BackingSignalSnapshot {
+	readonly room?: BackingSignalLevel | null;
 	readonly master?: BackingSignalLevel | null;
 	readonly bass: BackingSignalLevel | null;
 	readonly comp: BackingSignalLevel | null;
@@ -15,7 +16,7 @@ export interface BackingSignalMonitor {
 	dispose(): void;
 }
 type Instrument = keyof BackingSignalSnapshot;
-const instruments: readonly Instrument[] = ['bass', 'comp', 'drums', 'master'];
+const instruments: readonly Instrument[] = ['bass', 'comp', 'drums', 'master', 'room'];
 
 /**
  * An unconnected analyser output observes its input without rerouting it.

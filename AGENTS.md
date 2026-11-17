@@ -109,6 +109,17 @@ The CLI is linked to the **production** project ref. Local commands need an expl
 
 Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back on their instrument via microphone, and it scores pitch/rhythm accuracy in real time. Built with SvelteKit 3, Svelte 5 (runes), TypeScript strict mode, Tailwind CSS 4, Tone.js, and Pitchy.
 
+### Shared audio mixer (2026-11-17)
+
+`mixer-policy.ts` owns calibration and the common dB fader law; `mixer.ts` owns
+Melody, Click, Program, replay and listening Master. Backing uses fixed compressor
+drive followed by one shared fader on every page. Drum voice faders are amplitude
+gains; never put a user volume into MIDI velocity. Count-off routes through Click.
+Record accompaniment from `getProgramGain()`, not Master; route media replay via
+`media-playback.ts`. WAV exports retain program amplitude without normalization.
+See `docs/maintenance/audio-mixer/README.md` for reference measurements, v2→v3
+migration limits and verification. Keep future gain changes covered by PCM tests.
+
 ### Core module boundaries (`src/lib/`)
 
 - **types/** — Pure TypeScript interfaces grouped by domain. No runtime code.
@@ -175,7 +186,7 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 
 **Shared AudioContext.** Tone.js and smplr share one AudioContext (via `audio-context.ts`) so Transport scheduling and sample playback stay on the same timeline.
 **One voice per instrument.** `audio/instrument-voices.ts` `INSTRUMENT_VOICES` (keyed by `InstrumentId`, so a new instrument won't type-check without one) holds each demo horn's samples, SoundFont fallback, warmth-lowpass ceiling (follows the sax register: tenor 4.5k, alto 6k, soprano 9k) and pitch vibrato. Each sounding note randomly chooses straight, two-second-delayed narrow, gradually widening through release, or immediate narrow vibrato that ends early; notes shorter than 0.6 s stay straight and the previous width remains the ceiling. `playback.ts` keeps no per-instrument branches.
-**Tune audio matches the demo level.** The tune desk and tune practice (including Tunes + Licks) keep melody at unity and pass `TUNE_BACKING_LEVEL` (backing-mix.ts, +6 dB) as `backingOutputLevel`. The backing engine applies it after compression, preserving the former melody/band ratio without quieting the whole tune. Every backing schedule resets the output level (omitted = unity), so returning to ear training or lick practice restores their accompaniment level. User master/backing faders remain unchanged.
+**Backing uses one shared reference on every page.** Tune playback, tune practice (including Tunes + Licks), ear training, lick practice, and Listening Studio use the calibration in `mixer-policy.ts` and the post-compressor Backing fader in `backing-output.ts`. Keep compressor input drive fixed and apply the user's Backing level after compression. Route changes must not add a tune-only boost or reset another page to a different reference. Melody uses its shared bus, and the listening Master controls the final output without changing the recording tap.
 **Sentry initialises once per process.** `src/instrumentation.server.ts` guards `Sentry.init` with `isInitialized()` — do not remove it as redundant. Production loads the file once via `--import`, but `vite dev` loads it through `ssrLoadModule` on EVERY request, and every wipe of the SSR module graph re-evaluates it in the same long-lived process: a `vite.config.ts` / `.env` restart, an edit to the file or its `$lib/util/sentry-filters` import, and ANY `tsconfig.json` add/change/unlink under the project root — Vite 8's `reloadOnTsconfigChange` calls `invalidateAll()` on every environment, and the worktrees under `.claude/worktrees/` sit inside the root, so every parallel session's checkout counts (ordinary route/hook/component edits, `svelte-kit sync` and dependency discovery do not). Sentry's `init` is not idempotent: each call subscribes another `child_process` diagnostics-channel listener, another `uncaughtException`/`unhandledRejection`/`beforeExit` handler and, on macOS, spawns another `sw_vers` whose child carries every subscriber's `error` listener — the 13-hour dev server that printed `MaxListenersExceededWarning: 11 error listeners added to [ChildProcess]` (2026-09-10) had initialised 48 times, read live over the inspector protocol (`process.getBuiltinModule('node:diagnostics_channel').channel('child_process')._subscribers.length`). Measured per trigger with a `--require` preload counting the subscriptions; the guard holds the count at one through all of them. Pinned by `tests/unit/server/instrumentation-server.test.ts`. An edit to the Sentry options in dev needs a dev-server restart. `vite preview` is NODE_ENV=production too, so the server's `beforeSend`/`beforeSendTransaction` refile anything about a request to a loopback host under development (MANKUNKU-1V), the twin of the client's hostname check.
 
 

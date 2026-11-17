@@ -6,13 +6,15 @@
  * both use the same timeline for scheduling.
  */
 
+import { createMixer, getMixerLevels, setMixerLevels, subscribeMixer } from './mixer';
 import { guardTickRedelivery } from './tick-redelivery';
 
 type ToneModule = typeof import('tone');
 
 let tone: ToneModule | null = null;
 let initialized = false;
-let masterGain: GainNode | null = null;
+let mixer: ReturnType<typeof createMixer> | null = null;
+let initializing: Promise<AudioContext> | null = null;
 
 async function getTone(): Promise<ToneModule> {
 	if (!tone) {
@@ -25,7 +27,7 @@ async function getTone(): Promise<ToneModule> {
  * Initialize the audio engine. Must be called from a user gesture (click/tap).
  * Idempotent — safe to call multiple times.
  */
-export async function initAudio(): Promise<AudioContext> {
+async function initializeAudio(): Promise<AudioContext> {
 	const Tone = await getTone();
 	if (!initialized) {
 		await Tone.start();
@@ -46,32 +48,36 @@ export async function initAudio(): Promise<AudioContext> {
 
 		// Create master gain node for global volume control
 		const ctx = Tone.getContext().rawContext as AudioContext;
-		masterGain = ctx.createGain();
-		masterGain.connect(ctx.destination);
+		mixer = createMixer(ctx, ctx.destination, getMixerLevels());
+		subscribeMixer(levels => mixer?.setLevels(levels));
 
 		initialized = true;
 	}
 	return Tone.getContext().rawContext as AudioContext;
 }
 
-/**
- * Get the master gain node. All audio output (instrument + metronome)
- * should route through this node for global volume control.
- * Must call initAudio() first.
- */
-export function getMasterGain(): GainNode {
-	if (!masterGain) {
-		throw new Error('Audio not initialized. Call initAudio() first.');
-	}
-	return masterGain;
+/** Start one shared graph even when several instruments initialize concurrently. */
+export function initAudio(): Promise<AudioContext> {
+ return initializing ??= initializeAudio().catch(error => { initializing=null; throw error; });
 }
 
-/** Set master volume (0-1). */
-export function setMasterVolume(volume: number): void {
-	if (masterGain) {
-		masterGain.gain.value = Math.max(0, Math.min(1, volume));
-	}
+/** Reject source connections until the shared graph is initialized. */
+function activeMixer() {
+ if (!mixer) throw new Error('Audio not initialized. Call initAudio() first.');
+ return mixer;
 }
+/** Listening master output. Recording and instruments must use the named inputs below. */
+export function getMasterGain(): GainNode { return activeMixer().master; }
+/** Generated program before listening master, also the accompaniment recording tap. */
+export function getProgramGain(): GainNode { return activeMixer().program; }
+/** Melody input, controlled by the shared Melody fader. */
+export function getMelodyGain(): GainNode { return activeMixer().melody; }
+/** Click/count-off input, controlled independently of the band's fader. */
+export function getClickGain(): GainNode { return activeMixer().click; }
+/** Replay input receives output protection and Master, without entering recordings. */
+export function getReplayGain(): GainNode { return activeMixer().output; }
+/** Remember the level before initialization as well as changing active output. */
+export function setMasterVolume(volume: number): void { setMixerLevels({ master: volume }); }
 
 /**
  * Get the raw AudioContext (for passing to smplr).

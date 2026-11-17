@@ -7,7 +7,7 @@ import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
  * /diagnostics/backing-mixer — the backing listening lab.
  *
  * The mixer contract: slider moves reach the engine's persisted mix
- * (localStorage `backing-mix-levels-v2`) and survive a reload, because that
+ * (localStorage `backing-mix-levels-v3`) and survive a reload, because that
  * is what makes a tuned mix apply to every later practice session. The lab
  * contract: preset/seed/checklist controls render and the checklist report
  * reflects verdicts. Audio output itself is not asserted here (bouncing
@@ -31,28 +31,28 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 		.poll(async () => {
 			await page.getByTestId('mix-bass').fill('0.6');
 			return page.evaluate(
-				() => JSON.parse(localStorage.getItem('backing-mix-levels-v2') ?? '{}').bass
+				() => JSON.parse(localStorage.getItem('backing-mix-levels-v3') ?? '{}').bass
 			);
 		})
-		.toBeCloseTo(0.6);
+		.toBeCloseTo(3 * 10 ** (-24/20));
 
 	// Hydration is proven now; a plain fill suffices for the kick.
-	await page.getByTestId('mix-kick').fill('2');
+	await page.getByTestId('mix-kick').fill('0.8');
 	const stored = await page.evaluate(() =>
-		JSON.parse(localStorage.getItem('backing-mix-levels-v2') ?? '{}')
+		JSON.parse(localStorage.getItem('backing-mix-levels-v3') ?? '{}')
 	);
-	expect(stored.kick).toBeCloseTo(2);
+	expect(stored.kick).toBeCloseTo(3 * 10 ** (-12/20));
 
 	// Reload: the tuned values come back on the sliders.
 	await page.reload();
 	await expect(page.getByTestId('mix-bass')).toHaveValue('0.6');
-	await expect(page.getByTestId('mix-kick')).toHaveValue('2');
+	await expect(page.getByTestId('mix-kick')).toHaveValue('0.8');
 
 	// Reset returns the sliders and the stored mix to defaults.
 	await page.getByRole('button', { name: 'Reset to defaults' }).click();
-	await expect(page.getByTestId('mix-bass')).toHaveValue('1');
+	await expect(page.getByTestId('mix-bass')).toHaveValue('0.84');
 	const reset = await page.evaluate(() =>
-		JSON.parse(localStorage.getItem('backing-mix-levels-v2') ?? '{}')
+		JSON.parse(localStorage.getItem('backing-mix-levels-v3') ?? '{}')
 	);
 	expect(reset.kick).toBe(1);
 });

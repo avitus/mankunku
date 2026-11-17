@@ -1,3 +1,4 @@
+import { SAMPLE_CHANNEL_REFERENCE, SOUNDFONT_REFERENCE } from './mixer-policy';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { BACKING_BASE_TRIMS } from './backing-mix';
 
@@ -19,5 +20,5 @@ export function backingKeyboardTrim(instrument: BackingInstrument | null, style?
  // matrix measured about -1.3 to -2.04 dB. +0.51 dB restores margin without
  // changing note dynamics, the user's fader, or other styles. Both modes and
  // live/bounce paths share this calibration.
- return BACKING_BASE_TRIMS.comp * (instrument === 'organ' ? ORGAN_OUTPUT_GAIN * (style === 'ballad' ? 0.86 : style === 'bossa-nova' ? 1.06 : 1) : 1);
+ return BACKING_BASE_TRIMS.comp * (instrument === 'organ' ? SOUNDFONT_REFERENCE * ORGAN_OUTPUT_GAIN * (style === 'ballad' ? 0.86 : style === 'bossa-nova' ? 1.06 : 1) : SAMPLE_CHANNEL_REFERENCE);
 }

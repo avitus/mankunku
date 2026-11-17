@@ -1,4 +1,5 @@
 <script lang="ts">
+ import { mixAudio, pauseMediaPlayback } from '$lib/audio/media-playback';
 	import { onMount, onDestroy, tick, untrack } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
@@ -493,7 +494,7 @@
 
 	async function handlePlayBack() {
 		if (!playbackModule || !performedPhrase) return;
-		originalPlayer?.pause();
+		if (originalPlayer) pauseMediaPlayback(originalPlayer);
 		await playbackModule.playPhrase(performedPhrase, {
 			tempo,
 			// Swung eighths are NOTATED straight, so the review must re-apply
@@ -569,7 +570,7 @@
 					{#if suggestions.pickedFromSuggestion}<p class="rl-review-note">Suggestion — not verified</p>{/if}
 					<SuggestionCard onpick={(name) => lickName = name} disabled={savedConfirmation} />
 					{#if originalAudio}<div class="rl-original"><span id="original-recording-label">Your recording</span>
-						<audio aria-labelledby="original-recording-label" bind:this={originalPlayer} src={originalAudio} controls preload="metadata" onplay={() => playbackModule?.stopPlayback()}></audio>
+						<audio use:mixAudio aria-labelledby="original-recording-label" bind:this={originalPlayer} src={originalAudio} controls preload="metadata" onplay={() => playbackModule?.stopPlayback()}></audio>
 					</div>{/if}
 					<div class="rl-score"><NotationDisplay phrase={performedPhrase!} {instrument} frameless /></div>
 					<p class="rl-review-note">A first draft of your playing. Check the rhythm and pitches.</p>
