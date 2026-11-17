@@ -36,6 +36,18 @@ Set the listening amplitude (0–1), including before initialization. It affects
 
 ---
 
+## media-playback.ts
+
+`connectMediaPlayback(element)` routes a media element through Replay and the
+shared listening Master, reusing its source node. `mixAudio` is the native-controls
+Svelte action; it preserves the element's volume across routing and remounts.
+Call `pauseMediaPlayback(element)` when switching to synthesized playback: unlike
+native `pause()`, it also cancels pending Play intent while routing already has
+the element paused. `disconnectMediaPlayback(element)` cancels intent, pauses,
+and detaches the source. Destroying the action prevents late routing allocations.
+
+---
+
 ## tick-redelivery.ts
 
 ### `guardTickRedelivery(transport: object): void`

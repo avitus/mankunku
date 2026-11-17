@@ -105,7 +105,7 @@ test('recording media obeys saved Master from first playback and never enters th
  },source);
  await page.getByRole('button',{name:'Play reference recording',exact:true}).click();
  const result=await page.evaluate(async () => {
-  const {lib,audio,events,action,url}=(window as unknown as {referenceReplay:{lib:typeof import('../../src/lib/audio/audio-context') & typeof import('../../src/lib/audio/mixer'),audio:HTMLAudioElement,events:unknown[],action:{destroy():void},url:string}}).referenceReplay;
+  const {lib,audio,events,action,url}=(window as unknown as {referenceReplay:{lib:typeof import('../../src/lib/audio/audio-context') & typeof import('../../src/lib/audio/mixer') & typeof import('../../src/lib/audio/media-playback'),audio:HTMLAudioElement,events:unknown[],action:{destroy():void},url:string}}).referenceReplay;
   // Wait for actual media progress: WebKit can decode after the initial play event.
   for (let attempt=0; attempt<100 && (audio.paused || audio.volume === 0 || audio.currentTime < .1); attempt++) {
    await new Promise(resolve=>setTimeout(resolve,20));
@@ -129,12 +129,19 @@ test('recording media obeys saved Master from first playback and never enters th
   const playbackState={context:ctx.state,contextTime:ctx.currentTime,mediaTime:audio.currentTime,paused:audio.paused,muted:audio.muted,master:lib.getMasterGain().gain.value};
   lib.setMixerLevels({master:.4});await settle();const half=peak(listen),recording=peak(program);
   lib.setMixerLevels({master:0});await settle();const remuted=peak(listen);
-  action.destroy();URL.revokeObjectURL(url);
-  return {muted,full,half,recording,remuted,playbackState,events};
+  action.destroy();
+  const remounted=lib.mixAudio(audio);
+  lib.setMixerLevels({master:.8});
+  await audio.play().catch(error=>{if(error.name!=='AbortError')throw error;});
+  for(let attempt=0;attempt<100 && (audio.paused || peak(listen)<.05);attempt++)await new Promise(resolve=>setTimeout(resolve,30));
+  await settle();const reused=peak(listen);
+  remounted.destroy();URL.revokeObjectURL(url);
+  return {muted,full,half,recording,remuted,reused,playbackState,events};
  });
  expect(result.muted).toBe(0);
  expect(result.full,JSON.stringify(result)).toBeGreaterThan(.05);
  expect(result.half/result.full).toBeCloseTo(.5,2);
  expect(result.recording).toBe(0);
  expect(result.remuted).toBe(0);
+ expect(result.reused/result.full).toBeCloseTo(1,2);
 });

@@ -1,5 +1,5 @@
 <script lang="ts">
- import { mixAudio } from '$lib/audio/media-playback';
+ import { mixAudio, pauseMediaPlayback } from '$lib/audio/media-playback';
 	import { onMount, onDestroy, tick, untrack } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
@@ -494,7 +494,7 @@
 
 	async function handlePlayBack() {
 		if (!playbackModule || !performedPhrase) return;
-		originalPlayer?.pause();
+		if (originalPlayer) pauseMediaPlayback(originalPlayer);
 		await playbackModule.playPhrase(performedPhrase, {
 			tempo,
 			// Swung eighths are NOTATED straight, so the review must re-apply
