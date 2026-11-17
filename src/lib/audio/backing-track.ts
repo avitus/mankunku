@@ -1,6 +1,9 @@
+import { createDrumMixer } from './drum-mixer';
+import { BACKING_INPUT_REFERENCE, SAMPLE_OPTIONS, SOUNDFONT_OPTIONS } from './mixer-policy';
+import { getMixerLevels, setMixerLevels, subscribeMixer } from './mixer';
 import { prepareReleasedArrangement } from './backing-arrangement';
 import { getBackingArrangementPreference } from './backing-preference';
-import { BACKING_OUTPUT_GAIN, backingOutputGain, connectBackingOutput } from './backing-output';
+import { backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
  * Jazz backing track engine.
@@ -20,7 +23,7 @@ import type { PlaybackOptions } from '$lib/types/audio';
 import type { GeneratedBacking } from './backing-generation';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
-import { initAudio, getMasterGain, getAudioContext } from './audio-context';
+import { initAudio, getProgramGain, getClickGain, getAudioContext } from './audio-context';
 import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
@@ -34,8 +37,6 @@ import {
 import {
 	DRUM_ARTICULATIONS,
 	DRUM_BUFFERS,
-	DRUM_BUFFER_FAMILY,
-	DRUM_FAMILY_BY_VOICE,
 	drumBufferForVelocity,
 	type DrumBufferName
 } from './sample-maps';
@@ -149,15 +150,12 @@ let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
 let currentKeyboardStyle: BackingStyle = 'swing';
 
-// The backing bus (increment 9). Everything backing — bass, panned comp,
-// the split drum kit and the room return — flows through `backingGain`
-// (the backing setting) into a gentle glue compressor, then the session reference
-// and band Master fader. Tunes/lab use +6 dB; ordinary practice retains unity.
-// The app master stays untouched (it also carries the melody):
+// One backing bus on every surface. The input calibration is fixed; the user
+// Backing fader follows compression and feeds the shared recording/listening program.
 //
-//   bassGain ──────────────────────► backingGain ─► busCompressor ─► backingOutput ─► app master
+//   bassGain ──────────────────────► backingGain ─► compressor ─► Backing ─► program
 //   compGain ─► compPan ───────────►      ▲
-//   drum samplers ─► pans ─► drumBus ─────┤
+//   drum voice gains ─► pans ─► drumBus ──┤
 //   sends ─► roomConvolver ─► roomReturn ─┘
 //
 // Room sends tap post-pan (post-trim for bass/comp) so the wet image and
@@ -165,12 +163,11 @@ let currentKeyboardStyle: BackingStyle = 'swing';
 // trim in `applyMixGains` because `drumBus` sits downstream of the taps.
 let backingGain: GainNode | null = null;
 let backingOutput: GainNode | null = null;
-let currentOutputLevel = 1;
 let busCompressor: DynamicsCompressorNode | null = null;
 let bassGain: GainNode | null = null;
 let compGain: GainNode | null = null;
 let compPan: StereoPannerNode | null = null;
-let currentBackingVolume = 0.5;
+let currentBackingVolume = getMixerLevels().backing;
 
 // Room ambience. The decoded IR is cached forever (AudioBuffers are
 // context-independent); the convolver graph is rebuilt with the rest of
@@ -188,7 +185,7 @@ const signalMonitors = new Set<BackingSignalMonitor>();
 /** Measure actual post-mix instrument PCM; scheduled notes alone are not audio evidence. */
 export function createBackingSignalMonitor(): BackingSignalMonitor | null {
 	const epoch = graphEpoch;
-	const monitor = createSignalMonitor({ bass: bassGain, comp: compGain, drums: drumBus, master: backingOutput }, () => graphEpoch === epoch);
+	const monitor = createSignalMonitor({ bass: bassGain, comp: compGain, drums: drumBus, master: backingOutput, room: roomReturn }, () => graphEpoch === epoch);
 	if (!monitor) return null;
 	const owned: BackingSignalMonitor = {
 		read: () => monitor.read(),
@@ -200,12 +197,13 @@ export function createBackingSignalMonitor(): BackingSignalMonitor | null {
 
 /** Push the current volume + base trims + mix levels onto every live gain node. */
 function applyMixGains(): void {
-	if (backingGain) backingGain.gain.value = currentBackingVolume;
-	if (backingOutput) backingOutput.gain.value = backingOutputGain(mixLevels.master, currentOutputLevel);
+	if (backingGain) backingGain.gain.value = BACKING_INPUT_REFERENCE;
+	if (backingOutput) backingOutput.gain.value = backingOutputGain(currentBackingVolume);
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
 	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType, currentKeyboardStyle) * mixLevels.comp;
 	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
 	if (roomReturn) roomReturn.gain.value = ROOM_RETURN_GAIN * mixLevels.room;
+	drumMixer?.setMix(mixLevels);
 	// Bass/comp taps sit post-trim, so their sends are the raw policy level;
 	// the drum taps sit pre-drumBus, so the kit trim applies here instead.
 	const kitSend = BACKING_BASE_TRIMS.drums * mixLevels.drums;
@@ -217,7 +215,7 @@ function applyMixGains(): void {
 }
 
 /**
- * Create the shared backing bus (backing volume → glue compressor → band output → app master)
+ * Create the shared backing bus (fixed drive → compressor → Backing fader → program)
  * and the bass/comp branches, idempotently. Both `loadBackingInstruments`
  * and `ensureDrums` call this, so whichever runs first builds the bus.
  */
@@ -229,9 +227,9 @@ function ensureBackingGraph(audioCtx: AudioContext): void {
 		compressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 		compressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 		compressor.release.value = BACKING_BUS_COMPRESSOR.release;
-		backingOutput = connectBackingOutput(compressor, getMasterGain(), mixLevels.master);
+		backingOutput = connectBackingOutput(compressor, getProgramGain(), currentBackingVolume);
 		const gain = audioCtx.createGain();
-		gain.gain.value = currentBackingVolume;
+		gain.gain.value = BACKING_INPUT_REFERENCE;
 		gain.connect(compressor);
 		busCompressor = compressor;
 		backingGain = gain;
@@ -325,10 +323,10 @@ export function setBackingMix(partial: Partial<BackingMixLevels>, options: { per
 	applyMixGains();
 }
 
-// Drums: the CC0 Virtuosity kit split into three smplr Samplers — kick /
-// snare-family / cymbals — each behind its own StereoPanner into the
-// shared drum bus, so the kit spreads across the image like a kit.
-let drumSamplers: Record<DrumFamily, SmplrSampler> | null = null;
+// Eight drum voice samplers feed three family pans and a shared kit bus.
+// A separate cross-stick sampler feeds Click for the count-off.
+let drumSamplers: Record<DrumVoice, SmplrSampler> | null = null;
+let drumMixer: Awaited<ReturnType<typeof createDrumMixer>> | null = null;
 /** The buffers the loaded kit decoded; a sample the browser can't read is missing. */
 let drumBuffersDecoded: ReadonlySet<DrumBufferName> = new Set();
 let drumPans: Record<DrumFamily, StereoPannerNode> | null = null;
@@ -478,6 +476,7 @@ export async function getDecodedRoomIrForBounce(sampleRate: number): Promise<Aud
 	}
 }
 
+/** Decode the kit once and discard channels built for a superseded graph. */
 async function ensureDrums(): Promise<void> {
 	if (drumSamplers) return;
 	if (drumLoadPromise) return drumLoadPromise;
@@ -530,40 +529,14 @@ async function ensureDrums(): Promise<void> {
 		// encoding; the guard below is correct either way.
 		const decoded = await decodeDrumBuffers(audioCtx);
 
-		// Partition the decoded buffers into their sampler families. A family
-		// whose buffers all failed to decode still gets an (empty) sampler —
-		// its starts become silent no-ops, like the old single-sampler path.
-		const byFamily: Record<DrumFamily, Record<string, AudioBuffer>> = {
-			kick: {},
-			snare: {},
-			cymbals: {}
-		};
-		for (const [name, buffer] of Object.entries(decoded)) {
-			byFamily[DRUM_BUFFER_FAMILY[name as DrumBufferName]][name] = buffer;
-		}
-
-		// Explicit defaults required — smplr's samplerToSmplrJson puts
-		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
-		// undefined values clobber PARAM_DEFAULTS via object spread,
-		// producing NaN detune at playback and throwing inside Voice.
-		const samplers = {} as Record<DrumFamily, SmplrSampler>;
-		for (const family of ['kick', 'snare', 'cymbals'] as const) {
-			samplers[family] = new Sampler(native.context, {
-				scheduler: native.createScheduler(),
-				buffers: byFamily[family],
-				destination: pans[family],
-				detune: 0,
-				decayTime: 0.3,
-				lpfCutoffHz: 20000
-			});
-		}
-
+		let voices: Awaited<ReturnType<typeof createDrumMixer>> | undefined;
 		try {
-			await Promise.all(Object.values(samplers).map((s) => s.load));
+			voices = await createDrumMixer(native.context, Sampler, decoded, pans, () => native.createScheduler(), getClickGain());
+			const samplers = voices.samplers;
 			if (epoch !== graphEpoch) {
 				// Disposed mid-load: tear down this flight's local nodes and let
 				// the next ensureDrums build against the live graph.
-				for (const s of Object.values(samplers)) s.disconnect();
+				voices.dispose();
 				for (const p of Object.values(pans)) p.disconnect();
 				bus.disconnect();
 				return;
@@ -571,13 +544,14 @@ async function ensureDrums(): Promise<void> {
 			drumBus = bus;
 			drumPans = pans;
 			drumSamplers = samplers;
+			drumMixer = voices;
 			drumBuffersDecoded = new Set(Object.keys(decoded) as DrumBufferName[]);
 			// The kit's pans now exist — give them their room sends if the IR
 			// beat the kit here (otherwise the IR's own decode completion will).
 			buildRoomGraph(audioCtx);
 			applyMixGains();
 		} catch (error) {
-			for (const s of Object.values(samplers)) s.disconnect();
+			voices?.dispose();
 			for (const p of Object.values(pans)) p.disconnect();
 			bus.disconnect();
 			throw error;
@@ -673,10 +647,11 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(native.context, { scheduler: native.createScheduler(), destination: compGain as GainNode, storage, loader })
+			? new SplendidGrandPiano(native.context, { scheduler: native.createScheduler(), destination: compGain as GainNode, ...SAMPLE_OPTIONS, storage, loader })
 			: new Soundfont(native.context, {
 				scheduler: native.createScheduler(),
 				instrument: 'drawbar_organ',
+				...SOUNDFONT_OPTIONS,
 				kit: 'MusyngKite',
 				destination: compGain as GainNode,
 				storage
@@ -938,6 +913,7 @@ export function disposeBackingParts(): void {
 	compInstrument?.stop();
 	if (drumSamplers) {
 		for (const sampler of Object.values(drumSamplers)) sampler.stop();
+		drumMixer?.countoff?.stop();
 	}
 	activeSchedule = null;
 }
@@ -1050,12 +1026,11 @@ export function playBackingHitsNow(hits: readonly BackingHit[], time: number, ow
 				break;
 			case 'drum':
 				// Mirrors the drum Part callback: buffer picked by generated
-				// velocity, level shaped through velocity, hit routed to its
-				// family's sampler (kick / snare / cymbals).
-				keep(drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
+				// velocity; the user fader is a separate voice gain.
+				keep(drumSamplers?.[hit.drum].start({
 					note: drumBufferForVelocity(hit.drum, hit.velocity),
 					velocity: Math.round(
-						voiceVelocity(hit.velocity * BACKING_BASE_TRIMS[hit.drum], mixLevels[hit.drum]) * 127
+						voiceVelocity(hit.velocity, 1) * 127
 					),
 					time, ...ownership()
 				}));
@@ -1127,7 +1102,6 @@ export async function createRollingBackingPlayback(options: RollingBackingPlayba
 	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');
 	disposeBackingParts();
 	activeRollingPlayback = renderer;
-	currentOutputLevel = BACKING_OUTPUT_GAIN;
 	applyMixGains();
 	const stop = renderer.stop;
 	return Object.assign(renderer, { ownsOutput, stop() {
@@ -1167,13 +1141,12 @@ function playDrum(time: number, event: DrumEvent): void {
 	// within a family sampler can only be shaped through velocity. The
 	// buffer is picked from the voice's velocity layers by the GENERATED
 	// velocity (musical intent), before trims touch the level, and the
-	// hit routes to its family's sampler (kick / snare / cymbals — each
-	// with its own pan). A buffer the browser failed to decode makes the
+	// hit routes to its voice gain and family pan. A buffer the browser failed to decode makes the
 	// start a silent no-op, exactly like the old single-buffer path.
-	drumSamplers?.[DRUM_FAMILY_BY_VOICE[event.drum]].start({
+	drumSamplers?.[event.drum].start({
 		note: drumBufferForVelocity(event.drum, event.velocity),
 		velocity: Math.round(
-			voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
+			voiceVelocity(event.velocity, 1) * 127
 		),
 		time
 	});
@@ -1361,8 +1334,7 @@ export async function scheduleBackingTrack(
 	// generated up front so the whole kit shares the swing grid.
 	currentKeyboardStyle = options.backingStyle ?? 'swing';
 	applyMixGains();
-	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
-	currentOutputLevel = options.backingOutputLevel ?? 1;
+	setBackingTrackVolume(options.backingTrackVolume ?? getMixerLevels().backing);
 	applyMixGains();
 
 	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
@@ -1418,7 +1390,8 @@ export function disposeBackingTrack(): void {
 		currentKeyboardStyle = 'swing';
 	}
 	if (drumSamplers) {
-		for (const sampler of Object.values(drumSamplers)) sampler.disconnect();
+		drumMixer?.dispose();
+		drumMixer = null;
 		drumSamplers = null;
 		drumBuffersDecoded = new Set();
 	}
@@ -1467,6 +1440,13 @@ export function disposeBackingTrack(): void {
 
 /** Adjust backing track volume at runtime (per-instrument trims ride on top). */
 export function setBackingTrackVolume(volume: number): void {
-	currentBackingVolume = Math.max(0, Math.min(1, volume));
-	applyMixGains();
+	setMixerLevels({ backing: volume });
+}
+
+// Settings may arrive before or after the graph; a cold page uses the same level.
+subscribeMixer(levels => { currentBackingVolume=levels.backing; applyMixGains(); });
+
+/** Count-off is a click source, independent of backing mutes and balance. */
+export function playCountOff(velocity: number, time: number): void {
+ drumMixer?.countoff?.start({ note: 'crossstick', velocity: Math.round(voiceVelocity(velocity,1)*127), time });
 }

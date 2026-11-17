@@ -88,7 +88,9 @@ vi.mock('$lib/audio/sample-maps', async (importOriginal) => ({
 }));
 vi.mock('$lib/audio/audio-context', () => ({
 	initAudio: async () => graph.context,
-	getMasterGain: () => graph.masterGain,
+	getProgramGain: () => graph.masterGain,
+	getClickGain: () => graph.masterGain,
+	getMelodyGain: () => graph.masterGain,
 	setMasterVolume: vi.fn()
 }));
 vi.mock('$lib/audio/metronome', () => ({

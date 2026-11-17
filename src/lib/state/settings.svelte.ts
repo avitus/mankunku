@@ -1,3 +1,4 @@
+import { MIXER_DEFAULTS } from '$lib/audio/mixer-policy';
 import type { InstrumentConfig, BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
 import { INSTRUMENTS, isInstrumentId } from '$lib/types/instruments';
@@ -32,12 +33,14 @@ function loadSettings() {
 const defaultSettings = {
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
-	masterVolume: 0.8,
+	masterVolume: MIXER_DEFAULTS.master,
+	/** Device-local melody balance; cloud volume columns retain their amplitude meaning. */
+	melodyVolume: MIXER_DEFAULTS.melody,
 	metronomeEnabled: true,
-	metronomeVolume: 0.5,
+	metronomeVolume: MIXER_DEFAULTS.click,
 	backingTrackEnabled: false,
 	backingInstrument: 'piano' as BackingInstrument,
-	backingTrackVolume: 0.6,
+	backingTrackVolume: MIXER_DEFAULTS.backing,
 	backingStyle: 'swing' as BackingStyle,
 	/** Personal accompaniment choices for curated and adopted tunes, keyed by stable tune id. */
 	tuneBackingStyles: {} as Record<string, BackingStyle>,
@@ -144,7 +147,7 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		const cloudSettings = result.data;
 
 		// Merge cloud settings with defaults, preferring cloud values
-		const merged = { ...defaultSettings, ...cloudSettings };
+		const merged = { ...defaultSettings, ...cloudSettings, melodyVolume: settings.melodyVolume };
 		// Clamp swing to valid range (same as loadSettings)
 		merged.swing = Math.max(STRAIGHT_SWING, Math.min(MAX_SWING, merged.swing as number));
 		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {

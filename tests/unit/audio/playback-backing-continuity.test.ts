@@ -32,7 +32,7 @@ vi.mock('$lib/audio/metronome', () => ({
 }));
 vi.mock('$lib/audio/audio-context', async () => {
 	const { fakeAudioContext } = await import('../../helpers/fake-audio-context');
-	const param = () => ({ value: 0, cancelScheduledValues() {}, setValueAtTime() {}, linearRampToValueAtTime() {} });
+	const param = () => ({ value: 0, setTargetAtTime(value: number) { this.value = value; }, cancelScheduledValues() {}, setValueAtTime() {}, linearRampToValueAtTime() {} });
 	const node = () => ({ connect() {}, disconnect() {} });
 	const ctx = {
 		...fakeAudioContext(),
@@ -41,7 +41,7 @@ vi.mock('$lib/audio/audio-context', async () => {
 		createDelay: () => ({ ...node(), delayTime: param() }),
 		createOscillator: () => ({ ...node(), frequency: param(), start() {}, stop() {} })
 	};
-	return { initAudio: async () => ctx, getAudioContext: () => ctx, getMasterGain: node, setMasterVolume() {} };
+	return { initAudio: async () => ctx, getAudioContext: () => ctx, getMasterGain: node, getProgramGain: node, getClickGain: node, getMelodyGain: node, setMasterVolume() {} };
 });
 
 const phrase: Phrase = {

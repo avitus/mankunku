@@ -141,7 +141,9 @@ vi.mock('$lib/audio/audio-context', () => ({
 		createGain: () => ({ gain: {}, connect() {}, disconnect() {} }),
 		createDelay: () => ({ delayTime: {}, connect() {}, disconnect() {} })
 	}),
-	getMasterGain: () => ({}),
+	getProgramGain: () => ({}),
+	getClickGain: () => ({}),
+	getMelodyGain: () => ({}),
 	setMasterVolume: vi.fn()
 }));
 vi.mock('$lib/audio/metronome', async (importOriginal) => {

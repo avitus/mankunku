@@ -106,7 +106,9 @@ vi.mock('tone', () => ({
 }));
 
 vi.mock('$lib/audio/audio-context', () => ({
-	getMasterGain: () => ({ connect: vi.fn() })
+	getProgramGain: () => ({ connect: vi.fn() }),
+	getClickGain: () => ({ connect: vi.fn() }),
+	getMelodyGain: () => ({ connect: vi.fn() }),
 }));
 
 type Metronome = typeof import('$lib/audio/metronome');
@@ -279,7 +281,7 @@ describe('setMetronomeVolume', () => {
 	it('applies METRONOME_TRIM (0.6) under the knob value', async () => {
 		await metronome.warmUpMetronome();
 		await metronome.setMetronomeVolume(0.5);
-		expect(gains[0].gain.value).toBeCloseTo(0.5 * 0.6, 10);
+		expect(gains[0].gain.value).toBeCloseTo(0.6, 10);
 	});
 
 	it('clamps the knob to [0, 1] before trimming', async () => {
@@ -287,12 +289,13 @@ describe('setMetronomeVolume', () => {
 		await metronome.setMetronomeVolume(1.7);
 		expect(gains[0].gain.value).toBeCloseTo(0.6, 10);
 		await metronome.setMetronomeVolume(-0.3);
-		expect(gains[0].gain.value).toBe(0);
+		expect((await import('$lib/audio/mixer')).getMixerLevels().click).toBe(0);
+ expect(gains[0].gain.value).toBe(.6);
 	});
 
 	it('boots the synth graph with the default knob position trimmed', async () => {
 		await metronome.warmUpMetronome();
-		expect(gains[0].gain.value).toBeCloseTo(0.5 * 0.6, 10);
+		expect(gains[0].gain.value).toBeCloseTo(0.6, 10);
 	});
 
 	it('boots the synth graph itself when the knob is set before any warm-up', async () => {
@@ -300,7 +303,8 @@ describe('setMetronomeVolume', () => {
 		// must build the graph rather than dereference a missing gain node.
 		await metronome.setMetronomeVolume(0.8);
 		expect(gains).toHaveLength(1);
-		expect(gains[0].gain.value).toBeCloseTo(0.8 * 0.6, 10);
+		expect(gains[0].gain.value).toBeCloseTo(0.6, 10);
+ expect((await import('$lib/audio/mixer')).getMixerLevels().click).toBe(.8);
 	});
 });
 

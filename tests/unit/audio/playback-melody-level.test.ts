@@ -1,3 +1,4 @@
+import { SAMPLE_CHANNEL_REFERENCE, SOUNDFONT_REFERENCE } from '$lib/audio/mixer-policy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
@@ -76,7 +77,9 @@ vi.mock('$lib/audio/sample-maps', async (importOriginal) => ({
 }));
 vi.mock('$lib/audio/audio-context', () => ({
 	initAudio: async () => audio.context,
-	getMasterGain: () => audio.master,
+	getProgramGain: () => audio.master,
+	getClickGain: () => audio.master,
+	getMelodyGain: () => audio.master,
 	setMasterVolume: vi.fn()
 }));
 vi.mock('$lib/audio/metronome', () => ({
@@ -109,10 +112,10 @@ const options: PlaybackOptions = {
 };
 
 /** Start a take far enough for its setup to have run, then stop it. */
-async function playTake(melodyLevel?: number): Promise<void> {
+async function playTake(): Promise<void> {
 	const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
 	audio.transport.start.mockClear();
-	const playing = playPhrase(phrase, options, false, { melodyLevel });
+	const playing = playPhrase(phrase, options, false);
 	await vi.waitFor(() => expect(audio.transport.start).toHaveBeenCalled());
 	await stopPlayback();
 	await playing;
@@ -132,24 +135,24 @@ describe('the melody level', () => {
 		'tenor-sax': () => audio.gains.find((gain) => gain.targets.includes(audio.master))!
 	};
 
-	it.each(['trumpet', 'tenor-sax'] as const)('sets the level of a %s take and returns to unity after it', async (instrumentId) => {
+	it.each(['trumpet', 'tenor-sax'] as const)('preserves calibrated %s level across takes', async (instrumentId) => {
 		const { loadInstrument } = await import('$lib/audio/playback');
 		await loadInstrument(instrumentId, 1);
 		const trim = trimFor[instrumentId]();
 
-		await playTake(0.5);
-		expect(trim.gain.value).toBe(0.5);
 		await playTake();
-		expect(trim.gain.value).toBe(1);
+		expect(trim.gain.value).toBe(instrumentId === 'trumpet' ? SOUNDFONT_REFERENCE : SAMPLE_CHANNEL_REFERENCE);
+		await playTake();
+		expect(trim.gain.value).toBe(instrumentId === 'trumpet' ? SOUNDFONT_REFERENCE : SAMPLE_CHANNEL_REFERENCE);
 	});
 
-	it('stays at unity when the band failed to load, so the melody is not left quiet on its own', async () => {
+	it('preserves calibrated melody when the band failed to load', async () => {
 		const { loadInstrument } = await import('$lib/audio/playback');
 		await loadInstrument('trumpet', 1);
 		const trim = trimFor.trumpet();
 		audio.backingLoaded = false;
 
-		await playTake(0.5);
-		expect(trim.gain.value).toBe(1);
+		await playTake();
+		expect(trim.gain.value).toBe(SOUNDFONT_REFERENCE);
 	});
 });

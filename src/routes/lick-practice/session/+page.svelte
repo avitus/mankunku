@@ -81,7 +81,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
+	import { setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { scoreFluency } from '$lib/scoring/fluency';
 	import { getTrickById, transposeTrickContext } from '$lib/tricks';
@@ -1300,7 +1300,7 @@
 			try {
 				tmpRecorder = createRecorder(
 					micCapture.source,
-					getMasterGain(),
+					getProgramGain(),
 					micCapture.context
 				);
 				tmpRecorder.start();

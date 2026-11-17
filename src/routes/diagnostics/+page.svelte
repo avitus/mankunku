@@ -1,4 +1,5 @@
 <script lang="ts">
+ import { mixAudio } from '$lib/audio/media-playback';
 	import { onMount, onDestroy } from 'svelte';
 	import { getBackingTrackLog } from '$lib/audio/backing-track';
 	import type { BackingTrackLog } from '$lib/audio/backing-track';
@@ -464,7 +465,7 @@
 										 from the start (currentTime=0 alone is unreliable on
 										 MediaRecorder webm/opus blobs). -->
 									{#key audioUrl}
-										<audio
+										<audio use:mixAudio
 											src={audioUrl}
 											controls
 											onended={(e) => {

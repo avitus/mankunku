@@ -109,6 +109,17 @@ The CLI is linked to the **production** project ref. Local commands need an expl
 
 Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back on their instrument via microphone, and it scores pitch/rhythm accuracy in real time. Built with SvelteKit 3, Svelte 5 (runes), TypeScript strict mode, Tailwind CSS 4, Tone.js, and Pitchy.
 
+### Shared audio mixer (2026-11-17)
+
+`mixer-policy.ts` owns calibration and the common dB fader law; `mixer.ts` owns
+Melody, Click, Program, replay and listening Master. Backing uses fixed compressor
+drive followed by one shared fader on every page. Drum voice faders are amplitude
+gains; never put a user volume into MIDI velocity. Count-off routes through Click.
+Record accompaniment from `getProgramGain()`, not Master; route media replay via
+`media-playback.ts`. WAV exports retain program amplitude without normalization.
+See `docs/maintenance/audio-mixer/README.md` for reference measurements, v2→v3
+migration limits and verification. Keep future gain changes covered by PCM tests.
+
 ### Core module boundaries (`src/lib/`)
 
 - **types/** — Pure TypeScript interfaces grouped by domain. No runtime code.

@@ -16,8 +16,7 @@
 	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
 	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
-	import { TUNE_BACKING_LEVEL } from '$lib/audio/backing-mix';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+		import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
 		initTunePractice,
@@ -446,7 +445,7 @@
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
 			backingTrackVolume: settings.backingTrackVolume,
-			backingOutputLevel: TUNE_BACKING_LEVEL,
+
 			backingStyle: tunePractice.config.backingStyle
 		};
 	}

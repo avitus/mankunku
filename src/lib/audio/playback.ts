@@ -1,3 +1,5 @@
+import { setMixerLevels } from './mixer';
+import { SAMPLE_OPTIONS, SOUNDFONT_OPTIONS, SAMPLE_CHANNEL_REFERENCE, SOUNDFONT_REFERENCE } from './mixer-policy';
 /**
  * Phrase playback engine.
  *
@@ -19,7 +21,7 @@ import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
-import { initAudio, getMasterGain, setMasterVolume } from './audio-context';
+import { initAudio, getMelodyGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
 import {
 	loadBackingInstruments,
@@ -31,6 +33,7 @@ import {
 	canPlayDrum,
 	muteBackingParts,
 	playBackingHitsNow,
+	playCountOff,
 	prepareBackingSection
 } from './backing-track';
 import { COUNT_IN_VOICE, drumCountInHits } from './drum-count-in';
@@ -148,7 +151,7 @@ async function getTone(): Promise<ToneModule> {
  * note by `shapeVibrato`) into the voice's warmth lowpass, which rolls off
  * the harsh top of the recordings.
  *
- * For custom samples: effects are inserted between the mix node and master gain.
+ * For custom samples: effects are inserted between the mix node and Melody input.
  * For SoundFont: effects are added as inserts on the instrument's output channel.
  */
 function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void {
@@ -165,6 +168,7 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	warmthFilter.Q.value = 0.7; // Gentle slope, no resonance peak
 
 	melodyTrim = audioCtx.createGain();
+	melodyTrim.gain.value = hasCustomSamples ? SAMPLE_CHANNEL_REFERENCE : SOUNDFONT_REFERENCE;
 	warmthFilter.connect(melodyTrim);
 
 	vibratoDelay =audioCtx.createDelay(VIBRATO_BASE_DELAY_SECONDS * 2);
@@ -189,12 +193,12 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	);
 
 	if (hasCustomSamples) {
-		// Custom samples: insert effects between mix node and master gain.
+		// Custom samples: insert effects between mix node and Melody input.
 		// Both velocity-layer samplers route to mixNode, so one effect
 		// chain covers all notes regardless of which layer triggered.
 		mixNode!.disconnect();
 		mixNode!.connect(vibratoDelay);
-		melodyTrim.connect(getMasterGain());
+		melodyTrim.connect(getMelodyGain());
 	} else {
 		// SoundFont: add as insert on the instrument's output channel.
 		instrument!.output.addInsert({
@@ -305,9 +309,9 @@ async function loadCustomSamples(
 	const { Sampler } = await import('smplr');
 	if (loadId !== currentLoadId) return false;
 
-	// Mix node: both velocity layers feed into this, then through effects to master gain
+	// Mix node: both velocity layers feed into this, then through effects to Melody input
 	const newMixNode = audioCtx.createGain();
-	newMixNode.connect(getMasterGain());
+	newMixNode.connect(getMelodyGain());
 
 	let newPiano: SmplrSampler | null = null;
 	let newForte: SmplrSampler | null = null;
@@ -316,7 +320,7 @@ async function loadCustomSamples(
 		// Explicit defaults required — smplr's samplerToSmplrJson puts
 		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
 		// undefined values clobber PARAM_DEFAULTS via object spread.
-		const samplerDefaults = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
+		const samplerDefaults = { ...SAMPLE_OPTIONS, detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
 		newPiano = new Sampler(audioCtx, {
 			buffers: loadSampleLayer(layerToBuffers(sampleMap.piano)),
 			destination: newMixNode,
@@ -360,10 +364,11 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 	if (loadId !== currentLoadId) return;
 
 	const newInstrument = new Soundfont(audioCtx, {
+		...SOUNDFONT_OPTIONS,
 		instrument: instrumentVoice(instrumentId).soundfont,
 		kit: 'MusyngKite',
 		loadLoopData: true,
-		destination: getMasterGain()
+		destination: getMelodyGain()
 	});
 	await newInstrument.load;
 
@@ -715,14 +720,6 @@ export interface PhrasePlaybackOpts {
 	 * through it as its last bar, and the band still enters after it.
 	 */
 	countIn?: { bars: number; drums: boolean; pickup?: boolean };
-	/**
-	 * Linear gain on the melody under the band for this take (playPhrase only).
-	 * Omitted, or with no band able to play, it returns to unity: a level set for
-	 * a tune never carries into the next caller's demo, and a band that failed to
-	 * load does not leave the melody quiet on its own. A continuation keeps the
-	 * take's level.
-	 */
-	melodyLevel?: number;
 }
 
 /**
@@ -788,7 +785,6 @@ export async function playPhrase(
 	stopPlaybackResources(Tone);
 
 	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
-	if (melodyTrim) melodyTrim.gain.value = backingWillPlay ? opts.melodyLevel ?? 1 : 1;
 
 	// Configure transport
 	transport.bpm.value = options.tempo;
@@ -881,6 +877,7 @@ export async function playPhrase(
 	// The count-off triggers the kit near-now, so a kit that failed to preload,
 	// or could not decode the count's voice, counts in silence; the click keeps
 	// the count then.
+	setMixerLevels({ click: options.metronomeVolume });
 	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded()
 		&& canPlayDrum(COUNT_IN_VOICE);
 	if (options.metronomeEnabled && !(backingWillPlay && drumsCountIn)) {
@@ -924,7 +921,7 @@ export async function playPhrase(
 		for (const hit of drumCountInHits(countBars, beatsPerBar, ppq)) {
 			transport.scheduleOnce((time) => {
 				if (scheduleId !== currentScheduleId) return;
-				playBackingHitsNow([{ kind: 'drum', drum: hit.drum, velocity: hit.velocity }], time);
+				playCountOff(hit.velocity, time);
 			}, `${hit.tick}i`);
 		}
 	}

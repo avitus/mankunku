@@ -7,7 +7,7 @@
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { selectEarTrainingLicks, transposeEarTrainingLick } from '$lib/phrases/ear-training-pool';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
-	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
+	import { setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -528,7 +528,7 @@
 		if (micCapture) {
 			let armed: RecorderHandle | null = null;
 			try {
-				armed = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
+				armed = createRecorder(micCapture.source, getProgramGain(), micCapture.context);
 				armed.start();
 				recorderHandle = armed;
 			} catch (err) {
