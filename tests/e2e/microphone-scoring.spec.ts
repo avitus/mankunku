@@ -141,14 +141,7 @@ for (const { mode, delayedStep } of pendingSetupCases) test(`${mode}: stopping d
 		probe.__lateLevelTimers = 0;
 		const hold = () => new Promise<void>(resolve => {
 			probe.__setupPending = true;
-			probe.__releaseSetup = async () => {
-				const interval = window.setInterval;
-				window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
-					if (timeout === 50) probe.__lateLevelTimers++;
-					return interval(handler, timeout, ...args);
-				}) as typeof window.setInterval;
-				resolve();
-			};
+			probe.__releaseSetup = async () => { resolve(); };
 		});
 		const addModule = AudioWorklet.prototype.addModule;
 		AudioWorklet.prototype.addModule = async function (url, options) {
@@ -187,6 +180,15 @@ for (const { mode, delayedStep } of pendingSetupCases) test(`${mode}: stopping d
 		await page.getByRole('button', { name: 'End Session', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'End Session', exact: true })).toHaveCount(0);
 	}
+	// Observe both release paths before either pending continuation can resume.
+	await page.evaluate(() => {
+		const probe = window as unknown as { __lateLevelTimers: number };
+		const interval = window.setInterval;
+		window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+			if (timeout === 50) probe.__lateLevelTimers++;
+			return interval(handler, timeout, ...args);
+		}) as typeof window.setInterval;
+	});
 	if (delayedStep === 'permission') {
 		await page.evaluate(() => (window as unknown as { __releaseMockMic: () => void }).__releaseMockMic());
 	} else {
