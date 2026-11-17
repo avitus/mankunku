@@ -72,7 +72,7 @@ for (const count of [40, 100]) {
 	});
 }
 
-test('Tunes keeps a large book searchable and preserves written keys and detail links', async ({
+test('Tunes keeps a large book searchable without catalog metadata and preserves detail links', async ({
 	page
 }) => {
 	await seedOnboardedAnonymous(page);
@@ -88,20 +88,20 @@ test('Tunes keeps a large book searchable and preserves written keys and detail 
 	await page.goto('/tunes');
 	const rows = page.locator('.library-tune-card');
 	await expect(rows).toHaveCount(20);
-	const paging = page.getByRole('navigation', { name: 'Top tunes pagination' });
+	const paging = page.getByRole('navigation', { name: 'Bottom tunes pagination' });
 	await paging.getByRole('button', { name: 'Next page' }).click();
 	await page.getByLabel('Search tunes').fill('Studio Tune 096');
 	await expect(rows).toHaveCount(1);
-	await expect(paging).toContainText('Page 1 of 1');
-	await expect(rows.first()).toContainText('Key of D');
+	await expect(paging).toHaveCount(0);
+	await expect(rows.first()).not.toContainText(/Key of|\d+ bars|4\/4/);
 	await page.getByLabel('Search tunes').fill('');
 	await page.getByLabel('Tunes per page').selectOption({ label: 'All' });
 	await expect(rows).toHaveCount(100);
-	await page.getByLabel('Filter collection').selectOption('curated');
+	await page.getByRole('group', { name: 'Collection filters' }).getByRole('button', { name: /^Curated/ }).click();
 	await expect(rows).toHaveCount(2);
-	await page.getByRole('button', { name: 'Cards', exact: true }).click();
+	await page.getByLabel('Tune view').selectOption('cards');
 	await expect(page.locator('.library-cards .library-tune-card')).toHaveCount(2);
-	await page.getByRole('button', { name: 'Open Rhythm Changes' }).click();
+	await page.getByRole('link', { name: 'Open Rhythm Changes' }).click();
 	await expect(page).toHaveURL(/\/tunes\/rhythm-changes$/);
 });
 

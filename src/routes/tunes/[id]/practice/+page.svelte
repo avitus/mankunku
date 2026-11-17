@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { recordRecentTune } from '$lib/persistence/recent-tunes';
 	import { isInPickupLeadIn } from '$lib/music/pickup';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
@@ -108,6 +109,14 @@
 	const baseSheet = $derived.by(() => {
 		void cacheVersion;
 		return resolveTuneRef(page.params.id ?? '');
+	});
+
+	const recentTuneId = $derived(baseSheet?.id);
+	$effect(() => {
+		if (recentTuneId) recordRecentTune(recentTuneId);
+	});
+	$effect(() => {
+		if (tunePractice.phase === 'count-in' && recentTuneId) recordRecentTune(recentTuneId);
 	});
 
 	// ── Audio modules + live handles (lick-practice session pattern) ──────────

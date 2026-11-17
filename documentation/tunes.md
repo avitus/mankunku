@@ -6,18 +6,21 @@ A tune in Mankunku is a chart you can read, hear, transpose to any key, and then
 
 ## The book
 
-Open **Tunes** in the nav and you get two shelves:
+Open **Tunes** to see a compact songbook with **Recent** at the top: the last two distinct tunes you opened or played. Recent tunes appear once, above the remaining tunes in alphabetical order. This history belongs to your account on this browser; it starts as you visit tunes and does not sync between devices. Removed tunes drop out of the display.
 
-- **Your book** — everything you charted by hand, imported, or adopted from the community. Adopted charts carry an **Adopted** badge and *shared by* the player who shared them.
-- **Curated tunes** — the two charts that ship with the app, both written for it: *Mankunku Blues* and *Rhythm Changes*; their pages carry a **Curated** badge.
+Search beside the title matches title, composer, style, or tag across the selected collection, including recent tunes. While searching, all matches appear together. Rows show the title, composer, and community attribution; key, time signature, and length are omitted from the catalog. The chart still has its key and transposition controls.
 
-One search box filters both shelves at once, matching on title, composer, style, or tag. The buttons at the top right: **Browse Community** (charts other players have shared), **+ Add a tune**, a *How your songbook works* tour link, and a docs link.
+The **Browse** panel on the right holds the collection filters, Compact/Cards view, and 20/40/All page-size choice:
 
-If your book is empty the page says so and points you at the two places to start.
+- **Your book** includes tunes you charted, imported, or adopted. Adopted charts keep the contributor's name.
+- **Curated** contains *Mankunku Blues* and *Rhythm Changes*, the two charts included with the app.
+- **All tunes** combines both collections. Recent tunes respect the selected collection.
+
+The same panel holds **Add a tune**, **Browse community**, import shortcuts, help, and the tour. On smaller screens, the **Browse** button opens these controls above the list. Page navigation appears below the list only when there is another page, and returns you to the first result when you change pages. If your book is empty, the page offers a link to add your first tune.
 
 ## Five ways to add a tune
 
-Tap **+ Add a tune** and you land on a chooser with five routes in. They all end in the same place — a chart in your book — but they start from very different material.
+Tap **Add a tune** and you land on a chooser with five routes in. They all end in the same place — a chart in your book — but they start from very different material.
 
 | Route | Start from | Good for |
 |---|---|---|
