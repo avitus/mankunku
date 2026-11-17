@@ -16,6 +16,7 @@
 	import {
 		buildDiagnosticsPayload,
 		decodeToWav,
+		scoringRecordingBlob,
 		fixtureBaseName,
 		replayRecording,
 		triggerDownload,
@@ -175,7 +176,7 @@
 			const full = await getRecordingFull(rec.sessionId);
 			if (!full) throw new Error('recording not found');
 
-			const wavBlob = new Blob([await decodeToWav(full.blob)], { type: 'audio/wav' });
+			const wavBlob = new Blob([await decodeToWav(scoringRecordingBlob(full))], { type: 'audio/wav' });
 			await triggerDownload(wavBlob, fixtureName(rec));
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);

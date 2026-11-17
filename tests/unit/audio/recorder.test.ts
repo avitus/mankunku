@@ -92,17 +92,28 @@ describe('createRecorder', () => {
 		expect(instances[0].options).toEqual({ mimeType: 'audio/webm;codecs=opus' });
 		expect(instances[0].stream).toBe(g.dest.stream);
 		supported = ['audio/mp4'];
-		rec.start();
+		createRecorder(g.mic, g.master, g.ctx).start();
 		expect(instances[1].options).toEqual({ mimeType: 'audio/mp4' });
 		supported = [];
-		rec.start();
+		createRecorder(g.mic, g.master, g.ctx).start();
 		expect(instances[2].options).toBeUndefined();
+	});
+
+	it('rejects a second start while recording and after stopping so scoring audio cannot be reused', async () => {
+		const g = graph();
+		const rec = createRecorder(g.mic, g.master, g.ctx);
+		rec.start();
+		expect(() => rec.start()).toThrow('single-use');
+		await rec.stop();
+		expect(() => rec.start()).toThrow('single-use');
+		expect(instances).toHaveLength(1);
+		rec.dispose();
 	});
 
 	it('stop with nothing recording resolves an empty blob', async () => {
 		const g = graph();
 		const rec = createRecorder(g.mic, g.master, g.ctx);
-		const blob = await rec.stop();
+		const { blob } = await rec.stop();
 		expect(blob.size).toBe(0);
 		expect(blob.type).toBe('audio/webm');
 	});
@@ -116,12 +127,12 @@ describe('createRecorder', () => {
 		r.ondataavailable!({ data: new Blob([]) });
 		r.ondataavailable!({ data: new Blob(['de']) });
 
-		const blob = await rec.stop();
+		const { blob } = await rec.stop();
 		expect(r.stop).toHaveBeenCalled();
 		expect(blob.type).toBe('audio/webm;codecs=opus');
 		expect(blob.size).toBe(5);
 
-		const again = await rec.stop();
+		const { blob: again } = await rec.stop();
 		expect(again.size).toBe(0);
 	});
 
@@ -157,4 +168,20 @@ describe('createRecorder', () => {
 		expect(g.micGain.disconnect).toHaveBeenCalledTimes(1);
 		expect(g.master.disconnect).toHaveBeenCalledTimes(1);
 	});
+});
+
+it('coalesces concurrent stop requests so teardown cannot orphan the saved take', async () => {
+	const g = graph();
+	const rec = createRecorder(g.mic, g.master, g.ctx);
+	rec.start();
+	const media = instances[0];
+	media.stop.mockImplementation(() => { media.state = 'inactive'; });
+	const first = rec.stop();
+	const teardown = rec.stop();
+	expect(teardown).toBe(first);
+	media.ondataavailable!({ data: new Blob(['take']) });
+	media.onstop!();
+	expect(await (await first).blob.text()).toBe('take');
+	expect(await (await teardown).blob.text()).toBe('take');
+	rec.dispose();
 });

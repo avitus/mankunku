@@ -5,7 +5,7 @@
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import '$lib/components/admin/AdminDesk.css';
 	import AdminContent from '$lib/components/admin/AdminContent.svelte';
-	import { isInactive } from '$lib/ui/admin-user-filter';
+	import { isActive, isInactive } from '$lib/ui/admin-user-filter';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -22,7 +22,7 @@
 	const visibleUsers = $derived(data.users.filter(row => {
 		const matchesSearch = `${row.email ?? ''} ${row.displayName ?? ''} ${row.id}`.toLowerCase().includes(search.trim().toLowerCase());
 		return matchesSearch && (!joinedBefore || (row.createdAt && row.createdAt.slice(0, 10) <= joinedBefore)) &&
-			(filter === 'all' || (filter === 'inactive' && isInactive(row, Date.now())) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
+			(filter === 'all' || (filter === 'active' && isActive(row, Date.now())) || (filter === 'inactive' && isInactive(row, Date.now())) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
 	}));
 
 	/** Open account deletion confirmation for one user. */
@@ -100,10 +100,10 @@
 	<StudioPanel id="admin-users" number="01" title="Users" description="Signups, activity, and content — newest first">
 		<div class="admin-filters">
 			<label class="admin-search">Find a user<input type="search" bind:value={search} placeholder="Email or name" class="mt-1 block w-full min-w-48 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
-			<label class="text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="inactive">No activity in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
+			<label class="admin-activity-filter text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="active">Active Users (past two weeks)</option><option value="inactive">No activity in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
 			<label class="text-xs">Joined on or before<input type="date" bind:value={joinedBefore} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
 		</div>
-		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days active counts distinct recorded dates with practice or a signed-in visit, including historical practice. Older visit-only days may be missing. Practice dates use local time and visit dates use UTC, so totals are approximate around midnight. Practice minutes are not time signed in.</p></details></div>
+		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days active counts distinct recorded dates with practice or a signed-in visit, including historical practice. Older visit-only days may be missing. Practice dates use local time and visit dates use UTC, so totals are approximate around midnight. Practice minutes are not time signed in. Active Users includes accounts whose latest practice, visit, sign-in, or signup was within the past two weeks, including the cutoff day in UTC. Instruments reflect the last synced selection.</p></details></div>
 
 		{#if data.unavailable}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
@@ -137,6 +137,7 @@
 						</div>
 
 						<div class="admin-user-facts">
+							<div><span class="smallcaps">Instrument</span> <span class="tabular-nums">{row.instrumentName ?? 'Not selected'}</span></div>
 							<div><span class="smallcaps">Joined</span> <span class="tabular-nums">{fmtDate(row.createdAt)}</span></div>
 							<div><span class="smallcaps">Last sign-in</span> <span class="tabular-nums">{fmtDate(row.lastSignInAt)}</span></div>
 							<div><span class="smallcaps">Last active</span> <span class="tabular-nums">{fmtDate(row.lastActiveDate)}</span></div>

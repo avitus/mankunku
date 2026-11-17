@@ -97,7 +97,7 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 			admin.from('tunes').select('user_id').is('deleted_at', null).order('id').range(from, to)
 		),
 		selectAllRows((from, to) =>
-			admin.from('user_settings').select('user_id, updated_at').order('user_id').range(from, to)
+			admin.from('user_settings').select('user_id, updated_at, instrument_id').order('user_id').range(from, to)
 		),
 		selectAllRows((from, to) =>
 			admin.from('user_devices').select('*').order('user_id').order('device_id').range(from, to)

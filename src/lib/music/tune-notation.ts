@@ -71,6 +71,8 @@ export interface TuneAbcOptions {
 	defaultLength?: Fraction;
 	/** Bars per system before a line break. */
 	barsPerLine?: number;
+	/** Minimum gap between systems, in ABC points, for below-staff overlays. */
+	staffSeparation?: number;
 	/**
 	 * How to read `sheet.key`: minor draws the relative major's signature and
 	 * prints `K:Dm` (as `phraseToAbc` does for a minor lick). Default major —
@@ -263,6 +265,7 @@ export function tuneToAbcWithMap(
 		// Boxed rehearsal marks [A] [B] — standard lead-sheet / Real Book form
 		// so section letters never read as chord symbols.
 		`%%partsbox 1`,
+		...(options.staffSeparation !== undefined ? [`%%staffsep ${options.staffSeparation}`] : []),
 		// Measure numbers at the start of every system (abcjs: 0 = each line).
 		...(options.measureNumbers === false ? [] : [`%%measurenb 0`]),
 		// Don't stretch a short last system to full width — a bar or two spread

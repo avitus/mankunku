@@ -106,9 +106,8 @@ Above the console, a ⚠ line warns you when licks you've tagged for practice ha
 
 The rhythm section is generated, not looped: bass, comping (piano or organ, your pick in Settings), and drums, played fresh each time from a seeded engine. It doesn't repeat a two-bar sample at you.
 
-In **Settings → Rhythm & band**, choose **Musicality 0.16.1** or **Original**.
-The choice stays on this device and takes effect when you next start playback.
-Musicality coordinates the bass, keyboard and drums across the form. It supports
+**Musicality 0.16.1** is the default accompaniment and coordinates the bass,
+keyboard and drums across the form. No arrangement selection is needed. It supports
 complete 4/4 forms up to 128 bars; other passages automatically use Original.
 Normal practice prepares the arrangement before playback. Live microphone-driven
 band responses are a listening-lab experiment, not part of ordinary practice.

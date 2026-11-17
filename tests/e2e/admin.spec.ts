@@ -117,6 +117,29 @@ adminTest.describe('admin — content management', () => {
 		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
 	});
 
+	adminTest('shows saved instruments and combines Active Users with search and joined date', async ({ signedInPage: page }) => {
+		const inactive = page.locator('article.admin-user').filter({ hasText: 'inactive@example.test' });
+		const active = page.locator('article.admin-user').filter({ hasText: 'author@example.test' });
+		await expect(inactive.getByText('Instrument', { exact: true }).locator('..')).toHaveText('Instrument Tenor Saxophone');
+		await expect(active.getByText('Instrument', { exact: true }).locator('..')).toHaveText('Instrument Not selected');
+		const filter = page.getByRole('combobox', { name: 'Show', exact: true });
+		await filter.selectOption({ label: 'Active Users (past two weeks)' });
+		await expect(active).toBeVisible();
+		await expect(inactive).toHaveCount(0);
+		await expect(page.getByText('1 user shown', { exact: true })).toBeVisible();
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
+		await expect(page.getByText('No matching users.', { exact: true })).toBeVisible();
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('');
+		await page.getByLabel('Joined on or before').fill('2026-09-19');
+		await expect(active).toHaveCount(0);
+		await page.getByLabel('Joined on or before').fill('2026-09-20');
+		await expect(active).toBeVisible();
+		await page.getByLabel('Joined on or before').fill('');
+		await filter.selectOption('all');
+		await expect(inactive).toBeVisible();
+		await expect(page.getByText('2 users shown', { exact: true })).toBeVisible();
+	});
+
 	adminTest('shows one active day, filters users, and previews zero-impact deletion', async ({ signedInPage: page }) => {
 		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
 		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
@@ -169,6 +192,12 @@ for (const viewport of [
 		await page.setViewportSize({ width: viewport.width, height: 1000 });
 		await page.goto('/admin');
 		await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+		await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('active');
+		await expect(page.getByText('author@example.test', { exact: true })).toBeVisible();
+		await expect(page.getByText('inactive@example.test', { exact: true })).toHaveCount(0);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await page.screenshot({ path: testInfo.outputPath(`admin-active-${viewport.width}-${viewport.theme}.png`), fullPage: true });
+		await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('all');
 		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
 		await page.getByRole('button', { name: 'Inspect content' }).click();
 		await page.locator('summary').filter({ hasText: 'Preview lick' }).click();

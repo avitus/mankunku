@@ -241,6 +241,25 @@ describe('/admin load', () => {
 		expect(result.users[0].devices).toEqual([device]);
 	});
 
+	it('loads the saved instrument alongside sync recency and leaves unsynced accounts unset', async () => {
+		mockAdminAuth.admin.listUsers.mockResolvedValue({ data: { users: [{ id: 'u1' }, { id: 'u2' }] }, error: null });
+		const saved = { user_id: 'u1', instrument_id: 'tenor-sax', updated_at: '2026-10-15T10:00:00Z' };
+		mockAdmin.from.mockImplementation((table: string) => {
+			if (table !== 'user_settings') return makeQueryMock([]);
+			const query = makeQueryMock([]);
+			query.select = vi.fn((columns: string) => makeQueryMock([
+				Object.fromEntries(Object.entries(saved).filter(([key]) => columns.split(',').map(column => column.trim()).includes(key)))
+			]));
+			return query;
+		});
+		const result = await runLoad();
+		expect(result.unavailable).toBe(false);
+		expect(result.users).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: 'u1', instrumentName: 'Tenor Saxophone', lastSyncAt: saved.updated_at }),
+			expect.objectContaining({ id: 'u2', instrumentName: null, lastSyncAt: null })
+		]));
+	});
+
 	it('withholds totals when a sixth page proves the user list is truncated', async () => {
 		mockAdminAuth.admin.listUsers.mockImplementation(async ({ page }: { page: number }) => ({
 			data: { users: page <= 5 ? fullAuthPage(page) : fullAuthPage(page).slice(0, 1) },

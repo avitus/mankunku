@@ -30,6 +30,15 @@ describe('tuneToAbc — headers', () => {
   expect(desk.abc).not.toMatch(/^[TCR]:/m);
   expect(desk.noteAnchors.map(a => desk.abc.slice(a.startChar, a.endChar))).toEqual(ordinary.noteAnchors.map(a => ordinary.abc.slice(a.startChar, a.endChar)));
  });
+	it('reserves rail spacing without shifting note, bar or chord anchors off their music', () => {
+		const ordinary = tuneToAbcWithMap(simpleSheet());
+		const rails = tuneToAbcWithMap(simpleSheet(), undefined, { staffSeparation: 110 });
+		expect(rails.abc).toContain('%%staffsep 110');
+		for (const key of ['noteAnchors', 'barAnchors', 'chordSlotAnchors'] as const) {
+			expect(rails[key].map(a => rails.abc.slice(a.startChar, a.endChar))).toEqual(
+				ordinary[key].map(a => ordinary.abc.slice(a.startChar, a.endChar)));
+		}
+	});
 	it('emits a composer line when present', () => {
 		const abc = tuneToAbc({ ...simpleSheet(), composer: 'Trad.' });
 		expect(abc).toMatch(/^C:Trad\.$/m);

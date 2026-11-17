@@ -10,8 +10,8 @@ import type { PitchReading } from '$lib/audio/pitch-frame';
 import type { ReplayResult } from '$lib/audio/replay';
 import type { RecordingMetadata, RecordingRecord } from '$lib/persistence/audio-store';
 
-const replayFromBlob = vi.fn<() => Promise<ReplayResult>>();
-vi.mock('$lib/audio/replay', () => ({ replayFromBlob: () => replayFromBlob() }));
+const replayFromBlob = vi.fn<(blob: Blob) => Promise<ReplayResult>>();
+vi.mock('$lib/audio/replay', () => ({ replayFromBlob: (blob: Blob) => replayFromBlob(blob) }));
 
 vi.mock('$lib/audio/note-segmenter', async (importOriginal) => {
 	const real = await importOriginal<typeof import('$lib/audio/note-segmenter')>();
@@ -135,4 +135,19 @@ describe('replayRecording', () => {
 		expect(weak![0].time).toBeCloseTo(2.3 - result.trimOffset, 9);
 		expect(result.weakReadings).toBe(weak);
 	});
+});
+
+it('replays the microphone sidecar, while legacy recordings retain their mixed source', async () => {
+	const take = record({ scoringAudio: 'microphone' });
+	take.scoringBlob = new Blob(['mic']);
+	await replayRecording(take);
+	expect(replayFromBlob).toHaveBeenLastCalledWith(take.scoringBlob);
+	const legacy = record({});
+	await replayRecording(legacy);
+	expect(replayFromBlob).toHaveBeenLastCalledWith(legacy.blob);
+});
+
+it('never silently scores the listening mix when new microphone audio is missing', async () => {
+	await expect(replayRecording(record({ scoringAudio: 'unavailable' }))).rejects.toThrow('playback only');
+	await expect(replayRecording(record({ scoringAudio: 'microphone' }))).rejects.toThrow('playback only');
 });

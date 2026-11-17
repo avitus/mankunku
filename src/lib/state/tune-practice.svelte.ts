@@ -1,3 +1,4 @@
+import { focusPracticePlan } from '$lib/tunes/practice-report';
 import { savedTunePracticePreferences, saveTunePracticePreferences, savedTuneKey, saveTuneKey, savedTunePracticeStyle, saveTunePracticeStyle, type TunePracticePreferences } from '$lib/tunes/preferences';
 import { tuneBackingStyle } from '$lib/tunes/backing-style';
 import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
@@ -490,12 +491,13 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 }
 
 /** Arm the already-shared plan only when the player presses Start. */
-export function startTunePracticeSession(sheet: Tune, ppq: number): TunePracticeAudioPlan {
+export function startTunePracticeSession(sheet: Tune, ppq: number, focusSpots: readonly string[] = []): TunePracticeAudioPlan {
 	const { audioPlan, plan, pickedSuggestion } = prepareTunePracticeSession(sheet, tunePractice.config, ppq);
 
+	const focusedPlan = focusPracticePlan(plan, audioPlan.playedPhrase, focusSpots, { barTicks: sheet.timeSignature[0] * ppq, countInTicks: audioPlan.countInBars * sheet.timeSignature[0] * ppq });
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
-	tunePractice.plan = plan;
+	tunePractice.plan = focusedPlan;
 	tunePractice.pickedSuggestion = pickedSuggestion;
 	tunePractice.uncategorizedCount = plan[0]?.uncategorizedCount ?? 0;
 	tunePractice.currentIndex = 0;

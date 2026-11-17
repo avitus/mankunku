@@ -56,3 +56,12 @@ export function simpleSheet(): Tune {
 		]
 	});
 }
+
+/** Three compatible major collections overlap at the middle C6 bar. */
+export function threeLaneSheet(melody = true): Tune {
+	return sheet({ id: 'three-lane-centers', title: 'Three Lane Centers', sections: [section({
+		bars: 5,
+		notes: melody ? Array.from({ length: 5 }, (_, bar) => ({ pitch: 60, duration: [1, 4], offset: [bar, 1] })) : [],
+		harmony: (['C', 'F', 'C', 'G', 'C'] as const).map((root, bar) => seg(root, 'maj6', [bar, 1], [1, 1]))
+	})] });
+}

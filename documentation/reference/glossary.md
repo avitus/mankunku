@@ -140,7 +140,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 ## App-specific
 
-**Musicality / Original** — The device-local accompaniment choice in Settings → Rhythm & band. Musicality coordinates the rhythm section across supported 4/4 forms; Original is the alternative and automatic fallback for unsupported passages. The choice applies to the next playback. See [The band](../user-guide.md#the-band).
+**Musicality / Original** — Musicality is the default accompaniment, coordinating the rhythm section across supported 4/4 forms. Original remains the automatic fallback for unsupported passages and a comparison option in the listening lab. See [The band](../user-guide.md#the-band).
 
 **Listening lab** — The diagnostic workspace for comparing arrangements and testing the band’s responses to microphone observations. Its live adaptive behavior is separate from ordinary practice, which prepares an arrangement before playback.
 

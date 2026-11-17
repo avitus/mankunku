@@ -18,7 +18,8 @@ export function adminTestData() {
 			{ user_id: ADMIN_TEST_ADOPTED, date: '2026-08-01', session_count: 10, practice_minutes: 0, practice_time_unavailable: true },
 			{ user_id: ADMIN_TEST_ADOPTED, date: new Date().toISOString().slice(0, 10), session_count: 1, practice_minutes: 1 }
 		],
-		visitDays: [{ user_id: ADMIN_TEST_TARGET, date: '2026-09-22' }], lickOwners: [ADMIN_TEST_TARGET, ADMIN_TEST_TARGET, ADMIN_TEST_ADOPTED], tuneOwners: [], settings: []
+		visitDays: [{ user_id: ADMIN_TEST_TARGET, date: '2026-09-22' }], lickOwners: [ADMIN_TEST_TARGET, ADMIN_TEST_TARGET, ADMIN_TEST_ADOPTED], tuneOwners: [],
+		settings: [{ user_id: ADMIN_TEST_TARGET, instrument_id: 'tenor-sax', updated_at: '2026-09-22T12:00:00Z' }]
 	});
 	return { unavailable: false, truncated: false, users, audit: [], totals: buildAdminTotals(users, new Date()) };
 }

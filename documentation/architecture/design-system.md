@@ -179,6 +179,24 @@ scrolling on small screens and a sticky lick-name column. Canvas sample
 scores are examples only; the application retains real session results,
 written-key transposition, historical scores and Deep Practice actions.
 
+### Tune chorus report
+
+`TunePracticeReport.svelte` applies the Studio Desk palette to the existing
+chorus-comparison layout. Its source design is MagicPath component
+`472917335972401152`, revision `473223231814402048`.
+
+Each scored insertion uses `accuracyTierInfo()` on the original 0–1 result,
+before rounding its displayed percentage. Gold, silver and bronze reuse
+`.lp-medal-chip` and `.lp-chip-*`; teal and deep teal use the shared flat 20%
+tier-color mix. The selected-spot readout uses the same tier and exposes its
+short grade label. Both themes inherit the application's existing tokens.
+
+Outcome symbols (✓ / × / ○), landed counts, filters and retry actions retain
+their existing meaning. They do not determine the score color. Unscored
+openings, unreached windows and unavailable licks stay neutral; selection and
+keyboard focus use brass independently of performance. The report retains real
+session data and does not persist practice progress or import prototype scores.
+
 ### Progression identity palette
 
 One muted hue per chord progression — `--prog-<ChordProgressionType>` (`--prog-minor-vamp` … `--prog-ii-V-I-major-long`), consumed only through `progressionColor(type)` in `src/lib/music/progression-display.ts` (an exhaustive `Record`, so a new progression won't type-check without a hue). It tints the library card's category pill and dots and carries into the lick-practice session header, so a lick reads as one thing across both. The hue encodes tonality as a cool→warm spectrum: minor progressions teal→indigo, the cyclic/bluesy turnarounds violet→rose, dominant and major terracotta→gold; `:root.light` re-steps them darker.
@@ -756,6 +774,35 @@ or its MagicPath skill does not update every existing page.
   distinct. Playback moves the highlight using the audio clock without
   re-engraving the score. Color is supplementary to labels and geometry.
 
+### Tune key-center rails
+
+The tune detail reference is MagicPath component `459518519676121088`, revision
+`472893533464973312`. Use the shared harmonic analysis and native Svelte notation;
+the prototype's illustrative score and playback data are not production inputs.
+
+- Show key centers as 2.5px muted rails below the staff, with compact names
+  (`G maj`, `A min`) at each span/system start. Chord-only rows show the first span wide enough for a label, including when a center begins late in the preceding bar. Minor rails are dashed. Retain
+  partial-bar boundaries and separate lanes for overlapping centers; the normal
+  layout reserves at least two lanes and grows by 18 units per additional lane,
+  including inter-system separation and final SVG padding. The producer supplies
+  its full lane count independently of marker visibility, so hiding three or
+  more readings preserves both staff and chord-chart geometry.
+- Keep the wrapping legend suitable for seven or more distinct centers. Use
+  stable tonic hues at 25% saturation and the theme's `--key-center-lightness`
+  so labels remain legible on dark and light score wells.
+- The tune desk uses only a neutral current-bar wash (4.5% ink), without a
+  moving pointer or highlighted individual note/chord. Keep practice feedback
+  and exercise cues independent of harmonic identity.
+- Retain native Fraunces/Edwin chord symbols, baseline minor signs and raised
+  extensions. Number only the first bar of each system; do not add repeated-chord
+  dots. Do not restore the removed key-center readings disclosure.
+- Reuse these rails and the same legend in practice setup, active practice and
+  import preview. Reserve their vertical space even when hidden so toggling
+  centers does not reflow the score or interrupt playback. Active tune practice
+  carries the setup visibility choice through the head and solo chart, recomputing
+  harmonic context for the displayed returning/closing sheet. Key-center rails
+  remain independent of lick prompts, which stay hidden during the head.
+
 ### Shared editing controls
 
 Lick Editor and Tune Editor use the same `DurationSelector`,
@@ -909,6 +956,12 @@ Admin · Operations Desk, component `461211093453402112`, revision
 `461217195662393344`. The rail stacks below the user list at 900px.
 User rows use compact vertical spacing and inline label/value pairs, wrapping
 on narrow screens while retaining every account fact and inspection control.
+The Show dropdown includes **Active Users (past two weeks)**, using the newest
+practice, visit, sign-in, or signup date on or after the UTC cutoff day 14 days
+ago. Local practice dates may be one day ahead of UTC. The filter combines
+with search and the joined-date filter.
+Each row displays the last synced instrument selection by its shared catalog
+name, preserving unknown saved IDs and showing **Not selected** when absent.
 
 ### Record a lick
 

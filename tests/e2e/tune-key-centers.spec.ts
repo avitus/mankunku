@@ -1,3 +1,4 @@
+import { threeLaneSheet } from '../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes, seedStorage } from './fixtures/storage';
@@ -21,12 +22,31 @@ for (const width of [1440, 390]) {
 		const a = page.locator('svg [data-key-center="A minor"]').first();
 		await expect(g).toBeVisible(); await expect(a).toBeVisible();
 		expect(await g.getAttribute('data-key-center-lane')).not.toBe(await a.getAttribute('data-key-center-lane'));
-		await page.getByText('Key-center readings', { exact: true }).click();
-		await expect(page.locator('.key-center-guide')).toContainText('Bar 1, beat 1 → Bar 4, beat 3');
-		await expect(page.locator('.key-center-guide')).toContainText('Minor arrival');
-		await page.getByText('Key-center readings', { exact: true }).click();
+		await expect(page.getByText('Key-center readings', { exact: true })).toHaveCount(0);
+		await expect(g.locator('text')).toHaveText('G maj');
+		await expect(a.locator('text')).toHaveText('A min');
+		await expect(g.locator('line')).toHaveCSS('stroke-width', '2.5px');
+		// Both overlapping rails remain below the music and inside the SVG,
+		// including the last system and the narrower mobile engraving.
+		const railsFit = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.every(rail => {
+			const box = rail.getBoundingClientRect();
+			const svg = rail.closest('svg')!.getBoundingClientRect();
+			const notes = rail.parentElement!.querySelectorAll('.abcjs-note');
+			const wrappers = [...rail.closest('svg')!.querySelectorAll('.abcjs-staff-wrapper')];
+			const next = wrappers[wrappers.indexOf(rail.parentElement!) + 1];
+			const nextInk = next?.querySelectorAll('.abcjs-note, .abcjs-chord, .abcjs-part, .abcjs-bar-number') ?? [];
+			return box.bottom <= svg.bottom && [...notes].every(note => note.getBoundingClientRect().bottom < box.top)
+				&& [...nextInk].every(ink => ink.getBoundingClientRect().top > box.bottom);
+		}));
+		expect(railsFit).toBe(true);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-${width}.png`), fullPage: true });
+		await page.evaluate(() => document.documentElement.classList.add('light'));
+		const lightColor = await g.evaluate(el => getComputedStyle(el).color);
+		await expect(g.locator('line')).toHaveCSS('stroke', lightColor);
+		await expect(g.locator('text')).toHaveCSS('fill', lightColor);
+		await page.screenshot({ path: info.outputPath(`key-centers-tune-light-${width}.png`), fullPage: true });
+		await page.evaluate(() => document.documentElement.classList.remove('light'));
 		await toggle.click();
 		await expect(page.locator('[data-key-center]')).toHaveCount(0);
 		await page.getByRole('button', { name: /Practice licks/ }).click();
@@ -99,3 +119,54 @@ test('the displayed closing ending supplies its own center', async ({ page }) =>
 	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).blur();
 	await expect(page.getByTestId('tune-chord-chart').locator('[data-bar="1"] [data-key-center="D major"]')).toBeVisible();
 });
+
+for (const width of [1440, 390]) test(`chord rails label a late entrance on the first fitting span at ${width}px`, async ({ page }) => {
+	await page.setViewportSize({ width, height: 1000 });
+	await seedTunes(page, [{ id: 'late-key-center', title: 'Late Key Center', key: 'C', timeSignature: [4, 4], source: 'user', tags: [],
+		sections: [{ label: 'A', bars: 4, notes: [], harmony: [
+			{ chord: { root: 'C', quality: 'maj7' }, startOffset: [3, 4], duration: [5, 4], scaleId: 'major.ionian' },
+			{ chord: { root: 'F', quality: 'maj7' }, startOffset: [2, 1], duration: [2, 1], scaleId: 'major.ionian' }
+		] }]
+	}]);
+	await page.goto('/tunes/late-key-center');
+	const chart = page.getByTestId('tune-chord-chart');
+	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"]')).toBeVisible();
+	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"] span')).toHaveCount(0);
+	await expect(chart.locator('[data-bar="1"] [data-key-center="D major"] span')).toBeVisible();
+	const nextRow = chart.locator('[data-bar="2"] [data-key-center="D major"] span');
+	if (width === 390) await expect(nextRow).toBeVisible();
+	else await expect(nextRow).toBeHidden();
+});
+
+for (const width of [1440, 390]) for (const melody of [true, false]) {
+	test(`three-lane ${melody ? 'staff' : 'chord'} chart fits and keeps its height when toggled at ${width}px`, async ({ page }) => {
+		await seedTunes(page, [threeLaneSheet(melody)]);
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto('/tunes/three-lane-centers');
+		const rail = page.locator('[data-key-center-lane="2"]').last();
+		await expect(rail).toBeVisible();
+		if (melody) {
+			const failures = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.flatMap(rail => {
+				const box = rail.getBoundingClientRect();
+				const svg = rail.closest('svg')!;
+				const wrappers = [...svg.querySelectorAll('.abcjs-staff-wrapper')];
+				const next = wrappers[wrappers.indexOf(rail.parentElement!) + 1];
+				const nextInk = next?.querySelectorAll('.abcjs-note, .abcjs-chord, .abcjs-part, .abcjs-bar-number') ?? [];
+				return box.bottom > svg.getBoundingClientRect().bottom || [...nextInk].some(ink => ink.getBoundingClientRect().top <= box.bottom)
+					? [rail.getAttribute('data-key-center')] : [];
+			}));
+			expect(failures).toEqual([]);
+		}
+		const geometry = () => page.locator(melody ? '.td-score-well svg' : '.tcc-bar').evaluateAll(elements => elements.map(el => {
+			const { top, height } = el.getBoundingClientRect(); return { top: top - elements[0].getBoundingClientRect().top, height };
+		}));
+		const before = await geometry();
+		const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
+		await toggle.click();
+		await expect(page.locator('[data-key-center]')).toHaveCount(0);
+		expect(await geometry()).toEqual(before);
+		await toggle.click();
+		await expect(rail).toBeVisible();
+		expect(await geometry()).toEqual(before);
+	});
+}

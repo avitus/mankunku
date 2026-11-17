@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { threeLaneSheet } from '../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -349,7 +350,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
-		await seedTunes(page, [{
+		const practiced = {
 			id: 'e2e-three-choruses', title: 'Three Choruses', composer: 'E2E', key: 'C',
 			timeSignature: [4, 4], style: 'Medium Swing', tags: ['e2e'], source: 'user',
 			sections: [{ label: 'A', bars: 2,
@@ -357,10 +358,12 @@ test.describe.serial('tune practice session follow-scroll', () => {
 				harmony: [{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian',
 					startOffset: [0, 1], duration: [2, 1], symbol: 'Cmaj7' }]
 			}]
-		}]);
+		};
+		await seedTunes(page, [{ ...practiced, id: 'a-three-choruses' }, practiced]);
 		await page.goto('/tunes/e2e-three-choruses/practice');
 		await openSessionOptions(page);
 		await setTempoMax(page);
+		await page.getByLabel('Key', { exact: true }).selectOption('E');
 		const choruses = page.getByRole('spinbutton', { name: /^solo choruses$/i });
 		await choruses.press('ArrowUp');
 		await choruses.press('ArrowUp');
@@ -373,7 +376,17 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expectChartVisibleInFollowViewport(page);
 		await expect(page.locator('.tcc-bar.active').first()).toBeVisible();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
-		await expect(page.getByText(/of 3 insertion points landed/i)).toBeVisible();
+		await expect(page.getByText('No matching licks in this take.', { exact: true })).toBeVisible();
+		const report = page.getByTestId('tune-practice-report');
+		await expect(report.getByRole('link', { name: 'Back to tune' })).toHaveAttribute('href', '/tunes/three-choruses-2');
+		await expect(report.locator('[data-report-chorus]')).toHaveCount(3);
+		await expect(report.locator('[data-report-status="unavailable"]')).toHaveCount(3);
+		await expect(report.locator('[data-report-status="open"]')).toHaveCount(0);
+		await page.screenshot({ path: test.info().outputPath('chorus-report-desktop.png'), fullPage: true });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(report).toBeVisible();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+		await page.screenshot({ path: test.info().outputPath('chorus-report-mobile.png'), fullPage: true });
 	});
 
 	test('chart stays visible through first insertion (Mankunku Blues, head on)', async ({
@@ -561,7 +574,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 				'e2e-minor-lick': { E: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }
 			}
 		});
-		await seedTunes(page, [autumnLeaves]);
+		await seedTunes(page, [autumnLeaves, SAINTS_USER_TUNE]);
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
@@ -583,13 +596,13 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await setTempoMax(page);
 		await startPracticeSession(page);
 
-		// The head: the melody sheet carries the playhead and nothing else.
+		// The head has harmonic context and a playhead, but no lick prompts.
 		// A regex in getByText is not whitespace-normalised, and the template breaks
 		// this line between "once" and "through".
 		await expect(page.getByText(/melody once\s+through/i)).toBeVisible({ timeout: 20_000 });
 		const annotationsDuringHead = await page.evaluate(() => {
 			const vp = document.querySelector('[data-testid="chart-scroll-viewport"].following');
-			const markers = [...(vp?.querySelectorAll('svg .range-marker') ?? [])];
+			const markers = [...(vp?.querySelectorAll('svg .range-marker:not(.key-center-rail)') ?? [])];
 			return {
 				labels: markers.filter((m) => m.classList.contains('range-marker-label')).length,
 				bands: markers.filter((m) => m.getAttribute('data-marker-id') !== '__playhead').length,
@@ -614,10 +627,29 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
-		// The report names the window by its chord: bar, key F#, "Minor" (the
-		// take ended before the window played, so no lick is recorded on it).
-		const minorRows = page.locator('div', { hasText: /b8\s*F#\s*Minor\s*No take/ });
-		await expect(minorRows.first()).toBeVisible();
+		const report = page.getByTestId('tune-practice-report');
+		await expect(report).toBeVisible();
+		const unplayed = report.locator('[data-report-status="unplayed"]').filter({ hasText: 'E2E Minor Lick' }).first();
+		await expect(unplayed).toBeVisible();
+		await page.screenshot({ path: test.info().outputPath('chorus-report-autumn-leaves.png'), fullPage: true });
+		await unplayed.click();
+		await expect(report.locator('.tr-selection-title')).toContainText('F#');
+		await expect(report.locator('.tr-selection-title')).toContainText('Minor');
+		await report.getByRole('button', { name: '+ Practice this spot', exact: true }).click();
+		await report.getByRole('button', { name: 'Practice 1 selected spot', exact: true }).click();
+		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toBeVisible();
+		// A same-route client navigation reuses the page component: retry IDs
+		// from Autumn Leaves must not filter a different tune's setup.
+		await page.evaluate(() => {
+			const link = document.createElement('a');
+			link.href = '/tunes/e2e-when-the-saints/practice';
+			link.textContent = 'Switch practice tune';
+			document.querySelector('main')!.append(link);
+		});
+		await page.getByRole('link', { name: 'Switch practice tune' }).click();
+		await expect(page).toHaveURL(/e2e-when-the-saints\/practice$/);
+		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Practice all spots', exact: true })).toHaveCount(0);
 	});
 
 	test('chart stays visible through first insertion (Autumn Leaves)', async ({
@@ -680,4 +712,40 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			timeout: 10_000
 		});
 	});
+});
+
+for (const showCenters of [true, false]) test(`active key-center rails retain setup visibility: ${showCenters}`, async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [threeLaneSheet()]);
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/three-lane-centers/practice');
+	const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
+	await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+	if (!showCenters) await toggle.click();
+	await openSessionOptions(page);
+	await setTempoMax(page);
+	await startPracticeSession(page);
+	await expect(page.getByText(/melody once\s+through/i)).toBeVisible();
+	const legend = page.getByRole('list', { name: 'Key center legend', exact: true });
+	const staffRails = page.locator('[data-testid="chart-scroll-viewport"].following [data-key-center-lane="2"]');
+	if (showCenters) {
+		await expect(legend).toBeVisible();
+		await expect(staffRails.first()).toBeAttached();
+	} else {
+		await expect(legend).toHaveCount(0);
+		await expect(staffRails).toHaveCount(0);
+	}
+	const chart = page.getByTestId('tune-chord-chart');
+	await expect(chart).toBeVisible({ timeout: 20_000 });
+	await expect(chart.locator('.tcc-key-centers').first()).toHaveCSS('height', '54px');
+	if (showCenters) {
+		await expect(legend).toBeVisible();
+		await expect(chart.locator('[data-key-center-lane="2"]').first()).toBeAttached();
+	} else {
+		await expect(legend).toHaveCount(0);
+		await expect(chart.locator('[data-key-center]')).toHaveCount(0);
+	}
+	await page.getByRole('button', { name: /^end$/i }).click();
 });

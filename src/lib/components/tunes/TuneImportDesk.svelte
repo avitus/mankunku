@@ -171,7 +171,7 @@
 						<!-- Keyboard focus lets players pan a dense score without a pointer. -->
 						{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-						<div class="ti-score-well" role="region" aria-label="Imported score preview" tabindex="0"><div><NotationDisplay tune={sheets[0]} instrument={getInstrument()} tuneOptions={{ omitMasthead: true }} rangeMarkers={showKeyCenters ? keyCenters?.markers ?? [] : []} frameless /></div></div>
+						<div class="ti-score-well" role="region" aria-label="Imported score preview" tabindex="0"><div><NotationDisplay keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} tune={sheets[0]} instrument={getInstrument()} tuneOptions={{ omitMasthead: true }} rangeMarkers={showKeyCenters ? keyCenters?.markers ?? [] : []} frameless /></div></div>
 					{/if}
 					{#if sheets.length}<p class="ti-results-foot">Review a tune in the editor, or add it directly to your book.</p>{/if}
 				{:else}

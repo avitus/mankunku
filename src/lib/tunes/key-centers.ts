@@ -31,11 +31,13 @@ export interface KeyCenterDisplay {
 	markers: RangeMarker[];
 	legend: { label: string; color: string }[];
 	barLength: number;
+	/** Full layout capacity, independent of whether markers are visible. */
+	laneCount: number;
 }
 
 /** Stable written-tonic hues. Text labels carry the identity independently of color. */
 function centerColor(key: PitchClass): string {
-	return `hsl(${[42, 195, 115, 285, 15, 165, 330, 75, 235, 145, 310, 215][PITCH_CLASSES.indexOf(key)]} 55% 60%)`;
+	return `hsl(${[42, 195, 115, 285, 15, 165, 330, 75, 235, 145, 310, 215][PITCH_CLASSES.indexOf(key)]} 25% var(--key-center-lightness, 58%))`;
 }
 
 /**
@@ -45,7 +47,7 @@ function centerColor(key: PitchClass): string {
  */
 export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options: { solo?: boolean } = {}): KeyCenterDisplay {
 	const barLength = tune.timeSignature[0] / tune.timeSignature[1];
-	const display: KeyCenterDisplay = { readings: [], markers: [], legend: [], barLength };
+	const display: KeyCenterDisplay = { readings: [], markers: [], legend: [], barLength, laneCount: 0 };
 	const expanded = flattenTune(tune, { expandRepeats: true });
 	const notation = flattenTune(tune);
 	let pickupBars = 0;
@@ -146,8 +148,18 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 			endBarExclusive: Math.ceil(span.end / barLength), timeRange: { start: span.start, end: span.end },
 			status: 'upcoming', color: span.color, keyCenter: { lane, lanes: 0, label: span.label, minor: span.mode === 'minor' } });
 	}
-	for (const marker of display.markers) marker.keyCenter!.lanes = laneEnds.length;
+	display.laneCount = laneEnds.length;
+	for (const marker of display.markers) marker.keyCenter!.lanes = display.laneCount;
 	return display;
+}
+
+/** The first span wide enough for a label on this responsive chart row. */
+export function keyCenterLabelStartsRow(marker: RangeMarker, bar: number, rowStart: number, barLength: number): boolean {
+	if (keyCenterBarSpan(marker, bar, barLength).width <= 40) return false;
+	for (let previous = Math.max(rowStart, marker.startBar); previous < bar; previous++) {
+		if (keyCenterBarSpan(marker, previous, barLength).width > 40) return false;
+	}
+	return true;
 }
 
 /** Half-open coverage within an individual chart bar, including split-bar transitions. */

@@ -12,6 +12,8 @@
  * are unit-tested in Node.
  */
 
+import { encodeWavMono16 } from '$lib/audio/wav';
+export { encodeWavMono16 } from '$lib/audio/wav';
 import { replayFromBlob } from '$lib/audio/replay';
 import {
 	segmentNotes,
@@ -94,6 +96,7 @@ export interface DiagnosticsExport {
 		phraseId: string | null;
 		phraseName: string | null;
 		source: 'ear-training' | 'lick-practice' | null;
+		scoringAudio: 'microphone' | 'mixed-legacy';
 		instrument: { id: string; name: string; key: string };
 		concertKey: string | null;
 		tempo: number | null;
@@ -121,44 +124,6 @@ export interface DiagnosticsExport {
 }
 
 /**
- * Encode mono Float32 samples as a 16-bit PCM RIFF/WAVE byte buffer.
- * Matches the canonical format parsed by tests/helpers/audio-fixtures.ts
- * so the file can drop straight into tests/fixtures/recordings/.
- */
-export function encodeWavMono16(samples: Float32Array, sampleRate: number): ArrayBuffer {
-	const dataSize = samples.length * 2;
-	const buffer = new ArrayBuffer(44 + dataSize);
-	const view = new DataView(buffer);
-
-	/** Write a RIFF chunk identifier into the WAV header. */
-	const writeAscii = (offset: number, s: string) => {
-		for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
-	};
-
-	writeAscii(0, 'RIFF');
-	view.setUint32(4, 36 + dataSize, true);
-	writeAscii(8, 'WAVE');
-	writeAscii(12, 'fmt ');
-	view.setUint32(16, 16, true);
-	view.setUint16(20, 1, true); // PCM
-	view.setUint16(22, 1, true); // mono
-	view.setUint32(24, sampleRate, true);
-	view.setUint32(28, sampleRate * 2, true); // byte rate
-	view.setUint16(32, 2, true); // block align
-	view.setUint16(34, 16, true); // bits per sample
-	writeAscii(36, 'data');
-	view.setUint32(40, dataSize, true);
-
-	let offset = 44;
-	for (let i = 0; i < samples.length; i++) {
-		const s = Math.max(-1, Math.min(1, samples[i]));
-		view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-		offset += 2;
-	}
-	return buffer;
-}
-
-/**
  * `<YYYY-MM-DD>-<slug>` — the corpus's name for a take (UTC date of the
  * recording, the phrase name slugged and capped), without an extension.
  */
@@ -173,6 +138,15 @@ export function fixtureBaseName(timestamp: number, phraseName: string | null | u
 	return `${date}-${slug}`;
 }
 
+/** Select the scoring source, retaining mixed-only replay for historical takes. */
+export function scoringRecordingBlob(full: RecordingRecord): Blob {
+	if (full.scoringBlob?.size) return full.scoringBlob;
+	if (full.metadata?.scoringAudio) {
+		throw new Error('Microphone scoring audio is unavailable for this take. The saved mix is for playback only.');
+	}
+	return full.blob;
+}
+
 /**
  * Replay a saved recording's blob through the current detector and
  * segmenter, framed and bleed-matched the way its own scoring path did, weak
@@ -184,7 +158,7 @@ export async function replayRecording(
 	full: RecordingRecord,
 	ctx?: BaseAudioContext
 ): Promise<RecordingReplay> {
-	const raw = await replayFromBlob(full.blob, ctx);
+	const raw = await replayFromBlob(scoringRecordingBlob(full), ctx);
 	// Measured on the untrimmed replay: the live readings are stamped from the
 	// arm instant, the replay from the blob's first sample.
 	const timing = full.metadata?.captureTiming;
@@ -262,6 +236,7 @@ export function buildDiagnosticsPayload(
 			phraseId: md?.phraseId ?? null,
 			phraseName: md?.phraseName ?? null,
 			source: md?.source ?? null,
+			scoringAudio: md?.scoringAudio === 'microphone' ? 'microphone' : 'mixed-legacy',
 			instrument: { ...opts.instrument },
 			concertKey: md?.key ?? null,
 			tempo: md?.tempo ?? null,
