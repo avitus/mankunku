@@ -16,11 +16,14 @@ vi.mock('$lib/audio/audio-context', () => ({
 			return { length: 100, duration: 1, numberOfChannels: 1 } as AudioBuffer;
 		}
 	}),
-	getMasterGain: () => fakeAudioContext().createGain()
+	getProgramGain: () => fakeAudioContext().createGain(),
+	getClickGain: () => fakeAudioContext().createGain(),
+	getMelodyGain: () => fakeAudioContext().createGain(),
 }));
 
 vi.mock('smplr', () => {
 	class Pitched {
+ output = { addInsert: vi.fn() };
 		disconnect = vi.fn();
 		stop = vi.fn();
 		load: Promise<unknown>;

@@ -1,4 +1,3 @@
-import { BACKING_OUTPUT_GAIN } from '$lib/audio/backing-output';
 import { releasedBackingOptions } from '$lib/audio/backing-release';
 /** A finite, reproducible listening take with a view tied to the sounding audio clock. */
 import { normalizeBackingMix, type BackingMixLevels } from '$lib/audio/backing-mix';
@@ -266,7 +265,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		const generated = await backing.scheduleBackingTrack(params.phrase, {
 			tempo: params.tempo, swing: params.swing, countInBeats: 0, metronomeEnabled: false,
 			metronomeVolume: 0, backingTrackEnabled: true, backingInstrument: params.instrument,
-			backingTrackVolume: params.volume, backingOutputLevel: BACKING_OUTPUT_GAIN, backingStyle: params.style,
+			backingTrackVolume: params.volume, backingStyle: params.style,
 			backingOrchestration: params.orchestration, backingSoloFeatures: params.soloFeatures
 		}, 0, false, current);
 		if (!generated) return null;

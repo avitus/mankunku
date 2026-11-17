@@ -90,6 +90,24 @@ describe('shipped defaults', () => {
 });
 
 describe('loadSettingsFromCloud', () => {
+	it('keeps melody balance on the device without sending a cloud patch', async () => {
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax' });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
+		vi.mocked(syncSettingsToCloud).mockClear();
+		settingsModule.settings.melodyVolume = 0.3;
+		settingsModule.saveSettings();
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		expect(syncSettingsToCloud).not.toHaveBeenCalled();
+
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax' });
+		await reloaded.loadSettingsFromCloud(mockSupabase() as any);
+		expect(reloaded.settings.melodyVolume).toBe(0.3);
+		expect(reloaded.settings.instrumentId).toBe('soprano-sax');
+	});
+
 	it('loads the account instrument even when another setting was edited before hydration', async () => {
 		settingsModule.settings.theme = 'light';
 		settingsModule.saveSettings();

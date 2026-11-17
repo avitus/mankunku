@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { gainToFader, faderToGain, gainLabel } from '$lib/audio/mixer-policy';
 	import {
 		INSTRUMENTS,
 		TRANSPOSING_INSTRUMENT_IDS,
@@ -362,15 +363,20 @@
 						size="lg"
 						label="Master"
 						ariaLabel="Master volume"
-						helpText="Overall output level. Affects playback, metronome, and backing track."
-						value={settings.masterVolume}
+						helpText="Listening level for music, clicks and recordings. Does not change the saved recording mix."
+						value={gainToFader(settings.masterVolume)}
 						min={0}
 						max={1}
-						step={0.05}
-						displayValue={`${Math.round(settings.masterVolume * 100)}%`}
-						onInput={handleMasterVolumeInput}
+						step={0.01}
+						displayValue={gainLabel(settings.masterVolume)}
+						onInput={(v) => handleMasterVolumeInput(faderToGain(v))}
 						onCommit={syncSettingsToCloud}
 					/>
+					<Knob size="lg" label="Melody" ariaLabel="Melody volume"
+						helpText="Melody level relative to backing. Saved on this device."
+						value={gainToFader(settings.melodyVolume)} min={0} max={1} step={0.01}
+						displayValue={gainLabel(settings.melodyVolume)}
+						onInput={(v) => (settings.melodyVolume = faderToGain(v))} onCommit={syncSettingsToCloud} />
 					<div class="settings-appearance">
 						<p class="studio-label">Appearance</p>
 						<SelectorPad
@@ -501,16 +507,15 @@
 							/>
 							<Knob
 								size="lg"
-								disabled={!settings.metronomeEnabled}
-								label="Metro Vol"
-								ariaLabel="Metronome volume"
-								helpText="Metronome click level, relative to master."
-								value={settings.metronomeVolume}
+								label="Click"
+								ariaLabel="Click and count-in volume"
+								helpText="Click and count-in level, including the drummer’s count-off."
+								value={gainToFader(settings.metronomeVolume)}
 								min={0}
 								max={1}
-								step={0.05}
-								displayValue={`${Math.round(settings.metronomeVolume * 100)}%`}
-								onInput={(v) => (settings.metronomeVolume = v)}
+								step={0.01}
+								displayValue={gainLabel(settings.metronomeVolume)}
+								onInput={(v) => (settings.metronomeVolume = faderToGain(v))}
 								onCommit={syncSettingsToCloud}
 							/>
 						</div>
@@ -532,12 +537,12 @@
 								label="Backing Vol"
 								ariaLabel="Backing track volume"
 								helpText="Backing track level, relative to master."
-								value={settings.backingTrackVolume}
+								value={gainToFader(settings.backingTrackVolume)}
 								min={0}
 								max={1}
-								step={0.05}
-								displayValue={`${Math.round(settings.backingTrackVolume * 100)}%`}
-								onInput={(v) => (settings.backingTrackVolume = v)}
+								step={0.01}
+								displayValue={gainLabel(settings.backingTrackVolume)}
+								onInput={(v) => (settings.backingTrackVolume = faderToGain(v))}
 								onCommit={syncSettingsToCloud}
 							/>
 						</div>
@@ -574,7 +579,7 @@
 			<dl>
 				<div>
 					<dt>Master</dt>
-					<dd>{Math.round(settings.masterVolume * 100)}%</dd>
+					<dd>{gainLabel(settings.masterVolume)}</dd>
 				</div>
 				<div>
 					<dt>Tonality</dt>

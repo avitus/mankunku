@@ -1,3 +1,6 @@
+import { createOutputProtection } from './output-protection';
+import { createDrumMixer } from './drum-mixer';
+import { BACKING_INPUT_REFERENCE, SAMPLE_OPTIONS, SOUNDFONT_OPTIONS } from './mixer-policy';
 import { prepareReleasedArrangement } from './backing-arrangement';
 import { connectBackingOutput } from './backing-output';
 /**
@@ -8,10 +11,10 @@ import { connectBackingOutput } from './backing-output';
  * `renderOffline` (no Tone.js: event ticks convert to absolute seconds by
  * plain math, which is all the Transport would do for a fixed tempo).
  *
- * The audio graph mirrors the live one: volume → glue compressor bus with
- * panned comp, the kit split into three panned family samplers, optional
- * room-convolver sends, and per-voice velocity trims applied at trigger
- * time. A bounce therefore sounds like the app, not an idealized render.
+ * The audio graph mirrors the live program: calibrated instrument/voice gains,
+ * three drum pans and optional room sends feed a fixed-drive glue compressor.
+ * One post-compression Backing fader precedes output protection. Master is a
+ * listening control and is excluded from the file.
  */
 
 import type { Phrase } from '$lib/types/music';
@@ -38,8 +41,6 @@ import {
 	type DrumFamily
 } from './backing-mix';
 import {
-	DRUM_BUFFER_FAMILY,
-	DRUM_FAMILY_BY_VOICE,
 	drumBufferForVelocity,
 	type DrumBufferName
 } from './sample-maps';
@@ -220,22 +221,19 @@ export async function renderEventsToWav(
 
 	const result = await renderOffline(
 		async (context) => {
-			// Mirror the live graph (see the bus diagram in backing-track.ts):
-			// everything flows through backingGain (volume) into the glue
-			// compressor; comp is panned, the kit splits into three panned
-			// family samplers on a shared drum bus, and the room convolver —
-			// when an IR is provided — takes post-pan sends and returns into
-			// the bus. Per-voice velocity trims still apply at trigger time.
+			// Keep the live bus topology and fixed compressor drive.
 			const busCompressor = context.createDynamicsCompressor();
 			busCompressor.threshold.value = BACKING_BUS_COMPRESSOR.threshold;
 			busCompressor.knee.value = BACKING_BUS_COMPRESSOR.knee;
 			busCompressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 			busCompressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 			busCompressor.release.value = BACKING_BUS_COMPRESSOR.release;
-			connectBackingOutput(busCompressor, context.destination, mix.master);
+			const protection = createOutputProtection(context);
+			protection.connect(context.destination);
+			connectBackingOutput(busCompressor, protection, volume);
 
 			const backingGain = context.createGain();
-			backingGain.gain.value = volume;
+			backingGain.gain.value = BACKING_INPUT_REFERENCE;
 			backingGain.connect(busCompressor);
 
 			const bassGain = context.createGain();
@@ -296,45 +294,15 @@ export async function renderEventsToWav(
 				lookaheadMs: (durationSeconds + 10) * 1000
 			});
 			const loader = createBackingSampleLoader(context);
-			// Partition the kit into its family samplers, mirroring ensureDrums.
-			const byFamily: Record<DrumFamily, Record<string, AudioBuffer>> = {
-				kick: {},
-				snare: {},
-				cymbals: {}
-			};
-			for (const [name, buffer] of Object.entries(drumBuffers)) {
-				if (buffer) byFamily[DRUM_BUFFER_FAMILY[name as DrumBufferName]][name] = buffer;
-			}
-			const familySampler = (family: DrumFamily) =>
-				// Explicit defaults for the same reason as the live kit: undefined
-				// values clobber smplr's PARAM_DEFAULTS and NaN the voice.
-				new Sampler(context, {
-					buffers: byFamily[family],
-					destination: drumPans[family],
-					detune: 0,
-					decayTime: 0.3,
-					lpfCutoffHz: 20000,
-					scheduler
-				}).load;
-			const [bass, comp, kickSampler, snareSampler, cymbalSampler] = await Promise.all([
+			const [bass, comp, drums] = await Promise.all([
 				loadBackingBass(context, Smolken, { instrument: 'Pizzicato', destination: bassGain, scheduler, loader }),
 				opts.instrument === 'piano'
-					? new SplendidGrandPiano(context, { destination: compGain, scheduler, loader }).load
-					: new Soundfont(context, {
-							instrument: 'drawbar_organ',
-							kit: 'MusyngKite',
-							destination: compGain,
-							scheduler
-						}).load,
-				familySampler('kick'),
-				familySampler('snare'),
-				familySampler('cymbals')
+					? new SplendidGrandPiano(context, { ...SAMPLE_OPTIONS, destination: compGain, scheduler, loader }).load
+					: new Soundfont(context, { ...SOUNDFONT_OPTIONS, instrument: 'drawbar_organ', kit: 'MusyngKite', destination: compGain, scheduler }).load,
+				createDrumMixer(context, Sampler, drumBuffers, drumPans, () => scheduler)
 			]);
-			const drumSamplers: Record<DrumFamily, typeof kickSampler> = {
-				kick: kickSampler,
-				snare: snareSampler,
-				cymbals: cymbalSampler
-			};
+			drums.setMix(mix);
+			const drumSamplers = drums.samplers;
 
 			for (const e of generated.bassEvents) {
 				bass.start({
@@ -355,10 +323,10 @@ export async function renderEventsToWav(
 				// trigger path.
 				const buffer = drumBufferForVelocity(e.drum, e.velocity);
 				if (!(buffer in drumBuffers)) continue;
-				drumSamplers[DRUM_FAMILY_BY_VOICE[e.drum]].start({
+				drumSamplers[e.drum].start({
 					note: buffer,
 					velocity: Math.round(
-						voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
+						voiceVelocity(e.velocity, 1) * 127
 					),
 					time: eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo)
 				});
@@ -367,28 +335,10 @@ export async function renderEventsToWav(
 		{ duration: durationSeconds, sampleRate: BOUNCE_SAMPLE_RATE }
 	);
 
-	// Peak-normalize the bounce to −1 dBFS. The live mix is anchored ~20 dB
-	// down by the CDN instrument trims (system volume compensates there),
-	// but a WAV at that level reads as silence in a media player. Pure gain
-	// on the rendered buffer: relative balance — the thing a listening pass
-	// judges — is untouched, and both sides of an A/B normalize to the same
-	// ceiling. Amplification is capped so a genuinely empty render stays
-	// silent instead of becoming amplified noise floor.
+	// Export the program at its calibrated level. Per-file normalization would
+	// erase fader differences and make quiet/isolated A/B stems misleading.
 	const { audioBufferToWav16 } = await import('smplr');
-	const buffer = result.audioBuffer;
-	let peak = 0;
-	for (let c = 0; c < buffer.numberOfChannels; c++) {
-		const data = buffer.getChannelData(c);
-		for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
-	}
-	const gain = Math.min(50, peak > 0 ? 0.891 / peak : 1);
-	if (gain !== 1) {
-		for (let c = 0; c < buffer.numberOfChannels; c++) {
-			const data = buffer.getChannelData(c);
-			for (let i = 0; i < data.length; i++) data[i] *= gain;
-		}
-	}
-	return audioBufferToWav16(buffer);
+	return audioBufferToWav16(result.audioBuffer);
 }
 
 /** Shape of an exported/committed golden events JSON. */

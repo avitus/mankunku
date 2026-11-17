@@ -1,12 +1,12 @@
-/** Shared live/bounce output: boost after compression to preserve its response. */
-export const BACKING_OUTPUT_GAIN = 10 ** (6 / 20);
-export function backingOutputGain(master = 1, reference = BACKING_OUTPUT_GAIN): number {
- return (Number.isFinite(reference) ? Math.max(0, reference) : BACKING_OUTPUT_GAIN) * (Number.isFinite(master) ? Math.max(0, Math.min(3, master)) : 1);
+import { BACKING_OUTPUT_REFERENCE, BACKING_INPUT_REFERENCE, MIXER_DEFAULTS, clampGain } from './mixer-policy';
+/** One post-compression level on every surface. The fader cannot change compression. */
+export function backingOutputGain(volume: number = MIXER_DEFAULTS.backing): number {
+ return BACKING_OUTPUT_REFERENCE * clampGain(volume) / BACKING_INPUT_REFERENCE;
 }
-export function connectBackingOutput(compressor: AudioNode, destination: AudioNode, master = 1): GainNode {
- const output = compressor.context.createGain();
- output.gain.value = backingOutputGain(master);
- compressor.connect(output);
- output.connect(destination);
+/** Connect the shared post-compression calibration and backing fader. */
+export function connectBackingOutput(compressor: AudioNode, destination: AudioNode, volume: number = MIXER_DEFAULTS.backing): GainNode {
+ const output=compressor.context.createGain();
+ output.gain.value=backingOutputGain(volume);
+ compressor.connect(output); output.connect(destination);
  return output;
 }

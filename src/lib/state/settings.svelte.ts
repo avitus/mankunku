@@ -1,3 +1,4 @@
+import { MIXER_DEFAULTS } from '$lib/audio/mixer-policy';
 import type { InstrumentConfig, BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
 import { INSTRUMENTS, isInstrumentId } from '$lib/types/instruments';
@@ -32,12 +33,14 @@ function loadSettings() {
 const defaultSettings = {
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
-	masterVolume: 0.8,
+	masterVolume: MIXER_DEFAULTS.master,
+	/** Device-local melody balance; cloud volume columns retain their amplitude meaning. */
+	melodyVolume: MIXER_DEFAULTS.melody,
 	metronomeEnabled: true,
-	metronomeVolume: 0.5,
+	metronomeVolume: MIXER_DEFAULTS.click,
 	backingTrackEnabled: false,
 	backingInstrument: 'piano' as BackingInstrument,
-	backingTrackVolume: 0.6,
+	backingTrackVolume: MIXER_DEFAULTS.backing,
 	backingStyle: 'swing' as BackingStyle,
 	/** Personal accompaniment choices for curated and adopted tunes, keyed by stable tune id. */
 	tuneBackingStyles: {} as Record<string, BackingStyle>,
@@ -72,7 +75,8 @@ let settingsHydrationOk = false;
 type Settings = typeof defaultSettings;
 type SettingsKey = keyof Settings;
 type FieldRevisions = Partial<Record<SettingsKey, number>>;
-const settingsKeys = Object.keys(defaultSettings) as SettingsKey[];
+// Melody balance is device-local and must not enqueue an empty cloud patch.
+const settingsKeys = (Object.keys(defaultSettings) as SettingsKey[]).filter(key => key !== 'melodyVolume');
 
 // Track edits per field: an unsent volume change must not keep a fresh browser's
 // default instrument or push it over the account's instrument on another device.
@@ -169,7 +173,7 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 
 		// Apply cloud values except for fields with unsent edits, or edits made
 		// after this read started (even if a concurrent flush already sent them).
-		const merged = { ...defaultSettings, ...cloudSettings };
+		const merged = { ...defaultSettings, ...cloudSettings, melodyVolume: settings.melodyVolume };
 		for (const key of settingsKeys) {
 			if (pendingFields[key] !== undefined || readPending[key] !== undefined || (lastEdited[key] ?? 0) > readLocalRev) {
 				Object.assign(merged, { [key]: settings[key] });

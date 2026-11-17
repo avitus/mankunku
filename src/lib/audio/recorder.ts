@@ -1,16 +1,17 @@
+import { MICROPHONE_RECORDING_GAIN } from './mixer-policy';
 /**
  * Capture separate scoring and playback audio. Microphone PCM goes to the
- * scorer; MediaRecorder preserves the microphone + master listening mix.
+ * scorer; MediaRecorder preserves microphone + pre-master program audio.
  */
 
 import { createScoringCapture, type ScoringCapture } from './scoring-capture';
 import type { RecorderTiming } from './capture-timing';
 
 /** Attenuate raw mic signal (~-8 dB) so it balances with the metronome/playback mix. */
-const MIC_RECORDING_GAIN = 0.4;
+const MIC_RECORDING_GAIN = MICROPHONE_RECORDING_GAIN;
 
 export interface RecordedAudio {
-	/** Microphone plus master output, for listening. */
+	/** Microphone plus pre-master program output, for listening. */
 	blob: Blob;
 	/** Microphone only, aligned to start(contextTime); null on capture failure. */
 	scoringBlob: Blob | null;
@@ -43,15 +44,15 @@ function preferredMimeType(): string {
 }
 
 /**
- * Create a recorder that mixes the mic input and master gain (metronome)
+ * Create a recorder that mixes the mic input and pre-master program (metronome)
  * into a single audio stream.
  *
  * Both sources are connected to a MediaStreamDestinationNode via fan-out —
- * existing connections (mic→analyser, masterGain→speakers) are unaffected.
+ * existing connections (mic→analyser, programGain→speakers) are unaffected.
  */
 export function createRecorder(
 	micSource: MediaStreamAudioSourceNode,
-	masterGain: GainNode,
+	programGain: GainNode,
 	audioCtx: AudioContext
 ): RecorderHandle {
 	const dest = audioCtx.createMediaStreamDestination();
@@ -59,7 +60,7 @@ export function createRecorder(
 	micGain.gain.value = MIC_RECORDING_GAIN;
 	micSource.connect(micGain);
 	micGain.connect(dest);
-	masterGain.connect(dest);
+	programGain.connect(dest);
 
 	let scoring: ScoringCapture | null = null;
 	try { scoring = createScoringCapture(micSource, audioCtx); }
@@ -136,7 +137,7 @@ export function createRecorder(
 			scoring?.dispose();
 			try { micSource.disconnect(micGain); } catch { /* already disconnected */ }
 			try { micGain.disconnect(dest); } catch { /* already disconnected */ }
-			try { masterGain.disconnect(dest); } catch { /* already disconnected */ }
+			try { programGain.disconnect(dest); } catch { /* already disconnected */ }
 		}
 	};
 }

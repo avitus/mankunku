@@ -1,3 +1,4 @@
+import { SAMPLE_OPTIONS, SAMPLE_CHANNEL_REFERENCE } from './mixer-policy';
 import type { SampleLoader, Smolken, SmolkenOptions, SmplrOptions } from 'smplr';
 import { normalizeBackingBassPresetWithStatus } from './backing-bass-samples';
 
@@ -22,15 +23,13 @@ export async function loadBackingBass(context: BaseAudioContext, Bass: typeof Sm
 				: options.loader.load(preset, loadOptions);
 		}
 	};
-	const bass = new Bass(context, { ...options, loader });
+	const bass = new Bass(context, { ...options, ...SAMPLE_OPTIONS, loader });
 	let gain: GainNode | undefined;
 	try {
 		await bass.load;
-		if (recognized) {
-			gain = context.createGain();
-			gain.gain.value = BACKING_BASS_SELECTION_GAIN;
-			bass.output.addInsert(gain);
-		}
+		gain = context.createGain();
+		gain.gain.value = (recognized ? BACKING_BASS_SELECTION_GAIN : 1) * SAMPLE_CHANNEL_REFERENCE;
+		bass.output.addInsert(gain);
 		return bass;
 	} catch (error) {
 		// The gain may exist before a failed addInsert connected it. Neither a

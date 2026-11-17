@@ -1,3 +1,4 @@
+import { SAMPLE_CHANNEL_REFERENCE as C, SOUNDFONT_REFERENCE as S } from '$lib/audio/mixer-policy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import { fakeAudioContext } from '../../helpers/fake-audio-context';
@@ -8,6 +9,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('smplr', async () => {
  class Instrument {
+ output = { addInsert: vi.fn() };
   load: Promise<this>;
   start = vi.fn(); stop = vi.fn(); disconnect = vi.fn();
   constructor(_context: unknown, options: { destination: { gain: { value: number } } }) {
@@ -28,7 +30,9 @@ vi.mock('smplr', async () => {
 });
 vi.mock('$lib/audio/audio-context', () => ({
  initAudio: async () => fakeAudioContext(), getAudioContext: () => fakeAudioContext(),
- getMasterGain: () => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() })
+ getProgramGain: () => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }),
+ getClickGain: () => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }),
+ getMelodyGain: () => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }),
 }));
 vi.mock('tone', () => ({ getTransport: () => ({ PPQ: 192 }), getContext: () => ({ rawContext: { currentTime: 0 } }) }));
 const bank = (name: string) => state.instruments.filter(item => item.name === name).at(-1)!;
@@ -41,16 +45,16 @@ describe('calibrated keyboard output ownership', () => {
   track.setBackingMix({ ...DEFAULT_BACKING_MIX, comp: .75 }, { persist: false });
   await track.loadBackingInstruments('piano');
   const piano = bank('SplendidGrandPiano');
-  expect(piano.destination.gain.value).toBeCloseTo(.075);
+  expect(piano.destination.gain.value).toBeCloseTo(.075*C);
   await track.loadBackingInstruments('organ');
-  expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.1635);
+  expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.1635*S);
   expect(piano.stop).toHaveBeenCalledOnce();
   track.setBackingMix({ ...DEFAULT_BACKING_MIX, comp: 0 }, { persist: false });
   expect(bank('Soundfont').destination.gain.value).toBe(0);
   await track.loadBackingInstruments('piano');
   expect(bank('SplendidGrandPiano').destination.gain.value).toBe(0);
   track.setBackingMix({ ...DEFAULT_BACKING_MIX, comp: 1 }, { persist: false });
-  expect(bank('SplendidGrandPiano').destination.gain.value).toBeCloseTo(.1);
+  expect(bank('SplendidGrandPiano').destination.gain.value).toBeCloseTo(.1*C);
  });
  it('keeps the previous piano calibration after a failed organ load', async () => {
   const track = await import('$lib/audio/backing-track');
@@ -59,7 +63,7 @@ describe('calibrated keyboard output ownership', () => {
   state.organLoad = Promise.reject(new Error('sample unavailable'));
   await expect(track.loadBackingInstruments('organ')).rejects.toThrow('sample unavailable');
   expect(bank('Soundfont').disconnect).toHaveBeenCalledOnce();
-  expect(piano.destination.gain.value).toBeCloseTo(.1);
+  expect(piano.destination.gain.value).toBeCloseTo(.1*C);
   expect(piano.stop).not.toHaveBeenCalled();
  });
  it('cannot publish the trim of an organ load superseded by piano', async () => {
@@ -72,14 +76,14 @@ describe('calibrated keyboard output ownership', () => {
   await track.loadBackingInstruments('piano');
   finish(); await pending;
   expect(bank('Soundfont').disconnect).toHaveBeenCalledOnce();
-  expect(bank('SplendidGrandPiano').destination.gain.value).toBeCloseTo(.1);
+  expect(bank('SplendidGrandPiano').destination.gain.value).toBeCloseTo(.1*C);
  });
  it.each(['piano', 'organ'] as const)('WAV bounce uses the same %s calibration and unchanged event dynamics', async instrument => {
   const { renderEventsToWav } = await import('$lib/audio/backing-bounce');
   await renderEventsToWav({ bassEvents: [], drumEvents: [], compEvents: [{ absBeat: 0, time: '0i', notes: [57,60,63], duration: .4, velocity: 72 }] }, {},
    { tempo: 140, volume: .7, mix: { ...DEFAULT_BACKING_MIX, comp: .75 }, durationSeconds: 1, instrument });
   const player = bank(instrument === 'piano' ? 'SplendidGrandPiano' : 'Soundfont');
-  expect(player.destination.gain.value).toBeCloseTo(instrument === 'piano' ? .075 : .1635);
+  expect(player.destination.gain.value).toBeCloseTo(instrument === 'piano' ? .075*C : .1635*S);
   expect(player.start.mock.calls.map(([event]) => event)).toEqual([57,60,63].map(note => ({ note, time: 0, velocity: 72, duration: .4 })));
  });
 });
@@ -88,8 +92,8 @@ it('balances sustained Ballad organ without changing its fader or other styles',
  const track=await import('$lib/audio/backing-track');
  track.setBackingMix({...DEFAULT_BACKING_MIX,comp:.75},{persist:false});
  await track.loadBackingInstruments('organ','ballad');
- const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.14061);
- await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635);
+ const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.14061*S);
+ await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635*S);
  track.setBackingMix({comp:0},{persist:false});
  await track.loadBackingInstruments('organ','ballad');expect(organ.destination.gain.value).toBe(0);
 });
@@ -97,7 +101,7 @@ it('uses the same Ballad organ trim in WAV rendering without changing note dynam
  const {renderEventsToWav}=await import('$lib/audio/backing-bounce');
  await renderEventsToWav({bassEvents:[],drumEvents:[],compEvents:[{absBeat:0,time:'0i',notes:[57,60,63],duration:1.4,velocity:72}]},{},
   {tempo:80,volume:.7,mix:{...DEFAULT_BACKING_MIX,comp:.75},durationSeconds:3,instrument:'organ',style:'ballad'});
- const player=bank('Soundfont');expect(player.destination.gain.value).toBeCloseTo(.14061);
+ const player=bank('Soundfont');expect(player.destination.gain.value).toBeCloseTo(.14061*S);
  expect(player.start.mock.calls.map(([event])=>event)).toEqual([57,60,63].map(note=>({note,time:0,velocity:72,duration:1.4})));
 });
 
@@ -105,14 +109,14 @@ it('balances short Bossa organ in live reuse and bounce while preserving mute, f
  const track=await import('$lib/audio/backing-track');
  track.setBackingMix({...DEFAULT_BACKING_MIX,comp:.75},{persist:false});
  await track.loadBackingInstruments('organ','bossa-nova');
- const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.1635*1.06,6);
- await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635,6);
+ const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.1635*S*1.06,6);
+ await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635*S,6);
  track.setBackingMix({comp:0},{persist:false});
  await track.loadBackingInstruments('organ','bossa-nova');expect(organ.destination.gain.value).toBe(0);
  const {renderEventsToWav}=await import('$lib/audio/backing-bounce');
  await renderEventsToWav({bassEvents:[],drumEvents:[],compEvents:[{absBeat:0,time:'0i',notes:[57,60,63],duration:.4,velocity:72}]},{},
   {tempo:140,volume:.7,mix:{...DEFAULT_BACKING_MIX,comp:.75},durationSeconds:1,instrument:'organ',style:'bossa-nova'});
- expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.1635*1.06,6);
+ expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.1635*S*1.06,6);
  expect(bank('Soundfont').start.mock.calls.map(([event])=>event.velocity)).toEqual([72,72,72]);
 });
 
@@ -121,8 +125,8 @@ it('events JSON preserves captured Ballad organ calibration and uses selected st
  const events = { tempo: 80, bassEvents: [], drumEvents: [], compEvents: [{ absBeat: 0, time: '0i', notes: [57,60,63], duration: 1.4, velocity: 72 }] };
  const opts = { volume: .7, mix: { ...DEFAULT_BACKING_MIX, comp: .75 }, instrument: 'organ' as const, style: 'swing' as const };
  await renderGoldenJsonToWav({ ...events, style: 'ballad' }, {}, opts);
- expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.14061);
+ expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.14061*S);
  await renderGoldenJsonToWav(events, {}, { ...opts, style: 'ballad' });
- expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.14061);
+ expect(bank('Soundfont').destination.gain.value).toBeCloseTo(.14061*S);
  await expect(renderGoldenJsonToWav({ ...events, style: 'invalid' }, {}, opts)).rejects.toThrow(/style/);
 });

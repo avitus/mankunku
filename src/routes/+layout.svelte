@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { page, updated } from '$app/state';
 	import { isOnboardingRoute } from '$lib/state/onboarding-routes';
+	import { setMixerLevels } from '$lib/audio/mixer';
 	import { settings, applyTheme } from '$lib/state/settings.svelte';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
@@ -31,6 +32,7 @@
 
 	let { children, data }: Props = $props();
 	let mobileMenuOpen = $state(false);
+	$effect(() => { setMixerLevels({ master: settings.masterVolume, melody: settings.melodyVolume, click: settings.metronomeVolume, backing: settings.backingTrackVolume }); });
 	let { supabase, session, user, isAdmin } = $derived(data);
 
 	// Proactive stale-chunk guard (Sentry MANKUNKU-8). `kit.version.pollInterval`

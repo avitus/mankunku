@@ -1,4 +1,5 @@
 <script lang="ts">
+ import { mixAudio } from '$lib/audio/media-playback';
 	// Blind A/B comparison for backing bounces. Slot 1 is the current
 	// engine's bounce (passed in), slot 2 a reference WAV the user loads
 	// (typically a baseline bounce from an earlier increment). On "Start
@@ -118,7 +119,7 @@
 							<span class="text-xs text-[var(--color-text-secondary)]">{slotSource(slot)}</span>
 						{/if}
 					</div>
-					<audio controls src={slotUrl(slot)} class="w-full"></audio>
+					<audio use:mixAudio controls src={slotUrl(slot)} class="w-full"></audio>
 				</div>
 			{/each}
 		</div>

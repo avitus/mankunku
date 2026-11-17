@@ -80,6 +80,7 @@ export const SETTINGS_ONBOARDED = {
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
 	masterVolume: 0.8,
+	melodyVolume: 1,
 	metronomeEnabled: true,
 	metronomeVolume: 0.5,
 	backingTrackEnabled: false,

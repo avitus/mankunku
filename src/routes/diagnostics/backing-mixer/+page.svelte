@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { BACKING_OUTPUT_GAIN } from '$lib/audio/backing-output';
+ import { gainToFader, faderToGain, gainLabel } from '$lib/audio/mixer-policy';
 	// Backing listening lab + mixer. Loops a chosen progression preset,
 	// balances the rhythm section per instrument (levels persist on this
 	// device), bounces the current engine to WAV for blind A/B against a
@@ -38,7 +38,7 @@
 	} from '$lib/audio/backing-bounce';
 	import BlindAbPlayer from '$lib/components/diagnostics/BlindAbPlayer.svelte';
 	import ListeningChecklist from '$lib/components/diagnostics/ListeningChecklist.svelte';
-	import { settings } from '$lib/state/settings.svelte';
+	import { settings, saveSettings } from '$lib/state/settings.svelte';
 	import { LAB_SOLO_SCENARIOS, scriptedSoloFeatures, type LabSoloScenario } from '$lib/audio/backing-lab-scenarios';
 	import { version } from '$app/env';
 	import { createSoloListener, type SoloListener } from '$lib/audio/solo-listener';
@@ -152,6 +152,7 @@
 	// page's replayRequestId).
 	let playRequest = 0;
 
+	/** Start the selected loop with the same backing level used by practice. */
 	async function start(observe = false, adapt = false, loopCount = 1): Promise<void> {
 		if (!observe) { rollingTake = null; adapting = false; }
 		const id = ++playRequest;
@@ -243,7 +244,7 @@
 					backingTrackEnabled: true,
 					backingInstrument: instrument,
 					backingTrackVolume: volume,
-					backingStyle: style, backingOutputLevel: BACKING_OUTPUT_GAIN,
+					backingStyle: style,
 					backingOrchestration: orchestration,
 					backingSoloFeatures: soloFeatures
 				},
@@ -366,9 +367,12 @@
 		setBackingMix(mix);
 	}
 
+	/** Persist the shared Backing amplitude and invalidate any in-flight capture. */
 	function updateVolume(value: number): void {
 		cancelCaptureForMixChange();
 		volume = value;
+		settings.backingTrackVolume = value;
+		saveSettings();
 		setBackingTrackVolume(value);
 	}
 
@@ -491,7 +495,6 @@
 		);
 	}
 
-	const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 	onDestroy(() => {
 		stop(); // Also invalidate a start awaiting samples or microphone permission.
@@ -652,14 +655,15 @@
 			</div>
 
 			<label class="text-sm">
-				<span class="block text-[var(--color-text-secondary)] mb-1">Overall volume: {pct(volume)}</span>
+				<span class="block text-[var(--color-text-secondary)] mb-1">Backing volume: {gainLabel(volume)}</span>
 				<input
 					type="range"
 					min="0"
 					max="1"
-					step="0.05"
-					value={volume}
-					oninput={(e) => updateVolume(e.currentTarget.valueAsNumber)}
+					step="0.01"
+					value={gainToFader(volume)}
+					aria-valuetext={gainLabel(volume)}
+					oninput={(e) => updateVolume(faderToGain(e.currentTarget.valueAsNumber))}
 					class="w-40 accent-[var(--color-accent)]"
 				/>
 			</label>
@@ -791,15 +795,16 @@
 			<label class="block text-sm">
 				<span class="flex justify-between mb-1">
 					<span class="font-medium">{label} <span class="text-[var(--color-text-secondary)]">— {hint}</span></span>
-					<span class="tabular-nums">{pct(mix[key])}</span>
+					<span class="tabular-nums">{gainLabel(mix[key])}</span>
 				</span>
 				<input
 					type="range"
 					min="0"
-					max="3"
-					step="0.05"
-					value={mix[key]}
-					oninput={(e) => updateMix(key, e.currentTarget.valueAsNumber)}
+					max="1"
+					step="0.01"
+					value={gainToFader(mix[key],3)}
+					aria-valuetext={gainLabel(mix[key])}
+					oninput={(e) => updateMix(key, faderToGain(e.currentTarget.valueAsNumber,3))}
 					data-testid={`mix-${key}`}
 					class="w-full accent-[var(--color-accent)]"
 				/>
@@ -810,21 +815,22 @@
 	<!-- ── Drum voices ────────────────────────────────────── -->
 	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
 		<h2 class="text-sm font-semibold text-[var(--color-text-secondary)]">
-			Drum voices <span class="font-normal">(velocity trims — take effect from the next hit)</span>
+			Drum voices <span class="font-normal">(amplitude levels)</span>
 		</h2>
 		{#each VOICE_SLIDERS as { key, label, hint } (key)}
 			<label class="block text-sm">
 				<span class="flex justify-between mb-1">
 					<span class="font-medium">{label} <span class="text-[var(--color-text-secondary)]">— {hint}</span></span>
-					<span class="tabular-nums">{pct(mix[key])}</span>
+					<span class="tabular-nums">{gainLabel(mix[key])}</span>
 				</span>
 				<input
 					type="range"
 					min="0"
-					max="3"
-					step="0.05"
-					value={mix[key]}
-					oninput={(e) => updateMix(key, e.currentTarget.valueAsNumber)}
+					max="1"
+					step="0.01"
+					value={gainToFader(mix[key],3)}
+					aria-valuetext={gainLabel(mix[key])}
+					oninput={(e) => updateMix(key, faderToGain(e.currentTarget.valueAsNumber,3))}
 					data-testid={`mix-${key}`}
 					class="w-full accent-[var(--color-accent)]"
 				/>

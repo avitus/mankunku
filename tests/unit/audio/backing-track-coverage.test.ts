@@ -90,6 +90,7 @@ vi.mock('tone', () => ({
 const instruments: Array<{ kind: string; inst: FakeInstrument; options: unknown }> = [];
 
 class FakeInstrument {
+ output = { addInsert: vi.fn() };
 	load = Promise.resolve();
 	start = vi.fn();
 	stop = vi.fn();
@@ -109,7 +110,7 @@ vi.mock('smplr', () => ({
 }));
 
 function fakeGain() {
-	return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
+	return { gain: { value: 0, setTargetAtTime(value: number) { this.value=value; } }, connect: vi.fn(), disconnect: vi.fn() };
 }
 
 const compressors: Array<{ connect: ReturnType<typeof vi.fn> }> = [];
@@ -134,7 +135,9 @@ vi.mock('$lib/audio/audio-context', async () => {
 	return {
 		initAudio: async () => context,
 		getAudioContext: () => context,
-		getMasterGain: () => master
+		getProgramGain: () => master,
+		getClickGain: () => master,
+		getMelodyGain: () => master,
 	};
 });
 
@@ -444,13 +447,10 @@ describe('playBackingHitsNow', () => {
 		/** The fake instruments of one smplr class, in construction order. */
 		const only = (kind: string) => instruments.filter((i) => i.kind === kind);
 		/** The drum sampler on a family pan — the kit's three are told apart by the pan they feed. */
-		const drumAt = (pan: number) =>
-			only('Sampler').find(
-				(i) => (i.options as { destination: { pan: { value: number } } }).destination.pan.value === pan
-			)!.inst;
+		const drumAt = (voice: string) => only('Sampler')[['kick','ride','hihat','hihat-pedal','snare','crossstick','ride-bell','crash'].indexOf(voice)].inst;
 		const [bass] = only('Smolken');
 		const [comp] = only('SplendidGrandPiano');
-		expect(only('Sampler')).toHaveLength(3);
+		expect(only('Sampler')).toHaveLength(9);
 
 		mod.playBackingHitsNow(
 			[
@@ -469,13 +469,13 @@ describe('playBackingHitsNow', () => {
 			[59, 64, 69].map((note) => ({ note, velocity: 60, duration: 0.3, time: 12.5 }))
 		);
 		// Cymbals pan 0.25, kick 0, snare −0.1 (BACKING_PANS).
-		expect(drumAt(0.25).start).toHaveBeenCalledWith(
+		expect(drumAt('ride').start).toHaveBeenCalledWith(
 			expect.objectContaining({ note: drumBufferForVelocity('ride', 0.5), time: 12.5 })
 		);
-		expect(drumAt(0).start).toHaveBeenCalledWith(
+		expect(drumAt('kick').start).toHaveBeenCalledWith(
 			expect.objectContaining({ note: drumBufferForVelocity('kick', 0.3), time: 12.5 })
 		);
-		expect(drumAt(-0.1).start).not.toHaveBeenCalled();
+		expect(drumAt('crossstick').start).not.toHaveBeenCalled();
 	});
 
 	it('owns unique note stop handles across sessions, including queued notes and partial trigger failure', async () => {
@@ -602,24 +602,24 @@ describe('tune backing output level', () => {
 		vi.resetModules();
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
-		await mod.scheduleBackingTrack(PHRASE, { ...OPTIONS, backingOutputLevel: 4 }, 0, false);
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, false);
 		const compressor = compressors.at(-1)!;
 		const output = compressor.connect.mock.calls[0][0] as ReturnType<typeof fakeGain>;
 		const fader = gains.find((gain) => gain.connect.mock.calls.some(([target]) => target === compressor))!;
-		expect(fader.gain.value).toBe(OPTIONS.backingTrackVolume);
-		expect(output.gain.value).toBe(4);
+		expect(fader.gain.value).toBe(.6);
+		expect(output.gain.value).toBeCloseTo(4*OPTIONS.backingTrackVolume!/.6);
 		expect(output.connect).toHaveBeenCalledWith(master);
-		mod.setBackingMix({ master: 0.5 }, { persist: false });
+		mod.setBackingTrackVolume(.3);
 		expect(output.gain.value).toBe(2); // Reference × fader, with no second +6 dB boost.
-		mod.setBackingMix({ master: 1 }, { persist: false });
+
 		mod.setBackingTrackVolume(0);
-		expect(fader.gain.value).toBe(0);
-		expect(output.gain.value).toBe(4);
+		expect(fader.gain.value).toBe(.6);
+		expect(output.gain.value).toBe(0);
 		mod.setBackingTrackVolume(0.8);
-		expect(fader.gain.value).toBe(0.8);
-		expect(output.gain.value).toBe(4);
+		expect(fader.gain.value).toBe(.6);
+		expect(output.gain.value).toBeCloseTo(4*.8/.6);
 		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, false);
-		expect(output.gain.value).toBe(1);
+		expect(output.gain.value).toBeCloseTo(4*OPTIONS.backingTrackVolume!/.6);
 		mod.disposeBackingTrack();
 		expect(output.disconnect).toHaveBeenCalled();
 	});
