@@ -956,6 +956,12 @@ Admin · Operations Desk, component `461211093453402112`, revision
 `461217195662393344`. The rail stacks below the user list at 900px.
 User rows use compact vertical spacing and inline label/value pairs, wrapping
 on narrow screens while retaining every account fact and inspection control.
+The Show dropdown includes **Active Users (past two weeks)**, using the newest
+practice, visit, sign-in, or signup date on or after the UTC cutoff day 14 days
+ago. Local practice dates may be one day ahead of UTC. The filter combines
+with search and the joined-date filter.
+Each row displays the last synced instrument selection by its shared catalog
+name, preserving unknown saved IDs and showing **Not selected** when absent.
 
 ### Record a lick
 

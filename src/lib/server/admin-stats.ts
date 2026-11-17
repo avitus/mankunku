@@ -1,4 +1,5 @@
 import type { Database } from '$lib/supabase/types';
+import { INSTRUMENTS, isInstrumentId } from '$lib/types/instruments';
 
 export type AdminDevice = Database['public']['Tables']['user_devices']['Row'];
 
@@ -34,7 +35,7 @@ export interface AdminStatsInput {
 	lickOwners: string[];
 	/** One entry per live tune row. */
 	tuneOwners: string[];
-	settings: { user_id: string; updated_at: string }[];
+	settings: { user_id: string; updated_at: string; instrument_id: string }[];
 }
 
 export interface AdminUserRow {
@@ -56,6 +57,8 @@ export interface AdminUserRow {
 	lickCount: number;
 	tuneCount: number;
 	lastSyncAt: string | null;
+	/** Saved instrument's display name, or the raw id if unknown; null without a selection. */
+	instrumentName: string | null;
 	devices: AdminDevice[];
 }
 
@@ -128,6 +131,7 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 	const rows = input.authUsers.map((u): AdminUserRow => {
 		const profile = profiles.get(u.id);
 		const act = activity.get(u.id);
+		const instrumentId = settings.get(u.id)?.instrument_id;
 		return {
 			id: u.id,
 			email: u.email ?? null,
@@ -145,6 +149,7 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 			lickCount: lickCounts.get(u.id) ?? 0,
 			tuneCount: tuneCounts.get(u.id) ?? 0,
 			lastSyncAt: settings.get(u.id)?.updated_at ?? null,
+			instrumentName: instrumentId ? (isInstrumentId(instrumentId) ? INSTRUMENTS[instrumentId].name : instrumentId) : null,
 			devices: devicesByUser.get(u.id) ?? []
 		};
 	});

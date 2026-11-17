@@ -1,7 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { isInactive, lastSeenDate } from '../../../src/lib/ui/admin-user-filter';
+import { isActive, isInactive, lastSeenDate } from '../../../src/lib/ui/admin-user-filter';
 
 const NOW = Date.parse('2026-10-15T12:00:00Z');
+
+describe('isActive', () => {
+	it.each(['lastActiveDate', 'lastSignInAt', 'createdAt'] as const)('accepts recent %s even when the other dates are old', (field) => {
+		const row = { lastActiveDate: '2026-08-01', lastSignInAt: '2026-08-01T12:00:00Z', createdAt: '2026-01-01T12:00:00Z' };
+		expect(isActive({ ...row, [field]: '2026-10-15T09:00:00Z' }, NOW)).toBe(true);
+	});
+
+	it('includes the whole cutoff day two weeks ago and excludes the preceding day', () => {
+		const row = { lastActiveDate: '2026-10-01', lastSignInAt: null, createdAt: null };
+		expect(isActive(row, NOW)).toBe(true);
+		expect(isActive({ ...row, lastActiveDate: '2026-09-30' }, NOW)).toBe(false);
+	});
+
+	it('does not count undated activity', () => {
+		const row = { lastActiveDate: null, lastSignInAt: null, createdAt: null };
+		expect(isActive(row, NOW)).toBe(false);
+	});
+
+	it('includes a recent local practice date ahead of the UTC date', () => {
+		// At noon UTC, a player in UTC+13 already records tomorrow's date.
+		expect(isActive({ lastActiveDate: '2026-10-16', lastSignInAt: null, createdAt: null }, NOW)).toBe(true);
+	});
+});
 
 describe('lastSeenDate', () => {
 	it('takes the newest date, not the first one present (CodeRabbit on #277)', () => {
