@@ -6,6 +6,9 @@
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import { anticipatoryFollowPosition } from '$lib/notation/follow-scroll';
+	import { tuneKeyCenters } from '$lib/tunes/key-centers';
+	import { savedTuneDisplay } from '$lib/tunes/preferences';
+	import KeyCenterLegend from '$lib/components/tunes/KeyCenterLegend.svelte';
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
@@ -123,6 +126,10 @@
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let beatAnimFrame: number | null = null;
 	let mounted = true;
+	let setupGeneration = 0;
+	/** Only the current mounted setup may publish resources or begin playback. */
+	const setupIsCurrent = (generation: number): boolean => mounted && generation === setupGeneration;
+	let showKeyCenters = $state(true);
 
 	interface OpenWindow {
 		ip: InsertionPoint;
@@ -232,6 +239,10 @@
 	const showAnnotations = $derived(
 		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
 	);
+	const activeKeyCenters = $derived.by(() => {
+		const sheet = showSoloChart ? chartSheet : displayedSheet;
+		return sheet ? tuneKeyCenters(sheet, getInstrument(), { solo: showSoloChart }) : null;
+	});
 	const markers = $derived.by<RangeMarker[]>(() => {
 		const byKey = new Map<string, RangeMarker>();
 		const annotated = showAnnotations ? tunePractice.plan : [];
@@ -287,7 +298,7 @@
 				if (label && (status === 'active' || !existing.label)) existing.label = label;
 			}
 		});
-		const result: RangeMarker[] = [...byKey.values()];
+		const result: RangeMarker[] = [...(showKeyCenters ? activeKeyCenters?.markers ?? [] : []), ...byKey.values()];
 
 		// Current-bar playhead (repeat passes land on the same chart bars).
 		if (playheadBar !== null && (tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro')) {
@@ -399,6 +410,10 @@
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
 			// A new tune starts from its saved tempo, whatever moved the knob before.
 			tempoChosenFor = null;
+			if (isLoading || isSessionRunning || micCapture) {
+				stopAll();
+				if (audioModulesReady) timerInterval = setInterval(() => updateElapsedTime(), 1000);
+			}
 			retrySpots = [];
 			retryUnavailable = false;
 			initTunePractice(baseSheet);
@@ -452,20 +467,27 @@
 		};
 	}
 
-	async function ensureMicCapture(): Promise<boolean> {
+	async function ensureMicCapture(generation: number): Promise<boolean> {
 		if (!captureModule) return false;
 		if (micCapture) return true;
 		try {
-			micCapture = await captureModule.startMicCapture();
+			const capture = await captureModule.startMicCapture();
+			if (!setupIsCurrent(generation)) {
+				if (micCapture !== capture && captureModule.getMicCapture() === capture) captureModule.stopMicCapture();
+				return false;
+			}
+			micCapture = capture;
 			if (onsetModule && !onsetDetector) {
 				try {
-					onsetDetector = await onsetModule.createOnsetDetector(
+					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
 						micCapture.source,
 						(time: number) => {
 							if (tunePractice.windowOpen) pitchDetector?.resetOctaveStateAt(time);
 						}
 					);
+					if (!setupIsCurrent(generation)) { onset.dispose(); return false; }
+					onsetDetector = onset;
 				} catch {
 					// AudioWorklet unavailable — scoring still works from pitch data.
 				}
@@ -476,11 +498,13 @@
 		}
 	}
 
-	async function ensurePitchDetector(): Promise<void> {
+	async function ensurePitchDetector(generation: number): Promise<void> {
 		if (!pitchModule || !micCapture || pitchDetector) return;
-		pitchDetector = await pitchModule.createPitchDetector(micCapture.analyser, () => {
+		const detector = await pitchModule.createPitchDetector(micCapture.analyser, () => {
 			/* windows slice the readings themselves */
 		});
+		if (!setupIsCurrent(generation) || !micCapture) return;
+		pitchDetector = detector;
 		sessionPitchStartMicTime = micCapture.context.currentTime;
 		pitchDetector.start();
 	}
@@ -491,12 +515,15 @@
 	 * Any setup failure unwinds `isLoading` and shows its banner.
 	 */
 	async function startSession() {
-		if (!playback || !toneModule || !baseSheet || isLoading) return;
+		if (!mounted || !playback || !toneModule || !baseSheet || isLoading) return;
+		const generation = ++setupGeneration;
+		showKeyCenters = savedTuneDisplay('key-centers', true);
 		isLoading = true;
 		micError = false;
 		loadError = false;
 
-		const micOk = await ensureMicCapture();
+		const micOk = await ensureMicCapture(generation);
+		if (!setupIsCurrent(generation)) return;
 		if (!micOk) {
 			isLoading = false;
 			micError = true;
@@ -514,14 +541,18 @@
 			} else if (backingTrack) {
 				await backingTrack.loadBackingInstruments(settings.backingInstrument);
 			}
+			if (!setupIsCurrent(generation)) return;
 			setMasterVolume(settings.masterVolume);
-			await ensurePitchDetector();
+			await ensurePitchDetector(generation);
 		} catch (err) {
+			if (!setupIsCurrent(generation)) return;
+			stopAll();
 			console.error('[tune-practice] audio setup failed:', err);
 			isLoading = false;
 			loadError = true;
 			return;
 		}
+		if (!setupIsCurrent(generation)) return;
 		isLoading = false;
 
 		const transport = toneModule.getTransport();
@@ -545,6 +576,7 @@
 		cursorIndex = null;
 		freestyleFloorSec = 0;
 		isSessionRunning = true;
+		if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
 		startBeatTracking();
 
 		if (tunePractice.config.mode === 'freestyle') {
@@ -579,7 +611,7 @@
 			console.warn('[tune-practice] playback failed:', err);
 		}
 		// Natural end of the tune (or a stop that resolved the promise).
-		if (isSessionRunning) finishSession();
+		if (setupIsCurrent(generation) && isSessionRunning) finishSession();
 	}
 
 	/** Registered via onStarted so the events survive playPhrase's internal cancel. */
@@ -809,6 +841,8 @@
 	}
 
 	function stopAll() {
+		setupGeneration++;
+		isLoading = false;
 		const wasRunning = isSessionRunning;
 		isSessionRunning = false;
 		currentWindow = null;
@@ -968,13 +1002,14 @@
 			/>
 		{/if}
 
+		{#if showKeyCenters && activeKeyCenters}<KeyCenterLegend display={activeKeyCenters} />{/if}
 		{#if displayedSheet && showSoloChart}
-			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
+			<TuneChordChart keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0} tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
 			<NotationDisplay
-				keyCenterRails
+				keyCenterRails keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0}
 				tune={displayedSheet}
 				instrument={getInstrument()}
 				tuneOptions={audioPlan?.chartOptions}

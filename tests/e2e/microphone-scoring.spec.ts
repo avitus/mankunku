@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedUserLicks, seedStorage, seedTunes, SAINTS_USER_TUNE } from './fixtures/storage';
 import { SEEDED_PROGRESS } from './fixtures/lick-practice-seeds';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
@@ -118,21 +118,27 @@ for (const mode of ['ear-training', 'lick-practice']) test(`${mode}: keeps micro
 	}
 });
 
-for (const { mode, delayedStep } of [{ mode: 'ear-training', delayedStep: 'scoring' }, { mode: 'ear-training', delayedStep: 'permission' }, { mode: 'lick-practice', delayedStep: 'scoring' }] as const) test(`${mode}: stopping during ${delayedStep} preparation does not recreate detection resources`, async ({ page, browserName }) => {
+const pendingSetupCases = [
+	{ mode: 'ear-training', delayedStep: 'scoring' },
+	{ mode: 'ear-training', delayedStep: 'permission' },
+	{ mode: 'lick-practice', delayedStep: 'scoring' },
+	{ mode: 'tune-practice', delayedStep: 'permission' },
+	{ mode: 'tune-change', delayedStep: 'permission' }
+] as const;
+for (const { mode, delayedStep } of pendingSetupCases) test(`${mode}: stopping during ${delayedStep} preparation does not recreate detection resources`, async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
 	await seedOnboardedAnonymous(page);
+	if (mode === 'tune-change') await seedTunes(page, [SAINTS_USER_TUNE]);
 	if (mode === 'lick-practice') {
 		await seedUserLicks(page);
 		await seedStorage(page, { 'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] }, ...SEEDED_PROGRESS });
 	}
-	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
 	await page.addInitScript(delayedStep => {
-		const probe = window as unknown as { __setupPending: boolean; __releaseSetup: () => Promise<void>; __setupSettled: boolean; __lateLevelTimers: number; __micTracks: MediaStreamTrack[] };
+		const probe = window as unknown as { __setupPending: boolean; __releaseSetup: () => Promise<void>; __setupSettled: boolean; __lateLevelTimers: number };
 		probe.__setupPending = false;
 		probe.__setupSettled = false;
 		probe.__lateLevelTimers = 0;
-		probe.__micTracks = [];
 		const hold = () => new Promise<void>(resolve => {
 			probe.__setupPending = true;
 			probe.__releaseSetup = async () => {
@@ -144,16 +150,6 @@ for (const { mode, delayedStep } of [{ mode: 'ear-training', delayedStep: 'scori
 				resolve();
 			};
 		});
-		const getUserMedia = MediaDevices.prototype.getUserMedia;
-		MediaDevices.prototype.getUserMedia = async function (constraints) {
-			const stream = await getUserMedia.call(this, constraints);
-			probe.__micTracks.push(...stream.getTracks());
-			if (delayedStep === 'permission') {
-				await hold();
-				probe.__setupSettled = true;
-			}
-			return stream;
-		};
 		const addModule = AudioWorklet.prototype.addModule;
 		AudioWorklet.prototype.addModule = async function (url, options) {
 			const address = String(url);
@@ -167,30 +163,42 @@ for (const { mode, delayedStep } of [{ mode: 'ear-training', delayedStep: 'scori
 			if (scoring && delayedStep === 'scoring') probe.__setupSettled = true;
 		};
 	}, delayedStep);
-	await page.goto(`/${mode}`, { waitUntil: 'networkidle' });
+	// The stream probe and permission gate are installed atomically with the mock;
+	// their behavior does not depend on this worklet init script's order.
+	await installAudioMock(page, { trackMicrophoneStreams: true, delayMicrophonePermission: delayedStep === 'permission' });
+	await page.goto(mode.startsWith('tune-') ? '/tunes/ls-mankunku-blues/practice' : `/${mode}`, { waitUntil: 'networkidle' });
 	if (mode === 'ear-training') await page.locator('[data-tour="play-button"]').click();
+	else if (mode.startsWith('tune-')) await page.getByRole('button', { name: /^start$/i }).click();
 	else await page.getByRole('button', { name: /start daily practice/i }).click();
-	await expect.poll(() => page.evaluate(() => (window as unknown as { __setupPending: boolean }).__setupPending)).toBe(true);
-	if (mode === 'ear-training') {
-		await page.evaluate(() => {
+	await expect.poll(() => page.evaluate(step => step === 'permission'
+		? (window as unknown as { __mockMicPending: boolean }).__mockMicPending
+		: (window as unknown as { __setupPending: boolean }).__setupPending, delayedStep)).toBe(true);
+	if (mode !== 'lick-practice') {
+		const destination = mode === 'tune-change' ? '/tunes/e2e-when-the-saints/practice' : '/settings';
+		await page.evaluate(destination => {
 			const link = document.createElement('a');
-			link.href = '/settings';
+			link.href = destination;
 			link.textContent = 'Leave pending practice';
 			document.querySelector('main')!.append(link);
-		});
+		}, destination);
 		await page.getByRole('link', { name: 'Leave pending practice' }).click();
-		await expect(page).toHaveURL(/\/settings$/);
+		await expect(page).toHaveURL(new RegExp(`${destination}$`));
 	} else {
 		await page.getByRole('button', { name: 'End Session', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'End Session', exact: true })).toHaveCount(0);
 	}
-	await page.evaluate(() => (window as unknown as { __releaseSetup: () => Promise<void> }).__releaseSetup());
-	await expect.poll(() => page.evaluate(() => (window as unknown as { __setupSettled: boolean }).__setupSettled)).toBe(true);
+	if (delayedStep === 'permission') {
+		await page.evaluate(() => (window as unknown as { __releaseMockMic: () => void }).__releaseMockMic());
+	} else {
+		await page.evaluate(() => (window as unknown as { __releaseSetup: () => Promise<void> }).__releaseSetup());
+		await expect.poll(() => page.evaluate(() => (window as unknown as { __setupSettled: boolean }).__setupSettled)).toBe(true);
+	}
 	// Let the resumed continuation and any mistakenly-created level timer run.
 	await page.waitForTimeout(300);
 	expect(await page.evaluate(() => (window as unknown as { __lateLevelTimers: number }).__lateLevelTimers)).toBe(0);
-	const states = await page.evaluate(() => (window as unknown as { __micTracks: MediaStreamTrack[] }).__micTracks.map(track => track.readyState));
+	const states = await page.evaluate(() => (window as unknown as { __mockMicTracks: MediaStreamTrack[] }).__mockMicTracks.map(track => track.readyState));
 	expect(states.length).toBeGreaterThan(0);
 	expect(states.every(state => state === 'ended')).toBe(true);
 	if (mode === 'lick-practice') await expect(page.locator('.report').first()).toBeVisible();
+	if (mode === 'tune-change') await expect(page.getByRole('button', { name: /^start$/i })).toBeEnabled();
 });

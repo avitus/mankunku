@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { threeLaneSheet } from '../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -595,13 +596,13 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await setTempoMax(page);
 		await startPracticeSession(page);
 
-		// The head: the melody sheet carries the playhead and nothing else.
+		// The head has harmonic context and a playhead, but no lick prompts.
 		// A regex in getByText is not whitespace-normalised, and the template breaks
 		// this line between "once" and "through".
 		await expect(page.getByText(/melody once\s+through/i)).toBeVisible({ timeout: 20_000 });
 		const annotationsDuringHead = await page.evaluate(() => {
 			const vp = document.querySelector('[data-testid="chart-scroll-viewport"].following');
-			const markers = [...(vp?.querySelectorAll('svg .range-marker') ?? [])];
+			const markers = [...(vp?.querySelectorAll('svg .range-marker:not(.key-center-rail)') ?? [])];
 			return {
 				labels: markers.filter((m) => m.classList.contains('range-marker-label')).length,
 				bands: markers.filter((m) => m.getAttribute('data-marker-id') !== '__playhead').length,
@@ -711,4 +712,40 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			timeout: 10_000
 		});
 	});
+});
+
+for (const showCenters of [true, false]) test(`active key-center rails retain setup visibility: ${showCenters}`, async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [threeLaneSheet()]);
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/three-lane-centers/practice');
+	const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
+	await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+	if (!showCenters) await toggle.click();
+	await openSessionOptions(page);
+	await setTempoMax(page);
+	await startPracticeSession(page);
+	await expect(page.getByText(/melody once\s+through/i)).toBeVisible();
+	const legend = page.getByRole('list', { name: 'Key center legend', exact: true });
+	const staffRails = page.locator('[data-testid="chart-scroll-viewport"].following [data-key-center-lane="2"]');
+	if (showCenters) {
+		await expect(legend).toBeVisible();
+		await expect(staffRails.first()).toBeAttached();
+	} else {
+		await expect(legend).toHaveCount(0);
+		await expect(staffRails).toHaveCount(0);
+	}
+	const chart = page.getByTestId('tune-chord-chart');
+	await expect(chart).toBeVisible({ timeout: 20_000 });
+	await expect(chart.locator('.tcc-key-centers').first()).toHaveCSS('height', '54px');
+	if (showCenters) {
+		await expect(legend).toBeVisible();
+		await expect(chart.locator('[data-key-center-lane="2"]').first()).toBeAttached();
+	} else {
+		await expect(legend).toHaveCount(0);
+		await expect(chart.locator('[data-key-center]')).toHaveCount(0);
+	}
+	await page.getByRole('button', { name: /^end$/i }).click();
 });

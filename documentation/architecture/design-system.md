@@ -798,7 +798,10 @@ the prototype's illustrative score and playback data are not production inputs.
   dots. Do not restore the removed key-center readings disclosure.
 - Reuse these rails and the same legend in practice setup, active practice and
   import preview. Reserve their vertical space even when hidden so toggling
-  centers does not reflow the score or interrupt playback.
+  centers does not reflow the score or interrupt playback. Active tune practice
+  carries the setup visibility choice through the head and solo chart, recomputing
+  harmonic context for the displayed returning/closing sheet. Key-center rails
+  remain independent of lick prompts, which stay hidden during the head.
 
 ### Shared editing controls
 
