@@ -132,3 +132,37 @@ it('ignores a queued Play canceled before its event is delivered', async () => {
  expect(element.play).toHaveBeenCalledOnce();
  action.destroy();
 });
+
+
+it.each([false, true])('handles a deferred Play rejection only for its active action: destroyed=%s', async destroyed => {
+ audio.init.mockResolvedValue(undefined);
+ const element = new Media();
+ const native = element as unknown as HTMLMediaElement;
+ const nativePlay = element.play.getMockImplementation()!;
+ let rejectPlay!: (error: Error) => void;
+ const deferredPlay = new Promise<void>((_, reject) => { rejectPlay = reject; });
+ element.play.mockImplementationOnce(nativePlay).mockImplementationOnce(() => {
+  void nativePlay();
+  return deferredPlay;
+ });
+ const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+ let action = mixAudio(native);
+ try {
+  await element.play();
+  await vi.waitFor(() => expect(element.play).toHaveBeenCalledTimes(2));
+  if (destroyed) {
+   action.destroy();
+   action = mixAudio(native);
+   await element.play();
+   await vi.waitFor(() => expect(element.play).toHaveBeenCalledTimes(4));
+   expect(element.paused).toBe(false);
+  }
+  rejectPlay(new DOMException('Playback interrupted', 'AbortError'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(element.paused).toBe(!destroyed);
+  expect(warning).toHaveBeenCalledTimes(destroyed ? 0 : 1);
+ } finally {
+  action.destroy();
+  warning.mockRestore();
+ }
+});

@@ -57,6 +57,12 @@ export function mixAudio(element: HTMLMediaElement): { destroy(): void } {
 	};
 	const initialVolume = element.volume;
 	element.volume = 0;
+	/** A late rejection belongs to this action, never to a replacement owner. */
+	const failed = (error: unknown) => {
+		if (destroyed) return;
+		pauseMediaPlayback(element);
+		console.warn('Audio playback unavailable', error);
+	};
 	/** Attach or resume the shared output before native playback becomes audible. */
 	const play = () => {
 		if (element.paused) return; // A queued Play may already have been canceled.
@@ -64,7 +70,7 @@ export function mixAudio(element: HTMLMediaElement): { destroy(): void } {
 		if (pending) return;
 		if (connected) {
 			void routeMediaPlayback(element, () => !destroyed)
-				.catch(error => { pauseMediaPlayback(element); console.warn('Audio playback unavailable', error); });
+				.catch(failed);
 			return;
 		}
 		pending = true;
@@ -80,10 +86,7 @@ export function mixAudio(element: HTMLMediaElement): { destroy(): void } {
 			if (destroyed) return;
 			connected = true;
 			if (wantsPlayback) await element.play();
-		}).catch(error => {
-			pauseMediaPlayback(element);
-			console.warn('Audio playback unavailable', error);
-		}).finally(() => { pending = false; });
+		}).catch(failed).finally(() => { pending = false; });
 	};
 	element.addEventListener('play', play);
 	element.addEventListener('pause', paused);
