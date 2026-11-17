@@ -71,9 +71,9 @@ describe('targetContentY — continuous system lerp', () => {
 describe('followOffsetPx — reading line + clamp', () => {
 	const systems = threeSystems();
 	// Tall content so we can actually scroll.
-	const contentPx = 400;
-	const viewportPx = 200;
-	const readingLine = 0.28; // reading line at 56px from viewport top
+	const contentPx = 800;
+	const viewportPx = 400;
+	const readingLine = 0.28; // 112px: enough room for the 100px system spacing
 
 	it('returns 0 when content fits in the viewport', () => {
 		expect(
@@ -112,23 +112,23 @@ describe('followOffsetPx — reading line + clamp', () => {
 	});
 
 	it('at form start, reading line sits at first system (no negative scroll)', () => {
-		// targetY=0, readingLine offset wants 0 - 56 = -56 → clamp to 0 → translate 0
+		// A target above the reading line clamps to no scroll.
 		expect(
 			followOffsetPx({ systems, barFraction: 0, viewportPx, contentPx, readingLine })
 		).toBe(0);
 	});
 
 	it('mid first system drifts so targetY sits on the reading line', () => {
-		// bar 2 → targetY 50; offset = 50 - 56 = -6 → clamp 0 → still 0
+		// bar 2 → targetY 50; offset = 50 - 112 → clamp 0 → still 0
 		// (early form still above the reading line until content has scrolled enough)
 		expect(
 			followOffsetPx({ systems, barFraction: 2, viewportPx, contentPx, readingLine })
 		).toBe(0);
 
-		// bar 4 → targetY 100; offset = 100 - viewport*0.28 → translate ~-44
+		// bar 8 → targetY 200; offset = 200 - viewport*0.28 → translate -88
 		expect(
-			followOffsetPx({ systems, barFraction: 4, viewportPx, contentPx, readingLine })
-		).toBeCloseTo(-(100 - viewportPx * readingLine), 10);
+			followOffsetPx({ systems, barFraction: 8, viewportPx, contentPx, readingLine })
+		).toBeCloseTo(-(200 - viewportPx * readingLine), 10);
 	});
 
 	it('mid second system continues the continuous drift', () => {
@@ -139,7 +139,7 @@ describe('followOffsetPx — reading line + clamp', () => {
 	});
 
 	it('never overscrolls past content end', () => {
-		const maxScroll = contentPx - viewportPx; // 200
+		const maxScroll = contentPx - viewportPx;
 		// Even with a huge targetY the clamp holds maxScroll
 		const deep = followOffsetPx({
 			systems,
@@ -162,6 +162,35 @@ describe('followOffsetPx — reading line + clamp', () => {
 			readingLine: 0.28
 		});
 		expect(a).toBe(b);
+	});
+});
+
+describe('followOffsetPx — current-line visibility', () => {
+	// Key-center rails increased row spacing, even with the rails hidden.
+	const systems: FollowSystem[] = [
+		{ firstBar: 0, lastBarExclusive: 4, topPx: 30 },
+		{ firstBar: 4, lastBarExclusive: 8, topPx: 230 },
+		{ firstBar: 8, lastBarExclusive: 10, topPx: 490 },
+		{ firstBar: 10, lastBarExclusive: 14, topPx: 660 }
+	];
+	const offset = (barFraction: number, viewportPx = 400) => followOffsetPx({
+		systems, barFraction, viewportPx, contentPx: 900
+	});
+
+	it.each([300, 400, 600])('keeps the sounding line visible through its final beat in a %ipx viewport', viewport => {
+		for (const system of systems) {
+			for (let bar = system.firstBar; bar < system.lastBarExclusive; bar += 1 / 32) {
+				expect(system.topPx + offset(bar, viewport)).toBeGreaterThanOrEqual(8);
+			}
+		}
+	});
+
+	it('stays continuous across unequal row heights and a short line', () => {
+		for (const system of systems.slice(1)) {
+			expect(offset(system.firstBar - 0.00001)).toBeCloseTo(offset(system.firstBar), 2);
+			expect(offset(system.firstBar + 0.00001)).toBeCloseTo(offset(system.firstBar), 2);
+		}
+		expect(offset(6.5)).toBeLessThan(offset(6));
 	});
 });
 

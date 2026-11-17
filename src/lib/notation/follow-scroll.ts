@@ -73,10 +73,12 @@ export interface FollowScrollArgs {
  * Compute the `translateY` (negative = content moves up) that places the
  * music for `barFraction` on the reading line.
  *
- * Within a multi-bar system the target Y lerps from this system's top toward
- * the next system's top, so the chart drifts continuously instead of sitting
- * still for a whole line then jumping. The last system holds its top (clamped
- * so we never overscroll past the content end).
+ * Interpolate between safe reading positions at system boundaries. Each
+ * boundary must still leave the preceding system's top visible: its final
+ * bar is sounding right up to that boundary. This matters when key-center
+ * rails or a short viewport make the system spacing exceed the reading line.
+ * Sharing endpoints keeps motion continuous even with unequal system heights.
+ * The last system holds, and the content-end clamp prevents overscrolling.
  */
 export function followOffsetPx(args: FollowScrollArgs): number {
 	const { systems, barFraction, viewportPx, contentPx } = args;
@@ -94,9 +96,18 @@ export function followOffsetPx(args: FollowScrollArgs): number {
 	const maxScroll = Math.max(0, contentPx - viewportPx);
 	if (maxScroll === 0) return 0;
 
-	const targetY = targetContentY(systems, barFraction);
+	const readingLinePx = viewportPx * readingLine;
+	const safeSystems = systems.map((system, i) => ({
+		...system,
+		// Reserve a little space above the ink. Do not let the next line's
+		// desired reading position scroll away the line still being played.
+		topPx: i === 0 ? system.topPx : Math.min(
+			system.topPx, systems[i - 1].topPx + readingLinePx - 8
+		)
+	}));
+	const targetY = targetContentY(safeSystems, barFraction);
 	if (!Number.isFinite(targetY)) return 0;
-	const offset = targetY - viewportPx * readingLine;
+	const offset = targetY - readingLinePx;
 	// Negate for translateY; coerce -0 → 0 so callers can use Object.is-stable zeros.
 	const scrolled = -clamp(offset, 0, maxScroll);
 	return scrolled === 0 ? 0 : scrolled;
