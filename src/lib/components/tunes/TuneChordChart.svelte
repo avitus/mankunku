@@ -6,15 +6,15 @@
 	import { followOffsetPx, type FollowSystem } from '$lib/notation/follow-scroll';
 	import { tuneChordBars } from '$lib/tunes/chord-bars';
 	import { keyCenterBarSpan, keyCenterLabelStartsRow } from '$lib/tunes/key-centers';
-	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [], playing = true, highlightCurrentBeat = true }: {
-		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; playing?: boolean; highlightCurrentBeat?: boolean;
+	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [], keyCenterLaneCount = 2, playing = true, highlightCurrentBeat = true }: {
+		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; keyCenterLaneCount?: number; playing?: boolean; highlightCurrentBeat?: boolean;
 	} = $props();
 	let viewport = $state<HTMLDivElement>();
 	let content = $state<HTMLDivElement>();
 	let geometry = $state<{ systems: FollowSystem[]; viewportPx: number; contentPx: number }>({ systems: [], viewportPx: 0, contentPx: 0 });
 	const sections = $derived(tuneChordBars(tune));
-	// Keep two rail lanes reserved when hidden, so the toggle does not reflow rows.
-	const keyCenterLanes = $derived(Math.max(2, ...markers.map(marker => marker.keyCenter?.lanes ?? 0)));
+	// Reserve the full producer capacity even when its markers are hidden.
+	const keyCenterLanes = $derived(Math.max(2, keyCenterLaneCount));
 	const activeBar = $derived(currentBar === null ? -1 : Math.floor(currentBar));
 	const followOffset = $derived(!playing || followBar === null ? 0 : followOffsetPx({ ...geometry, barFraction: followBar }));
 

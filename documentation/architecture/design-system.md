@@ -783,7 +783,10 @@ the prototype's illustrative score and playback data are not production inputs.
 - Show key centers as 2.5px muted rails below the staff, with compact names
   (`G maj`, `A min`) at each span/system start. Chord-only rows show the first span wide enough for a label, including when a center begins late in the preceding bar. Minor rails are dashed. Retain
   partial-bar boundaries and separate lanes for overlapping centers; the normal
-  layout accommodates two simultaneous readings without truncating analysis.
+  layout reserves at least two lanes and grows by 18 units per additional lane,
+  including inter-system separation and final SVG padding. The producer supplies
+  its full lane count independently of marker visibility, so hiding three or
+  more readings preserves both staff and chord-chart geometry.
 - Keep the wrapping legend suitable for seven or more distinct centers. Use
   stable tonic hues at 25% saturation and the theme's `--key-center-lightness`
   so labels remain legible on dark and light score wells.

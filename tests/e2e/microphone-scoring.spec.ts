@@ -118,16 +118,42 @@ for (const mode of ['ear-training', 'lick-practice']) test(`${mode}: keeps micro
 	}
 });
 
-test('leaving during scoring preparation does not recreate detection resources', async ({ page, browserName }) => {
+for (const { mode, delayedStep } of [{ mode: 'ear-training', delayedStep: 'scoring' }, { mode: 'ear-training', delayedStep: 'permission' }, { mode: 'lick-practice', delayedStep: 'scoring' }] as const) test(`${mode}: stopping during ${delayedStep} preparation does not recreate detection resources`, async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
 	await seedOnboardedAnonymous(page);
+	if (mode === 'lick-practice') {
+		await seedUserLicks(page);
+		await seedStorage(page, { 'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] }, ...SEEDED_PROGRESS });
+	}
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
-	await page.addInitScript(() => {
-		const probe = window as unknown as { __scoringPending: boolean; __releaseScoring: () => Promise<void>; __scoringSettled: boolean; __lateLevelTimers: number };
-		probe.__scoringPending = false;
-		probe.__scoringSettled = false;
+	await page.addInitScript(delayedStep => {
+		const probe = window as unknown as { __setupPending: boolean; __releaseSetup: () => Promise<void>; __setupSettled: boolean; __lateLevelTimers: number; __micTracks: MediaStreamTrack[] };
+		probe.__setupPending = false;
+		probe.__setupSettled = false;
 		probe.__lateLevelTimers = 0;
+		probe.__micTracks = [];
+		const hold = () => new Promise<void>(resolve => {
+			probe.__setupPending = true;
+			probe.__releaseSetup = async () => {
+				const interval = window.setInterval;
+				window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+					if (timeout === 50) probe.__lateLevelTimers++;
+					return interval(handler, timeout, ...args);
+				}) as typeof window.setInterval;
+				resolve();
+			};
+		});
+		const getUserMedia = MediaDevices.prototype.getUserMedia;
+		MediaDevices.prototype.getUserMedia = async function (constraints) {
+			const stream = await getUserMedia.call(this, constraints);
+			probe.__micTracks.push(...stream.getTracks());
+			if (delayedStep === 'permission') {
+				await hold();
+				probe.__setupSettled = true;
+			}
+			return stream;
+		};
 		const addModule = AudioWorklet.prototype.addModule;
 		AudioWorklet.prototype.addModule = async function (url, options) {
 			const address = String(url);
@@ -136,37 +162,35 @@ test('leaving during scoring preparation does not recreate detection resources',
 					? atob(address.slice(address.indexOf(',') + 1)) : decodeURIComponent(address.slice(address.indexOf(',') + 1))
 				: address;
 			const scoring = source.includes('scoring-capture');
-			if (scoring) {
-				await new Promise<void>(resolve => {
-					probe.__scoringPending = true;
-					probe.__releaseScoring = async () => {
-						const interval = window.setInterval;
-						window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
-							if (timeout === 50) probe.__lateLevelTimers++;
-							return interval(handler, timeout, ...args);
-						}) as typeof window.setInterval;
-						resolve();
-					};
-				});
-			}
+			if (scoring && delayedStep === 'scoring') await hold();
 			await addModule.call(this, url, options);
-			if (scoring) probe.__scoringSettled = true;
+			if (scoring && delayedStep === 'scoring') probe.__setupSettled = true;
 		};
-	});
-	await page.goto('/ear-training', { waitUntil: 'networkidle' });
-	await page.locator('[data-tour="play-button"]').click();
-	await expect.poll(() => page.evaluate(() => (window as unknown as { __scoringPending: boolean }).__scoringPending)).toBe(true);
-	await page.evaluate(() => {
-		const link = document.createElement('a');
-		link.href = '/settings';
-		link.textContent = 'Leave pending practice';
-		document.querySelector('main')!.append(link);
-	});
-	await page.getByRole('link', { name: 'Leave pending practice' }).click();
-	await expect(page).toHaveURL(/\/settings$/);
-	await page.evaluate(() => (window as unknown as { __releaseScoring: () => Promise<void> }).__releaseScoring());
-	await expect.poll(() => page.evaluate(() => (window as unknown as { __scoringSettled: boolean }).__scoringSettled)).toBe(true);
+	}, delayedStep);
+	await page.goto(`/${mode}`, { waitUntil: 'networkidle' });
+	if (mode === 'ear-training') await page.locator('[data-tour="play-button"]').click();
+	else await page.getByRole('button', { name: /start daily practice/i }).click();
+	await expect.poll(() => page.evaluate(() => (window as unknown as { __setupPending: boolean }).__setupPending)).toBe(true);
+	if (mode === 'ear-training') {
+		await page.evaluate(() => {
+			const link = document.createElement('a');
+			link.href = '/settings';
+			link.textContent = 'Leave pending practice';
+			document.querySelector('main')!.append(link);
+		});
+		await page.getByRole('link', { name: 'Leave pending practice' }).click();
+		await expect(page).toHaveURL(/\/settings$/);
+	} else {
+		await page.getByRole('button', { name: 'End Session', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'End Session', exact: true })).toHaveCount(0);
+	}
+	await page.evaluate(() => (window as unknown as { __releaseSetup: () => Promise<void> }).__releaseSetup());
+	await expect.poll(() => page.evaluate(() => (window as unknown as { __setupSettled: boolean }).__setupSettled)).toBe(true);
 	// Let the resumed continuation and any mistakenly-created level timer run.
 	await page.waitForTimeout(300);
 	expect(await page.evaluate(() => (window as unknown as { __lateLevelTimers: number }).__lateLevelTimers)).toBe(0);
+	const states = await page.evaluate(() => (window as unknown as { __micTracks: MediaStreamTrack[] }).__micTracks.map(track => track.readyState));
+	expect(states.length).toBeGreaterThan(0);
+	expect(states.every(state => state === 'ended')).toBe(true);
+	if (mode === 'lick-practice') await expect(page.locator('.report').first()).toBeVisible();
 });

@@ -349,7 +349,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
-		await seedTunes(page, [{
+		const practiced = {
 			id: 'e2e-three-choruses', title: 'Three Choruses', composer: 'E2E', key: 'C',
 			timeSignature: [4, 4], style: 'Medium Swing', tags: ['e2e'], source: 'user',
 			sections: [{ label: 'A', bars: 2,
@@ -357,10 +357,12 @@ test.describe.serial('tune practice session follow-scroll', () => {
 				harmony: [{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian',
 					startOffset: [0, 1], duration: [2, 1], symbol: 'Cmaj7' }]
 			}]
-		}]);
+		};
+		await seedTunes(page, [{ ...practiced, id: 'a-three-choruses' }, practiced]);
 		await page.goto('/tunes/e2e-three-choruses/practice');
 		await openSessionOptions(page);
 		await setTempoMax(page);
+		await page.getByLabel('Key', { exact: true }).selectOption('E');
 		const choruses = page.getByRole('spinbutton', { name: /^solo choruses$/i });
 		await choruses.press('ArrowUp');
 		await choruses.press('ArrowUp');
@@ -375,6 +377,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('No matching licks in this take.', { exact: true })).toBeVisible();
 		const report = page.getByTestId('tune-practice-report');
+		await expect(report.getByRole('link', { name: 'Back to tune' })).toHaveAttribute('href', '/tunes/three-choruses-2');
 		await expect(report.locator('[data-report-chorus]')).toHaveCount(3);
 		await expect(report.locator('[data-report-status="unavailable"]')).toHaveCount(3);
 		await expect(report.locator('[data-report-status="open"]')).toHaveCount(0);

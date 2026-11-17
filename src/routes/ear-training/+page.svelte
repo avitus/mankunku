@@ -313,6 +313,8 @@
 		onsetDetector?.dispose();
 		onsetDetector = null;
 		disposeArmedRecorder();
+		captureModule?.stopMicCapture();
+		micCapture = null;
 	});
 
 	// ─── Mic + Detection ─────────────────────────────────────
@@ -322,6 +324,11 @@
 		if (micCapture) return true;
 		try {
 			micCapture = await captureModule.startMicCapture();
+			if (destroyed) {
+				captureModule.stopMicCapture();
+				micCapture = null;
+				return false;
+			}
 			await prepareScoringCapture(micCapture.context).catch(error => {
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
@@ -332,10 +339,15 @@
 			}, 50);
 			if (onsetModule && !onsetDetector) {
 				try {
-					onsetDetector = await onsetModule.createOnsetDetector(
+					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
 						micCapture.source
 					);
+					if (destroyed) {
+						onset.dispose();
+						return false;
+					}
+					onsetDetector = onset;
 				} catch (err) {
 					console.warn('AudioWorklet onset detector unavailable, using fallback:', err);
 				}

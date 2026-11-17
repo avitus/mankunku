@@ -1,3 +1,4 @@
+import { threeLaneSheet } from '../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes, seedStorage } from './fixtures/storage';
@@ -136,3 +137,36 @@ for (const width of [1440, 390]) test(`chord rails label a late entrance on the 
 	if (width === 390) await expect(nextRow).toBeVisible();
 	else await expect(nextRow).toBeHidden();
 });
+
+for (const width of [1440, 390]) for (const melody of [true, false]) {
+	test(`three-lane ${melody ? 'staff' : 'chord'} chart fits and keeps its height when toggled at ${width}px`, async ({ page }) => {
+		await seedTunes(page, [threeLaneSheet(melody)]);
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto('/tunes/three-lane-centers');
+		const rail = page.locator('[data-key-center-lane="2"]').last();
+		await expect(rail).toBeVisible();
+		if (melody) {
+			const failures = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.flatMap(rail => {
+				const box = rail.getBoundingClientRect();
+				const svg = rail.closest('svg')!;
+				const wrappers = [...svg.querySelectorAll('.abcjs-staff-wrapper')];
+				const next = wrappers[wrappers.indexOf(rail.parentElement!) + 1];
+				const nextInk = next?.querySelectorAll('.abcjs-note, .abcjs-chord, .abcjs-part, .abcjs-bar-number') ?? [];
+				return box.bottom > svg.getBoundingClientRect().bottom || [...nextInk].some(ink => ink.getBoundingClientRect().top <= box.bottom)
+					? [rail.getAttribute('data-key-center')] : [];
+			}));
+			expect(failures).toEqual([]);
+		}
+		const geometry = () => page.locator(melody ? '.td-score-well svg' : '.tcc-bar').evaluateAll(elements => elements.map(el => {
+			const { top, height } = el.getBoundingClientRect(); return { top: top - elements[0].getBoundingClientRect().top, height };
+		}));
+		const before = await geometry();
+		const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
+		await toggle.click();
+		await expect(page.locator('[data-key-center]')).toHaveCount(0);
+		expect(await geometry()).toEqual(before);
+		await toggle.click();
+		await expect(rail).toBeVisible();
+		expect(await geometry()).toEqual(before);
+	});
+}

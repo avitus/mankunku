@@ -985,7 +985,7 @@
 			/>
 		{/if}
 	{:else if tunePractice.config.mode !== 'freestyle' && audioPlan}
-		<TunePracticeReport tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
+		<TunePracticeReport returnHref={tunePath(baseSheet)} tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
 			clock={{ barTicks: barTicksNR, countInTicks: countInTicksNR }}
 			results={tunePractice.results} picked={tunePractice.pickedSuggestion} instrument={getInstrument()}
 			tempo={tunePractice.config.tempo} elapsed={formatElapsed(tunePractice.elapsedSeconds)}

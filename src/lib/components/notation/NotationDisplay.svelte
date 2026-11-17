@@ -139,6 +139,8 @@
 		playheadStyle?: PlayheadStyle;
 		/** Reserve stable space below tune systems for labeled key-center rails. */
 		keyCenterRails?: boolean;
+		/** Full producer lane count, retained when rails are hidden. */
+		keyCenterLaneCount?: number;
 		/**
 		 * Auto-scroll the chart within a clipped viewport as the playhead
 		 * advances. Off by default so multi-chart pages don't fight over the
@@ -220,6 +222,7 @@
 		rangeMarkers,
 		playheadStyle = 'under-bar',
 		keyCenterRails = false,
+		keyCenterLaneCount = 2,
 		autoScrollPlayhead = false,
 		playheadBarFraction = null,
 		onSelect,
@@ -333,7 +336,7 @@
 			chordSlotAnchors: ChordSlotAnchor[];
 			gapAnchors: GapAnchor[];
 		} = tune
-			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, ...(keyCenterRails ? { staffSeparation: 110 } : {}), preserveRestBoundaries: !!onSelect })
+			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, ...(keyCenterRails ? { staffSeparation: 110 + Math.max(0, keyCenterLaneCount - 2) * 18 } : {}), preserveRestBoundaries: !!onSelect })
 			: {
 					...phraseToAbcWithMap(phrase!, instrument, [1, 8], !!onSelect),
 					barAnchors: [],
@@ -353,7 +356,7 @@
 			...(tuneOptions?.omitMasthead && tune ? { ariaLabel: `Sheet Music for "${tune.title}"` } : {}),
 			staffwidth: staffWidth ?? CHART_STAFF_WIDTH,
 			paddingtop: compactStaff ? 0 : showEngravedMasthead ? 8 : 12,
-			paddingbottom: compactStaff ? 2 : keyCenterRails ? 68 : 16,
+			paddingbottom: compactStaff ? 2 : keyCenterRails ? 68 + Math.max(0, keyCenterLaneCount - 2) * 18 : 16,
 			paddingleft: 12,
 			paddingright: 12,
 			add_classes: true,

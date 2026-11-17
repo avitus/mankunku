@@ -165,6 +165,8 @@
 	let loadError = $state(false);
 	/** Set by onDestroy, so a late import rejection knows the page is gone. */
 	let destroyed = false;
+	let setupGeneration = 0;
+	const setupIsCurrent = (generation: number): boolean => !destroyed && generation === setupGeneration;
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
 	const useKeyMap = $derived.by(() => !!sessionReport && lickPractice.phase === 'complete' && !sessionReport.licks.some(lick => isTrickReportEntry(lick.lickId)));
@@ -494,21 +496,23 @@
 		};
 	}
 
-	async function ensureMicCapture(): Promise<boolean> {
+	async function ensureMicCapture(generation: number): Promise<boolean> {
 		if (!captureModule) return false;
 		if (micCapture) return true;
 		try {
-			micCapture = await captureModule.startMicCapture();
+			const capture = await captureModule.startMicCapture();
+			if (!setupIsCurrent(generation)) {
+				// A newer setup may already own this shared capture.
+				if (micCapture !== capture && captureModule.getMicCapture() === capture) captureModule.stopMicCapture();
+				return false;
+			}
+			micCapture = capture;
 			await prepareScoringCapture(micCapture.context).catch(error => {
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
-			if (destroyed) {
-				// Teardown ran while the prompt was open: onDestroy's stopAll()
-				// found nothing to release, so release it here, publish nothing.
-				captureModule.stopMicCapture();
-				micCapture = null;
-				return false;
-			}
+			// End Session also cancels setup while this route remains mounted.
+			// stopAll has released this capture; do not touch a newer setup.
+			if (!setupIsCurrent(generation)) return false;
 			levelInterval = setInterval(() => {
 				captureModule!.getInputLevel();
 			}, 50);
@@ -529,9 +533,8 @@
 							}
 						}
 					);
-					if (destroyed) {
-						// The worklet came up after teardown; the caller's stopAll()
-						// releases the mic and its poll, this releases the worklet.
+					if (!setupIsCurrent(generation)) {
+						// The worklet came up after Stop released its capture.
 						onset.dispose();
 						return false;
 					}
@@ -554,7 +557,7 @@
 	 * starting/stopping the detector per key. This avoids the small
 	 * re-arm gap at bar boundaries where the first note could be missed.
 	 */
-	async function ensurePitchDetector(): Promise<void> {
+	async function ensurePitchDetector(generation: number): Promise<void> {
 		if (!pitchModule || !micCapture || pitchDetector) return;
 		const detector = await pitchModule.createPitchDetector(
 			micCapture.analyser,
@@ -565,7 +568,7 @@
 		// Teardown during creation has already released the capture; a
 		// detector that was never started has nothing to stop — just don't
 		// publish it (or read `micCapture.context` off a cleared capture).
-		if (destroyed || !micCapture) return;
+		if (!setupIsCurrent(generation) || !micCapture) return;
 		pitchDetector = detector;
 		// Capture the mic-context time at the exact moment start() sets its
 		// internal recordingStartTime. PitchReading.time is always relative
@@ -583,6 +586,7 @@
 	 */
 	async function initializeSession() {
 		if (!playback) return;
+		const generation = ++setupGeneration;
 
 		// Build the first lick's key stack NOW, before the mic, worklet, samples
 		// and detector below. The rows are plan state, not audio state, and the
@@ -598,17 +602,8 @@
 
 		isLoading = true;
 		micError = false;
-		const micOk = await ensureMicCapture();
-		// A navigation during the mic prompt — or the sample load and the
-		// detector start below — lands here with the page gone. onDestroy's
-		// stopAll() ran before these resources existed, so it runs again for
-		// them (the mic, its level poll, the onset worklet, the detector),
-		// and nothing below may start a session.
-		if (destroyed) {
-			isLoading = false;
-			stopAll();
-			return;
-		}
+		const micOk = await ensureMicCapture(generation);
+		if (!setupIsCurrent(generation)) return;
 		if (!micOk) {
 			isLoading = false;
 			// The rows were built above, before the mic was asked for; a refused
@@ -634,21 +629,13 @@
 			} else if (backingTrack) {
 				await backingTrack.loadBackingInstruments(settings.backingInstrument);
 			}
-			if (destroyed) {
-				isLoading = false;
-				stopAll();
-				return;
-			}
+			if (!setupIsCurrent(generation)) return;
 
 			setMasterVolume(settings.masterVolume);
-			await ensurePitchDetector();
+			await ensurePitchDetector(generation);
 		} catch (err) {
+			if (!setupIsCurrent(generation)) return;
 			isLoading = false;
-			if (destroyed) {
-				// The mic above is already open on the dead page; release it.
-				stopAll();
-				return;
-			}
 			console.warn('[lick-practice] audio setup failed:', err);
 			// The mic, its level poll and the elapsed timer are already
 			// running; the banner below is a stopped session, not a paused one.
@@ -659,12 +646,8 @@
 			rowOfKey = [];
 			return;
 		}
+		if (!setupIsCurrent(generation)) return;
 		isLoading = false;
-		if (destroyed) {
-			// The detector came up after teardown; stop it with the rest.
-			stopAll();
-			return;
-		}
 
 		// Stamp the session log base id + timestamp once per session. Per-key
 		// upserts keyed off the composite `${baseId}-${progressionType}` keep
@@ -1633,6 +1616,8 @@
 
 	/** Stop playback and capture, discard pending visual cycles, and finalize completed attempts. */
 	function stopAll() {
+		setupGeneration++;
+		isLoading = false;
 		// If the session ends during the score-hold bar — after the last
 		// key was scored but before the delayed handleLickComplete has
 		// archived the lick — run the archival now so tempo adjustments,

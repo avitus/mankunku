@@ -31,6 +31,8 @@ export interface KeyCenterDisplay {
 	markers: RangeMarker[];
 	legend: { label: string; color: string }[];
 	barLength: number;
+	/** Full layout capacity, independent of whether markers are visible. */
+	laneCount: number;
 }
 
 /** Stable written-tonic hues. Text labels carry the identity independently of color. */
@@ -45,7 +47,7 @@ function centerColor(key: PitchClass): string {
  */
 export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options: { solo?: boolean } = {}): KeyCenterDisplay {
 	const barLength = tune.timeSignature[0] / tune.timeSignature[1];
-	const display: KeyCenterDisplay = { readings: [], markers: [], legend: [], barLength };
+	const display: KeyCenterDisplay = { readings: [], markers: [], legend: [], barLength, laneCount: 0 };
 	const expanded = flattenTune(tune, { expandRepeats: true });
 	const notation = flattenTune(tune);
 	let pickupBars = 0;
@@ -146,7 +148,8 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 			endBarExclusive: Math.ceil(span.end / barLength), timeRange: { start: span.start, end: span.end },
 			status: 'upcoming', color: span.color, keyCenter: { lane, lanes: 0, label: span.label, minor: span.mode === 'minor' } });
 	}
-	for (const marker of display.markers) marker.keyCenter!.lanes = laneEnds.length;
+	display.laneCount = laneEnds.length;
+	for (const marker of display.markers) marker.keyCenter!.lanes = display.laneCount;
 	return display;
 }
 
