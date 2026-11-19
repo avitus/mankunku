@@ -190,7 +190,8 @@ describe('musician decisions from the actual score', () => {
 		for (let barIndex = 0; barIndex < 4; barIndex++) {
 			const cards = describeMusicianDecisions(generated, { ...context, style, barIndex });
 			for (const [i, events] of [generated.bassEvents, generated.compEvents, generated.drumEvents].entries()) {
-				expect(cards[i].eventCount).toBe(events.filter((e) => parseInt(e.time) >= barIndex * 768 && parseInt(e.time) < (barIndex + 1) * 768).length);
+				const inBar=events.filter((e) => parseInt(e.time) >= barIndex * 768 && parseInt(e.time) < (barIndex + 1) * 768);
+				expect(cards[i].eventCount).toBe(i===1 ? new Set(inBar.map(e=>e.time)).size : inBar.length);
 			}
 			if (style === 'bossa-nova') expect(cards[2].detail).toContain('bossa');
 		}

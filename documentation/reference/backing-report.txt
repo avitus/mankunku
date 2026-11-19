@@ -17,9 +17,9 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       2 ████████················  35.0%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  57.1% · rest bars   6.7%
-  drums hits/bar: crossstick 0.02 · hihat 1.82 · hihat-pedal 2.00 · kick 2.92 · ride 3.43 · snare 0.15
-  drums: off-beat share  13.9%
+  comp: off-beat share  55.8% · rest bars   6.7%
+  drums hits/bar: crossstick 0.02 · hihat 1.82 · hihat-pedal 2.00 · kick 2.90 · ride 3.42 · snare 0.15
+  drums: off-beat share  13.6%
 
 ── Jazz blues in F (12 bars) @ 160 BPM (swing 0.733, 5 seeds) ──
   bass interval |Δst| distribution:
@@ -36,9 +36,9 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       2 ████████················  33.3%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  62.5% · rest bars  13.3%
-  drums hits/bar: crossstick 0.02 · hihat 1.60 · hihat-pedal 2.00 · kick 3.23 · ride 3.55 · ride-bell 0.02 · snare 0.23
-  drums: off-beat share  13.0%
+  comp: off-beat share  59.7% · rest bars  13.3%
+  drums hits/bar: hihat 1.60 · hihat-pedal 2.00 · kick 3.22 · ride 3.55 · snare 0.20
+  drums: off-beat share  12.6%
 
 ── Jazz blues in F (12 bars) @ 240 BPM (swing 0.600, 5 seeds) ──
   bass interval |Δst| distribution:
@@ -74,9 +74,9 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       2 ██████████████··········  57.9%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  58.3% · rest bars   7.1%
-  drums hits/bar: crash 0.02 · crossstick 0.02 · hihat 0.69 · hihat-pedal 2.00 · kick 2.99 · ride 4.47 · ride-bell 0.05 · snare 0.28
-  drums: off-beat share  14.5%
+  comp: off-beat share  55.9% · rest bars   7.1%
+  drums hits/bar: crash 0.02 · crossstick 0.01 · hihat 0.69 · hihat-pedal 2.00 · kick 2.98 · ride 4.47 · ride-bell 0.05 · snare 0.26
+  drums: off-beat share  14.3%
 
 ── AABA in C — 3 choruses (96 bars) @ 160 BPM (swing 0.733, 5 seeds) ──
   bass interval |Δst| distribution:
@@ -93,7 +93,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       2 ███████████████·········  62.1%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  56.8% · rest bars   8.3%
+  comp: off-beat share  54.5% · rest bars   8.3%
   drums hits/bar: crash 0.03 · crossstick 0.01 · hihat 0.61 · hihat-pedal 2.00 · kick 3.13 · ride 4.73 · ride-bell 0.00 · snare 0.22
   drums: off-beat share  15.0%
 
@@ -112,7 +112,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       2 ████████████████········  65.4%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  54.8% · rest bars   6.9%
-  drums hits/bar: crash 0.02 · crossstick 0.00 · hihat 0.66 · hihat-pedal 2.00 · kick 3.06 · ride 4.02 · ride-bell 0.08 · snare 0.23
-  drums: off-beat share   9.9%
+  comp: off-beat share  53.1% · rest bars   6.9%
+  drums hits/bar: crash 0.02 · crossstick 0.00 · hihat 0.66 · hihat-pedal 2.00 · kick 3.06 · ride 4.02 · ride-bell 0.08 · snare 0.22
+  drums: off-beat share   9.8%
 

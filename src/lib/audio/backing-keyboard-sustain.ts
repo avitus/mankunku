@@ -1,7 +1,9 @@
-/** A committed last chord may ring into one next bar of the same written harmony. */
+/** Selected committed keyboard voices may ring into one compatible next bar. */
 import type { RollingBackingDefinition } from './backing-rolling';
 import type { BarInfo, CompEvent } from './backing-generation';
 import { fractionToFloat } from '$lib/music/intervals';
+import { CHORD_DEFINITIONS } from '$lib/music/chords';
+import { pitchClassToNumber } from './voicings';
 import { createRng, seedFrom } from './generation-rng';
 
 /** Propose a bounded gate from known harmony/form only; never inspect future played notes. */
@@ -11,7 +13,7 @@ export function sustainAcrossBar(
 	info: BarInfo,
 	events: readonly CompEvent[],
 	previousRelease?: number
-): CompEvent | undefined {
+): CompEvent[] | undefined {
 	const current = score.bars[bar];
 	const next = score.bars[bar + 1];
 	const plan = info.ensemble;
@@ -42,11 +44,32 @@ export function sustainAcrossBar(
 	if (!source) return;
 	const overlaps = score.harmony.filter(h => fractionToFloat(h.startOffset) * 4 < releaseTick / score.ppq &&
 		(fractionToFloat(h.startOffset) + fractionToFloat(h.duration)) * 4 > event.absBeat);
-	if (overlaps.some(h => JSON.stringify(h.chord) !== JSON.stringify(source.chord) || h.scaleId !== source.scaleId)) return;
+	const changed = overlaps.some(h => JSON.stringify(h.chord) !== JSON.stringify(source.chord) || h.scaleId !== source.scaleId);
+	if (changed) {
+		if (score.keyboardSustainVersion !== 2) return;
+		// Only a bar-line change: no anticipation through an intervening harmony.
+		if (overlaps.some(h => fractionToFloat(h.startOffset) * 4 > event.absBeat && fractionToFloat(h.startOffset) * 4 !== boundary)) return;
+		if (!overlaps.some(h => fractionToFloat(h.startOffset) * 4 === boundary && JSON.stringify(h.chord) !== JSON.stringify(source.chord))) return;
+		// Only pitches explicitly in both chords; scale membership alone is insufficient.
+		const shared = event.notes.filter(midi => overlaps.every(h => CHORD_DEFINITIONS[h.chord.quality].intervals
+			.some(interval => (pitchClassToNumber(h.chord.root) + interval) % 12 === midi % 12))).slice(-2);
+		const cleared = event.notes.filter(midi => !shared.includes(midi));
+		if (!shared.length || !cleared.length) return;
+		return [{ ...event, notes: cleared }, { ...event, notes: shared,
+			duration: (releaseTick - parseInt(event.time, 10)) * 60 / score.tempo / score.ppq,
+			barLineSustain: { version: 2, releaseTick, instrument, originalDuration: event.duration } }];
+	}
 
-	return {
+	return [{
 		...event,
 		duration: (releaseTick - parseInt(event.time, 10)) * 60 / score.tempo / score.ppq,
 		barLineSustain: { version: 1, releaseTick, instrument, originalDuration: event.duration }
-	};
+	}];
+}
+
+/** Check restored carry pitches against both sides of the authored bar line. */
+export function commonToneAtBoundary(score: RollingBackingDefinition, bar: number, midi: number): boolean {
+ const boundary=bar*4;
+ const sides=[boundary-1e-7,boundary].map(beat=>score.harmony.find(h=>fractionToFloat(h.startOffset)*4<=beat && (fractionToFloat(h.startOffset)+fractionToFloat(h.duration))*4>beat));
+ return sides.every(h=>h && CHORD_DEFINITIONS[h.chord.quality].intervals.some(i=>(pitchClassToNumber(h.chord.root)+i)%12===midi%12));
 }

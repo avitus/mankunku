@@ -3,7 +3,7 @@ import type { RollingBackingOptions } from './backing-rolling';
 import type { BackingInstrument } from '$lib/types/instruments';
 
 export function releasedBackingOptions(instrument: BackingInstrument, seed?: number): RollingBackingOptions {
- return { keyboardSustain: true, longerSentences: true, returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
+ return { keyboardSustain: 'common-tones', longerSentences: true, returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
   keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: instrument,
   bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed',
   phraseExpression: true, trioConversation: true, phraseColors: true, ensembleColors: true, phraseDialogue: true, innerMotion: true };

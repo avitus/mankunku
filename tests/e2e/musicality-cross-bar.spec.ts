@@ -9,7 +9,11 @@ for (const keyboard of ['piano','organ'] as const) test(`0.18 full Rhythm Change
  requireRealtimeAudio(page); test.setTimeout(340_000);
  await seedOnboardedAnonymous(page); await page.goto('/musicality');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
- await page.getByTestId('listening-release-example').click();
+ await page.getByTestId('listening-tune').selectOption('ls-rhythm-changes');
+ await page.getByTestId('listening-key').selectOption('Bb');
+ await page.getByTestId('listening-tempo').fill('160');
+ await page.evaluate(()=>{const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((a:ArrayBufferView<ArrayBuffer>)=>{if(a instanceof Uint32Array&&a.length===1){a[0]=3;return a;}return random(a);}) as typeof crypto.getRandomValues;});
+ await page.getByTestId('listening-new-arc').click();
  await expect(page.getByTestId('listening-tempo')).toHaveValue('160');
  await page.getByTestId('listening-play').click();
  await expect(page.getByTestId('listening-status')).toHaveText('Playing',{timeout:90_000});

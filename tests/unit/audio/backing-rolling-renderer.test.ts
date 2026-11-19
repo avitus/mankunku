@@ -503,3 +503,21 @@ it('owns a bounded keyboard gate across the bar line and cancels it with the tak
   {...held,checkpoint:{...held.checkpoint,piano:{...held.checkpoint.piano,crossBarReleaseTick:800}}}
  ])expect(harness().renderer.commit(invalid)).toMatchObject({accepted:false,reason:'invalid_window'});
 });
+
+it('owns separate releases for common and changing tones, rejecting mismatched carry evidence',()=>{
+ const source=bar(0),releaseTick=864;
+ const clear={...source.compEvents[0],notes:[60,64]};
+ const held={...source.compEvents[0],notes:[67],duration:releaseTick/384,barLineSustain:{version:2 as const,releaseTick,instrument:'organ' as const,originalDuration:1}};
+ const window={...source,checkpoint:{...source.checkpoint,piano:{...source.checkpoint.piano,crossBarReleaseTick:releaseTick,commonToneNotes:[67]}},compEvents:[clear,held]} as RollingBackingBar;
+ const h=harness();expect(h.renderer.commit(window).accepted).toBe(true);
+ h.now(11);for(const event of [...h.pending.values()].filter(e=>e.tick===0))event.callback(11);
+ const compCalls=vi.mocked(h.runtime.play).mock.calls.flatMap(([events])=>events).filter(event=>event.kind==='comp');
+ expect(compCalls).toContainEqual(expect.objectContaining({notes:[60,64],duration:1}));
+ expect(compCalls).toContainEqual(expect.objectContaining({notes:[67],duration:releaseTick/384}));
+ h.renderer.stop();for(const stop of h.voiceStops)expect(stop).toHaveBeenCalledOnce();
+ for(const invalid of [
+  {...window,compEvents:[held]},
+  {...window,compEvents:[{...clear,notes:[67]},held]},
+  {...window,checkpoint:{...window.checkpoint,piano:{...window.checkpoint.piano,commonToneNotes:[66]}}}
+ ])expect(harness().renderer.commit(invalid)).toMatchObject({accepted:false,reason:'invalid_window'});
+});

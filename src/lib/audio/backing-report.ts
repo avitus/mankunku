@@ -143,9 +143,9 @@ function collect(preset: BackingLabPreset, tempo: number, seeds: number[]): Pres
 			}
 		}
 
-		// Comp: hits per bar + placement.
+		// Comp: attacks per bar + placement. Split sustain gates share one onset.
 		const compBarCounts = new Array<number>(totalBars).fill(0);
-		for (const e of generated.compEvents) {
+		for (const e of new Map(generated.compEvents.map(event => [event.time, event])).values()) {
 			const barIdx = Math.floor(e.absBeat / beatsPerBar);
 			if (barIdx < totalBars) compBarCounts[barIdx]++;
 			if (e.absBeat % 1 !== 0) stats.compOffbeatHits++;

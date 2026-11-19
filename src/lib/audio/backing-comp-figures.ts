@@ -139,7 +139,8 @@ export interface CompMotifDecision {
 	readonly recall?: { readonly source: PianoMotifRecallSource; readonly attacks: readonly PianoMotifAttack[] };
 	/** Incoming committed harmony finishes before this bar's actual keyboard attacks. */
 	readonly carriedReleaseTick?: number;
-	readonly reason?: 'cross_bar_breath' | 'harmonic_support' | 'gesture_refit' | 'phrase_reentry' | 'native_pattern' | 'native_drum_reply' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
+ readonly commonToneEntry?: { readonly releaseTick: number; readonly heldNotes: readonly number[]; readonly time: string; readonly notes: readonly number[] };
+	readonly reason?: 'common_tone_entry' | 'cross_bar_breath' | 'harmonic_support' | 'gesture_refit' | 'phrase_reentry' | 'native_pattern' | 'native_drum_reply' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
 }
 
 export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {

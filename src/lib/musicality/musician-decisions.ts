@@ -209,10 +209,10 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	const motif = development?.pianoMotifs.find((m) => m.barIndex === barIndex);
 	const keyboardTextures: string[] = [];
 	const pianoCard: MusicianDecisionCard = {
-		instrument: 'piano', title: 'Piano', role: role('piano'), eventCount: piano.length,
+		instrument: 'piano', title: 'Piano', role: role('piano'), eventCount: new Set(piano.map(e=>e.time)).size,
 		action: piano.length ? 'Support the harmony' : 'No new chord attack',
 		detail: piano.length ? 'Comping supports the changes in this bar.' : 'Earlier chords may still sustain through this bar.',
-		evidence: [countText(piano.length, 'chord attack'), ...sharedEvidence('piano')]
+		evidence: [countText(new Set(piano.map(e=>e.time)).size, 'chord attack'), ...sharedEvidence('piano')]
 	};
 	const plannedArrival = walking && plan?.performanceEnergy ? plan.piano.arrival : undefined;
 	if (plannedArrival && plannedArrival.accentId === plan?.coordinatedAccent?.id) {
@@ -281,8 +281,17 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		};
 		pianoCard.evidence.push(`Planned rootless texture: ${plannedTexture.request === 'two' ? 'two-note support' : plannedTexture.request === 'three' ? 'three-note support' : 'keep the selected chord shape'} · ${reasons[plannedTexture.reason]}`);
 	}
-	for (const [index, event] of piano.entries()) {
+	const attackTimes = [...new Set(piano.map(event => event.time))];
+	for (const event of piano) {
+		const index = attackTimes.indexOf(event.time);
+		const split = piano.filter(other => other.time === event.time);
+		if (split.some(other => other.barLineSustain?.version === 2)) {
+			if (event === split[0]) pianoCard.evidence.push(`Chord ${index + 1}: ${split.flatMap(other => other.notes).sort((a,b)=>a-b).map(noteName).join(' · ')} · separate held and released voices`);
+			// Original whole-voicing comparisons do not describe either partial group.
+			continue;
+		}
 		pianoCard.evidence.push(`Chord ${index + 1}: ${event.notes.map(noteName).join(' · ')}`);
+		if (motif?.commonToneEntry && parseInt(event.time, 10) < motif.commonToneEntry.releaseTick) continue;
 		const voiced = development?.pianoVoicings?.find((entry) => entry.time === event.time && entry.absBeat === event.absBeat &&
 			entry.notes.length === event.notes.length && entry.notes.every((note, i) => note === event.notes[i]));
 		if (!voiced) continue;
@@ -767,6 +776,19 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   }
  }
 
+ const shared=context.orchestration==='coordinated' && piano.find(e=>e.barLineSustain?.version===2 && e.barLineSustain.releaseTick>(barIndex+1)*beatsPerBar*ppq);
+ if(shared){
+  pianoCard.action='Carry common tones into the next chord';
+  pianoCard.detail='Only shared chord tones ring across this change. The other notes release, and the next bar voices the new harmony promptly.';
+  pianoCard.evidence.push(`Held: ${shared.notes.map(noteName).join(', ')}`);
+ }
+ const entry=development?.pianoMotifs.find(t=>t.barIndex===barIndex)?.commonToneEntry;
+ if(context.orchestration==='coordinated' && entry && piano.some(e=>e.time===entry.time && JSON.stringify(e.notes)===JSON.stringify(entry.notes)) &&
+  generated.compEvents.some(e=>e.barLineSustain?.version===2 && e.barLineSustain.releaseTick===entry.releaseTick && parseInt(e.time,10)<firstTick && JSON.stringify(e.notes)===JSON.stringify(entry.heldNotes))){
+  pianoCard.action='Voice the new chord around held tones';
+  pianoCard.detail='The new harmony enters over the shared notes already sounding. Those held pitches are not struck again before their committed release.';
+  pianoCard.evidence.push(`Carried voices: ${entry.heldNotes.map(noteName).join(', ')}`);
+ }
  const held=context.orchestration==='coordinated' && piano.find(e=>e.barLineSustain?.version===1 && e.barLineSustain.releaseTick>(barIndex+1)*beatsPerBar*ppq && e.duration>e.barLineSustain.originalDuration);
  if(held){
   pianoCard.action='Carry harmony across the bar line';
