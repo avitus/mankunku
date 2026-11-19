@@ -5,6 +5,7 @@ import { chordEvidence } from '$lib/music/chord-evidence';
 import { pitchClassInterval, transposePitchClass } from '$lib/music/transposition';
 import { DOMINANT_QUALITIES, MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { detectProgressions, type DetectedProgression } from './progression-detector';
+import { majorContinuations, type MajorContinuation } from './phrase-continuity';
 import type { FlattenedTune } from './flatten';
 import { contextualMajorRegions, majorKeyTransitions, type ContextualMajorRegion, type MajorKeyTransition } from './tonal-centers';
 
@@ -43,6 +44,7 @@ export interface HarmonicAnalysis {
 	/** Governing centers with explained chromatic events; NEVER scale-based practice candidates. */
 	contextualMajorRegions: ContextualMajorRegion[];
 	majorKeyTransitions: MajorKeyTransition[];
+	majorContinuations: MajorContinuation[];
 	/** Practice candidates after cornerstone reservation; competing keys can overlap. */
 	majorRegions: MajorRegion[];
 	issues: ('invalid-timeline')[];
@@ -134,7 +136,7 @@ export function analyzeHarmony(
 	options: { cyclic?: boolean; reservationScope?: 'cyclic' | 'form' } = {}
 ): HarmonicAnalysis {
 	const empty: HarmonicAnalysis = {
-		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorKeyTransitions: [], majorRegions: [], issues: []
+		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorKeyTransitions: [], majorContinuations: [], majorRegions: [], issues: []
 	};
 	const [beats, unit] = tune.timeSignature;
 	if (!Number.isSafeInteger(beats) || beats <= 0 || !Number.isSafeInteger(unit) || unit <= 0 ||
@@ -215,5 +217,6 @@ export function analyzeHarmony(
 	return { progressions, cornerstones, reservedSegmentIndices: order.filter((index) => reserved.has(index)),
 		compatibleMajorRegions, majorRegions,
 		contextualMajorRegions: continuations,
+		majorContinuations: majorContinuations(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit),
 		majorKeyTransitions: majorKeyTransitions(flat, evidence, compatibleMajorRegions, cornerstones, continuations, beats / unit), issues: [] };
 }

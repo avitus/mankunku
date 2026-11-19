@@ -118,7 +118,13 @@ test('freestyle keeps key centers without adding insertion windows', async ({ pa
 
 test('All the Things You Are shows local centers beyond its key signature', async ({ page }) => {
 	const allThings = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
-	await seedTunes(page, [{ ...allThings, id: 'key-center-all-things', source: 'user', tags: [] }]);
+	// Use the chord chart to check each bar of the descending return in tenor pitch.
+	await seedTunes(page, [{ ...allThings, id: 'key-center-all-things', source: 'user', tags: [],
+		sections: allThings.sections.map((part: object) => ({ ...part, notes: [] })) }]);
+	await page.goto('/tunes/key-center-all-things');
+	for (const bar of [34, 35, 36]) {
+		await expect(page.getByTestId('tune-chord-chart').locator(`[data-bar="${bar}"] [data-key-center="Bb major"]`)).toBeVisible();
+	}
 	await page.goto('/tunes/key-center-all-things/practice');
 	await expect(page.getByRole('list', { name: 'Key center legend' })).toBeVisible();
 	await expect.poll(() => page.getByRole('list', { name: 'Key center legend' }).locator('li').count()).toBeGreaterThan(3);

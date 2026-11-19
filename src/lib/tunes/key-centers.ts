@@ -120,6 +120,10 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 		const functions = region.secondaryDominants.map(event => `V/${event.targetDegree}`).join(', ');
 		add(region.key, 'major', region.segmentIndices, `Continuing major center through ${functions} with a diatonic return after each resolution.`);
 	}
+	for (const passage of analysis.majorContinuations) {
+		const roles = [...new Set(passage.exceptions.map(e => e.role))].join(' and ');
+		add(passage.key, 'major', passage.segmentIndices, `Cadences on both sides support this center through the ${roles}.`);
+	}
 	// Bridge the dominant and any held target before the incoming collection starts.
 	for (const transition of analysis.majorKeyTransitions) {
 		add(transition.to, 'major', transition.leadInIndices,

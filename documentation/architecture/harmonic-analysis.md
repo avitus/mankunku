@@ -3,10 +3,10 @@
 Living implementation plan. Started 2026-11-07 (Pacific). Update the milestone
 status, decisions, acceptance cases and remaining limitations as work lands.
 
-Current increment (2026-11-18) favors one established major center across
-repeated tonicizations and short passages compatible with another collection.
-It also recognizes a brief applied dominant at the transition between two
-independently established major centers.
+The current increment compares every bar of the production arrangement of
+[All the Things You Are](./all-the-things-harmonic-audit.md) with the key-center
+display. The first correction carries A♭ major across the descending return
+in chorus bars 30–32. Autumn remains the reference for applied dominants.
 
 ## Purpose
 
@@ -604,6 +604,18 @@ separate iii and vi targets, and counterexamples for a prolonged tonic,
 missing cadences, an altered dominant and a half-diminished approach. Across
 the focused suites, 282 unit tests and 39 browser checks passed, including
 the exact half-bar rail boundary in Chromium, Firefox and WebKit.
+
+## Tonic-free passages between cadences
+
+Analyze the passage between two major cadences in the same key. A brief
+borrowed iv or a chromatic passing diminished seventh may explain the gap,
+provided the neighboring diatonic harmony supports that function. Preserve a
+separate record of the chord indices and their roles for the chart. The
+four-bar passage limit and one-bar chromatic chord limit are initial calibration
+choices. The [chorus audit](./all-the-things-harmonic-audit.md) records the
+evidence, boundaries, ambiguous passages and remaining discrepancies.
+Validation reproduced the baseline gap, then passed 255 focused unit tests,
+39 browser cases across three engines, and the TypeScript/Svelte check.
 
 ## Later milestones
 
