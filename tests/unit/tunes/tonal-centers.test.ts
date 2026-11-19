@@ -23,7 +23,7 @@ describe('governing major centers and brief tonicizations', () => {
 		const result = analyze(tune);
 		const opening = result.contextualMajorRegions.find(r => fractionToFloat(r.startOffset) === 0)!;
 		expect(opening).toMatchObject({ key, duration: [6, 1], segmentIndices: Array.from({ length: 12 }, (_, i) => i),
-			secondaryDominant: { segmentIndices: [7], resolutionIndex: 8, targetDegree: 'ii' } });
+			secondaryDominants: [{ segmentIndices: [7], resolutionIndex: 8, targetDegree: 'ii' }] });
 		// Neither strict collection boundaries nor cornerstone reservations are widened.
 		expect(result.compatibleMajorRegions.find(r => r.key === key && fractionToFloat(r.startOffset) === 0)?.duration).toEqual([7, 2]);
 		expect(result.majorRegions[0].duration).toEqual([3, 1]);
@@ -33,7 +33,17 @@ describe('governing major centers and brief tonicizations', () => {
 	it('recognizes an applied dominant outside the signature, without requiring a named cadence', () => {
 		const result = analyze(passage(['Dm7', 'Fmaj7', 'G7']));
 		expect(result.contextualMajorRegions[0]).toMatchObject({ key: 'C', duration: [5, 1],
-			secondaryDominant: { targetKey: 'D', targetDegree: 'ii' } });
+			secondaryDominants: [{ targetKey: 'D', targetDegree: 'ii' }] });
+	});
+	it('continues across two separate tonicizations and stops at a sustained change of key', () => {
+		const tune = passage(['Dm7', 'Fmaj7', 'G7', 'E7', 'Am7', 'Dm7', 'G7', 'A7', 'Dmaj7', 'Em7', 'A7', 'Dmaj7']);
+		const result = analyze(tune);
+		const opening = result.contextualMajorRegions.find(r => r.key === 'C')!;
+		expect(opening.secondaryDominants.map(event => event.targetDegree)).toEqual(['ii', 'vi']);
+		expect(opening.duration).toEqual([7, 1]);
+		expect(result.compatibleMajorRegions.filter(r => r.key === 'C').every(r =>
+			![6, 10].some(index => r.segmentIndices.includes(index)))).toBe(true);
+		expect(result.compatibleMajorRegions.some(r => r.key === 'D' && r.evidence.cadences.length)).toBe(true);
 	});
 	it('times the return at the chord entrance, independently of notation splits', () => {
 		const held = passage(['Dm7', 'Fmaj7', 'G7']);
@@ -49,7 +59,7 @@ describe('governing major centers and brief tonicizations', () => {
 		['B7', 'Em7', 'iii'], ['C7', 'Fmaj7', 'IV'], ['D7', 'G7', 'V'], ['E7', 'Am7', 'vi']
 	])('explains %s resolving to %s as V/%s', (dominant, target, degree) => {
 		const tail = target === 'Fmaj7' || target === 'G7' ? [target, 'Em7', 'Fmaj7', 'G7'] : [target, 'Fmaj7', 'G7'];
-		expect(analyze(passage(tail, dominant)).contextualMajorRegions.find(r => r.key === 'C')?.secondaryDominant.targetDegree).toBe(degree);
+		expect(analyze(passage(tail, dominant)).contextualMajorRegions.find(r => r.key === 'C')?.secondaryDominants[0].targetDegree).toBe(degree);
 	});
 	it.each([
 		['Em7', 'Fmaj7', 'G7'], // Does not resolve by fifth.
@@ -93,7 +103,7 @@ describe('governing major centers and brief tonicizations', () => {
 		harmony[6].duration = [1, 4];
 		harmony.splice(7, 0, harmonicSegmentFromSymbol('A7', [13, 4], [1, 4])!);
 		harmony.reverse();
-		expect(analyze(tune).contextualMajorRegions[0].secondaryDominant.segmentIndices).toEqual([4, 3]);
+		expect(analyze(tune).contextualMajorRegions[0].secondaryDominants[0].segmentIndices).toEqual([4, 3]);
 	});
 	it('uses the declared meter for brevity and return timing', () => {
 		const tune = passage(['Dm7', 'Fmaj7', 'G7']);

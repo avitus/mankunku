@@ -46,6 +46,20 @@ describe('key-center chart evidence', () => {
 		const display = tuneKeyCenters(transposeTune(autumn, key), INSTRUMENTS.concert);
 		expect(display.markers.some(m => m.keyCenter?.label === `${key} major` && m.timeRange?.start === 0 && m.timeRange.end === 6)).toBe(true);
 	});
+	it('uses the sounded minor arrival for Autumn’s bar-16 approach', () => {
+		const display = tuneKeyCenters(autumn, INSTRUMENTS['tenor-sax']);
+		expect(display.markers.filter(m => m.timeRange?.start === 15).map(m => m.keyCenter?.label)).toEqual(['A minor']);
+		expect(display.readings.find(r => r.start === 15 && r.label === 'A major')?.reason).toContain('confirms a minor arrival');
+	});
+	it('shows a cadenced C center across a shorter F-compatible passage and retains the F reading', () => {
+		const symbols = ['C6', 'F6', 'C6', 'G7', 'Cmaj7'];
+		const tune = sheet({ key: 'F', sections: [section({ bars: 5,
+			harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 1], [1, 1])!) })] });
+		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
+		expect(display.markers.map(marker => marker.keyCenter?.label)).toEqual(['C major']);
+		expect(display.markers[0].timeRange).toEqual({ start: 0, end: 5 });
+		expect(display.readings.find(reading => reading.key === 'F')).toMatchObject({ start: 0, end: 3, contextKey: 'C' });
+	});
 	it('keeps competing compatible collections instead of forcing the tune signature', () => {
 		const tune = sheet({ key: 'D', sections: [section({ bars: 2, harmony: [seg('C', 'maj6', [0, 1], [1, 1]), seg('F', 'maj6', [1, 1], [1, 1])] })] });
 		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);

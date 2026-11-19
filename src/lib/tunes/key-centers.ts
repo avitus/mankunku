@@ -24,7 +24,7 @@ export interface KeyCenterReading {
 	repeated: boolean;
 	reason: string;
 	rangeLabel: string;
-	/** A short arrival explained inside this governing center, retained without a competing rail. */
+	/** Concert tonic of the stronger reading that supplies the chart rail. */
 	contextKey?: PitchClass;
 }
 
@@ -95,32 +95,49 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 			}
 		}
 	}
-	/** Only subordinate readings of this specific resolved event, not arbitrary overlaps. */
-	const contextFor = (key: PitchClass, indices: number[]) => analysis.contextualMajorRegions.find(region =>
-		region.secondaryDominant.targetKey === key &&
-		region.secondaryDominant.segmentIndices.every(index => indices.includes(index)) &&
-		indices.every(index => region.segmentIndices.includes(index)));
+	// Subordinate only the arrival belonging to the resolved event on this visit.
+	function appliedContext(key: PitchClass, indices: number[]) {
+		for (const region of analysis.contextualMajorRegions) {
+			const event = region.secondaryDominants.find(event => event.targetKey === key &&
+				event.segmentIndices.every(index => indices.includes(index)));
+			if (event && indices.every(index => region.segmentIndices.includes(index))) return { key: region.key, event };
+		}
+	}
 	for (const region of analysis.compatibleMajorRegions) {
-		const context = contextFor(region.key, region.segmentIndices);
-		add(region.key, 'major', region.segmentIndices, region.evidence.cadences.length
-			? 'Compatible major collection with a V–I arrival.'
-			: 'Compatible major collection with a tonic chord; other readings may also fit.', context?.key);
+		const applied = appliedContext(region.key, region.segmentIndices);
+		// A short collection can fit the same chords as a longer cadenced key.
+		// Preserve equally supported interpretations when no single parent wins.
+		const parents = region.evidence.cadences.length ? [] : analysis.compatibleMajorRegions.filter(parent =>
+			parent.key !== region.key && parent.evidence.cadences.length &&
+			fractionToFloat(parent.duration) >= fractionToFloat(region.duration) + barLength &&
+			region.segmentIndices.every(index => parent.segmentIndices.includes(index)));
+		const parentKey = applied?.key ?? (parents.length === 1 ? parents[0].key : undefined);
+		const reason = region.evidence.cadences.length ? 'Compatible major collection with a V–I arrival.'
+			: 'Compatible major collection with a tonic chord; other readings may also fit.';
+		add(region.key, 'major', region.segmentIndices, reason, parentKey);
 	}
 	for (const region of analysis.contextualMajorRegions) {
-		add(region.key, 'major', region.segmentIndices,
-			`Continuing major center: a brief V/${region.secondaryDominant.targetDegree} resolves to a diatonic chord and returns to the established harmony. This is not one compatible scale over every chord.`);
+		const functions = region.secondaryDominants.map(event => `V/${event.targetDegree}`).join(', ');
+		add(region.key, 'major', region.segmentIndices, `Continuing major center through ${functions} with a diatonic return after each resolution.`);
 	}
 	for (const cornerstone of analysis.cornerstones) {
 		const key = cornerstone.kind === 'minor-arrival' ? cornerstone.localKey : cornerstone.detection.localKey;
-		const context = contextFor(key, cornerstone.segmentIndices);
-		const explanation = context ? ` Brief tonicization within ${keyLabelLong(concertKeyToWritten(context.key, instrument), 'major')} (V/${context.secondaryDominant.targetDegree}); cornerstone priority is retained for practice.` : '';
+		const context = appliedContext(key, cornerstone.segmentIndices);
+		const explanation = context ? ` Brief tonicization within ${keyLabelLong(concertKeyToWritten(context.key, instrument), 'major')} (V/${context.event.targetDegree}).` : '';
 		if (cornerstone.kind === 'minor-arrival') add(cornerstone.localKey, 'minor', cornerstone.segmentIndices,
 			'Minor arrival: ii–V–i. A local destination, not one minor scale over every chord.' + explanation, context?.key);
 		else {
 			const detection = cornerstone.detection;
 			const hasTonic = detection.segmentIndices.some(i => flat.harmony[i].chord.root === detection.localKey);
+			// A two-chord approach can imply major even when the very same
+			// ii and V lead directly to a sounded minor tonic on this visit.
+			const minorArrival = !hasTonic && progressionMode(detection.type) === 'major' &&
+				analysis.cornerstones.some(arrival => arrival.kind === 'minor-arrival' &&
+					arrival.localKey === key && detection.segmentIndices.every((index, i) => arrival.segmentIndices[i] === index) &&
+					arrival.segmentIndices.length > detection.segmentIndices.length &&
+					arrival.segmentIndices.every(index => chordEvidence(flat.harmony[index])));
 			add(detection.localKey, detection.type === 'blues' ? 'blues' : progressionMode(detection.type), detection.segmentIndices,
-				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation, context?.key);
+				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + (minorArrival ? ' The following tonic confirms a minor arrival.' : ''), context?.key ?? (minorArrival ? key : undefined));
 		}
 	}
 	const unique = new Map<string, KeyCenterReading>();
