@@ -50,6 +50,12 @@ The backing-track upgrade program ("professional session musicians") is verified
   Cycle each item through ✅ / ❌ / ➖, add notes, and "Copy listening report" produces
   the markdown block to paste below and into the milestone PR.
 
+### Levels and comparisons
+
+The lab uses the same Backing reference as practice and tune playback. Its instrument, drum-voice and Room controls are amplitude faders (0–3, default unity), independent of musical velocity. Use the lab’s Backing volume and the listening Master in Settings for overall levels. In the Musicality listening mixer, **Backing output** is a read-only meter before the listening ceiling, not an additional Master fader.
+
+WAV exports preserve program amplitude with the shared −1 dBFS sample ceiling and no peak normalization; listening Master is excluded. Native reference playback and blind A/B use the shared replay/Master path. Keep Master and each media element’s own volume fixed when comparing. Older normalized exports do not preserve their original relative levels, and old mix settings cannot reproduce every historical clipping/compression result through the current engine. See the [reference measurements and migration limits](../../docs/maintenance/audio-mixer/README.md).
+
 ### Producing a comparison set headlessly
 
 Clicking through eight bounces by hand is how the first milestone went; don't repeat it.
@@ -185,9 +191,10 @@ before/after RMS ratios, restoring these raw reference levels within about 1.4 d
 It preserves velocity dynamics and user faders; unknown banks get no boost.
 The insert belongs to the instrument channel and is disconnected with it.
 
-The public WAV exporter peak-normalizes its output. Raw pre-normalization mix
-measurements are therefore retained separately; normalized isolated bounces cannot
-establish relative balance. Full-tune artifacts live at
+At this October 25 milestone, the public WAV exporter peak-normalized its output,
+so raw pre-normalization mix measurements were retained separately; those normalized
+isolated bounces cannot establish relative balance. Since the November 17 shared
+mixer change, new WAV exports preserve program amplitude without normalization. Full-tune artifacts live at
 `/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-selection/listen.html`;
 the calibrated public-app comparison is at
 `/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-calibration/listen.html`.
