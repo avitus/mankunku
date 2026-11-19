@@ -63,7 +63,7 @@ export const settings = $state({
   onboardingComplete: false,
   tonalityOverride: null as Tonality | null,  // override for daily tonality
   highestNote: null as number | null,         // concert-pitch MIDI ceiling; null = instrument default
-  bleedFilterEnabled: false                   // A/B toggle for bleed-filtered scoring
+  bleedFilterEnabled: false                   // legacy field for older clients
 });
 ```
 

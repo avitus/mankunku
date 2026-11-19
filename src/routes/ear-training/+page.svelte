@@ -648,7 +648,6 @@
 			tempo: session.tempo,
 			transportSeconds,
 			swing: effectiveSwing,
-			bleedFilterEnabled: settings.bleedFilterEnabled,
 			bleedResult,
 			readings
 		});
@@ -701,8 +700,6 @@
 			const tempoForRescore = session.tempo;
 			const transportForRescore = recordingTransportSeconds;
 			const swingForRescore = effectiveSwing;
-			const scheduleForRescore = getActiveSchedule();
-			const bleedFilterEnabled = settings.bleedFilterEnabled;
 			const metronomeEnabledForRescore = settings.metronomeEnabled;
 			const provisionalScore = $state.snapshot(session.lastScore);
 			const provisionalNotes = $state.snapshot(session.recordedNotes);
@@ -729,7 +726,7 @@
 					// would attach a stale log from another session/phrase — e.g.
 					// a 12-key lick-practice progression — to an ear-training
 					// recording where backing track was off.
-					const latestBackingLog = scheduleForRescore
+					const latestBackingLog = schedule
 						? getBackingTrackLog(1)[0] ?? null
 						: null;
 					const attachedBackingLog =
@@ -765,8 +762,7 @@
 						tempoForRescore,
 						transportForRescore,
 						swingForRescore,
-						scheduleForRescore,
-						bleedFilterEnabled,
+						schedule,
 						metronomeEnabledForRescore,
 						sessionId,
 						baseMetadata,
@@ -860,7 +856,6 @@
 		transportSeconds: number,
 		swing: number,
 		schedule: ReturnType<typeof getActiveSchedule>,
-		bleedFilterEnabled: boolean,
 		metronomeEnabled: boolean,
 		sessionId: string | null = null,
 		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
@@ -920,7 +915,6 @@
 			tempo,
 			transportSeconds: trimmedTransportSeconds,
 			swing,
-			bleedFilterEnabled,
 			bleedResult,
 			readings: replay.readings
 		});

@@ -58,7 +58,7 @@ const defaultSettings = {
 	tonalityOverride: null as Tonality | null,
 	/** User-configured highest concert pitch MIDI. null = instrument default. */
 	highestNote: null as number | null,
-	/** When true, use bleed-filtered notes as the primary score (A/B testing toggle). */
+	/** Legacy field synced for older clients. Current practice uses the backing schedule. */
 	bleedFilterEnabled: false
 };
 

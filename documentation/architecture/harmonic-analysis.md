@@ -3,10 +3,10 @@
 Living implementation plan. Started 2026-11-07 (Pacific). Update the milestone
 status, decisions, acceptance cases and remaining limitations as work lands.
 
-Current increment (2026-11-17): contextual major centers with brief secondary
-dominants. This work follows the released Show Key Centers feature and its
-reserved-gutter presentation. Validation and dev delivery are recorded below;
-dated phase statuses describe their original implementation checkpoints.
+Current increment (2026-11-18) favors one established major center across
+repeated tonicizations and short passages compatible with another collection.
+It also recognizes a brief applied dominant at the transition between two
+independently established major centers.
 
 ## Purpose
 
@@ -543,6 +543,68 @@ circleci testsuite run 'e2e tests' --local --run-tests=all --analyze-tests=none 
   -t '^(tune-key-centers|tune-harmonic-regions|tune-practice-setup)\.spec\.ts$'
 ```
 
+## Longer governing key centers — 2026-11-18
+
+Once a V–I cadence establishes a major key, the chart can carry it across
+successive secondary dominants. Each dominant must resolve immediately and the
+following chords must independently meet the November 17 return criteria using
+the harmony just before that excursion. A failed return ends the span at the
+last supported chord. The analysis records each successful V/degree with its
+own segment indices. Practice still allocates each cornerstone independently.
+
+For wholly diatonic passages, prefer a single cadenced parent key when it
+contains the entire competing collection and lasts at least one bar longer.
+The shorter reading stays inspectable. A cadence in the shorter reading, an
+equally long reading, or multiple qualifying parents preserves the alternatives.
+
+Regression examples (concert pitch):
+
+- In Autumn at bar 16 the local minor arrival overlaps a change between two
+  established major centers. The split at beat 3 is described below.
+- C6–F6–C6–G7–Cmaj7 gives one five-bar C rail. F major also fits the first
+  three bars, but the only cadence establishes C. This also holds with an F
+  key signature.
+- After C is established, A7–Dm7 and E7–Am7 can occur in the same C span when
+  each returns to familiar diatonic harmony. A subsequent A7–Dmaj7 with a
+  confirming cadence in D starts a separate reading.
+
+Altered dominants, successive dominants without intervening returns, and
+general minor-key continuity remain open. The one-bar margin is an initial
+display choice for comparing fully contained readings.
+
+The Linux sandbox passed 211 focused unit tests across six files, 39 chart and
+setup browser cases across Chromium, Firefox and WebKit, and the TypeScript/Svelte
+check. Both new display regressions reproduced the extra rail on the previous
+dev revision.
+
+## An applied dominant at a change of key
+
+In the tenor chart of *Autumn in New York*, Em7–A7–Dmaj7 establishes D.
+Bar 16 opens with Bm7, its vi7. E7 on beat 3 leads to Am7, the ii of the
+returning G major. The subsequent D7–Gmaj7 confirms G. The chart places
+the D-to-G boundary at the E7 entrance. The underlying Bm7–E7–Am7
+minor-arrival interpretation remains available for cornerstone practice.
+
+For any contiguous m7–V7–minor arrival, look for exactly one cadenced major
+collection ending on its approach and one beginning on its resolution.
+Require a different tonic on each side and a V–I arrival within four bars
+on each side. The written approach must have a minor third and perfect fifth.
+The dominant must supply a supported dominant seventh. Both the dominant
+and its minor target may last up to one bar each. Read the target as ii, iii
+or vi according to the incoming key. These timing bounds are conservative
+defaults for distinguishing a tonicization from a sustained destination.
+
+Use performed chord occurrences, including across the barline or into the
+next section. Existing evidence for continuation in a single key has priority.
+The strict collections still determine scale-based lick eligibility.
+
+The Linux sandbox reproduced the previous bar-16 reading on both chart
+timelines. The new rule passed transposition checks in all twelve keys,
+separate iii and vi targets, and counterexamples for a prolonged tonic,
+missing cadences, an altered dominant and a half-diminished approach. Across
+the focused suites, 282 unit tests and 39 browser checks passed, including
+the exact half-bar rail boundary in Chromium, Firefox and WebKit.
+
 ## Later milestones
 
 | Milestone | Status | Scope / evidence needed |
@@ -552,7 +614,7 @@ circleci testsuite run 'e2e tests' --local --run-tests=all --analyze-tests=none 
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
-| Controlled chromaticism | First conservative secondary-dominant rule implemented | Brief resolved tonicizations with an established parent center; altered/chained dominants, borrowed chords and passing diminished chords remain |
+| Controlled chromaticism | Independent brief secondary dominants can share a governing center | Brief resolved tonicizations with an established parent center; altered/chained dominants, borrowed chords and passing diminished chords remain |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
 | Analysis explanations | Structured reasons implemented | Key-center evidence, implied destinations, subordinate tonicizations and chart visits remain in the model; compact user-facing inspection and optional overrides remain |
 

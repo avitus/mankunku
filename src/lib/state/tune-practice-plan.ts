@@ -1039,7 +1039,6 @@ export type CueLevel = 'lick' | 'progression' | 'none';
 
 export interface StrictnessKnobs {
 	octaveInsensitive: boolean;
-	bleedFilterEnabled: boolean;
 	/**
 	 * What the bands name: the lick (and, in points mode, the pick card), the
 	 * progression alone, or nothing.
@@ -1059,7 +1058,7 @@ export interface StrictnessKnobs {
  * nothing.
  */
 export function strictnessKnobs(strictness: TunePracticeStrictness): StrictnessKnobs {
-	const listening = { octaveInsensitive: true, bleedFilterEnabled: true };
+	const listening = { octaveInsensitive: true };
 	switch (strictness) {
 		case 'guided':
 			return { ...listening, cueLevel: 'lick' };

@@ -101,7 +101,7 @@ If yes to all three, the filter drops the note as bleed. If your clarity is high
 
 The filter is conservative on purpose. False positives (dropping notes you actually played) are worse than false negatives (keeping a few bleed notes), so the threshold is biased toward keeping ambiguous notes.
 
-The filter always *runs* — it's how the `/diagnostics` A/B comparison gets its two scores — but whether its result becomes your actual score is a separate internal flag, currently off by default. Tune Practice turns it on at every strictness level. If you're using headphones none of this matters: there's no bleed to filter, so the filter finds nothing either way.
+When a backing-track schedule is available, practice scores the filtered notes. Ear Training applies this to both the live score and the saved microphone replay. Exact-phrase scoring retains both scores for the diagnostics comparison. Tune Practice also filters backing notes before recognizing licks in Freestyle.
 
 ### Metronome and backing-track bleed
 

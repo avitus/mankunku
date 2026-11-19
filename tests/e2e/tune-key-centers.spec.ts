@@ -66,6 +66,22 @@ for (const width of [1440, 390]) {
 	});
 }
 
+test('a short IV-compatible passage keeps the longer cadenced key on the chart and setup', async ({ page }) => {
+	const roots = ['C', 'F', 'C', 'G', 'C'];
+	const qualities = ['maj6', 'maj6', 'maj6', '7', 'maj7'];
+	await seedTunes(page, [{ id: 'continuing-center', title: 'Continuing center', key: 'F', timeSignature: [4, 4],
+		source: 'user', tags: [], sections: [{ label: 'A', bars: 5, notes: [], harmony: roots.map((root, i) => ({
+			chord: { root, quality: qualities[i] }, startOffset: [i, 1], duration: [1, 1], scaleId: 'major.ionian'
+		})) }] }]);
+	await page.goto('/tunes/continuing-center');
+	const labels = page.getByRole('list', { name: 'Key center legend' }).getByRole('listitem');
+	await expect(labels).toHaveText(['D major']); // concert C, written for tenor
+	await expect(page.getByTestId('tune-chord-chart').locator('[data-key-center="D major"]')).toHaveCount(5);
+	await page.getByRole('button', { name: /Practice licks/ }).click();
+	await expect(labels).toHaveText(['D major']);
+	await expect(page.locator('svg [data-key-center="D major"]').first()).toBeVisible();
+});
+
 test('chord-only chart keeps G major through the secondary dominant and returning bars 5–6', async ({ page }) => {
 	await seedTunes(page, [{ ...autumn, sections: autumn.sections.map((s: object) => ({ ...s, notes: [] })) }]);
 	await page.goto('/tunes/key-center-autumn');
@@ -79,6 +95,13 @@ test('chord-only chart keeps G major through the secondary dominant and returnin
 	for (const index of [4, 5]) await expect(chart.locator(`[data-bar="${index}"] [data-key-center="G major"]`)).toBeVisible();
 	await expect(chart.locator('[data-bar="6"] [data-key-center="G major"]')).toHaveCount(0);
 	await expect(chart.locator('[data-bar="6"] [data-key-center="A minor"]')).toBeVisible();
+	const splitBar = chart.locator('[data-bar="15"]');
+	for (const [label, left] of [['D major', '0%'], ['G major', '50%']]) {
+		const rail = splitBar.locator(`[data-key-center="${label}"]`);
+		await expect(rail).toBeVisible();
+		expect(await rail.evaluate(el => [(el as HTMLElement).style.left, (el as HTMLElement).style.width])).toEqual([left, '50%']);
+	}
+	await expect(splitBar.locator('[data-key-center="A minor"]')).toHaveCount(0);
 	await page.getByRole('button', { name: /Practice licks/ }).click();
 	// Setup uses the engraved staff even when the tune has no melody.
 	await expect(page.locator('svg [data-key-center="G major"]').nth(1)).toBeVisible();
