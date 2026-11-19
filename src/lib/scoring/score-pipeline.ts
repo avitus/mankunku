@@ -26,7 +26,8 @@ export interface ScorePipelineInputs {
 	tempo: number;
 	transportSeconds: number;
 	swing: number;
-	bleedFilterEnabled: boolean;
+	/** Historical replay can explicitly select the original unfiltered score. */
+	bleedFilterEnabled?: boolean;
 	/** Pre-computed bleed filter result. When present, a filtered score is also computed. */
 	bleedResult?: { kept: DetectedNote[]; filtered: DetectedNote[] } | null;
 	/**
@@ -50,7 +51,7 @@ export interface ScorePipelineResult {
 	filteredNotes: DetectedNote[];
 	unfilteredScore: Score;
 	filteredScore: Score | null;
-	/** The score the caller should surface, based on `bleedFilterEnabled`. */
+	/** The official practice score, filtered whenever a backing schedule supplied a result. */
 	chosen: Score;
 	useFiltered: boolean;
 	bleedLog: BleedFilterLog | null;
@@ -61,9 +62,7 @@ export interface ScorePipelineResult {
  *
  * Always computes the unfiltered score from `detected`. If `bleedResult`
  * is provided, also computes the bleed-filtered score from `bleedResult.kept`
- * and populates the diagnostic log. The toggle (`bleedFilterEnabled`) only
- * affects which score is `chosen`; both are returned so callers can log /
- * display either.
+ * and uses it for practice. The diagnostic log retains both scores.
  */
 export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResult {
 	const {
@@ -72,7 +71,7 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 		tempo,
 		transportSeconds,
 		swing,
-		bleedFilterEnabled,
+		bleedFilterEnabled = true,
 		bleedResult,
 		octaveInsensitive = false,
 		readings

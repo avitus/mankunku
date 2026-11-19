@@ -61,7 +61,6 @@ function makePipelineInputs(overrides: Partial<ScorePipelineInputs> = {}): Score
 		tempo: 120,
 		transportSeconds: 0,
 		swing: 0.5,
-		bleedFilterEnabled: false,
 		...overrides,
 	};
 }
@@ -320,28 +319,21 @@ describe('runScorePipeline', () => {
 		expect(result.useFiltered).toBe(false);
 	});
 
-	it('chosen equals filteredScore when bleedFilterEnabled is true and bleedResult provided', () => {
-		vi.mocked(scoreAttempt)
-			.mockReturnValueOnce(mockScore)         // unfiltered
-			.mockReturnValueOnce(mockFilteredScore); // filtered
-		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
-		const inputs = makePipelineInputs({
-			detected: mockDetected,
-			bleedResult,
-			bleedFilterEnabled: true,
-		});
-		const result = runScorePipeline(inputs);
-		expect(result.chosen).toBe(result.filteredScore);
+	it('practice chooses even a lower filtered score and keeps both scores for diagnostics', () => {
+		vi.mocked(scoreAttempt).mockReturnValueOnce(mockFilteredScore).mockReturnValueOnce(mockScore);
+		const bleedResult = { kept: [], filtered: mockDetected };
+		const result = runScorePipeline(makePipelineInputs({ detected: mockDetected, bleedResult }));
+		expect(result.chosen).toBe(mockScore);
 		expect(result.useFiltered).toBe(true);
+		expect(result.filteredNotes).toEqual([]);
+		expect(result.bleedLog?.unfilteredScore).toBe(mockFilteredScore);
+		expect(result.bleedLog?.filteredScore).toBe(result.chosen);
 	});
 
-	it('chosen falls back to unfilteredScore when bleedFilterEnabled is true but no bleedResult', () => {
-		const inputs = makePipelineInputs({
-			bleedFilterEnabled: true,
-		});
-		const result = runScorePipeline(inputs);
-		// No bleedResult → filteredScore is null → falls back to unfiltered
+	it('practice uses the detected notes and score without a backing schedule', () => {
+		const result = runScorePipeline(makePipelineInputs({ detected: mockDetected }));
 		expect(result.chosen).toBe(result.unfilteredScore);
+		expect(result.filteredNotes).toBe(mockDetected);
 		expect(result.useFiltered).toBe(false);
 	});
 

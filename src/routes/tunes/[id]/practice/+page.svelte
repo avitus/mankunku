@@ -658,8 +658,7 @@
 
 	/**
 	 * One freestyle scan: re-segment the trailing readings slice (pure batch —
-	 * pitch-derived onsets only; worklet/bleed refinement is scored-mode
-	 * machinery) and ask the recognizer. Runs on the audio clock per bar.
+	 * pitch-derived onsets), then filter any scheduled backing before matching.
 	 */
 	function runFreestyleScan() {
 		if (!isSessionRunning || tunePractice.phase !== 'running' || !pitchDetector || !freestyleRecognizer || !toneModule) return;
@@ -676,7 +675,14 @@
 		if (slice.length === 0) return;
 		const onsets = resolveOnsets([], slice);
 		const detected = segmentNotes(slice, onsets, nowSec - sliceStart);
-		const match = freestyleRecognizer.scan(detected, toneModule.getTransport().ticks);
+		// Onsets are relative to the start of this rolling slice. Map that
+		// instant on the microphone clock to the backing transport clock.
+		const schedule = backingTrack?.getActiveSchedule();
+		const transport = toneModule.getTransport();
+		const played = schedule
+			? filterBleed(detected, schedule, transport.getSecondsAtTime(sessionPitchStartMicTime + sliceStart)).kept
+			: detected;
+		const match = freestyleRecognizer.scan(played, transport.ticks);
 		if (match) recordFreestyleMatch(match);
 	}
 
@@ -780,10 +786,8 @@
 		const scoreCandidate = (candidate: WindowCandidate): Score | null => {
 			if (candidate.trickInfo) {
 				// Trick windows judge FLUENCY (conformance to the device's formula),
-				// not exact reproduction — route around runScorePipeline. Bleed
-				// handling collapses to the chosen-notes rule: filtered notes when
-				// the knob is on and a schedule produced them, raw notes otherwise.
-				let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+				// not exact reproduction — route around runScorePipeline.
+				let played = bleedResult?.kept ?? detected;
 				// The window opens at the progression start but the trick is aligned
 				// to a later bar; Fluency slots start at 0, so played onsets must be
 				// rebased to the aligned bar (notes before it go negative and
@@ -806,7 +810,6 @@
 				tempo,
 				transportSeconds: win.recordingTransportSeconds,
 				swing: effectiveSwing,
-				bleedFilterEnabled: knobs.bleedFilterEnabled,
 				bleedResult,
 				octaveInsensitive: knobs.octaveInsensitive,
 				readings: rebased

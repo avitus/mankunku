@@ -1373,8 +1373,7 @@
 			windowItem.trickContext
 		) {
 			const trick = getTrickById(windowItem.trickId);
-			const played =
-				settings.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+			const played = bleedResult?.kept ?? detected;
 			// Window-scoped like every other input here: a close callback that
 			// fires after advance() must stay rooted at the window it recorded.
 			const key = window.key;
@@ -1403,7 +1402,6 @@
 				tempo: lickPractice.currentTempo,
 				transportSeconds: window.recordingTransportSeconds,
 				swing: effectiveSwing,
-				bleedFilterEnabled: settings.bleedFilterEnabled,
 				bleedResult,
 				// Continuous mode: accept any octave of the right pitch class.
 				// Call-response stays strict so the user reproduces the demo
