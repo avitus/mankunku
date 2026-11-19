@@ -3,7 +3,7 @@ import type { ChordEvidence } from '$lib/music/chord-evidence';
 import { addFractions, compareFractions, fractionToFloat, subtractFractions } from '$lib/music/intervals';
 import { transposePitchClass, pitchClassInterval } from '$lib/music/transposition';
 import type { FlattenedTune } from './flatten';
-import type { MajorRegion } from './harmonic-analysis';
+import type { Cornerstone, MajorRegion } from './harmonic-analysis';
 
 export interface SecondaryDominant {
 	segmentIndices: number[];
@@ -20,6 +20,71 @@ const DEGREES = [0, 2, 4, 5, 7, 9, 11];
 const TARGETS: Readonly<Record<number, SecondaryDominant['targetDegree']>> = {
 	2: 'ii', 4: 'iii', 5: 'IV', 7: 'V', 9: 'vi'
 };
+
+/** A written dominant seventh whose chromatic tones are explained by its core. */
+function supportedDominant(chord: ChordEvidence | null, scale: Set<PitchClass>): boolean {
+	if (!chord) return false;
+	const core = [0, 4, 7, 10].map(interval => transposePitchClass(chord.root, interval));
+	return core.every(pitch => chord.pitchClasses.includes(pitch)) &&
+		chord.pitchClasses.every(pitch => scale.has(pitch) || core.includes(pitch));
+}
+
+export interface MajorKeyTransition {
+	from: PitchClass;
+	to: PitchClass;
+	arrival: Cornerstone;
+	dominant: SecondaryDominant;
+}
+
+/**
+ * Split a minor arrival between two independently cadenced major keys. The
+ * outgoing collection supplies the approach and the incoming one its target.
+ * Both refer to concrete occurrences on the same performed timeline.
+ */
+export function majorKeyTransitions(
+	flat: FlattenedTune, evidence: (ChordEvidence | null)[], regions: MajorRegion[],
+	arrivals: Cornerstone[], continuations: ContextualMajorRegion[], barLength: number
+): MajorKeyTransition[] {
+	const transitions: MajorKeyTransition[] = [];
+	const offset = (i: number) => fractionToFloat(flat.harmony[i].startOffset);
+	for (const arrival of arrivals) {
+		if (arrival.kind !== 'minor-arrival' || arrival.wrapsAround) continue;
+		const target = arrival.localKey;
+		const indices = arrival.segmentIndices;
+		const approachRoot = transposePitchClass(target, 2);
+		const dominantRoot = transposePitchClass(target, 7);
+		const approach = indices.filter(i => evidence[i]?.root === approachRoot);
+		const dominant = indices.filter(i => evidence[i]?.root === dominantRoot);
+		const resolution = indices.filter(i => evidence[i]?.root === target);
+		if (!approach.length || !dominant.length || !resolution.length ||
+			approach.length + dominant.length + resolution.length !== indices.length) continue;
+		// Confirm the sounded minor thirds and perfect fifths even on imports
+		// whose playback quality approximates a different written chord.
+		if (![...approach, ...resolution].every(i => [3, 7].every(interval =>
+			evidence[i]!.pitchClasses.includes(transposePitchClass(evidence[i]!.root, interval))))) continue;
+		const entrance = offset(dominant[0]);
+		const lastTarget = resolution[resolution.length - 1];
+		const targetDuration = offset(lastTarget) + fractionToFloat(flat.harmony[lastTarget].duration) - offset(resolution[0]);
+		if (offset(resolution[0]) - entrance > barLength || targetDuration > barLength) continue;
+		if (continuations.some(r => r.secondaryDominants.some(d => d.resolutionIndex === resolution[0]))) continue;
+		const outgoing = regions.filter(r => r.segmentIndices.at(-1) === approach.at(-1) &&
+			approach.every(i => r.segmentIndices.includes(i)) &&
+			r.evidence.cadences.some(([, tonic]) => entrance - offset(tonic) <= 4 * barLength));
+		const incoming = regions.filter(r => r.segmentIndices[0] === resolution[0] &&
+			resolution.every(i => r.segmentIndices.includes(i)) &&
+			r.evidence.cadences.some(([, tonic]) => offset(tonic) - offset(resolution[0]) <= 4 * barLength));
+		if (outgoing.length !== 1 || incoming.length !== 1 || outgoing[0].key === incoming[0].key) continue;
+		const to = incoming[0].key;
+		const degree = TARGETS[pitchClassInterval(to, target)];
+		if (degree !== 'ii' && degree !== 'iii' && degree !== 'vi') continue;
+		const scale = new Set(DEGREES.map(interval => transposePitchClass(to, interval)));
+		if (!dominant.every(i => supportedDominant(evidence[i], scale))) continue;
+		transitions.push({ from: outgoing[0].key, to, arrival, dominant: {
+			segmentIndices: dominant, resolutionIndex: resolution[0], targetKey: target, targetDegree: degree
+		} });
+	}
+	return transitions;
+}
 
 /**
  * Continue an established major center through successive brief applied dominants when
@@ -54,9 +119,7 @@ export function contextualMajorRegions(
 			const dominantIndex = order[cursor];
 			const dominant = evidence[dominantIndex];
 			if (!dominant || fits(dominantIndex) || !adjacent(preceding.at(-1)!, dominantIndex)) break;
-			const core = [0, 4, 7, 10].map(interval => transposePitchClass(dominant.root, interval));
-			if (!core.every(pitch => dominant.pitchClasses.includes(pitch)) ||
-				!dominant.pitchClasses.every(pitch => scale.has(pitch) || core.includes(pitch))) break;
+			if (!supportedDominant(dominant, scale)) break;
 			const dominantIndices = [dominantIndex];
 			// Repeated notation segments of the same sounding chord count as one event.
 			while (++cursor < order.length) {

@@ -120,24 +120,35 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 		const functions = region.secondaryDominants.map(event => `V/${event.targetDegree}`).join(', ');
 		add(region.key, 'major', region.segmentIndices, `Continuing major center through ${functions} with a diatonic return after each resolution.`);
 	}
+	// The outgoing collection already covers the approach and the incoming
+	// collection covers its resolution. Add just the intervening dominant.
+	for (const transition of analysis.majorKeyTransitions) {
+		add(transition.to, 'major', transition.dominant.segmentIndices,
+			`V/${transition.dominant.targetDegree} leads into the incoming major key.`);
+	}
 	for (const cornerstone of analysis.cornerstones) {
 		const key = cornerstone.kind === 'minor-arrival' ? cornerstone.localKey : cornerstone.detection.localKey;
 		const context = appliedContext(key, cornerstone.segmentIndices);
 		const explanation = context ? ` Brief tonicization within ${keyLabelLong(concertKeyToWritten(context.key, instrument), 'major')} (V/${context.event.targetDegree}).` : '';
-		if (cornerstone.kind === 'minor-arrival') add(cornerstone.localKey, 'minor', cornerstone.segmentIndices,
-			'Minor arrival: ii–V–i. A local destination, not one minor scale over every chord.' + explanation, context?.key);
-		else {
+		if (cornerstone.kind === 'minor-arrival') {
+			const transition = analysis.majorKeyTransitions.find(t => t.arrival === cornerstone);
+			const reason = transition
+				? `Minor arrival across a key change. The approach belongs to ${keyLabelLong(concertKeyToWritten(transition.from, instrument), 'major')} and V/${transition.dominant.targetDegree} introduces ${keyLabelLong(concertKeyToWritten(transition.to, instrument), 'major')}.`
+				: 'Minor arrival: ii–V–i. A local destination, not one minor scale over every chord.' + explanation;
+			add(key, 'minor', cornerstone.segmentIndices, reason, transition?.to ?? context?.key);
+		} else {
 			const detection = cornerstone.detection;
 			const hasTonic = detection.segmentIndices.some(i => flat.harmony[i].chord.root === detection.localKey);
 			// A two-chord approach can imply major even when the very same
 			// ii and V lead directly to a sounded minor tonic on this visit.
-			const minorArrival = !hasTonic && progressionMode(detection.type) === 'major' &&
-				analysis.cornerstones.some(arrival => arrival.kind === 'minor-arrival' &&
+			const minorArrival = !hasTonic && progressionMode(detection.type) === 'major' ?
+				analysis.cornerstones.find(arrival => arrival.kind === 'minor-arrival' &&
 					arrival.localKey === key && detection.segmentIndices.every((index, i) => arrival.segmentIndices[i] === index) &&
 					arrival.segmentIndices.length > detection.segmentIndices.length &&
-					arrival.segmentIndices.every(index => chordEvidence(flat.harmony[index])));
+					arrival.segmentIndices.every(index => chordEvidence(flat.harmony[index]))) : undefined;
+			const transition = minorArrival && analysis.majorKeyTransitions.find(t => t.arrival === minorArrival);
 			add(detection.localKey, detection.type === 'blues' ? 'blues' : progressionMode(detection.type), detection.segmentIndices,
-				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + (minorArrival ? ' The following tonic confirms a minor arrival.' : ''), context?.key ?? (minorArrival ? key : undefined));
+				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + (minorArrival ? ' The following tonic confirms a minor arrival.' : ''), context?.key ?? transition?.to ?? (minorArrival ? key : undefined));
 		}
 	}
 	const unique = new Map<string, KeyCenterReading>();

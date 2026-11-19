@@ -5,7 +5,8 @@ status, decisions, acceptance cases and remaining limitations as work lands.
 
 Current increment (2026-11-18) favors one established major center across
 repeated tonicizations and short passages compatible with another collection.
-The November 17 Autumn example introduced the single-event rule.
+It also recognizes a brief applied dominant at the transition between two
+independently established major centers.
 
 ## Purpose
 
@@ -558,9 +559,8 @@ equally long reading, or multiple qualifying parents preserves the alternatives.
 
 Regression examples (concert pitch):
 
-- In Autumn at bar 16 the same ii–V that implies G major resolves to Gm7
-  (tenor Am7). Show the confirmed minor arrival across the approach and keep
-  the implied major reading in the analysis.
+- In Autumn at bar 16 the local minor arrival overlaps a change between two
+  established major centers. The split at beat 3 is described below.
 - C6–F6–C6–G7–Cmaj7 gives one five-bar C rail. F major also fits the first
   three bars, but the only cadence establishes C. This also holds with an F
   key signature.
@@ -576,6 +576,34 @@ The Linux sandbox passed 211 focused unit tests across six files, 39 chart and
 setup browser cases across Chromium, Firefox and WebKit, and the TypeScript/Svelte
 check. Both new display regressions reproduced the extra rail on the previous
 dev revision.
+
+## An applied dominant at a change of key
+
+In the tenor chart of *Autumn in New York*, Em7–A7–Dmaj7 establishes D.
+Bar 16 opens with Bm7, its vi7. E7 on beat 3 leads to Am7, the ii of the
+returning G major. The subsequent D7–Gmaj7 confirms G. The chart places
+the D-to-G boundary at the E7 entrance. The underlying Bm7–E7–Am7
+minor-arrival interpretation remains available for cornerstone practice.
+
+For any contiguous m7–V7–minor arrival, look for exactly one cadenced major
+collection ending on its approach and one beginning on its resolution.
+Require a different tonic on each side and a V–I arrival within four bars
+on each side. The written approach must have a minor third and perfect fifth.
+The dominant must supply a supported dominant seventh. Both the dominant
+and its minor target may last up to one bar each. Read the target as ii, iii
+or vi according to the incoming key. These timing bounds are conservative
+defaults for distinguishing a tonicization from a sustained destination.
+
+Use performed chord occurrences, including across the barline or into the
+next section. Existing evidence for continuation in a single key has priority.
+The strict collections still determine scale-based lick eligibility.
+
+The Linux sandbox reproduced the previous bar-16 reading on both chart
+timelines. The new rule passed transposition checks in all twelve keys,
+separate iii and vi targets, and counterexamples for a prolonged tonic,
+missing cadences, an altered dominant and a half-diminished approach. Across
+the focused suites, 282 unit tests and 39 browser checks passed, including
+the exact half-bar rail boundary in Chromium, Firefox and WebKit.
 
 ## Later milestones
 

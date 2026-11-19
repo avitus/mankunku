@@ -46,10 +46,14 @@ describe('key-center chart evidence', () => {
 		const display = tuneKeyCenters(transposeTune(autumn, key), INSTRUMENTS.concert);
 		expect(display.markers.some(m => m.keyCenter?.label === `${key} major` && m.timeRange?.start === 0 && m.timeRange.end === 6)).toBe(true);
 	});
-	it('uses the sounded minor arrival for Autumn’s bar-16 approach', () => {
-		const display = tuneKeyCenters(autumn, INSTRUMENTS['tenor-sax']);
-		expect(display.markers.filter(m => m.timeRange?.start === 15).map(m => m.keyCenter?.label)).toEqual(['A minor']);
-		expect(display.readings.find(r => r.start === 15 && r.label === 'A major')?.reason).toContain('confirms a minor arrival');
+	it.each([false, true])('splits Autumn’s bar 16 at the E7 entrance (solo=%s)', solo => {
+		const display = tuneKeyCenters(autumn, INSTRUMENTS['tenor-sax'], { solo });
+		const nearby = display.markers.filter(m => m.timeRange!.start < 16.5 && m.timeRange!.end > 15);
+		expect(nearby.map(m => [m.keyCenter!.label, m.timeRange])).toEqual([
+			['D major', { start: 13, end: 15.5 }], ['G major', { start: 15.5, end: 19.5 }]
+		]);
+		expect(display.readings.find(r => r.label === 'G major' && r.start === 15.5)?.reason).toContain('V/ii');
+		expect(display.readings.some(r => r.label === 'A minor' && r.start === 15)).toBe(true);
 	});
 	it('shows a cadenced C center across a shorter F-compatible passage and retains the F reading', () => {
 		const symbols = ['C6', 'F6', 'C6', 'G7', 'Cmaj7'];

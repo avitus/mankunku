@@ -17,6 +17,45 @@ function passage(tail: string[], dominant = 'A7') {
 		harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 2], [1, 2])!) })] });
 }
 
+/** Half-bar changes, in one section, with C and F established independently. */
+function transitionChart(symbols: string[]) {
+	return sheet({ key: 'B', sections: [section({ bars: Math.ceil(symbols.length / 2),
+		harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 2], [1, 2])!) })] });
+}
+
+describe('applied dominants between major centers', () => {
+	const approach = ['Dm7', 'G7', 'Cmaj7', 'Am7', 'D7'];
+	const following = ['Gm7', 'Am7', 'Bbmaj7', 'C7', 'Fmaj7'];
+	it('splits a single section independently of its signature and keeps the cadence reserved', () => {
+		const result = analyze(transitionChart([...approach, ...following]));
+		expect(result.majorKeyTransitions).toMatchObject([{ from: 'C', to: 'F',
+			dominant: { segmentIndices: [4], resolutionIndex: 5, targetDegree: 'ii' } }]);
+		expect(result.reservedSegmentIndices).toEqual(expect.arrayContaining([3, 4, 5]));
+		expect(result.majorRegions.every(r => !r.segmentIndices.includes(4))).toBe(true);
+	});
+	it.each([
+		{ key: 'Bb', degree: 'vi', tail: ['Gm7', 'Cm7', 'F7', 'Bbmaj7'] },
+		{ key: 'Eb', degree: 'iii', tail: ['Gm7', 'Fm7', 'Bb7', 'Ebmaj7'] }
+	])('reads the minor arrival as $degree when the following cadence establishes $key', ({ key, degree, tail }) => {
+		expect(analyze(transitionChart([...approach, ...tail])).majorKeyTransitions)
+			.toMatchObject([{ from: 'C', to: key, dominant: { targetDegree: degree } }]);
+	});
+	it.each(PITCH_CLASSES)('recognizes the same transition transposed to %s', key => {
+		const tune = transposeTune({ ...transitionChart([...approach, ...following]), key: 'C' }, key);
+		expect(analyze(tune).majorKeyTransitions).toMatchObject([{ from: key, dominant: { targetDegree: 'ii' } }]);
+	});
+	it.each([
+		[...approach, 'Gm7', 'Am7b5', 'D7', 'Gm7'],
+		[...approach, 'Gm7', 'Gm7', 'Gm7', ...following],
+		[...approach, 'Gm7', 'Am7', 'Bbmaj7'],
+		['Dm7', 'Em7', 'Cmaj7', 'Am7', 'D7', ...following],
+		['Dm7', 'G7', 'Cmaj7', 'Am7b5', 'D7', ...following],
+		['Dm7', 'G7', 'Cmaj7', 'Am7', 'D7alt', ...following]
+	])('requires evidence on both sides of the dominant (%j)', (...symbols) => {
+		expect(analyze(transitionChart(symbols)).majorKeyTransitions).toEqual([]);
+	});
+});
+
 describe('governing major centers and brief tonicizations', () => {
 	it.each(PITCH_CLASSES)('preserves the opening six bars in %s, independently of the signature', key => {
 		const tune = { ...transposeTune(autumn, key), key: 'B' as const };

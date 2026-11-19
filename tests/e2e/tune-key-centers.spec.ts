@@ -95,6 +95,13 @@ test('chord-only chart keeps G major through the secondary dominant and returnin
 	for (const index of [4, 5]) await expect(chart.locator(`[data-bar="${index}"] [data-key-center="G major"]`)).toBeVisible();
 	await expect(chart.locator('[data-bar="6"] [data-key-center="G major"]')).toHaveCount(0);
 	await expect(chart.locator('[data-bar="6"] [data-key-center="A minor"]')).toBeVisible();
+	const splitBar = chart.locator('[data-bar="15"]');
+	for (const [label, left] of [['D major', '0%'], ['G major', '50%']]) {
+		const rail = splitBar.locator(`[data-key-center="${label}"]`);
+		await expect(rail).toBeVisible();
+		expect(await rail.evaluate(el => [(el as HTMLElement).style.left, (el as HTMLElement).style.width])).toEqual([left, '50%']);
+	}
+	await expect(splitBar.locator('[data-key-center="A minor"]')).toHaveCount(0);
 	await page.getByRole('button', { name: /Practice licks/ }).click();
 	// Setup uses the engraved staff even when the tune has no melody.
 	await expect(page.locator('svg [data-key-center="G major"]').nth(1)).toBeVisible();
