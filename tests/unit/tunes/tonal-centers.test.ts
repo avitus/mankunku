@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { analyzeHarmony } from '$lib/tunes/harmonic-analysis';
+import { tuneKeyCenters } from '$lib/tunes/key-centers';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import { flattenTune } from '$lib/tunes/flatten';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
@@ -17,10 +19,10 @@ function passage(tail: string[], dominant = 'A7') {
 		harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 2], [1, 2])!) })] });
 }
 
-/** Half-bar changes, in one section, with C and F established independently. */
-function transitionChart(symbols: string[]) {
-	return sheet({ key: 'B', sections: [section({ bars: Math.ceil(symbols.length / 2),
-		harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 2], [1, 2])!) })] });
+/** Half-bar changes with section-local offsets. */
+function transitionChart(...sections: string[][]) {
+	return sheet({ key: 'B', sections: sections.map(symbols => section({ bars: Math.ceil(symbols.length / 2),
+		harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 2], [1, 2])!) })) });
 }
 
 describe('applied dominants between major centers', () => {
@@ -32,6 +34,22 @@ describe('applied dominants between major centers', () => {
 			dominant: { segmentIndices: [4], resolutionIndex: 5, targetDegree: 'ii' } }]);
 		expect(result.reservedSegmentIndices).toEqual(expect.arrayContaining([3, 4, 5]));
 		expect(result.majorRegions.every(r => !r.segmentIndices.includes(4))).toBe(true);
+	});
+	it('keeps the incoming rail continuous when the resolution spans two sections', () => {
+		const tune = transitionChart([...approach, 'Gm7'], following);
+		const result = analyze(tune);
+		expect(result.majorKeyTransitions).toMatchObject([{ from: 'C', to: 'F',
+			dominant: { segmentIndices: [4], resolutionIndex: 5, targetDegree: 'ii' } }]);
+		expect(result.compatibleMajorRegions.find(r => r.key === 'F' && r.evidence.cadences.length)?.segmentIndices)
+			.toEqual([6, 7, 8, 9, 10]);
+		expect(result.reservedSegmentIndices).toEqual(expect.arrayContaining([3, 4, 5, 6]));
+		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
+		expect(display.markers.filter(m => m.keyCenter?.label === 'F major').map(m => m.timeRange))
+			.toEqual([{ start: 2, end: 5.5 }]);
+	});
+	it('requires the part of the target before the section break to fit the incoming key', () => {
+		const tune = transitionChart([...approach, 'Gm7/Db'], following);
+		expect(analyze(tune).majorKeyTransitions).toEqual([]);
 	});
 	it.each([
 		{ key: 'Bb', degree: 'vi', tail: ['Gm7', 'Cm7', 'F7', 'Bbmaj7'] },

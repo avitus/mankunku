@@ -33,6 +33,8 @@ export interface MajorKeyTransition {
 	from: PitchClass;
 	to: PitchClass;
 	arrival: Cornerstone;
+	/** From the dominant up to the start of the incoming compatible region. */
+	leadInIndices: number[];
 	dominant: SecondaryDominant;
 }
 
@@ -70,8 +72,10 @@ export function majorKeyTransitions(
 		const outgoing = regions.filter(r => r.segmentIndices.at(-1) === approach.at(-1) &&
 			approach.every(i => r.segmentIndices.includes(i)) &&
 			r.evidence.cadences.some(([, tonic]) => entrance - offset(tonic) <= 4 * barLength));
-		const incoming = regions.filter(r => r.segmentIndices[0] === resolution[0] &&
-			resolution.every(i => r.segmentIndices.includes(i)) &&
+		// A section boundary may divide one contiguous target chord. The
+		// cadenced region can begin on any part of that same resolution.
+		const incoming = regions.filter(r => resolution.includes(r.segmentIndices[0]) &&
+			r.segmentIndices.includes(lastTarget) &&
 			r.evidence.cadences.some(([, tonic]) => offset(tonic) - offset(resolution[0]) <= 4 * barLength));
 		if (outgoing.length !== 1 || incoming.length !== 1 || outgoing[0].key === incoming[0].key) continue;
 		const to = incoming[0].key;
@@ -79,7 +83,9 @@ export function majorKeyTransitions(
 		if (degree !== 'ii' && degree !== 'iii' && degree !== 'vi') continue;
 		const scale = new Set(DEGREES.map(interval => transposePitchClass(to, interval)));
 		if (!dominant.every(i => supportedDominant(evidence[i], scale))) continue;
-		transitions.push({ from: outgoing[0].key, to, arrival, dominant: {
+		const earlyTarget = resolution.slice(0, resolution.indexOf(incoming[0].segmentIndices[0]));
+		if (!earlyTarget.every(i => evidence[i]!.pitchClasses.every(pitch => scale.has(pitch)))) continue;
+		transitions.push({ from: outgoing[0].key, to, arrival, leadInIndices: [...dominant, ...earlyTarget], dominant: {
 			segmentIndices: dominant, resolutionIndex: resolution[0], targetKey: target, targetDegree: degree
 		} });
 	}

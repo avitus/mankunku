@@ -120,10 +120,9 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 		const functions = region.secondaryDominants.map(event => `V/${event.targetDegree}`).join(', ');
 		add(region.key, 'major', region.segmentIndices, `Continuing major center through ${functions} with a diatonic return after each resolution.`);
 	}
-	// The outgoing collection already covers the approach and the incoming
-	// collection covers its resolution. Add just the intervening dominant.
+	// Bridge the dominant and any held target before the incoming collection starts.
 	for (const transition of analysis.majorKeyTransitions) {
-		add(transition.to, 'major', transition.dominant.segmentIndices,
+		add(transition.to, 'major', transition.leadInIndices,
 			`V/${transition.dominant.targetDegree} leads into the incoming major key.`);
 	}
 	for (const cornerstone of analysis.cornerstones) {
