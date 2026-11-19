@@ -48,13 +48,10 @@
  * Approach-note pcs: above-side approaches are scale neighbours from the
  * context scale realized at the chord root (with chromatic fills when the
  * scale offers no second distinct neighbour within 3 semitones, and a
- * whole-step fallback if even the first neighbour is further than 3 — keeps
- * every approach a plausible enclosure move per countEnclosures' small-move
- * constraint); below-side approaches are chromatic (target−1, and target−2
- * for doubles). `patternPcs` on approach slots are the OTHER plausible
- * enclosure neighbours within ±3 semitones on the same side, mirroring the
- * same-magnitude / opposite-direction / small-move constraints of
- * `countEnclosures` in src/lib/matching/fallback-name.ts.
+ * whole-step fallback if even the first neighbour is further than 3).
+ * Below-side approaches are chromatic (target−1, and target−2 for doubles).
+ * On approach slots, `patternPcs` includes the other plausible enclosure
+ * neighbours within ±3 semitones on the same side.
  *
  * Shape↔noteCount coercion (invalid pairs snap to the nearest valid shape):
  *   noteCount 1: above-below → scale-above; below-above, double-chromatic →

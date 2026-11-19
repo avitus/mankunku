@@ -246,7 +246,6 @@ The needs-work filter uses the latest completed attempt at each spot; an unplaye
 - `search.ts` — builds an interval 5-gram index (`DEFAULT_NGRAM_SIZE`), then for each query n-gram finds hits, groups by `(phraseIndex, offset)`, and scores each alignment. `pitchWeight` defaults to **0.6**, matching the project's 60/40 pitch-rhythm convention; `/api/lick-match` passes 0.7 explicitly because its tuned WJazzD-attribution weighting is the exception, not the rule.
 - `book-index.ts` — `buildBookIndex` over the user's *own* licks. The server index is the WJazzD attribution corpus, which is the wrong corpus for "did the user just play a lick they know."
 - `freestyle.ts` — the stateful debounced live recognizer (silence guard, per-lick cooldowns; create one per session). Fires at ≥ 0.9 confidence, reusing the `/api/lick-match` "quote" cutoff rather than inventing a bar; a minimum-length single-n-gram match needs 0.95, because its pitch side carries no discrimination.
-- `fallback-name.ts` — descriptive names when no attribution matches ("C ii-V-I (Maj) — scalar eighths, 2 bars").
 
 `buildFreestyleBook` restricts the pool to licks the user actually knows: practice-set members, anything with practice progress, and their own or adopted licks — never the whole curated catalog, since celebrating a lick the user has never seen is noise, not feedback.
 

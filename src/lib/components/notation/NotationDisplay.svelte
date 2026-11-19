@@ -94,7 +94,7 @@
 	}
 
 	/** Visual treatment for the current-bar playhead marker. */
-	export type PlayheadStyle = 'under-bar' | 'cursor-line' | 'box' | 'wash-strong' | 'underline-caret' | 'wash-subtle';
+	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle';
 
 	/**
 	 * Chart presentation:
@@ -1005,10 +1005,9 @@
 	): void {
 		const sp = band.spacing;
 		const w = Math.max(0, x1 - x0);
-		const add = (el: SVGElement, extra?: string) => {
+		const add = (el: SVGElement) => {
 			el.setAttribute('data-marker-id', id);
 			el.classList.add('range-marker', `playhead-${style}`);
-			if (extra) el.classList.add(extra);
 			wrapper.insertBefore(el, wrapper.firstChild);
 		};
 		const rect = (x: number, y: number, width: number, height: number, rx = 0) => {
@@ -1021,39 +1020,12 @@
 			return r;
 		};
 
-		if (style === 'cursor-line') {
-			const top = band.staffTop - sp;
-			const line = svgEl('line');
-			line.setAttribute('x1', x0.toFixed(2));
-			line.setAttribute('x2', x0.toFixed(2));
-			line.setAttribute('y1', top.toFixed(2));
-			line.setAttribute('y2', (band.staffBottom + sp).toFixed(2));
-			add(line);
-			const fx = x0 + sp * 1.5;
-			const fy2 = top + sp * 1.1;
-			const flag = svgEl('path');
-			flag.setAttribute('d', ['M', x0, top, 'L', fx, top, 'L', x0, fy2, 'Z'].join(' '));
-			add(flag, 'playhead-solid');
-			return;
-		}
 		if (style === 'under-bar') {
 			const svg = wrapper.ownerSVGElement;
 			const bottom = compactStaff && svg ? svg.viewBox.baseVal.y + svg.viewBox.baseVal.height - 2 : band.staffBottom + sp * 0.35;
-			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35), 'playhead-solid');
+			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35));
 			return;
 		}
-		if (style === 'underline-caret') {
-			add(rect(x0, band.staffBottom + sp * 0.45, w, sp * 0.4, sp * 0.15), 'playhead-solid');
-			const cy = band.staffBottom + sp * 0.35;
-			const caret = svgEl('path');
-			caret.setAttribute(
-				'd',
-				['M', x0, cy, 'L', x0 + sp * 0.9, cy + sp * 0.55, 'L', x0, cy + sp * 1.1, 'Z'].join(' ')
-			);
-			add(caret, 'playhead-solid');
-			return;
-		}
-		// 'box' and 'wash-strong' both cover the full bar.
 		const spec = barHitRect({ x0, x1 }, band);
 		add(rect(spec.x, spec.y, spec.w, spec.h, 4));
 	}
@@ -2002,39 +1974,16 @@
 		fill: var(--color-error);
 		fill-opacity: 0.1;
 	}
-	/* Moving current-bar playhead — geometry set in drawPlayhead(); these rules
-	   own the color. Class-specificity beats the global svg line/path stroke
-	   override even though both are !important, so lines/carets keep their
-	   color in dark mode. */
+	/* Current-bar playhead colors. drawPlayhead sets the geometry. */
 	.notation-container :global(svg .playhead-under-bar) {
 		fill: var(--color-brass);
 		fill-opacity: 0.9;
-		stroke: none !important;
-	}
-	.notation-container :global(svg .playhead-cursor-line) {
-		stroke: var(--color-onair) !important;
-		stroke-width: 2.6;
-		fill: var(--color-onair) !important;
-	}
-	.notation-container :global(svg .playhead-cursor-line.playhead-solid) {
 		stroke: none !important;
 	}
 	.notation-container :global(svg .playhead-box) {
 		fill: none;
 		stroke: var(--color-brass) !important;
 		stroke-width: 2;
-	}
-	.notation-container :global(svg .playhead-wash-strong) {
-		fill: var(--color-brass);
-		fill-opacity: 0.24;
-		stroke: var(--color-brass) !important;
-		stroke-width: 1;
-		stroke-opacity: 0.55;
-	}
-	.notation-container :global(svg .playhead-underline-caret) {
-		fill: var(--color-brass-soft);
-		fill-opacity: 0.95;
-		stroke: none !important;
 	}
 	/* Band labels (lick / progression names) — colored to match their band.
 	   The dark-mode text rule targets svg text broadly, so these need !important

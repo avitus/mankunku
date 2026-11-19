@@ -33,10 +33,6 @@ const ROUTES: RouteCheck[] = [
 	{ path: '/ear-training' },
 	{ path: '/practice', finalPath: '/ear-training', notes: '308 redirect to /ear-training' },
 	{ path: '/lick-practice' },
-	{
-		path: '/lick-practice/cue-preview',
-		notes: 'unlinked listen/play cue design preview; ships to production'
-	},
 	{ path: '/licks' },
 	{ path: '/licks/community' },
 	{ path: '/licks/record' },
@@ -51,10 +47,6 @@ const ROUTES: RouteCheck[] = [
 	{ path: '/tunes/import/biab' },
 	{ path: '/tunes/import/musescore' },
 	{ path: '/tunes/import/pdf' },
-	{
-		path: '/tunes/playhead-preview',
-		notes: 'unlinked playhead style preview; ships to production'
-	},
 	{ path: '/progress' },
 	{ path: '/settings' },
 	{ path: '/scales' },
