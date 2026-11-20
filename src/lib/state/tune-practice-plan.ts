@@ -653,7 +653,8 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
 	// the rest of the form, and the repeat only enclosed a section of it.
 	const headBars = sm[revisitIdx].barOffset;
 	const tailBars = firstNewIdx === -1 ? 0 : flat.totalBars - sm[firstNewIdx].barOffset;
-	if (tailBars >= headBars) return noRepeat;
+	const repeatStart = sm.find(entry => entry.sourceSection === sm[revisitIdx].sourceSection)!;
+	if (tailBars >= headBars - repeatStart.barOffset) return noRepeat;
 	return { headBars, formRepeats: true };
 }
 

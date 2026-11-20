@@ -60,6 +60,7 @@ function playbackWithoutSections(flat: FlattenedTune, meter: Fraction, pickupBar
 /** Explicit solo omissions override the heuristic that interprets a closing repeat as the form. */
 export function sessionWithSoloOmissions(args: {
 	flat: FlattenedTune; timeSignature: Fraction; pickupBars?: number; playHead: boolean; playOutro?: boolean; choruses: number;
+	closingFlat?: FlattenedTune; closingPickupBars?: number;
 }) {
 	const { flat, timeSignature: meter } = args;
 	const solo = soloPlaybackFlat(flat, meter, args.pickupBars ?? 0);
@@ -83,12 +84,14 @@ export function sessionWithSoloOmissions(args: {
 	if (args.playHead) append(flat, Array.from({ length: flat.totalBars }, (_, i) => i), true);
 	const headBars = phraseBars;
 	for (let i = 0; i < args.choruses; i++) append(solo.flat, solo.sourceBars, false);
+	const closingFlat = args.closingFlat ?? flat;
+	const closingPickup = args.closingFlat ? (args.closingPickupBars ?? 0) : (args.pickupBars ?? 0);
 	const closing = args.playHead && args.playOutro && solo.flat.totalBars > 0
-		? playbackWithoutSections(flat, meter, args.pickupBars ?? 0, flat.omittedOutroSections)
+		? playbackWithoutSections(closingFlat, meter, closingPickup, closingFlat.omittedOutroSections)
 		: null;
 	const outroStartBar = closing?.flat.totalBars ? phraseBars : null;
 	if (closing && outroStartBar !== null) append(closing.flat, closing.sourceBars, true);
 	return { notes, harmony, sectionMap, phraseBars, headBars, duplicatedForm: true,
-		outroStartBar, outroSourceStartBar: closing?.sourceBars[0] ?? args.pickupBars ?? 0, closingStartBar: outroStartBar,
+		outroStartBar, outroSourceStartBar: closing?.sourceBars[0] ?? closingPickup, closingStartBar: outroStartBar,
 		noteSourceIndices, sessionBarMap, soloBars: solo.flat.totalBars };
 }

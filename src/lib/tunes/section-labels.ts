@@ -6,12 +6,19 @@ export function isIntroLabel(label: string): boolean {
 	return label.trim().toLowerCase() === 'intro';
 }
 
+function startsRehearsalMark(section: TuneSection, previous: string): boolean {
+	const label = section.label.trim();
+	return !!label && (label !== previous || section.labelExplicit === true);
+}
+
 /** Unlabelled fragments belong to the preceding rehearsal mark. */
 export function sectionPlaybackRules(sections: TuneSection[]) {
+	let previous = '';
 	let intro = false;
 	let introOmission = true;
 	return sections.map(section => {
-		if (section.label.trim()) {
+		if (startsRehearsalMark(section, previous)) {
+			previous = section.label.trim();
 			intro = isIntroLabel(section.label);
 			introOmission = section.omitFromSolos ?? true;
 		}
@@ -27,7 +34,7 @@ export function sectionLabels(tune: Pick<Tune, 'sections' | 'timeSignature'>) {
 		const start = bar;
 		bar += section.bars;
 		const label = section.label.trim();
-		if (!label || (label === previous && !section.labelExplicit)) return [];
+		if (!startsRehearsalMark(section, previous)) return [];
 		previous = label;
 		return [{ sectionIdx, label, bar: start + (resolvePickupLength(tune, sectionIdx) && section.bars > 1 ? 1 : 0) }];
 	});

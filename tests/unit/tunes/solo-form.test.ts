@@ -25,6 +25,37 @@ const blackOrpheus: Tune = { id: 'black-orpheus', title: 'Black Orpheus', key: '
 ] };
 
 describe('explicit material omitted from solo choruses', () => {
+	it('keeps an internal repeat and its following section on every pass after a long Intro', () => {
+		const tune = { ...blackOrpheus, sections: [
+			section('Intro', 8, 60), section('A', 4, 62, { repeatStart: true, repeatEnd: true }), section('B', 8, 64)
+		] };
+		const jam = buildJamForm(tune, 1);
+		expect(jam.headBars).toBe(24);
+		expect(jam.soloBars).toBe(16);
+		expect(jam.phraseBars).toBe(56);
+	});
+
+	it('inherits the Intro solo override until another visible mark', () => {
+		const tune = { ...blackOrpheus, sections: [
+			section('Intro', 2, 60, { omitFromSolos: false, repeatStart: true }),
+			section('Intro', 1, 62, { ending: 1, repeatEnd: true }), section('Intro', 1, 64, { ending: 2 }),
+			section('Intro', 1, 65, { labelExplicit: true })
+		] };
+		expect(flattenTune(tune).omittedSoloSections).toEqual([3]);
+		expect(flattenTune(tune).omittedOutroSections).toEqual([0, 1, 2, 3]);
+	});
+
+	it('takes the closing ending and pickup offset from the supplied outro chart', () => {
+		const intro = section('Intro', 1, 60);
+		const flat = flattenTune({ ...blackOrpheus, sections: [intro, section('A', 4, 62), section('First', 2, 64)] });
+		const closingFlat = flattenTune({ ...blackOrpheus, sections: [intro, section('A', 4, 62), section('Second', 1, 65)] });
+		const session = buildSessionPhrase({ flat, closingFlat, closingPickupBars: 2, timeSignature: [4, 4],
+			playHead: true, playOutro: true, choruses: 1 });
+		expect(session.phraseBars).toBe(17);
+		expect(session.notes.at(-1)?.pitch).toBe(65);
+		expect(session.sessionBarMap?.slice(13)).toEqual([2, 3, 4, 5]);
+	});
+
 	it.each([undefined, false])('plays the labelled All the Things intro only on the requested passes (omit=%s)', omitFromSolos => {
 		const tune: Tune = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
 		// The saved chart puts the Intro mark on its pickup. The repeated

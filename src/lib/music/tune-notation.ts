@@ -632,7 +632,7 @@ export function tuneToAbcWithMap(
 				// restamp the printed bar count past the anacrusis.
 				tokens.push(' |:');
 				closeBarSpan(tokens.length - 1);
-				tokens.push('[I:setbarnb 1]');
+				if (secIdx === 1) tokens.push('[I:setbarnb 1]');
 			}
 			tokens.push(' ');
 			if (sec.label.trim() !== '') previousLabel = sec.label;
@@ -728,7 +728,7 @@ export function tuneToAbcWithMap(
 					closeBarSpan(tokens.length - 1);
 					// abcjs counts the anacrusis as bar 1; restamp so the next
 					// system prints the number the chart's reader expects.
-					if (partial && prevBar === 0) tokens.push('[I:setbarnb 1]');
+					if (secIdx === 0 && partial && prevBar === 0) tokens.push('[I:setbarnb 1]');
 					// lineColumn + bar: an inline-flowed section (a first ending
 					// continuing the body's line) enters mid-line, so breaks track
 					// the ABSOLUTE column, not the section-local bar. A partial
@@ -819,7 +819,7 @@ export function tuneToAbcWithMap(
 		}
 		if (!deferredPickupBarline) {
 			closeBarSpan(tokens.length - 1); // the section's last bar closes here
-			if (pickupOnly) tokens.push('[I:setbarnb 1]');
+			if (secIdx === 0 && pickupOnly) tokens.push('[I:setbarnb 1]');
 		}
 
 		endingState = advanceEndingLayout(
