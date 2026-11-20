@@ -160,7 +160,18 @@
 	--medal-bronze-rim: color-mix(in srgb, var(--accuracy-bronze) 24%, transparent);
 
 	/* Key-center rails keep their tonic hue in both themes. */
-	--key-center-lightness: 58%;
+	--key-center-c: #83c5f2;
+	--key-center-db: #b6be77;
+	--key-center-d: #ffc49f;
+	--key-center-eb: #eb9570;
+	--key-center-e: #c5a1ed;
+	--key-center-f: #8aa2ec;
+	--key-center-f-sharp: #9fdcb5;
+	--key-center-g: #55c7be;
+	--key-center-ab: #e2b875;
+	--key-center-a: #ee91ae;
+	--key-center-bb: #dd97d7;
+	--key-center-b: #b5dae4;
 
 	/* Progression identity palette — one muted hue per chord progression, used
 	   on the library card (tinted category pill + dots) and carried through to
@@ -197,7 +208,18 @@
 }
 
 :root.light {
-	--key-center-lightness: 38%;
+	--key-center-c: #245e89;
+	--key-center-db: #596221;
+	--key-center-d: #845334;
+	--key-center-eb: #994424;
+	--key-center-e: #704c91;
+	--key-center-f: #435996;
+	--key-center-f-sharp: #34684d;
+	--key-center-g: #006960;
+	--key-center-ab: #745213;
+	--key-center-a: #933f5e;
+	--key-center-bb: #844781;
+	--key-center-b: #456373;
 	--color-bg: #f8fafc;
 	--color-bg-secondary: #e2e8f0;
 	--color-bg-tertiary: #cbd5e1;

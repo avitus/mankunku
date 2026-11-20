@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { flattenTune } from '$lib/tunes/flatten';
@@ -24,6 +25,84 @@ const blackOrpheus: Tune = { id: 'black-orpheus', title: 'Black Orpheus', key: '
 ] };
 
 describe('explicit material omitted from solo choruses', () => {
+	it('keeps an internal repeat and its following section on every pass after a long Intro', () => {
+		const tune = { ...blackOrpheus, sections: [
+			section('Intro', 8, 60), section('A', 4, 62, { repeatStart: true, repeatEnd: true }), section('B', 8, 64)
+		] };
+		const jam = buildJamForm(tune, 1);
+		expect(jam.headBars).toBe(24);
+		expect(jam.soloBars).toBe(16);
+		expect(jam.phraseBars).toBe(56);
+	});
+
+	it('inherits the Intro solo override until another visible mark', () => {
+		const tune = { ...blackOrpheus, sections: [
+			section('Intro', 2, 60, { omitFromSolos: false, repeatStart: true }),
+			section('Intro', 1, 62, { ending: 1, repeatEnd: true }), section('Intro', 1, 64, { ending: 2 }),
+			section('Intro', 1, 65, { labelExplicit: true })
+		] };
+		expect(flattenTune(tune).omittedSoloSections).toEqual([3]);
+		expect(flattenTune(tune).omittedOutroSections).toEqual([0, 1, 2, 3]);
+	});
+
+	it.each([0, undefined])('keeps a repeated form within its pass boundaries (closing pickup=%s)', closingPickupBars => {
+		const tune = { ...blackOrpheus, sections: [
+			section('Intro', 2, 60), section('A', 4, 62, { repeatStart: true, repeatEnd: true })
+		] };
+		const flat = flattenTune(tune, { expandRepeats: true });
+		const session = buildSessionPhrase({ flat, closingFlat: flattenTune(tune), closingPickupBars,
+			timeSignature: [4, 4], playHead: true, playOutro: true, choruses: 1 });
+		expect(session.headBars).toBe(6);
+		expect(session.soloBars).toBe(4);
+		expect(session.outroStartBar).toBe(10);
+		expect(session.phraseBars).toBe(14);
+		expect(session.notes.map(n => n.pitch)).toEqual([60, 62, 62]);
+	});
+
+	it.each([false, true])('resolves the last solo with the closing form (omit Intro=%s)', omitFromSolos => {
+		const intro = section('Intro', 1, 60, { omitFromSolos });
+		const form = (endingBars: number) => flattenTune({ ...blackOrpheus, sections: [
+			intro, section('A', 4, 62), section('Ending', endingBars, 65)
+		] });
+		const built = buildSessionPhrase({ flat: form(2), closingFlat: form(1), timeSignature: [4, 4],
+			playHead: false, playOutro: true, choruses: 2 });
+		const start = omitFromSolos ? 6 : 7;
+		expect(built.closingStartBar).toBe(start);
+		expect(built.outroStartBar).toBeNull();
+		expect(built.notes).toEqual([]);
+		expect(built.phraseBars).toBe(2 * start - 1);
+		expect(built.performanceForm.choruses.map(c => [c.role, c.startBar, c.endBarExclusive]))
+			.toEqual([['solo', 0, start], ['solo', start, built.phraseBars]]);
+	});
+
+	it('takes the closing ending and pickup offset from the supplied outro chart', () => {
+		const intro = section('Intro', 1, 60);
+		const flat = flattenTune({ ...blackOrpheus, sections: [intro, section('A', 4, 62), section('First', 2, 64)] });
+		const closingFlat = flattenTune({ ...blackOrpheus, sections: [intro, section('A', 4, 62), section('Second', 1, 65)] });
+		const session = buildSessionPhrase({ flat, closingFlat, closingPickupBars: 2, timeSignature: [4, 4],
+			playHead: true, playOutro: true, choruses: 1 });
+		expect(session.phraseBars).toBe(17);
+		expect(session.notes.at(-1)?.pitch).toBe(65);
+		expect(session.sessionBarMap?.slice(13)).toEqual([2, 3, 4, 5]);
+	});
+
+	it.each([undefined, false])('plays the labelled All the Things intro only on the requested passes (omit=%s)', omitFromSolos => {
+		const tune: Tune = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
+		// The saved chart puts the Intro mark on its pickup. The repeated
+		// four-bar fragment continues that mark until the 36-bar body.
+		tune.sections[0].label = ' Intro ';
+		tune.sections[0].labelExplicit = true;
+		tune.sections[0].omitFromSolos = omitFromSolos;
+		tune.sections[1].label = '';
+		const jam = buildJamForm(tune, 2);
+		const chorus = omitFromSolos === false ? 44 : 36;
+		expect(jam.headBars).toBe(45);
+		expect(jam.soloBars).toBe(chorus);
+		expect(jam.outroStartBar).toBe(45 + chorus * 2);
+		expect(jam.phraseBars).toBe(45 + chorus * 2 + 36);
+		expect(jam.sessionBarMap?.slice(-36)).toEqual(Array.from({ length: 36 }, (_, i) => 9 + i));
+		expect(buildJamForm(tune, 2, false).phraseBars).toBe(chorus * 2);
+	});
 	it('repairs the production Black Orpheus label layout without moving its closing repeat', () => {
 		let imported: Tune = { ...blackOrpheus, sections: [
 			section('A', 33, 72, { pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),

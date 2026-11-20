@@ -1250,6 +1250,19 @@ describe('tuneToAbc — pickup bars', () => {
 		expect(abc).not.toContain('| |:');
 	});
 
+	it('prints the next rehearsal mark once after consecutive standalone pickups', () => {
+		const pickup = section({ label: 'Intro', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP] });
+		const abc = tuneToAbc(sheet({ sections: [pickup, { ...pickup, label: '' }, A8()] }), undefined, BPL4);
+		expect(abc.match(/P:A/g)).toHaveLength(1);
+		expect(abc).toContain('[P:A]');
+	});
+
+	it.each([false, true])('keeps the bar count through a mid-tune pickup (opening repeat=%s)', repeatStart => {
+		const pickup = section({ label: 'Bridge', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP] });
+		const s = sheet({ sections: [A8(), pickup, { ...A8(), repeatStart }] });
+		expect(tuneToAbc(s, undefined, BPL4)).not.toContain('setbarnb');
+	});
+
 	it('keeps a rest INSIDE the pickup while dropping the silent prefix', () => {
 		// Two-beat pickup, note only on beat 4: the beat-3 rest is printed.
 		const s = sheet({

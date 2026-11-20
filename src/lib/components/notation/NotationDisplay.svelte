@@ -94,7 +94,7 @@
 	}
 
 	/** Visual treatment for the current-bar playhead marker. */
-	export type PlayheadStyle = 'under-bar' | 'cursor-line' | 'box' | 'wash-strong' | 'underline-caret' | 'wash-subtle';
+	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle';
 
 	/**
 	 * Chart presentation:
@@ -366,13 +366,7 @@
 				// font must be a string for its size to affect engraving geometry.
 				gchordfont: compactStaff ? 'Fraunces 17' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
-				partsfont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 14,
-					weight: 'bold',
-					style: 'normal',
-					decoration: 'none'
-				},
+				partsfont: 'Fraunces 14 bold',
 				titlefont: {
 					face: 'Fraunces, Georgia, "Times New Roman", serif',
 					size: 22,
@@ -928,12 +922,15 @@
 				height: (band.staffBottom - band.staffTop) / vb.height * 100 }];
 			});
 			const svgBox = svg.getBoundingClientRect();
+			const placedParts = new Set<SVGGraphicsElement>();
 			labelMarks = sectionLabels(sheet).flatMap(mark => {
 				const zone = lastBarZones.find(z => bases[z.sectionIdx] + z.bar === mark.bar);
 				if (!zone) return [];
 				const band = systemBands[zone.systemIdx];
 				if (!band) return [];
-				const part = partLabelElements(band.wrapper)[0]?.getBoundingClientRect();
+				const element = partLabelElements(band.wrapper).find(el => !placedParts.has(el) && el.textContent?.trim() === mark.label);
+				if (element) placedParts.add(element);
+				const part = element?.getBoundingClientRect();
 				return [{ ...mark, x: part ? (part.left - svgBox.left) / svgBox.width * 100 : zone.x0 / vb.width * 100,
 					y: part ? (part.top - svgBox.top) / svgBox.height * 100 : Math.max(0, band.top - 20) / vb.height * 100 }];
 			});
@@ -1005,10 +1002,9 @@
 	): void {
 		const sp = band.spacing;
 		const w = Math.max(0, x1 - x0);
-		const add = (el: SVGElement, extra?: string) => {
+		const add = (el: SVGElement) => {
 			el.setAttribute('data-marker-id', id);
 			el.classList.add('range-marker', `playhead-${style}`);
-			if (extra) el.classList.add(extra);
 			wrapper.insertBefore(el, wrapper.firstChild);
 		};
 		const rect = (x: number, y: number, width: number, height: number, rx = 0) => {
@@ -1021,39 +1017,12 @@
 			return r;
 		};
 
-		if (style === 'cursor-line') {
-			const top = band.staffTop - sp;
-			const line = svgEl('line');
-			line.setAttribute('x1', x0.toFixed(2));
-			line.setAttribute('x2', x0.toFixed(2));
-			line.setAttribute('y1', top.toFixed(2));
-			line.setAttribute('y2', (band.staffBottom + sp).toFixed(2));
-			add(line);
-			const fx = x0 + sp * 1.5;
-			const fy2 = top + sp * 1.1;
-			const flag = svgEl('path');
-			flag.setAttribute('d', ['M', x0, top, 'L', fx, top, 'L', x0, fy2, 'Z'].join(' '));
-			add(flag, 'playhead-solid');
-			return;
-		}
 		if (style === 'under-bar') {
 			const svg = wrapper.ownerSVGElement;
 			const bottom = compactStaff && svg ? svg.viewBox.baseVal.y + svg.viewBox.baseVal.height - 2 : band.staffBottom + sp * 0.35;
-			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35), 'playhead-solid');
+			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35));
 			return;
 		}
-		if (style === 'underline-caret') {
-			add(rect(x0, band.staffBottom + sp * 0.45, w, sp * 0.4, sp * 0.15), 'playhead-solid');
-			const cy = band.staffBottom + sp * 0.35;
-			const caret = svgEl('path');
-			caret.setAttribute(
-				'd',
-				['M', x0, cy, 'L', x0 + sp * 0.9, cy + sp * 0.55, 'L', x0, cy + sp * 1.1, 'Z'].join(' ')
-			);
-			add(caret, 'playhead-solid');
-			return;
-		}
-		// 'box' and 'wash-strong' both cover the full bar.
 		const spec = barHitRect({ x0, x1 }, band);
 		add(rect(spec.x, spec.y, spec.w, spec.h, 4));
 	}
@@ -1306,14 +1275,29 @@
 		for (let sys = 0; sys < systemBands.length; sys++) {
 			const inSystem = zones.filter((z) => z.systemIdx === sys).sort((a, b) => a.x0 - b.x0);
 			if (inSystem.length < 2) continue;
-			const [first, firstFull] = inSystem;
+			const first = inSystem[0];
 			if (!partial.has(`${first.sectionIdx}:${first.bar}`)) continue;
+			const firstFull = inSystem.find(zone => !partial.has(`${zone.sectionIdx}:${zone.bar}`)) ?? inSystem[1];
 			const wrapper = systemBands[sys].wrapper;
 			const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
 			if (!staffEl) continue;
 			const spacing = staffEl.getBBox().height / 4;
 			if (!Number.isFinite(spacing) || spacing <= 0) continue;
-			for (const part of partLabelElements(wrapper)) {
+			const parts = partLabelElements(wrapper);
+			// A shared pickup system can carry several authored rehearsal marks.
+			// Leave its opening mark at the clef and seat each inline mark on its bar.
+			let zoneIndex = 0;
+			for (const part of parts.length > 1 ? parts.slice(1) : parts) {
+				let anchor = firstFull;
+				if (parts.length > 1) {
+					const index = inSystem.findIndex((zone, i) => i > zoneIndex && zone.bar === 0 &&
+						sheet.sections[zone.sectionIdx].label.trim() === part.textContent?.trim());
+					if (index < 0) continue;
+					zoneIndex = index;
+					const start = inSystem[index];
+					anchor = inSystem.find(zone => zone.sectionIdx === start.sectionIdx &&
+						!partial.has(`${zone.sectionIdx}:${zone.bar}`)) ?? start;
+				}
 				let box: DOMRect;
 				try {
 					box = part.getBBox();
@@ -1328,7 +1312,7 @@
 				// getBBox is local: add the prior translate to get the seated x.
 				const dx = pickupPartLabelDx(
 					{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
-					firstFull.x0,
+					anchor.x0,
 					spacing
 				);
 				if (Math.abs(dx) < 0.01) continue;
@@ -2002,39 +1986,16 @@
 		fill: var(--color-error);
 		fill-opacity: 0.1;
 	}
-	/* Moving current-bar playhead — geometry set in drawPlayhead(); these rules
-	   own the color. Class-specificity beats the global svg line/path stroke
-	   override even though both are !important, so lines/carets keep their
-	   color in dark mode. */
+	/* Current-bar playhead colors. drawPlayhead sets the geometry. */
 	.notation-container :global(svg .playhead-under-bar) {
 		fill: var(--color-brass);
 		fill-opacity: 0.9;
-		stroke: none !important;
-	}
-	.notation-container :global(svg .playhead-cursor-line) {
-		stroke: var(--color-onair) !important;
-		stroke-width: 2.6;
-		fill: var(--color-onair) !important;
-	}
-	.notation-container :global(svg .playhead-cursor-line.playhead-solid) {
 		stroke: none !important;
 	}
 	.notation-container :global(svg .playhead-box) {
 		fill: none;
 		stroke: var(--color-brass) !important;
 		stroke-width: 2;
-	}
-	.notation-container :global(svg .playhead-wash-strong) {
-		fill: var(--color-brass);
-		fill-opacity: 0.24;
-		stroke: var(--color-brass) !important;
-		stroke-width: 1;
-		stroke-opacity: 0.55;
-	}
-	.notation-container :global(svg .playhead-underline-caret) {
-		fill: var(--color-brass-soft);
-		fill-opacity: 0.95;
-		stroke: none !important;
 	}
 	/* Band labels (lick / progression names) — colored to match their band.
 	   The dark-mode text rule targets svg text broadly, so these need !important

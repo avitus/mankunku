@@ -41,7 +41,6 @@ Routes that belong to the lick-practice domain:
 
 - `/lick-practice` — setup
 - `/lick-practice/session` — running session
-- `/lick-practice/cue-preview` — temporary listen/play cue design compare, unlinked from the nav (inherits the prefix)
 
 **Identity color**: warm terracotta / burnt sienna. This is the LP-sleeve counterpart to the ear-training teal — complementary in hue, same visual weight, reads as jazz-era rather than "success/error" signal.
 
@@ -352,7 +351,7 @@ Every component that uses `var(--color-accent)` flips for free when the domain c
 - **`PracticeSetup`** selected state, and the console controls' accent parts — the `Knob` value arc and the active `SelectorPad` pad + LED
 - All `border-l-[var(--color-accent)]` / `text-[var(--color-accent)]` / `bg-[var(--color-accent)]` usages
 
-The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged. What does *not* follow the domain, by design: the active-nav marker (a brass hairline under the desktop item, a brass left border in the mobile menu), the practice-phase indicators on `UpcomingKeysDisplay` / `PhaseCueBar` (the phase aliases), the `KeyProgressRing` (medal tokens for scored keys, a pulsing `--color-brass-soft` outline on the current key), and the `RockerSwitch`'s on-air legend and LED.
+The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged. What does *not* follow the domain, by design: the active-nav marker (a brass hairline under the desktop item, a brass left border in the mobile menu), the practice-phase indicators on `UpcomingKeysDisplay` (the phase aliases), the `KeyProgressRing` (medal tokens for scored keys, a pulsing `--color-brass-soft` outline on the current key), and the `RockerSwitch`'s on-air legend and LED.
 
 ## What we deliberately don't change
 
@@ -386,7 +385,7 @@ The base behavior lives in just two files:
 
 No component-level files need to change. Every existing `var(--color-accent)` usage automatically picks up the new color.
 
-`tests/unit/ui/design-token-consistency.test.ts` pins the contract: every `var(--color-*)` and every `var(--font-*)` referenced under `src/` is defined in `app.css` (an undefined custom property fails silently — the property computes to nothing, or to the next font in the stack); solid coloured fills on text-bearing elements set explicit white text; the two phase aliases resolve to brass and on-air; the phase surfaces it sweeps — `UpcomingKeysDisplay`, `PhaseCueBar` and the cue-preview route's `CueStage` — never reach past the aliases to a raw `--color-brass` / `--color-onair` token (the other listen/play surfaces use the aliases by convention, unswept); and feedback *text* uses the `-text` variants, never the fill tokens.
+`tests/unit/ui/design-token-consistency.test.ts` pins the contract: every `var(--color-*)` and every `var(--font-*)` referenced under `src/` is defined in `app.css` (an undefined custom property fails silently — the property computes to nothing, or to the next font in the stack); solid coloured fills on text-bearing elements set explicit white text; the two phase aliases resolve to brass and on-air; `UpcomingKeysDisplay` never reaches past the aliases to a raw `--color-brass` / `--color-onair` token (the other listen/play surfaces use the aliases by convention, unswept); and feedback *text* uses the `-text` variants, never the fill tokens.
 
 ## Verification
 

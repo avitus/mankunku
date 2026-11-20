@@ -1,15 +1,16 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { buildDraftTune, changeSectionLabel, setSectionSoloOmission, tuneEntry } from '$lib/state/tune-entry.svelte';
-	import { sectionLabels } from '$lib/tunes/section-labels';
+	import { isIntroLabel, sectionLabels } from '$lib/tunes/section-labels';
 	import { resolvePickupLength } from '$lib/music/pickup';
 	let dialog: HTMLDialogElement;
 	let input: HTMLInputElement;
 	let from = $state<number | null>(null);
 	let label = $state('');
 	let bar = $state(1);
-	let omit = $state(false);
-	let initialOmit = false;
+	let override = $state<boolean | undefined>();
+	let changed = false;
+	const omit = $derived(override ?? isIntroLabel(label));
 	let error = $state('');
 	let pickup = $state(0);
 	const total = $derived(tuneEntry.sections.reduce((n, s) => n + s.bars, 0));
@@ -23,7 +24,8 @@
 		bar = (mark?.bar ?? absoluteBar) + 1 - pickup;
 		let base = 0;
 		const anchored = index === null ? tuneEntry.sections.find(s => { base += s.bars; return absoluteBar < base; }) : tuneEntry.sections[index];
-		omit = initialOmit = !!anchored?.omitFromSolos;
+		override = anchored?.omitFromSolos;
+		changed = false;
 		error = '';
 		dialog.showModal();
 		await tick();
@@ -34,7 +36,7 @@
 		const destination = bar - 1 + pickup;
 		if (!changeSectionLabel(from, destination, label)) { error = 'Choose an unoccupied bar and a label without brackets or line breaks.'; return; }
 		const mark = sectionLabels(buildDraftTune()).find(m => m.bar === destination);
-		if (mark && omit !== initialOmit) setSectionSoloOmission(mark.sectionIdx, omit);
+		if (mark && changed) setSectionSoloOmission(mark.sectionIdx, omit);
 		dialog.close();
 	}
 </script>
@@ -45,8 +47,8 @@
 		<div class="label-fields">
 			<label>Label<input bind:this={input} bind:value={label} maxlength="80" required /></label>
 			<label>Starts at bar<input type="number" bind:value={bar} min={1 - pickup} max={total - pickup} step="1" required /></label>
-			<label class="solo-option"><input type="checkbox" bind:checked={omit} />Omit from solos</label>
-			<p>Skip this section during solos; keep it in the opening and closing melody.</p>
+			<label class="solo-option"><input type="checkbox" checked={omit} onchange={event => { override = event.currentTarget.checked; changed = true; }} />Omit from solos</label>
+			<p>{isIntroLabel(label) ? 'The opening melody includes the intro. The closing melody skips it.' : 'This setting applies to solo choruses. Both melody passes include this section.'}</p>
 			<p>Move or remove the label without deleting music. Repeat signs and endings stay on their bars.</p>
 			{#if error}<p role="alert">{error}</p>{/if}
 		</div>

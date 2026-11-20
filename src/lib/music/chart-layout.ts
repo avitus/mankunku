@@ -14,8 +14,6 @@ export const CHART_STAFF_WIDTH = 750;
 
 /** Minimum bars per system (dense 16th-note heads, stacked alterations). */
 export const BARS_PER_LINE_MIN = 3;
-/** Preserve four-bar phrasing even in sparse / empty stretches. */
-export const BARS_PER_LINE_MAX = 4;
 /** Classic Real Book default when density is unremarkable. */
 export const BARS_PER_LINE_DEFAULT = 4;
 

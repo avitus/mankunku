@@ -49,12 +49,13 @@ User preferences. **Persisted** to localStorage under the logical key `settings`
 export const settings = $state({
   instrumentId: 'tenor-sax',                  // 'soprano-sax' | 'tenor-sax' | 'alto-sax' | 'trumpet'
   defaultTempo: 100,                          // BPM
-  masterVolume: 0.8,                          // 0-1
+  masterVolume: 0.8,                         // 0-1 listening amplitude, after output protection
+  melodyVolume: 1,                           // 0-1 amplitude; device-local, excluded from cloud sync
   metronomeEnabled: true,
-  metronomeVolume: 0.5,                       // 0-1 mix position; METRONOME_TRIM (0.6) applies underneath
+  metronomeVolume: 0.5,                       // 0-1 Click amplitude, including count-off; fixed source calibration underneath
   backingTrackEnabled: false,
   backingInstrument: 'piano' as BackingInstrument,
-  backingTrackVolume: 0.6,                    // 0-1
+  backingTrackVolume: 0.6,                    // 0-1 Backing amplitude, applied after compression
   backingStyle: 'swing' as BackingStyle,      // 'swing' | 'bossa-nova' | 'ballad' | 'straight'
   swing: 0.62,                                // Swing ratio (0.5 = straight, 0.8 = heavy). Default is a
                                               // moderate jazz swing, not straight; exactly 0.50 is also
@@ -66,6 +67,8 @@ export const settings = $state({
   bleedFilterEnabled: false                   // legacy field for older clients
 });
 ```
+
+Volume settings store linear amplitudes, not dial positions; the UI uses the shared 60 dB fader law from `mixer-policy.ts`. Account hydration preserves `melodyVolume` on the current device, and a Melody-only edit creates no cloud patch. See [Shared mixer API](./audio.md#mixer-policyts-and-mixerts).
 
 Swing is clamped to `STRAIGHT_SWING`–`MAX_SWING` (0.5–0.8) and an unknown `backingStyle` falls back to `'swing'` on every load, local or cloud.
 
