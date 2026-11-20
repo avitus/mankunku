@@ -59,6 +59,22 @@ describe('explicit material omitted from solo choruses', () => {
 		expect(session.notes.map(n => n.pitch)).toEqual([60, 62, 62]);
 	});
 
+	it.each([false, true])('resolves the last solo with the closing form (omit Intro=%s)', omitFromSolos => {
+		const intro = section('Intro', 1, 60, { omitFromSolos });
+		const form = (endingBars: number) => flattenTune({ ...blackOrpheus, sections: [
+			intro, section('A', 4, 62), section('Ending', endingBars, 65)
+		] });
+		const built = buildSessionPhrase({ flat: form(2), closingFlat: form(1), timeSignature: [4, 4],
+			playHead: false, playOutro: true, choruses: 2 });
+		const start = omitFromSolos ? 6 : 7;
+		expect(built.closingStartBar).toBe(start);
+		expect(built.outroStartBar).toBeNull();
+		expect(built.notes).toEqual([]);
+		expect(built.phraseBars).toBe(2 * start - 1);
+		expect(built.performanceForm.choruses.map(c => [c.role, c.startBar, c.endBarExclusive]))
+			.toEqual([['solo', 0, start], ['solo', start, built.phraseBars]]);
+	});
+
 	it('takes the closing ending and pickup offset from the supplied outro chart', () => {
 		const intro = section('Intro', 1, 60);
 		const flat = flattenTune({ ...blackOrpheus, sections: [intro, section('A', 4, 62), section('First', 2, 64)] });

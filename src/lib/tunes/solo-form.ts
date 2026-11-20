@@ -1,4 +1,5 @@
 import type { FlattenedTune } from './flatten';
+import { buildPerformanceForm, type PerformanceChorus } from '$lib/audio/performance-form';
 import type { Fraction } from '$lib/types/music';
 import { addFractions, subtractFractions, compareFractions, multiplyFraction } from '$lib/music/intervals';
 
@@ -60,7 +61,7 @@ function playbackWithoutSections(flat: FlattenedTune, meter: Fraction, pickupBar
 /** Explicit solo omissions override the heuristic that interprets a closing repeat as the form. */
 export function sessionWithSoloOmissions(args: {
 	flat: FlattenedTune; timeSignature: Fraction; headBars: number; soloStart: number; playHead: boolean; playOutro?: boolean; choruses: number;
-	closingFlat: FlattenedTune; closingStart: number;
+	closingFlat?: FlattenedTune; closingStart: number;
 }) {
 	const { flat, timeSignature: meter } = args;
 	const solo = soloPlaybackFlat(flat, meter, args.soloStart);
@@ -69,8 +70,11 @@ export function sessionWithSoloOmissions(args: {
 	const sectionMap: FlattenedTune['sectionMap'] = [];
 	const noteSourceIndices: number[] = [];
 	const sessionBarMap: number[] = [];
+	const choruses: Omit<PerformanceChorus, 'index'>[] = [];
 	let phraseBars = 0;
 	function append(part: FlattenedTune, sourceBars: number[], melody: boolean) {
+		if (!part.totalBars) return;
+		choruses.push({ role: melody ? 'head' : 'solo', startBar: phraseBars, endBarExclusive: phraseBars + part.totalBars });
 		const shift = multiplyFraction(meter, phraseBars);
 		if (melody) {
 			notes.push(...part.notes.map(n => ({ ...n, offset: addFractions(n.offset, shift) })));
@@ -86,14 +90,28 @@ export function sessionWithSoloOmissions(args: {
 		append(head.flat, head.sourceBars, true);
 	}
 	const headBars = phraseBars;
-	for (let i = 0; i < args.choruses; i++) append(solo.flat, solo.sourceBars, false);
-	const { closingFlat, closingStart } = args;
-	const closing = args.playHead && args.playOutro && solo.flat.totalBars > 0
-		? playbackWithoutSections(closingFlat, meter, closingStart, closingFlat.omittedOutroSections)
+	const closingFlat = args.closingFlat ?? flat;
+	const outro = args.playHead && args.playOutro && solo.flat.totalBars > 0
+		? playbackWithoutSections(closingFlat, meter, args.closingStart, closingFlat.omittedOutroSections)
 		: null;
-	const outroStartBar = closing?.flat.totalBars ? phraseBars : null;
-	if (closing && outroStartBar !== null) append(closing.flat, closing.sourceBars, true);
+	const hasOutro = !!outro?.flat.totalBars;
+	const finalSolo = args.closingFlat && !hasOutro
+		? soloPlaybackFlat(closingFlat, meter, args.closingStart)
+		: null;
+	let closingStartBar: number | null = null;
+	for (let i = 0; i < args.choruses; i++) {
+		const closingSolo = i === args.choruses - 1 ? finalSolo : null;
+		const part = closingSolo ?? solo;
+		if (closingSolo && part.flat.totalBars) closingStartBar = phraseBars;
+		append(part.flat, part.sourceBars, false);
+	}
+	const outroStartBar = hasOutro ? phraseBars : null;
+	if (outro && outroStartBar !== null) {
+		closingStartBar = outroStartBar;
+		append(outro.flat, outro.sourceBars, true);
+	}
 	return { notes, harmony, sectionMap, phraseBars, headBars, duplicatedForm: true,
-		outroStartBar, outroSourceStartBar: closing?.sourceBars[0] ?? closingStart, closingStartBar: outroStartBar,
-		noteSourceIndices, sessionBarMap, soloBars: solo.flat.totalBars };
+		outroStartBar, outroSourceStartBar: (hasOutro ? outro : finalSolo)?.sourceBars[0] ?? args.closingStart, closingStartBar,
+		noteSourceIndices, sessionBarMap, soloBars: solo.flat.totalBars,
+		performanceForm: buildPerformanceForm({ totalBars: phraseBars, sectionMap, choruses }) };
 }

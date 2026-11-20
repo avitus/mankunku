@@ -1275,37 +1275,47 @@
 		for (let sys = 0; sys < systemBands.length; sys++) {
 			const inSystem = zones.filter((z) => z.systemIdx === sys).sort((a, b) => a.x0 - b.x0);
 			if (inSystem.length < 2) continue;
-			const [first, firstFull] = inSystem;
+			const first = inSystem[0];
 			if (!partial.has(`${first.sectionIdx}:${first.bar}`)) continue;
+			const firstFull = inSystem.find(zone => !partial.has(`${zone.sectionIdx}:${zone.bar}`)) ?? inSystem[1];
 			const wrapper = systemBands[sys].wrapper;
 			const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
 			if (!staffEl) continue;
 			const spacing = staffEl.getBBox().height / 4;
 			if (!Number.isFinite(spacing) || spacing <= 0) continue;
 			const parts = partLabelElements(wrapper);
-			// With two authored marks the first stays at the pickup. The
-			// second begins at its own full bar instead of sharing that seat.
-			const part = parts[1] ?? parts[0];
-			if (!part) continue;
-			let box: DOMRect;
-			try {
-				box = part.getBBox();
-			} catch {
-				continue;
+			// A shared pickup system can carry several authored rehearsal marks.
+			// Leave its opening mark at the clef and seat each inline mark on its bar.
+			let zoneIndex = 0;
+			for (const part of parts.length > 1 ? parts.slice(1) : parts) {
+				let anchor = firstFull;
+				if (parts.length > 1) {
+					const index = inSystem.findIndex((zone, i) => i > zoneIndex && zone.bar === 0 &&
+						sheet.sections[zone.sectionIdx].label.trim() === part.textContent?.trim());
+					if (index < 0) continue;
+					zoneIndex = index;
+					anchor = inSystem[index];
+				}
+				let box: DOMRect;
+				try {
+					box = part.getBBox();
+				} catch {
+					continue;
+				}
+				if (!Number.isFinite(box.width) || box.width <= 0) continue;
+				const prev = part.getAttribute('transform') ?? '';
+				const m = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(prev);
+				const dx0 = m ? Number.parseFloat(m[1]) : 0;
+				const dy0 = m ? Number.parseFloat(m[2]) : 0;
+				// getBBox is local: add the prior translate to get the seated x.
+				const dx = parts.length > 1 ? anchor.x0 - (box.x + dx0) : pickupPartLabelDx(
+					{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
+					firstFull.x0,
+					spacing
+				);
+				if (Math.abs(dx) < 0.01) continue;
+				part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
 			}
-			if (!Number.isFinite(box.width) || box.width <= 0) continue;
-			const prev = part.getAttribute('transform') ?? '';
-			const m = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(prev);
-			const dx0 = m ? Number.parseFloat(m[1]) : 0;
-			const dy0 = m ? Number.parseFloat(m[2]) : 0;
-			// getBBox is local: add the prior translate to get the seated x.
-			const dx = parts.length > 1 ? firstFull.x0 - (box.x + dx0) : pickupPartLabelDx(
-				{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
-				firstFull.x0,
-				spacing
-			);
-			if (Math.abs(dx) < 0.01) continue;
-			part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
 		}
 	}
 

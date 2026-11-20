@@ -1,6 +1,6 @@
 import type { Mode, Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import type { Tune } from '$lib/types/tune';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { fractionToFloat } from './intervals';
 import { concertKeyToWritten, concertToWritten, transposePitchClass } from './transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from './chord-symbol';
@@ -419,6 +419,7 @@ export function tuneToAbcWithMap(
 
 	let flattenedNoteBase = 0;
 	let previousLabel: string | null = null;
+	let lineLabelSection: TuneSection | undefined;
 	// Ending placement: [1] may flow inline; [2] always starts a fresh system
 	// with NO pad bars (alignment under [1] is post-render).
 	let endingState = initialEndingLayoutState();
@@ -617,6 +618,7 @@ export function tuneToAbcWithMap(
 			// of the section it leads INTO (NotationDisplay then nudges the box
 			// over that section's first bar).
 			const labelSection = pickupOnly && !sec.label.trim() ? sheet.sections[secIdx + 1] : sec;
+			lineLabelSection = labelSection;
 			const labelOf = labelSection?.label ?? '';
 			if (labelOf.trim() !== '') {
 				if (labelOf !== previousLabel || labelSection?.labelExplicit) {
@@ -636,7 +638,7 @@ export function tuneToAbcWithMap(
 			}
 			tokens.push(' ');
 			if (sec.label.trim() !== '') {
-				if (prevSec && isPickupOnly(secIdx - 1) && prevSec.label.trim() &&
+				if (prevSec && isPickupOnly(secIdx - 1) && sec !== lineLabelSection &&
 					(sec.label !== previousLabel || sec.labelExplicit)) tokens.push(`[P:${sec.label}]`);
 				previousLabel = sec.label;
 			}
