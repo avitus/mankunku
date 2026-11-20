@@ -6,7 +6,7 @@
  */
 
 import { getNativeAudioContext } from './audio-context';
-import { roomInputs } from './room-scoring-state';
+import { roomInputs } from './room-scoring-state.svelte';
 
 export interface OnsetDetectorHandle {
 	/** Onset timestamps relative to recording start (seconds) */

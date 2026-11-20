@@ -8,7 +8,7 @@
 
 import type { MicPermissionState } from '$lib/types/audio';
 import { initAudio } from './audio-context';
-import { releaseRoomGraph, roomCorrectionEnabled, roomStatus } from './room-scoring-state';
+import { releaseRoomGraph, roomCorrectionEnabled, roomStatus } from './room-scoring-state.svelte';
 
 export interface MicCapture {
 	stream: MediaStream;
@@ -88,14 +88,14 @@ export function stopMicCapture(): void {
 }
 
 /** Only scored practice opts into calibration. Other microphone users keep the raw graph. */
-export async function preparePracticeRoom(current: MicCapture) {
+export async function preparePracticeRoom(current: MicCapture): Promise<void> {
 	if (!roomCorrectionEnabled()) return;
 	try {
 		const { calibrateRoom } = await import('./room-calibration');
 		if (capture === current) await calibrateRoom(current);
 	} catch (error) {
 		console.warn('Speaker calibration unavailable', error);
-		if (capture === current) roomStatus.set('Room check unavailable · scoring the original microphone');
+		if (capture === current) roomStatus.text = 'Room check unavailable · scoring the original microphone';
 	}
 }
 

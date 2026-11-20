@@ -16,7 +16,7 @@
 	} from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { onMount } from 'svelte';
-	import { roomCorrectionEnabled, setRoomCorrection } from '$lib/audio/room-scoring-state';
+	import { roomCorrectionEnabled, setRoomCorrection } from '$lib/audio/room-scoring-state.svelte';
 	import { getUnlockContext } from '$lib/state/progress.svelte';
 	import {
 		concertKeyToWritten,

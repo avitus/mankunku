@@ -1,6 +1,6 @@
 import { getNativeAudioContext } from './audio-context';
 import { encodeWavMono16 } from './wav';
-import { roomInputs } from './room-scoring-state';
+import { roomInputs } from './room-scoring-state.svelte';
 
 const contexts = new WeakMap<AudioContext, AudioContext>();
 const modules = new WeakMap<AudioContext, Promise<void>>();

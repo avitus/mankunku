@@ -11,7 +11,7 @@ it('subtracts independent stereo reflections on held-out audio and preserves add
 	const rate = 12000,
 		n = rate * 5;
 	let seed = 1103;
-	const noise = () => {
+	const noise = (): number => {
 		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
 		return seed / 2147483648 - 1;
 	};
@@ -27,7 +27,7 @@ it('subtracts independent stereo reflections on held-out audio and preserves add
 	const played = Float32Array.from(left, (_, i) => 0.015 * Math.sin((2 * Math.PI * 233 * i) / rate));
 	const estimate = predictRoom(model, left, right);
 	const error = Float32Array.from(mic, (x, i) => x + played[i] - estimate[i] - played[i]);
-	const energy = (x: Float32Array) => x.slice(3.5 * rate).reduce((sum, v) => sum + v * v, 0);
+	const energy = (x: Float32Array): number => x.slice(3.5 * rate).reduce((sum, v) => sum + v * v, 0);
 	expect(energy(error) / energy(played)).toBeLessThan(0.2);
 	const independent = Float32Array.from(left, () => noise() * 0.2);
 	expect(validateRoom({ ...capture, mic: independent }, model, rate * 3.5)).toBeLessThan(3);
@@ -40,7 +40,11 @@ it('subtracts independent stereo reflections on held-out audio and preserves add
 			accepted: true
 		});
 		// Use another room for the held-out half. A good first-half fit must not enable subtraction.
-		shifted.set(independent.subarray(n / 2), n / 2);
-		expect(checkRoomTiming({ ...capture, mic: shifted }, model)?.accepted).toBe(false);
+		const heldOutStart = Math.floor((model.left.length + n) / 2);
+		shifted.set(independent.subarray(heldOutStart), heldOutStart);
+		expect(checkRoomTiming({ ...capture, mic: shifted }, model)).toMatchObject({
+			offset: shift,
+			accepted: false
+		});
 	}
 });

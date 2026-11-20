@@ -14,11 +14,19 @@ export interface RoomFilter {
 	right: Float32Array<ArrayBuffer>;
 }
 
-const powerOfTwo = (length: number) => 2 ** Math.ceil(Math.log2(length));
-const complex = (fft: FFT) => new Float64Array(2 * fft.size);
+/** Alignment and level fitted in Listen, with independent validation of the predicted reduction. */
+export interface RoomTimingCheck {
+	offset: number;
+	gain: number;
+	reduction: number;
+	accepted: boolean;
+}
+
+const powerOfTwo = (length: number): number => 2 ** Math.ceil(Math.log2(length));
+const complex = (fft: FFT): Float64Array<ArrayBuffer> => new Float64Array(2 * fft.size);
 
 /** Zero-pad real samples and return the full complex spectrum for correlation or convolution. */
-function spectrum(fft: FFT, samples: ArrayLike<number>) {
+function spectrum(fft: FFT, samples: ArrayLike<number>): Float64Array<ArrayBuffer> {
 	const padded = new Float64Array(fft.size);
 	padded.set(samples);
 	const out = complex(fft);
@@ -28,14 +36,14 @@ function spectrum(fft: FFT, samples: ArrayLike<number>) {
 }
 
 /** Convert a conjugate-symmetric spectrum back to real audio samples. */
-function inverse(fft: FFT, bins: Float64Array) {
+function inverse(fft: FFT, bins: Float64Array): Float32Array<ArrayBuffer> {
 	const out = complex(fft);
 	fft.inverseTransform(out, bins);
 	return Float32Array.from({ length: fft.size }, (_, i) => out[2 * i]);
 }
 
 /** PHAT correlation locates the direct arrival even with coloured calibration music. */
-function arrival(samples: RoomSamples, end: number) {
+function arrival(samples: RoomSamples, end: number): number {
 	const { rate, left, right, mic } = samples;
 	const fft = new FFT(powerOfTwo(end * 2));
 	const reference = spectrum(
@@ -81,7 +89,7 @@ export function fitRoom(samples: RoomSamples, trainEnd: number): RoomFilter {
 	const lr = complex(fft),
 		lm = complex(fft),
 		rm = complex(fft);
-	function transform(channel: Float32Array, at: number, bins: Float64Array) {
+	function transform(channel: Float32Array, at: number, bins: Float64Array): void {
 		for (let i = 0; i < fft.size; i++) frame[i] = channel[at + i] * taper[i];
 		fft.realTransform(bins, frame);
 	}
@@ -124,7 +132,7 @@ export function fitRoom(samples: RoomSamples, trainEnd: number): RoomFilter {
 		r[j] = (a * rm[j] - b * lm[j] - c * lm[j + 1]) / det;
 		r[j + 1] = (a * rm[j + 1] - b * lm[j + 1] + c * lm[j]) / det;
 	}
-	function impulse(bins: Float64Array) {
+	function impulse(bins: Float64Array): Float32Array<ArrayBuffer> {
 		fft.completeSpectrum(bins);
 		const h = inverse(fft, bins),
 			length = Math.round(rate * 0.12);
@@ -137,7 +145,11 @@ export function fitRoom(samples: RoomSamples, trainEnd: number): RoomFilter {
 }
 
 /** Linear convolution for validation. The active scoring graph uses native ConvolverNodes. */
-export function predictRoom(filter: RoomFilter, left: Float32Array, right: Float32Array) {
+export function predictRoom(
+	filter: RoomFilter,
+	left: Float32Array,
+	right: Float32Array
+): Float32Array<ArrayBuffer> {
 	const fft = new FFT(powerOfTwo(left.length + filter.left.length));
 	const sum = complex(fft);
 	for (const [input, impulse] of [
@@ -155,7 +167,12 @@ export function predictRoom(filter: RoomFilter, left: Float32Array, right: Float
 }
 
 /** Difference in microphone energy in dB after subtracting the prediction over a quiet interval. */
-export function roomReduction(mic: Float32Array, prediction: Float32Array, start: number, end: number) {
+export function roomReduction(
+	mic: Float32Array,
+	prediction: Float32Array,
+	start: number,
+	end: number
+): number {
 	let before = 0,
 		after = 0;
 	for (let i = start; i < end; i++) {
@@ -166,7 +183,7 @@ export function roomReduction(mic: Float32Array, prediction: Float32Array, start
 }
 
 /** Report the weaker result from the two independently held-out calibration windows. */
-export function validateRoom(samples: RoomSamples, filter: RoomFilter, start: number) {
+export function validateRoom(samples: RoomSamples, filter: RoomFilter, start: number): number {
 	const prediction = predictRoom(filter, samples.left, samples.right);
 	const middle = Math.floor((start + samples.mic.length) / 2);
 	return Math.min(
@@ -177,7 +194,7 @@ export function validateRoom(samples: RoomSamples, filter: RoomFilter, start: nu
 
 /** Align a frozen prediction on quiet Listen audio. Only the first half chooses
  * the delay. An independent second half must also benefit from subtraction. */
-export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter) {
+export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomTimingCheck | null {
 	const predicted = predictRoom(filter, samples.left, samples.right);
 	const start = filter.left.length;
 	const middle = Math.floor((start + predicted.length) / 2);

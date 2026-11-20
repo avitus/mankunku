@@ -1,8 +1,6 @@
-import { writable } from 'svelte/store';
-
 const key = 'mankunku.speaker-room-correction.v1';
 let temporaryPreference: boolean | undefined;
-export const roomStatus = writable('');
+export const roomStatus = $state({ text: '' });
 /** Read the preference for this browser and its audio setup. */
 export function roomCorrectionEnabled(): boolean {
 	if (temporaryPreference !== undefined) return temporaryPreference;
@@ -13,7 +11,7 @@ export function roomCorrectionEnabled(): boolean {
 	}
 }
 /** When storage is restricted, keep the switch usable for this page session. */
-export function setRoomCorrection(enabled: boolean) {
+export function setRoomCorrection(enabled: boolean): void {
 	try {
 		if (enabled) localStorage.setItem(key, 'on');
 		else localStorage.removeItem(key);
@@ -27,18 +25,18 @@ export function setRoomCorrection(enabled: boolean) {
 export const roomInputs = new WeakMap<MediaStreamAudioSourceNode, AudioNode>();
 export const roomChecks = new WeakMap<
 	MediaStreamAudioSourceNode,
-	(start: number, seconds: number) => void
+	{ measure: (start: number, seconds: number) => Promise<void>; cancel: () => void }
 >();
 const cleanups = new WeakMap<MediaStreamAudioSourceNode, () => void>();
 /** Bind teardown to the same microphone track and clock as calibration. */
-export function ownRoomGraph(source: MediaStreamAudioSourceNode, dispose: () => void) {
+export function ownRoomGraph(source: MediaStreamAudioSourceNode, dispose: () => void): void {
 	cleanups.set(source, dispose);
 }
 /** Stop measurements and detach the reference taps when the microphone closes. */
-export function releaseRoomGraph(source: MediaStreamAudioSourceNode) {
+export function releaseRoomGraph(source: MediaStreamAudioSourceNode): void {
 	cleanups.get(source)?.();
 	cleanups.delete(source);
 	roomInputs.delete(source);
 	roomChecks.delete(source);
-	roomStatus.set('');
+	roomStatus.text = '';
 }

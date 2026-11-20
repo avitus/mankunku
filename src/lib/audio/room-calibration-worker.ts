@@ -6,7 +6,7 @@ import {
 	type RoomSamples
 } from './room-filter';
 
-self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter }>) => {
+self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter }>): void => {
 	try {
 		if (data.filter) {
 			self.postMessage({ check: checkRoomTiming(data, data.filter) });

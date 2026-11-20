@@ -24,79 +24,85 @@ for (const mode of ['ear-training', 'lick-practice'])
 			});
 		}
 		await stubCdnInstrumentSamples(page);
-		await page.addInitScript(() => {
-			// A tapped speaker bus drives two different physical paths into the same mic.
-			let master: GainNode;
-			let physicalMaster: GainNode;
-			let speakerPaths: ChannelSplitterNode | undefined;
-			const original = AudioNode.prototype.connect;
-			AudioNode.prototype.connect = function (
-				this: AudioNode,
-				to: AudioNode | AudioParam,
-				...args: number[]
-			) {
-				if (!speakerPaths && this instanceof GainNode && to instanceof AudioDestinationNode)
-					master = this;
-				// SAC can install its own silent gains at the destination. Tap the actual
-				// output where the stereo calibration signal joins the listening mixer.
-				if (
-					speakerPaths &&
-					this instanceof AudioBufferSourceNode &&
-					this.buffer?.numberOfChannels === 2 &&
-					to instanceof GainNode
+		await page.addInitScript(
+			(channels) => {
+				// A tapped speaker bus drives two different physical paths into the same mic.
+				let master: GainNode;
+				let physicalMaster: GainNode;
+				let speakerPaths: GainNode | undefined;
+				const original = AudioNode.prototype.connect;
+				AudioNode.prototype.connect = function (
+					this: AudioNode,
+					to: AudioNode | AudioParam,
+					...args: number[]
 				) {
-					physicalMaster = to;
-					physicalMaster.connect(speakerPaths);
-					speakerPaths = undefined;
-				}
-				return (original as (...args: unknown[]) => AudioNode).call(this, to, ...args);
-			} as typeof original;
-			MediaDevices.prototype.getUserMedia = async () => {
-				const ctx = master.context as AudioContext;
-				const dest = ctx.createMediaStreamDestination();
-				const split = ctx.createChannelSplitter(2);
-				speakerPaths = split;
-				for (const [ch, time] of [0.045, 0.073].entries()) {
-					const delay = ctx.createDelay();
-					delay.delayTime.value = time;
-					const gain = ctx.createGain();
-					gain.gain.value = 0.35;
-					split.connect(delay, ch);
-					delay.connect(gain);
-					gain.connect(dest);
-				}
-				const controls = window as unknown as { startBand: () => void; playNote: () => void };
-				function tone(hz: number, destination: AudioNode) {
-					const osc = ctx.createOscillator(),
-						gain = ctx.createGain();
-					osc.frequency.value = hz;
-					gain.gain.value = 0.12;
-					osc.connect(gain);
-					gain.connect(destination);
-					osc.start();
-				}
-				controls.startBand = () => {
-					// Give the Listen check both timing information and a measurable backing pitch.
-					const noise = ctx.createBuffer(2, ctx.sampleRate, ctx.sampleRate);
-					let seed = 14893;
-					for (let ch = 0; ch < 2; ch++) {
-						const samples = noise.getChannelData(ch);
-						for (let i = 0; i < samples.length; i++) {
-							seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-							samples[i] = 0.075 * (seed / 2147483648 - 1);
-						}
+					if (!speakerPaths && this instanceof GainNode && to instanceof AudioDestinationNode)
+						master = this;
+					// SAC can install its own silent gains at the destination. Tap the actual
+					// output where the stereo calibration signal joins the listening mixer.
+					if (
+						speakerPaths &&
+						this instanceof AudioBufferSourceNode &&
+						this.buffer?.numberOfChannels === 2 &&
+						to instanceof GainNode
+					) {
+						physicalMaster = to;
+						physicalMaster.connect(speakerPaths);
+						speakerPaths = undefined;
 					}
-					const source = ctx.createBufferSource();
-					source.buffer = noise;
-					source.loop = true;
-					source.connect(physicalMaster);
-					source.start();
-					tone(173, physicalMaster);
+					return (original as (...args: unknown[]) => AudioNode).call(this, to, ...args);
+				} as typeof original;
+				MediaDevices.prototype.getUserMedia = async () => {
+					const ctx = master.context as AudioContext;
+					const dest = ctx.createMediaStreamDestination();
+					const split = ctx.createChannelSplitter(2);
+					speakerPaths = ctx.createGain();
+					speakerPaths.channelCountMode = 'explicit';
+					speakerPaths.channelCount = 2;
+					speakerPaths.connect(split);
+					for (const [ch, time] of [0.045, 0.073].entries()) {
+						const delay = ctx.createDelay();
+						delay.delayTime.value = time;
+						const gain = ctx.createGain();
+						gain.gain.value = 0.35;
+						split.connect(delay, ch);
+						delay.connect(gain);
+						gain.connect(dest);
+					}
+					const controls = window as unknown as { startBand: () => void; playNote: () => void };
+					function tone(hz: number, destination: AudioNode) {
+						const osc = ctx.createOscillator(),
+							gain = ctx.createGain();
+						osc.frequency.value = hz;
+						gain.gain.value = 0.12;
+						osc.connect(gain);
+						gain.connect(destination);
+						osc.start();
+					}
+					controls.startBand = () => {
+						// Give the Listen check both timing information and a measurable backing pitch.
+						const noise = ctx.createBuffer(channels, ctx.sampleRate, ctx.sampleRate);
+						let seed = 14893;
+						for (let ch = 0; ch < channels; ch++) {
+							const samples = noise.getChannelData(ch);
+							for (let i = 0; i < samples.length; i++) {
+								seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+								samples[i] = 0.075 * (seed / 2147483648 - 1);
+							}
+						}
+						const source = ctx.createBufferSource();
+						source.buffer = noise;
+						source.loop = true;
+						source.connect(physicalMaster);
+						source.start();
+						tone(173, physicalMaster);
+					};
+					controls.playNote = () => tone(440, dest);
+					return dest.stream;
 				};
-				controls.playNote = () => tone(440, dest);
-				return dest.stream;
-			};
-		});
+			},
+			mode === 'ear-training' ? 1 : 2
+		);
 		await page.goto('/settings');
 		await page.getByRole('switch', { name: 'Speaker bleed reduction' }).click();
 		await page.goto('/' + mode);
@@ -173,21 +179,50 @@ for (const mode of ['ear-training', 'lick-practice'])
 		}
 	});
 
-test('an unrelated microphone signal during calibration keeps original scoring available', async ({
-	page,
-	browserName
-}) => {
-	test.setTimeout(90_000);
-	test.skip(browserName !== 'chromium', 'Uses native microphone recording in Chromium');
-	await seedOnboardedAnonymous(page);
-	await installAudioMock(page, { recordLiveGraph: true });
-	await stubCdnInstrumentSamples(page);
-	await page.goto('/settings');
-	await page.getByRole('switch', { name: 'Speaker bleed reduction' }).click();
-	await page.goto('/ear-training');
-	await page.locator('[data-tour="play-button"]').click();
-	await expect(page.getByText('Room check did not pass · scoring the original microphone')).toBeVisible({
-		timeout: 20_000
+for (const failure of ['unrelated microphone', 'stalled worklet'])
+	test(`${failure}: can pause calibration, retry and score the original microphone`, async ({
+		page,
+		browserName
+	}) => {
+		test.setTimeout(90_000);
+		test.skip(browserName !== 'chromium', 'Uses native microphone recording in Chromium');
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page, { recordLiveGraph: true, trackMicrophoneStreams: true });
+		if (failure === 'stalled worklet') {
+			await page.addInitScript(() => {
+				const addModule = AudioWorklet.prototype.addModule;
+				AudioWorklet.prototype.addModule = function (url, options) {
+					const address = String(url);
+					const comma = address.indexOf(',');
+					const source = address.startsWith('data:')
+						? address.slice(0, comma).includes(';base64')
+							? atob(address.slice(comma + 1))
+							: decodeURIComponent(address.slice(comma + 1))
+						: address;
+					if (source.includes('room-calibration')) return new Promise<void>(() => {});
+					return addModule.call(this, url, options);
+				};
+			});
+		}
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/settings');
+		await page.getByRole('switch', { name: 'Speaker bleed reduction' }).click();
+		await page.goto('/ear-training');
+		await page.locator('[data-tour="play-button"]').click();
+		await expect(page.getByText('Calibrating speakers · stay quiet for six seconds')).toBeVisible();
+		await page.getByRole('button', { name: 'Pause practice' }).click();
+		await expect
+			.poll(() =>
+				page.evaluate(
+					() =>
+						(window as unknown as { __mockMicTracks: MediaStreamTrack[] }).__mockMicTracks[0]?.readyState
+				)
+			)
+			.toBe('ended');
+		await page.getByRole('button', { name: 'Start practice' }).click();
+		const status = failure === 'stalled worklet' ? 'Room check unavailable' : 'Room check did not pass';
+		await expect(page.getByText(status + ' · scoring the original microphone')).toBeVisible({
+			timeout: 20_000
+		});
+		await expect(page.getByText('Last take', { exact: true })).toBeVisible({ timeout: 45_000 });
 	});
-	await expect(page.getByText('Last take', { exact: true })).toBeVisible({ timeout: 45_000 });
-});

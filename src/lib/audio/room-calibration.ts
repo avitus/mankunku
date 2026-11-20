@@ -1,7 +1,7 @@
 import type { MicCapture } from './capture';
 import { getMasterGain, getNativeAudioContext } from './audio-context';
-import { ownRoomGraph, roomChecks, roomInputs, roomStatus } from './room-scoring-state';
-import type { RoomFilter, checkRoomTiming } from './room-filter';
+import { ownRoomGraph, roomChecks, roomInputs, roomStatus } from './room-scoring-state.svelte';
+import type { RoomFilter, RoomTimingCheck } from './room-filter';
 
 const modules = new WeakMap<AudioContext, Promise<void>>();
 const duration = 5.6;
@@ -11,11 +11,11 @@ const rejected = 'Room check did not pass · scoring the original microphone';
 
 interface Measurement {
 	filter?: RoomFilter;
-	check?: ReturnType<typeof checkRoomTiming>;
+	check?: RoomTimingCheck | null;
 }
 
 /** Low-level, decorrelated stereo calibration noise, ramped at both ends. */
-function probe(ctx: AudioContext) {
+function probe(ctx: AudioContext): AudioBuffer {
 	const buffer = ctx.createBuffer(2, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
 	for (let channel = 0; channel < 2; channel++) {
 		const samples = buffer.getChannelData(channel);
@@ -34,6 +34,34 @@ function probe(ctx: AudioContext) {
 		}
 	}
 	return buffer;
+}
+
+/** Stop waiting for a worklet whose download stalls, including on route teardown. */
+async function loadCaptureModule(ctx: AudioContext, signal: AbortSignal): Promise<void> {
+	signal.throwIfAborted();
+	let loading = modules.get(ctx);
+	if (!loading) {
+		loading = ctx.audioWorklet.addModule(new URL('./room-calibration-worklet.js', import.meta.url));
+		modules.set(ctx, loading);
+	}
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let interrupt: (() => void) | undefined;
+	try {
+		await Promise.race([
+			loading,
+			new Promise<never>((_, reject) => {
+				interrupt = () => reject(new Error('Room module load cancelled'));
+				signal.addEventListener('abort', interrupt, { once: true });
+				timer = setTimeout(() => reject(new Error('Room module load timed out')), 5000);
+			})
+		]);
+	} catch (error) {
+		if (modules.get(ctx) === loading) modules.delete(ctx);
+		throw error;
+	} finally {
+		clearTimeout(timer);
+		if (interrupt) signal.removeEventListener('abort', interrupt);
+	}
 }
 
 /** Collect both speakers and the microphone over one exact audio-clock interval. */
@@ -120,36 +148,41 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 		!ctx.audioWorklet ||
 		ctx.sampleRate > 96000
 	) {
-		roomStatus.set(fallback);
+		roomStatus.text = fallback;
 		return;
 	}
 	const wrapped = getMasterGain() as GainNode & { _nativeAudioNode?: GainNode };
 	const master = wrapped._nativeAudioNode ?? wrapped;
+	// Speaker upmix duplicates a mono program into L and R. Use this exact
+	// two-channel reference for both the worklet and the native convolvers.
+	const reference = ctx.createGain();
+	reference.channelCountMode = 'explicit';
+	reference.channelCount = 2;
+	reference.channelInterpretation = 'speakers';
 	const micSource = ctx.createMediaStreamSource(stream);
 	const mic = ctx.createGain();
 	mic.channelCount = 1;
 	mic.channelCountMode = 'explicit';
 	micSource.connect(mic);
 	const life = new AbortController();
-	const nodes: AudioNode[] = [micSource, mic];
+	const nodes: AudioNode[] = [micSource, mic, reference];
 	let listen: AbortController | undefined;
 	let sound: AudioBufferSourceNode | undefined;
 	let inverse: GainNode | undefined;
-	let splitter: ChannelSplitterNode | undefined;
 	let expiry: ReturnType<typeof setTimeout> | undefined;
 
 	/** Mute the predicted echo immediately while preserving the microphone path. */
-	function bypass(status: string) {
+	function bypass(status: string): void {
 		clearTimeout(expiry);
 		if (inverse) inverse.gain.value = 0;
-		roomStatus.set(status);
+		roomStatus.text = status;
 	}
-	function invalidate() {
+	function invalidate(): void {
 		life.abort();
 		listen?.abort();
 		bypass(fallback);
 	}
-	const stateChanged = () => {
+	const stateChanged = (): void => {
 		if (ctx.state !== 'running') invalidate();
 	};
 	const options = { signal: life.signal };
@@ -158,36 +191,25 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 	ctx.addEventListener('statechange', stateChanged, options);
 	ctx.addEventListener('sinkchange', invalidate, options);
 	navigator.mediaDevices.addEventListener('devicechange', invalidate, options);
-	function dispose() {
+	function dispose(): void {
 		life.abort();
 		listen?.abort();
 		clearTimeout(expiry);
 		sound?.disconnect();
-		if (splitter) {
-			try {
-				master.disconnect(splitter);
-			} catch {
-				/* partially installed */
-			}
+		try {
+			master.disconnect(reference);
+		} catch {
+			/* partially installed or already disposed */
 		}
 		for (const node of nodes) node.disconnect();
 		capture.analyser = analyser;
 	}
 	ownRoomGraph(source, dispose);
 	try {
-		roomStatus.set('Calibrating speakers · stay quiet for six seconds');
-		let loading = modules.get(ctx);
-		if (!loading) {
-			loading = ctx.audioWorklet
-				.addModule(new URL('./room-calibration-worklet.js', import.meta.url))
-				.catch((error) => {
-					modules.delete(ctx);
-					throw error;
-				});
-			modules.set(ctx, loading);
-		}
-		await loading;
+		roomStatus.text = 'Calibrating speakers · stay quiet for six seconds';
+		await loadCaptureModule(ctx, life.signal);
 		life.signal.throwIfAborted();
+		master.connect(reference);
 		const buffer = probe(ctx);
 		sound = ctx.createBufferSource();
 		sound.buffer = buffer;
@@ -197,7 +219,7 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 		const { filter } = await measure(
 			ctx,
 			mic,
-			master,
+			reference,
 			start,
 			buffer.length,
 			ctx.currentTime + 15,
@@ -212,7 +234,7 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 		const output = ctx.createGain();
 		output.channelCountMode = 'explicit';
 		output.channelCount = 1;
-		splitter = ctx.createChannelSplitter(2);
+		const splitter = ctx.createChannelSplitter(2);
 		inverse = ctx.createGain();
 		inverse.gain.value = 0;
 		const delay = ctx.createDelay(1);
@@ -238,22 +260,22 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 			convolution.connect(delay);
 		}
 		delay.connect(inverse);
-		master.connect(splitter);
+		reference.connect(splitter);
 		mic.connect(output);
 		inverse.connect(output);
 		output.connect(pitch);
 		capture.analyser = pitch;
 		roomInputs.set(source, output);
 
-		function enable(gain: number) {
+		function enable(gain: number): void {
 			clearTimeout(expiry);
 			inverse!.gain.value = -gain;
-			roomStatus.set(active);
+			roomStatus.text = active;
 			expiry = setTimeout(() => bypass('Room check expired · scoring the original microphone'), 300_000);
 		}
 		enable(1);
 
-		roomChecks.set(source, async (startTime, seconds) => {
+		async function verifyListen(startTime: number, seconds: number): Promise<void> {
 			listen?.abort();
 			if (life.signal.aborted || seconds < 1.8) return;
 			const current = new AbortController();
@@ -269,7 +291,7 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 				const { check } = await measure(
 					ctx,
 					mic,
-					master,
+					reference,
 					start,
 					frames,
 					deadline,
@@ -286,7 +308,8 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 			} catch {
 				if (!current.signal.aborted) bypass(fallback);
 			}
-		});
+		}
+		roomChecks.set(source, { measure: verifyListen, cancel: () => listen?.abort() });
 	} catch (error) {
 		if (!life.signal.aborted) {
 			console.warn('Speaker room check unavailable', error);

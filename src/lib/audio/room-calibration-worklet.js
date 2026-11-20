@@ -12,7 +12,7 @@ class RoomCalibrationCapture extends AudioWorkletProcessor {
 		const from = Math.max(0, this.start - currentFrame);
 		const to = Math.min(n, this.start + this.frames - currentFrame);
 		if (to > from) {
-			const sources = [inputs[0][0], inputs[1][0], inputs[1][1] ?? inputs[1][0]];
+			const sources = [inputs[0][0], inputs[1][0], inputs[1][1]];
 			for (let i = 0; i < 3; i++) {
 				if (sources[i])
 					this.channels[i].set(sources[i].subarray(from, to), currentFrame + from - this.start);
