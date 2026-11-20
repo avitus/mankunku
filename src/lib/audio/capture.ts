@@ -47,7 +47,14 @@ export async function checkMicPermission(): Promise<MicPermissionState> {
 export async function startMicCapture(): Promise<MicCapture> {
 	if (capture) return capture;
 
+	capture = await openMicrophone();
+	return capture;
+}
+
+/** Open an independent microphone graph, owned by its caller. */
+export async function openMicrophone(signal?: AbortSignal): Promise<MicCapture> {
 	const audioCtx = await initAudio();
+	signal?.throwIfAborted();
 
 	const stream = await navigator.mediaDevices.getUserMedia({
 		audio: {
@@ -57,20 +64,18 @@ export async function startMicCapture(): Promise<MicCapture> {
 		}
 	});
 
-	const source = audioCtx.createMediaStreamSource(stream);
-
-	// AnalyserNode for pitch detection (time-domain data)
-	// Use factory method — Tone.js v15 returns a standardized-audio-context
-	// wrapper, not a native AudioContext, so the AnalyserNode constructor rejects it.
-	const analyser = audioCtx.createAnalyser();
-	analyser.fftSize = 4096;
-	analyser.smoothingTimeConstant = 0;
-
-	source.connect(analyser);
-	// Deliberately NOT connecting to destination — no feedback loop
-
-	capture = { stream, source, analyser, context: audioCtx };
-	return capture;
+	try {
+		signal?.throwIfAborted();
+		const source = audioCtx.createMediaStreamSource(stream);
+		const analyser = audioCtx.createAnalyser();
+		analyser.fftSize = 4096;
+		analyser.smoothingTimeConstant = 0;
+		source.connect(analyser);
+		return { stream, source, analyser, context: audioCtx };
+	} catch (error) {
+		for (const track of stream.getTracks()) track.stop();
+		throw error;
+	}
 }
 
 /**
@@ -88,8 +93,8 @@ export function stopMicCapture(): void {
 }
 
 /** Only scored practice opts into calibration. Other microphone users keep the raw graph. */
-export async function preparePracticeRoom(current: MicCapture): Promise<void> {
-	if (!roomCorrectionEnabled()) return;
+export async function preparePracticeRoom(current: MicCapture, backing = false): Promise<void> {
+	if (!roomCorrectionEnabled(backing)) return;
 	try {
 		const { calibrateRoom } = await import('./room-calibration');
 		if (capture === current) await calibrateRoom(current);

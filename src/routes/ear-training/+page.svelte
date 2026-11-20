@@ -353,7 +353,7 @@
 				micCapture = null;
 				return false;
 			}
-			await captureModule.preparePracticeRoom(micCapture);
+			await captureModule.preparePracticeRoom(micCapture, settings.backingTrackEnabled);
 			if (!currentRun(generation) || !micCapture) return false;
 			await prepareScoringCapture(micCapture.context, signal).catch(error => {
 				if (signal.aborted) return;
