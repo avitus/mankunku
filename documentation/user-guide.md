@@ -322,6 +322,7 @@ The global Settings page controls things that aren't specific to a single sessio
 | **Highest** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
 | **Master** | Listening level for music, clicks, count-ins and recorded playback. It does not change the balance saved in a recording. |
 | **Melody** | The played example or tune head relative to the band. Saved on this device; changing it does not alter an existing recording. |
+| **Speaker bleed reduction** | Turn this on for Ear Training or Lick Practice through speakers. Stay quiet for the six-second speaker check at the start of practice. An accepted check lets Mankunku subtract the speaker sound from the microphone used for scoring. You still hear your original mixed recording on playback. The switch is saved on this device. |
 | **Theme** | Dark (default) or light. |
 | **Key Center** / **Scale Type** | Override the daily tonality, or leave it alone. Locked keys and scales are visible but disabled with their unlock requirement in a tooltip; a **Reset to daily** link appears once you've overridden. |
 | **Tempo** | 60–200 BPM. Ear Training's tempo. Tune practice's Tempo knob and the tune desk start here only for a tune you haven't set a tempo for — each tune remembers its own. It's also the tempo the play buttons on your lick pages use. |
