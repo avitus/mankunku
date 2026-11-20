@@ -45,6 +45,20 @@ describe('explicit material omitted from solo choruses', () => {
 		expect(flattenTune(tune).omittedOutroSections).toEqual([0, 1, 2, 3]);
 	});
 
+	it.each([0, undefined])('keeps a repeated form within its pass boundaries (closing pickup=%s)', closingPickupBars => {
+		const tune = { ...blackOrpheus, sections: [
+			section('Intro', 2, 60), section('A', 4, 62, { repeatStart: true, repeatEnd: true })
+		] };
+		const flat = flattenTune(tune, { expandRepeats: true });
+		const session = buildSessionPhrase({ flat, closingFlat: flattenTune(tune), closingPickupBars,
+			timeSignature: [4, 4], playHead: true, playOutro: true, choruses: 1 });
+		expect(session.headBars).toBe(6);
+		expect(session.soloBars).toBe(4);
+		expect(session.outroStartBar).toBe(10);
+		expect(session.phraseBars).toBe(14);
+		expect(session.notes.map(n => n.pitch)).toEqual([60, 62, 62]);
+	});
+
 	it('takes the closing ending and pickup offset from the supplied outro chart', () => {
 		const intro = section('Intro', 1, 60);
 		const flat = flattenTune({ ...blackOrpheus, sections: [intro, section('A', 4, 62), section('First', 2, 64)] });

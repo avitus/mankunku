@@ -36,3 +36,16 @@ test('All the Things You Are repeat boundaries', async ({ page }, info) => {
 		}
 	}
 });
+
+test('a labelled pickup and its following section keep separate marks on the same system', async ({ page }) => {
+	const tune = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
+	tune.sections[0].label = 'Intro';
+	tune.sections[1].label = 'A';
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [{ ...tune, id: 'two-pickup-marks', source: 'user' }]);
+	await page.goto('/tunes/two-pickup-marks');
+	const marks = page.locator('.abcjs-staff-wrapper').first().locator('g.abcjs-part');
+	await expect(marks).toHaveText(['Intro', 'A']);
+	await expect.poll(() => marks.evaluateAll(([intro, a]) =>
+		a.getBoundingClientRect().left - intro.getBoundingClientRect().right)).toBeGreaterThan(0);
+});

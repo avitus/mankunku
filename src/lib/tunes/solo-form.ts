@@ -59,11 +59,11 @@ function playbackWithoutSections(flat: FlattenedTune, meter: Fraction, pickupBar
 
 /** Explicit solo omissions override the heuristic that interprets a closing repeat as the form. */
 export function sessionWithSoloOmissions(args: {
-	flat: FlattenedTune; timeSignature: Fraction; pickupBars?: number; playHead: boolean; playOutro?: boolean; choruses: number;
-	closingFlat?: FlattenedTune; closingPickupBars?: number;
+	flat: FlattenedTune; timeSignature: Fraction; headBars: number; soloStart: number; playHead: boolean; playOutro?: boolean; choruses: number;
+	closingFlat: FlattenedTune; closingStart: number;
 }) {
 	const { flat, timeSignature: meter } = args;
-	const solo = soloPlaybackFlat(flat, meter, args.pickupBars ?? 0);
+	const solo = soloPlaybackFlat(flat, meter, args.soloStart);
 	const notes: FlattenedTune['notes'] = [];
 	const harmony: FlattenedTune['harmony'] = [];
 	const sectionMap: FlattenedTune['sectionMap'] = [];
@@ -81,17 +81,19 @@ export function sessionWithSoloOmissions(args: {
 		sessionBarMap.push(...sourceBars);
 		phraseBars += part.totalBars;
 	}
-	if (args.playHead) append(flat, Array.from({ length: flat.totalBars }, (_, i) => i), true);
+	if (args.playHead) {
+		const head = takeRanges(flat, meter, [{ start: 0, end: args.headBars }]);
+		append(head.flat, head.sourceBars, true);
+	}
 	const headBars = phraseBars;
 	for (let i = 0; i < args.choruses; i++) append(solo.flat, solo.sourceBars, false);
-	const closingFlat = args.closingFlat ?? flat;
-	const closingPickup = args.closingFlat ? (args.closingPickupBars ?? 0) : (args.pickupBars ?? 0);
+	const { closingFlat, closingStart } = args;
 	const closing = args.playHead && args.playOutro && solo.flat.totalBars > 0
-		? playbackWithoutSections(closingFlat, meter, closingPickup, closingFlat.omittedOutroSections)
+		? playbackWithoutSections(closingFlat, meter, closingStart, closingFlat.omittedOutroSections)
 		: null;
 	const outroStartBar = closing?.flat.totalBars ? phraseBars : null;
 	if (closing && outroStartBar !== null) append(closing.flat, closing.sourceBars, true);
 	return { notes, harmony, sectionMap, phraseBars, headBars, duplicatedForm: true,
-		outroStartBar, outroSourceStartBar: closing?.sourceBars[0] ?? closingPickup, closingStartBar: outroStartBar,
+		outroStartBar, outroSourceStartBar: closing?.sourceBars[0] ?? closingStart, closingStartBar: outroStartBar,
 		noteSourceIndices, sessionBarMap, soloBars: solo.flat.totalBars };
 }

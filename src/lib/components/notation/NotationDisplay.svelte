@@ -922,12 +922,15 @@
 				height: (band.staffBottom - band.staffTop) / vb.height * 100 }];
 			});
 			const svgBox = svg.getBoundingClientRect();
+			const placedParts = new Set<SVGGraphicsElement>();
 			labelMarks = sectionLabels(sheet).flatMap(mark => {
 				const zone = lastBarZones.find(z => bases[z.sectionIdx] + z.bar === mark.bar);
 				if (!zone) return [];
 				const band = systemBands[zone.systemIdx];
 				if (!band) return [];
-				const part = partLabelElements(band.wrapper)[0]?.getBoundingClientRect();
+				const element = partLabelElements(band.wrapper).find(el => !placedParts.has(el) && el.textContent?.trim() === mark.label);
+				if (element) placedParts.add(element);
+				const part = element?.getBoundingClientRect();
 				return [{ ...mark, x: part ? (part.left - svgBox.left) / svgBox.width * 100 : zone.x0 / vb.width * 100,
 					y: part ? (part.top - svgBox.top) / svgBox.height * 100 : Math.max(0, band.top - 20) / vb.height * 100 }];
 			});
@@ -1279,27 +1282,30 @@
 			if (!staffEl) continue;
 			const spacing = staffEl.getBBox().height / 4;
 			if (!Number.isFinite(spacing) || spacing <= 0) continue;
-			for (const part of partLabelElements(wrapper)) {
-				let box: DOMRect;
-				try {
-					box = part.getBBox();
-				} catch {
-					continue;
-				}
-				if (!Number.isFinite(box.width) || box.width <= 0) continue;
-				const prev = part.getAttribute('transform') ?? '';
-				const m = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(prev);
-				const dx0 = m ? Number.parseFloat(m[1]) : 0;
-				const dy0 = m ? Number.parseFloat(m[2]) : 0;
-				// getBBox is local: add the prior translate to get the seated x.
-				const dx = pickupPartLabelDx(
-					{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
-					firstFull.x0,
-					spacing
-				);
-				if (Math.abs(dx) < 0.01) continue;
-				part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
+			const parts = partLabelElements(wrapper);
+			// With two authored marks the first stays at the pickup. The
+			// second begins at its own full bar instead of sharing that seat.
+			const part = parts[1] ?? parts[0];
+			if (!part) continue;
+			let box: DOMRect;
+			try {
+				box = part.getBBox();
+			} catch {
+				continue;
 			}
+			if (!Number.isFinite(box.width) || box.width <= 0) continue;
+			const prev = part.getAttribute('transform') ?? '';
+			const m = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(prev);
+			const dx0 = m ? Number.parseFloat(m[1]) : 0;
+			const dy0 = m ? Number.parseFloat(m[2]) : 0;
+			// getBBox is local: add the prior translate to get the seated x.
+			const dx = parts.length > 1 ? firstFull.x0 - (box.x + dx0) : pickupPartLabelDx(
+				{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
+				firstFull.x0,
+				spacing
+			);
+			if (Math.abs(dx) < 0.01) continue;
+			part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
 		}
 	}
 

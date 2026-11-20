@@ -635,7 +635,11 @@ export function tuneToAbcWithMap(
 				if (secIdx === 1) tokens.push('[I:setbarnb 1]');
 			}
 			tokens.push(' ');
-			if (sec.label.trim() !== '') previousLabel = sec.label;
+			if (sec.label.trim() !== '') {
+				if (prevSec && isPickupOnly(secIdx - 1) && prevSec.label.trim() &&
+					(sec.label !== previousLabel || sec.labelExplicit)) tokens.push(`[P:${sec.label}]`);
+				previousLabel = sec.label;
+			}
 		}
 		if (sec.repeatStart && !deferredPickupBarline) tokens.push('|:');
 		// A stacked [2] opens on a barline as [1] did; the alignment pass moves

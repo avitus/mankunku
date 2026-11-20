@@ -856,11 +856,12 @@ export function buildSessionPhrase(args: {
 	const { headBars, formRepeats } = headBarsForFlat(args.flat);
 	const passStart = formRepeats ? headBars : 0;
 	const closingFlat = args.closingFlat ?? args.flat;
-	if (hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, passStart + (args.pickupBars ?? 0)) ||
-		hasOmissionsAfter(closingFlat, closingFlat.omittedOutroSections,
-			args.closingPickupBars ?? passStart + (args.pickupBars ?? 0))) {
+	const soloStart = passStart + (args.pickupBars ?? 0);
+	const outroSourceStartBar = args.closingFlat ? (args.closingPickupBars ?? 0) : soloStart;
+	if (hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, soloStart) ||
+		hasOmissionsAfter(closingFlat, closingFlat.omittedOutroSections, outroSourceStartBar)) {
 		const count = normalizeChoruses(args.choruses);
-		const built = sessionWithSoloOmissions({ ...args, choruses: count });
+		const built = sessionWithSoloOmissions({ ...args, headBars, soloStart, closingFlat, closingStart: outroSourceStartBar, choruses: count });
 		// The solo can select disjoint authored sections. Its emitted length and
 		// section map describe the performance; source-bar modulo does not.
 		const choruses: Omit<PerformanceChorus, 'index'>[] = [];
@@ -897,9 +898,6 @@ export function buildSessionPhrase(args: {
 		sectionMap.push(...sectionMapFrom(built.sectionMap, built.headBars, built.headBars + chorus * chorusBars));
 	}
 	const soloEnd = built.headBars + chorusBars * count;
-	const outroSourceStartBar = args.closingFlat
-		? (args.closingPickupBars ?? 0)
-		: (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);
 	const noteSourceIndices = args.flat.noteSourceIndices.slice(0, built.notes.length);
 	const outroStartBar = args.playOutro && args.playHead ? soloEnd : null;
 	const closingStartBar = outroStartBar ?? (args.closingFlat ? built.headBars + chorusBars * (count - 1) : null);
