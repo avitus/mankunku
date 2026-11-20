@@ -321,6 +321,7 @@ The global Settings page controls things that aren't specific to a single sessio
 | **Instrument** | Soprano sax, tenor sax, alto sax, trumpet, or Concert Pitch — choosing Concert Pitch asks which C instrument you play (piano, guitar, bass, trombone, flute, vibes, violin, voice, or other). Affects transposition (sheet music in your key), playback timbre, the range phrases are pitched in, and the tuning advice. |
 | **Highest** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
 | **Master** | Overall output level; playback, metronome, and backing track are all relative to it. |
+| **Speaker bleed reduction** | Turn this on for Ear Training or Lick Practice through speakers. Stay quiet for the six-second speaker check at the start of practice. An accepted check lets Mankunku subtract the speaker sound from the microphone used for scoring. You still hear your original mixed recording on playback. The switch is saved on this device. |
 | **Theme** | Dark (default) or light. |
 | **Key Center** / **Scale Type** | Override the daily tonality, or leave it alone. Locked keys and scales are visible but disabled with their unlock requirement in a tooltip; a **Reset to daily** link appears once you've overridden. |
 | **Tempo** | 60–200 BPM. Ear Training's tempo. Tune practice's Tempo knob and the tune desk start here only for a tune you haven't set a tempo for — each tune remembers its own. It's also the tempo the play buttons on your lick pages use. |

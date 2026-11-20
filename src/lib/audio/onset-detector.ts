@@ -6,6 +6,7 @@
  */
 
 import { getNativeAudioContext } from './audio-context';
+import { roomInputs } from './room-scoring-state';
 
 export interface OnsetDetectorHandle {
 	/** Onset timestamps relative to recording start (seconds) */
@@ -61,7 +62,8 @@ export async function createOnsetDetector(
 		}
 	};
 
-	source.connect(node);
+	const input = roomInputs.get(source) ?? source;
+	input.connect(node);
 	// Worklet not connected to destination — processing only
 
 	return {
@@ -75,7 +77,7 @@ export async function createOnsetDetector(
 		},
 		dispose() {
 			try {
-				source.disconnect(node);
+				input.disconnect(node);
 			} catch {
 				// source may already be disconnected
 			}

@@ -3,6 +3,7 @@
 	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
+	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state';
 	import { goto } from '$app/navigation';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
@@ -507,6 +508,8 @@
 				return false;
 			}
 			micCapture = capture;
+			await captureModule.preparePracticeRoom(capture);
+			if (!setupIsCurrent(generation)) return false;
 			await prepareScoringCapture(micCapture.context).catch(error => {
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
@@ -866,6 +869,19 @@
 			trailingBars:
 				lickPractice.mode === 'single-lick' ? turnaroundBars : INTER_LICK_REST_BARS
 		});
+		const roomCheck = micCapture && roomChecks.get(micCapture.source);
+		if (roomCheck) {
+			for (const segment of nextTimeline) {
+				if (segment.phase !== 'listen') continue;
+				const seconds = (segment.endTick - segment.startTick) * 60 / (transport.PPQ * lickPractice.currentTempo);
+				if (boundaryTime !== undefined && segment.startTick === audioStartTick) {
+					roomCheck(boundaryTime, seconds);
+				} else {
+					const event = transport.scheduleOnce(time => roomCheck(time, seconds), `${segment.startTick}i`);
+					scheduledEventIds.push(event);
+				}
+			}
+		}
 
 		// Keep PLAY stable across a joined boundary, including the lookahead
 		// between the scheduled callback and the audible downbeat.
@@ -2161,6 +2177,7 @@
 		{/if}
 
 		<!-- Lick header -->
+		{#if $roomStatus}<p class="text-center text-sm" role="status">{$roomStatus}</p>{/if}
 		<LickHeader
 			daily={isDailyPractice()}
 			phraseNumber={currentItem.phraseNumber}

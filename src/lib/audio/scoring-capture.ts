@@ -1,5 +1,6 @@
 import { getNativeAudioContext } from './audio-context';
 import { encodeWavMono16 } from './wav';
+import { roomInputs } from './room-scoring-state';
 
 const contexts = new WeakMap<AudioContext, AudioContext>();
 const modules = new WeakMap<AudioContext, Promise<void>>();
@@ -33,13 +34,13 @@ export function createScoringCapture(source: MediaStreamAudioSourceNode, context
 	if (!native) return null;
 	// SAC's wrapped source cannot connect to a native AudioWorkletNode.
 	// A native source over the same stream shares Tone's sample clock.
-	const mic = native.createMediaStreamSource(source.mediaStream);
+	const mic = roomInputs.get(source) ?? native.createMediaStreamSource(source.mediaStream);
 	const node = new AudioWorkletNode(native, 'scoring-capture', { channelCount: 1, channelCountMode: 'explicit', outputChannelCount: [1] });
 	try {
 		mic.connect(node);
 		node.connect(native.destination);
 	} catch (error) {
-		try { mic.disconnect(); } catch { /* connection may have failed */ }
+		try { mic.disconnect(node); } catch { /* connection may have failed */ }
 		node.disconnect();
 		node.port.close();
 		throw error;
@@ -74,7 +75,7 @@ export function createScoringCapture(source: MediaStreamAudioSourceNode, context
 			disposed = true;
 			finish?.(null);
 			node.port.postMessage({ type: 'dispose' });
-			try { mic.disconnect(); } catch { /* mic may already be stopped */ }
+			try { mic.disconnect(node); } catch { /* mic may already be stopped */ }
 			node.disconnect();
 			node.port.close();
 		}

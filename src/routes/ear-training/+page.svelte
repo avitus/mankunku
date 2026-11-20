@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
+	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
@@ -329,6 +330,8 @@
 				micCapture = null;
 				return false;
 			}
+			await captureModule.preparePracticeRoom(micCapture);
+			if (destroyed || !micCapture) return false;
 			await prepareScoringCapture(micCapture.context).catch(error => {
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
@@ -462,7 +465,8 @@
 			// the mic is live). Without a mic there's no handoff, so keep the
 			// bar-aligned stop.
 			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, {
-				resolveAtMelodyEnd: hasMic
+				resolveAtMelodyEnd: hasMic,
+				onDemonstration: micCapture ? roomChecks.get(micCapture.source) : undefined
 			});
 
 			if (hasMic) {
@@ -832,7 +836,8 @@
 		try {
 			session.engineState = 'playing';
 			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), {
-				resolveAtMelodyEnd: true
+				resolveAtMelodyEnd: true,
+				onDemonstration: micCapture ? roomChecks.get(micCapture.source) : undefined
 			});
 			if (looping) await enterAwaitingInput();
 		} catch (err) {
@@ -983,6 +988,7 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
+{#if $roomStatus}<p class="text-center text-sm" role="status">{$roomStatus}</p>{/if}
 <EarTrainingConsole
 	{writtenKey}
 	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}

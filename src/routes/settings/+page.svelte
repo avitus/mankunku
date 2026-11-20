@@ -15,6 +15,8 @@
 		getInstrument
 	} from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { onMount } from 'svelte';
+	import { roomCorrectionEnabled, setRoomCorrection } from '$lib/audio/room-scoring-state';
 	import { getUnlockContext } from '$lib/state/progress.svelte';
 	import {
 		concertKeyToWritten,
@@ -48,6 +50,8 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { passwordRecoveryRedirect } from '$lib/supabase/password-recovery';
 
+	let roomCorrection = $state(false);
+	onMount(() => { roomCorrection = roomCorrectionEnabled(); });
 	const instrument = $derived(getInstrument());
 
 	// The instrument pad lists the transposing horns plus ONE "Concert Pitch"
@@ -377,6 +381,9 @@
 						value={gainToFader(settings.melodyVolume)} min={0} max={1} step={0.01}
 						displayValue={gainLabel(settings.melodyVolume)}
 						onInput={(v) => (settings.melodyVolume = faderToGain(v))} onCommit={syncSettingsToCloud} />
+					<RockerSwitch label="Speaker bleed reduction" checked={roomCorrection}
+						helpText="For Ear Training and Lick Practice through speakers. Stay quiet during the six-second sound check at session start. Reopen practice to recalibrate after moving your mic or speakers."
+						onChange={(v) => { setRoomCorrection(v); roomCorrection = v; }} />
 					<div class="settings-appearance">
 						<p class="studio-label">Appearance</p>
 						<SelectorPad
