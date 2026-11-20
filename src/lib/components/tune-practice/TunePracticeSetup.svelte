@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { printedBarCount } from '$lib/music/pickup';
 	import { onMount } from 'svelte';
 	import { tuneKeyCenters } from '$lib/tunes/key-centers';
 	import KeyCenterLegend from '$lib/components/tunes/KeyCenterLegend.svelte';
@@ -47,7 +48,7 @@
 	const keyCenters = $derived(previewSheet ? tuneKeyCenters(previewSheet, getInstrument(), { solo: true }) : null);
 	/** Persist the practice setup’s focus view, including an Escape exit. */
 	function setFocus(enabled: boolean): void { focus = saveTuneDisplay('practice-focus', enabled); }
-	const totalBars = $derived((previewSheet ?? tune).sections.reduce((sum, section) => sum + section.bars, 0));
+	const totalBars = $derived(printedBarCount(previewSheet ?? tune));
 	const tuneHasMelody = $derived(tune.sections.some(section => section.notes.some(note => note.pitch !== null)));
 	const startCaption = $derived(!tuneHasMelody
 		? 'This chart has no melody — straight to the changes.'
@@ -153,8 +154,9 @@
 								<summary><span>{lick.name}</span><small>{lick.ready ? 'Ready now' : 'Needs practice'}</small></summary>
 								<ul aria-label={`Placements for ${lick.name}`}>
 									{#each lick.placements as p}
+										{@const firstBar = preview!.firstBar[p.closingPass ? 'closing' : 'returning']}
 										<li><strong>{keyLabel(concertKeyToWritten(p.key, getInstrument()), p.mode)} · {p.context}</strong>
-											<span>Bars {p.startBar + 1}–{p.endBarExclusive}{p.closingPass ? ' · Closing chart' : ''}</span>
+											<span>Bars {p.startBar + firstBar}–{p.endBarExclusive - 1 + firstBar}{p.closingPass ? ' · Closing chart' : ''}</span>
 											<span>{p.keyReady && p.tempoReady ? 'Ready now' : [!p.keyReady ? 'Practise this key' : '', !p.tempoReady ? `Practised to ${p.practicedTempo} BPM` : ''].filter(Boolean).join(' · ')}</span>
 										</li>
 									{/each}

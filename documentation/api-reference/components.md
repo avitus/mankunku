@@ -42,7 +42,7 @@ Renders either a single-phrase staff or a full multi-system tune chart, using [a
 - Chord symbols are redrawn as SVG tspans in the app-wide pretty convention (`chordDisplayModelFromText` → `chordTspanSpecs`, `music/chord-layout.ts`), in `--chord-font`.
 - On a tune whose pickup line carries the next section's boxed label, the label is nudged over the first full bar (`pickupPartLabelDx`, MuseScore's placement), and the partial bar gets chord cells only from its first printed beat.
 
-`RangeMarker` is `{ id, startBar, endBarExclusive, timeRange?, status, label?, color? }`: `status` one of `upcoming`, `active`, `hit`, `missed`, `playhead`; `timeRange` (whole-note units) clips each bar's band so two mid-bar-abutted insertions split a shared bar; `color` (a `var(--prog-*)` ref) tints `upcoming`/`active` bands in the progression's hue. `PlayheadStyle` is `'under-bar' | 'cursor-line' | 'box' | 'wash-strong' | 'underline-caret'`.
+`RangeMarker` is `{ id, startBar, endBarExclusive, timeRange?, status, label?, color? }`: `status` one of `upcoming`, `active`, `hit`, `missed`, `playhead`; `timeRange` (whole-note units) clips each bar's band so two mid-bar-abutted insertions split a shared bar; `color` (a `var(--prog-*)` ref) tints `upcoming`/`active` bands in the progression's hue. `PlayheadStyle` is `'under-bar' | 'box' | 'wash-subtle'`.
 
 **Re-render asymmetry — this is deliberate and load-bearing.** Changing `selectedIndex` re-renders the chart. Changing `cursorIndex` or a marker's `status` does **not**: a dedicated effect swaps a CSS class on the stashed anchors and a handful of overlay rects. That is what makes it safe to drive the cursor per-note and the bands per-window during playback without re-engraving a multi-system chart every frame.
 
@@ -234,16 +234,6 @@ A row whose `PlannedKey.reveal` is set (the key being learned — the most recen
 | `projectedRows` | `PlannedKey[]?` | Focus-ramp takes still to come (`getFocusProjectionRows` — never empty under a focus take, one row at the target under the target take), drawn under the current take with their `tempo` tags. Display only: the stack holds on the cycle's own last row, and a projected sheet row below the viewport is not engraved |
 | `precedingKey` | `PlannedKey \| null?` | Deep: the finished row carried into a rebuilt stack for its upward scroll (`precedingCycleRow`) |
 | `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
-
-### `PhaseCueBar.svelte`
-
-**Path:** `src/lib/components/lick-practice/PhaseCueBar.svelte`
-
-Standalone listen/play cue pill: a lamp, a speaker/microphone glyph, the phase label (*Count in* / *Listen* / *Play* / *Rest*), and a countdown during the lead-in bar. During a countdown into `listen`/`play` the bar tints toward its incoming phase (`--arm` strength `(5 − countdown)/5`, ramping across the 4-beat lead-in bar to 4/5 on the final beat) so the switch is felt before it is read; counting into a rest is deliberately not announced. Used by the cue-preview dev route and the record-a-lick page (`/licks/record`), where it carries the whole count-in → *Play in 4…1* → live-mic sequence (count-in and *Listen* in the listen-phase red, *Play* in the play-phase brass); the lick-practice session renders the same `PhaseCue` data as a tab pinned to the active `UpcomingKeysDisplay` row instead.
-
-| Prop | Type | Description |
-|---|---|---|
-| `cue` | `PhaseCue` | From `phaseCueAt(transport.ticks, timeline, PPQ)` (`src/lib/state/lick-practice-phase.ts`) |
 
 ### `SessionTimer.svelte`
 

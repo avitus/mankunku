@@ -24,7 +24,7 @@ export type TuneSource =
 	| string;
 
 export interface TuneSection {
-	/** Play this material in the heads, but leave it out of solo choruses. */
+	/** Override solo omission. By default, solo choruses skip sections labelled Intro. */
 	omitFromSolos?: boolean;
 	/** Section label shown on the chart: 'A', 'B', 'Intro', 'Coda', … */
 	label: string;

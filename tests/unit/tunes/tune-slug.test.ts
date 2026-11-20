@@ -16,6 +16,7 @@ const t = (id: string, title: string): Tune => sheet({ id, title });
 describe('tuneSlug', () => {
 	it('is the kebab-cased title', () => {
 		expect(tuneSlug(t('sheet-1789579191100-55iq', 'Autumn Leaves'), [])).toBe('autumn-leaves');
+		expect(tuneSlug(t('sheet-1-abcd', 'Playhead Preview'), [])).toBe('playhead-preview');
 	});
 
 	it('folds punctuation and accents the way a URL wants', () => {
@@ -27,7 +28,7 @@ describe('tuneSlug', () => {
 	it('links a title that slugifies to a static /tunes route by its id instead', () => {
 		// SvelteKit ranks the static `/tunes/editor` above `/tunes/[id]`, so a tune
 		// titled "Editor" would open the editor from every link and never resolve.
-		for (const title of ['Editor', 'Community', 'Add', 'Import', 'Playhead Preview']) {
+		for (const title of ['Editor', 'Community', 'Add', 'Import']) {
 			const tune = t('sheet-1-abcd', title);
 			expect(tuneSlug(tune, [tune]), title).toBe('sheet-1-abcd');
 			expect(resolveTuneRef(tuneSlug(tune, [tune]), [tune])).toBe(tune);

@@ -12,6 +12,43 @@ The algorithm Mankunku uses is called the **McLeod Pitch Method**. It's an autoc
 
 Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes. Frames between 0.50 and 0.80 are set aside rather than thrown away: they're how the app hears a ghosted note (see below).
 
+## Audio routing and reference levels
+
+The shared mixer gives generated melody, clicks and backing one consistent listening path across Ear Training, Lick Practice, tune playback, Tune Practice and the laboratory. Source calibration establishes the reference balance; musical velocity still controls expression and sample layers. User volume controls change amplitude independently of that velocity.
+
+```text
+Melody → Calibration → Melody fader ──────────────┐
+Clicks → Fixed trim → Click fader ────────────────┤
+Count-off → Calibration → Click fader ────────────┤
+Band → Instrument/voice faders + Room             │
+     → Fixed drive → Compressor → Backing fader ─┤
+                                                 Program
+                                                    ├→ Recording mix
+                                                    └→ Listening sum
+Recorded media → Native media volume ────────────────→ Listening sum
+Listening sum → Sample ceiling → Master → Speakers
+Microphone → Fixed 0.4 trim ──────────────────────────→ Recording mix
+Microphone → Separate untrimmed capture/detector ─────→ Scoring
+```
+
+**Program** is the sum of newly generated audio, before output protection and listening Master. Replay joins only at the listening sum, so it is not digitally fed back into a new recording. The microphone has no connection to speakers. The listening ceiling clamps samples at −1 dBFS before Master; it is a last-resort hard clamp, not automatic loudness matching or a true-peak limiter. Excessive advanced boosts can still distort.
+
+| Control or stage | Reference and scope |
+| --- | --- |
+| Master | Default amplitude 0.8 (−1.9 dB); listening only, including replay. |
+| Melody | Default 1 (0.0 dB); device-local example/head balance. |
+| Click | Default 0.5 (−6.0 dB); synthesized clicks have a fixed 0.6 source trim. The separately calibrated drummer’s count-off also uses Click. |
+| Backing | Default 0.6 (−4.4 dB); the band’s compressor input stays at 0.6 and its output gain is `4 × Backing / 0.6` on every page. |
+| Advanced mix | Instrument, drum-voice and Room gains default to 1; range 0–3. The old extra band Master is removed. The Backing output meter is read-only and sits before the listening ceiling. |
+| Recorded microphone | Fixed 0.4 (about −8 dB) in the listening recording; separate scoring capture bypasses this trim. |
+| Backing WAV export | The shared band graph and −1 dBFS sample ceiling, before listening Master, with no peak normalization. |
+
+The main controls store amplitudes from 0 to 1. Every volume dial uses the same 60 dB logarithmic travel with exact mute at the bottom; 0 dB always means unity gain. Advanced instrument changes can alter how hard the band hits its compressor; the post-compressor Backing control cannot. Drum-voice faders leave musical velocity and layer selection intact. Count-off is independent of Backing, kit and cross-stick balance.
+
+Existing main volume settings retain their amplitudes. Advanced mixes migrate from `backing-mix-levels-v2` to `backing-mix-levels-v3`: old drum-voice values are squared, the retired band Master is folded into bass/comp/drums, values are capped at 3, and mutes remain zero. Historical clipping and compression cannot be reproduced exactly. The new reference intentionally brings previously quieter practice and lab paths up to the former tune level.
+
+For the calibration measurements and migration limits, see the [shared mixer reference](https://github.com/avitus/mankunku/blob/dev/docs/maintenance/audio-mixer/README.md). The [Audio API](https://github.com/avitus/mankunku/blob/dev/documentation/api-reference/audio.md#mixer-policyts-and-mixerts) documents ownership and entry points; the [Settings guide](../user-guide.md#setting-a-comfortable-listening-balance) explains the controls.
+
 ## Scoring audio and playback recordings
 
 Saved playback includes your instrument, metronome and backing track. Scoring uses microphone audio separately: ear training reprocesses a microphone-only recording for its final score; lick practice scores its live microphone readings. App output is never digitally added to either scoring input. Speakers can still bleed into the microphone, so the existing bleed checks remain useful.

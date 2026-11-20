@@ -115,7 +115,7 @@ CI runs all three engines through CircleCI Smarter Testing (`.circleci/test-suit
 
 ## What's covered, what's not
 
-Every page route is visited by at least one spec — the two unlinked design previews (`/lick-practice/cue-preview`, `/tunes/playhead-preview`) only by smoke's load check — and the server-only routes (the auth callback and logout, the sitemap) are covered in Vitest. Beyond page loads, the suite pins user-visible outcomes: written-pitch labels following the instrument setting, the tricks mastery ladder, lick-practice sessions (stack, lead-sheet row, reading pause, focus ramp, microphone refusal), the tune editor and chart entry, all five tune importers, tune practice, per-user storage isolation, the stub-cloud convergence between devices, the docs tree, the 404 page, and `/api/health`.
+Every page route is visited by at least one spec, and the server-only routes (the auth callback and logout, the sitemap) are covered in Vitest. Beyond page loads, the suite pins user-visible outcomes: written-pitch labels following the instrument setting, the tricks mastery ladder, lick-practice sessions (stack, lead-sheet row, reading pause, focus ramp, microphone refusal), the tune editor and chart entry, all five tune importers, tune practice, per-user storage isolation, the stub-cloud convergence between devices, the docs tree, the 404 page, and `/api/health`.
 
 E2E tests do **not** cover:
 

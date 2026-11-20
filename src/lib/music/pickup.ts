@@ -129,6 +129,15 @@ export function resolvePickupLength(
 	return pickupLengthFromMelody(sec.notes, sheet.timeSignature);
 }
 
+/** Printed number of the opening bar. Timeline coordinates always start at zero. */
+export function firstBarNumber(sheet: Pick<Tune, 'sections' | 'timeSignature'>): 0 | 1 {
+	return resolvePickupLength(sheet, 0) ? 0 : 1;
+}
+
+export function printedBarCount(sheet: Pick<Tune, 'sections' | 'timeSignature'>): number {
+	return sheet.sections.reduce((sum, section) => sum + section.bars, 0) + firstBarNumber(sheet) - 1;
+}
+
 /** The silent lead-in before the printed pickup: one bar minus the length. */
 export function pickupPrefix(pickupLength: Fraction, timeSignature: [number, number]): Fraction {
 	return subtractFractions(barLengthOf(timeSignature), pickupLength);

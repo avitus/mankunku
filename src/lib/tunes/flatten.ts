@@ -1,3 +1,4 @@
+import { sectionPlaybackRules } from './section-labels';
 import type { Fraction, HarmonicSegment, Note } from '$lib/types/music';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { addFractions, multiplyFraction } from '$lib/music/intervals';
@@ -11,6 +12,7 @@ import { addFractions, multiplyFraction } from '$lib/music/intervals';
 export interface FlattenedTune {
 	/** Explicit head-only material, addressed by authored section index. */
 	omittedSoloSections?: number[];
+	omittedOutroSections?: number[];
 	/** Continuous melody with offsets shifted to the sheet timeline. */
 	notes: Note[];
 	/** Continuous harmony with startOffsets shifted to the sheet timeline. */
@@ -163,7 +165,10 @@ export function flattenTune(
 		barsBefore += sec.bars;
 	}
 
-	const omittedSoloSections = sheet.sections.flatMap((s, i) => s.omitFromSolos ? [i] : []);
+	const rules = sectionPlaybackRules(sheet.sections);
+	const omittedOutroSections = rules.flatMap((rule, i) => rule.omitFromOutro ? [i] : []);
+	const omittedSoloSections = rules.flatMap((s, i) => s.omitFromSolos ? [i] : []);
 	return { notes, harmony, totalBars: barsBefore, noteSourceIndices, segmentSourceIndices, sectionMap,
+		...(omittedOutroSections.length ? { omittedOutroSections } : {}),
 		...(omittedSoloSections.length ? { omittedSoloSections } : {}) };
 }

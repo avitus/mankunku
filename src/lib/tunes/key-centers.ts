@@ -1,5 +1,5 @@
 import type { Tune } from '$lib/types/tune';
-import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+import type { PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -39,7 +39,7 @@ export interface KeyCenterDisplay {
 
 /** Stable written-tonic hues. Text labels carry the identity independently of color. */
 function centerColor(key: PitchClass): string {
-	return `hsl(${[42, 195, 115, 285, 15, 165, 330, 75, 235, 145, 310, 215][PITCH_CLASSES.indexOf(key)]} 25% var(--key-center-lightness, 58%))`;
+	return `var(--key-center-${key.toLowerCase().replace('#', '-sharp')})`;
 }
 
 /**

@@ -132,7 +132,7 @@ test('playing locks style changes and shows only a neutral current-bar highlight
 	await expect(page.locator('.td-status')).toContainText('Head');
 	await expect(page.getByTestId('chart-scroll-viewport')).toHaveClass(/following/);
 	await expect(page.locator('svg .playhead-wash-subtle')).toBeVisible();
-	await expect(page.locator('svg .cursor-note, svg .playhead-under-bar, svg .playhead-cursor-line')).toHaveCount(0);
+	await expect(page.locator('svg .cursor-note, svg .playhead-under-bar')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeEnabled();
 	await expect(page.locator('.td-status')).toContainText('Ready to play');

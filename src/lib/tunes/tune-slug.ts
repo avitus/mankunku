@@ -30,8 +30,7 @@ export const RESERVED_TUNE_SEGMENTS: readonly string[] = [
 	'add',
 	'community',
 	'editor',
-	'import',
-	'playhead-preview'
+	'import'
 ];
 
 function baseSlug(tune: Tune): string {

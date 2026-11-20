@@ -1,24 +1,15 @@
 import { getNativeAudioContext } from './audio-context';
 import { encodeWavMono16 } from './wav';
+import { roomInputs } from './room-scoring-state.svelte';
+import { loadWorklet } from './load-worklet';
 
 const contexts = new WeakMap<AudioContext, AudioContext>();
-const modules = new WeakMap<AudioContext, Promise<void>>();
 
 /** Load before practice begins so opening a timed window needs no await. */
-export async function prepareScoringCapture(context: AudioContext): Promise<void> {
+export async function prepareScoringCapture(context: AudioContext, signal?: AbortSignal): Promise<void> {
 	const native = await getNativeAudioContext();
-	let module = modules.get(native);
-	if (!module) {
-		module = native.audioWorklet.addModule(new URL('./scoring-capture-worklet.js', import.meta.url));
-		modules.set(native, module);
-	}
-	try {
-		await module;
-		contexts.set(context, native);
-	} catch (error) {
-		modules.delete(native);
-		throw error;
-	}
+	await loadWorklet(native, new URL('./scoring-capture-worklet.js', import.meta.url), signal);
+	contexts.set(context, native);
 }
 
 export interface ScoringCapture {
@@ -33,13 +24,13 @@ export function createScoringCapture(source: MediaStreamAudioSourceNode, context
 	if (!native) return null;
 	// SAC's wrapped source cannot connect to a native AudioWorkletNode.
 	// A native source over the same stream shares Tone's sample clock.
-	const mic = native.createMediaStreamSource(source.mediaStream);
+	const mic = roomInputs.get(source) ?? native.createMediaStreamSource(source.mediaStream);
 	const node = new AudioWorkletNode(native, 'scoring-capture', { channelCount: 1, channelCountMode: 'explicit', outputChannelCount: [1] });
 	try {
 		mic.connect(node);
 		node.connect(native.destination);
 	} catch (error) {
-		try { mic.disconnect(); } catch { /* connection may have failed */ }
+		try { mic.disconnect(node); } catch { /* connection may have failed */ }
 		node.disconnect();
 		node.port.close();
 		throw error;
@@ -74,7 +65,7 @@ export function createScoringCapture(source: MediaStreamAudioSourceNode, context
 			disposed = true;
 			finish?.(null);
 			node.port.postMessage({ type: 'dispose' });
-			try { mic.disconnect(); } catch { /* mic may already be stopped */ }
+			try { mic.disconnect(node); } catch { /* mic may already be stopped */ }
 			node.disconnect();
 			node.port.close();
 		}

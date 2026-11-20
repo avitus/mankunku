@@ -23,6 +23,7 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import SectionLabelDialog from '$lib/components/tune-entry/SectionLabelDialog.svelte';
+	import { firstBarNumber } from '$lib/music/pickup';
 	import { sectionLabels, sectionGroups } from '$lib/tunes/section-labels';
 	import SectionConfigPanel from '$lib/components/tune-entry/SectionConfigPanel.svelte';
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
@@ -147,7 +148,8 @@
 	const formGroups = $derived(sectionGroups(draft));
 	const currentGroup = $derived(formGroups.find(group => group.sectionIdx <= tuneEntry.currentSection && tuneEntry.currentSection < group.endSectionIdx));
 	const currentSectionLabel = $derived(currentGroup?.label ?? 'Music');
-	const currentSectionBar = $derived(currentAbsoluteBar - (currentGroup?.startBar ?? 0) + 1);
+	const groupFirstBar = $derived(currentGroup?.startBar ? 1 : firstBarNumber(draft));
+	const currentSectionBar = $derived(currentAbsoluteBar - (currentGroup?.startBar ?? 0) + groupFirstBar);
 
 	/** Map the buffer selection onto the full-sheet preview's flattened indices. */
 	const previewSelectedIndex = $derived(

@@ -1,3 +1,4 @@
+import { firstBarNumber } from '$lib/music/pickup';
 import type { Tune } from '$lib/types/tune';
 import type { HarmonicSegment, PitchClass } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -30,6 +31,7 @@ export function communityPreviewBars(tune: Tune, writtenKey: PitchClass): Previe
 		const fallback = chordSymbol(root, segment.chord.quality) + (bass ? `/${bass}` : '');
 		return chordDisplayLine(transposeChordSymbol(segment.symbol, shift) ?? fallback, writtenKey);
 	};
+	const firstNumber = firstBarNumber(tune);
 	const bars: PreviewBar[] = [];
 	for (const section of tune.sections) {
 		const harmony = [...section.harmony].sort(
@@ -69,7 +71,7 @@ export function communityPreviewBars(tune: Tune, writtenKey: PitchClass): Previe
 					length: (end - cursor) / barLength,
 					role: null
 				});
-			bars.push({ number: bars.length + 1, section: index === 0 ? section.label : null, cells });
+			bars.push({ number: bars.length + firstNumber, section: index === 0 ? section.label : null, cells });
 		}
 		if (bars.length === 8) break;
 	}

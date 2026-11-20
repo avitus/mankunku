@@ -38,7 +38,7 @@ import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
 import type { FreestyleMatch } from '$lib/matching/freestyle';
 import { addFractions, compareFractions, subtractFractions } from '$lib/music/intervals';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
-import { isInPickupLeadIn } from '$lib/music/pickup';
+import { firstBarNumber, isInPickupLeadIn } from '$lib/music/pickup';
 import {
 	applyInsertionResult,
 	assignSuggestRotation,
@@ -290,6 +290,7 @@ export function initTunePractice(sheet: Tune): void {
 }
 
 export interface SessionPreview {
+	firstBar: { returning: number; closing: number };
 	fittingLicks: FittingLick[];
 	/** Which chart is visible in setup; the inventory can also include the closing chart. */
 	closingChart: boolean;
@@ -351,6 +352,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 	}
 
 	return {
+		firstBar: { returning: firstBarNumber(audioPlan.sheet), closing: firstBarNumber(audioPlan.closingSheet) },
 		fittingLicks: practiceVocabulary(inventory),
 		closingChart: audioPlan.closingStartBar === 0 && audioPlan.separateClosingChart,
 		total: plan.length,

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
+	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
@@ -108,6 +109,10 @@
 	// instrument load before engineState/isLoadingInstrument flip, so without
 	// this a second click during that window enters handlePlay twice.
 	let starting = $state(false);
+	let playGeneration = 0;
+	let preparingMic: Promise<boolean> | null = null;
+	let micSetupAbort: AbortController | undefined;
+	const currentRun = (generation: number): boolean => !destroyed && generation === playGeneration;
 
 	/**
 	 * Monotonic id for each in-flight rescore. Bumped every time finishRecording
@@ -303,6 +308,8 @@
 
 	onDestroy(() => {
 		destroyed = true;
+		micSetupAbort?.abort();
+		++playGeneration;
 		++latestRescoreId;
 		releaseScreenWakeLock();
 		stopDetection();
@@ -319,20 +326,40 @@
 
 	// ─── Mic + Detection ─────────────────────────────────────
 
-	async function ensureMicCapture(): Promise<boolean> {
+	async function ensureMicCapture(generation = playGeneration): Promise<boolean> {
+		if (preparingMic) await preparingMic;
+		if (!currentRun(generation)) return false;
 		if (!captureModule) return false;
 		if (micCapture) return true;
+		const controller = new AbortController();
+		micSetupAbort = controller;
+		const pending = prepareMicrophone(generation, controller.signal);
+		preparingMic = pending;
+		try { return await pending; }
+		finally {
+			if (preparingMic === pending) {
+				preparingMic = null;
+				micSetupAbort = undefined;
+			}
+		}
+	}
+
+	async function prepareMicrophone(generation: number, signal: AbortSignal): Promise<boolean> {
+		if (!captureModule) return false;
 		try {
 			micCapture = await captureModule.startMicCapture();
-			if (destroyed) {
+			if (!currentRun(generation)) {
 				captureModule.stopMicCapture();
 				micCapture = null;
 				return false;
 			}
-			await prepareScoringCapture(micCapture.context).catch(error => {
+			await captureModule.preparePracticeRoom(micCapture);
+			if (!currentRun(generation) || !micCapture) return false;
+			await prepareScoringCapture(micCapture.context, signal).catch(error => {
+				if (signal.aborted) return;
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
-			if (destroyed) return false;
+			if (!currentRun(generation)) return false;
 			session.micPermission = 'granted';
 			levelInterval = setInterval(() => {
 				session.inputLevel = captureModule!.getInputLevel();
@@ -341,19 +368,23 @@
 				try {
 					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
-						micCapture.source
+						micCapture.source,
+						undefined,
+						signal
 					);
-					if (destroyed) {
+					if (!currentRun(generation)) {
 						onset.dispose();
 						return false;
 					}
 					onsetDetector = onset;
 				} catch (err) {
+					if (signal.aborted) return false;
 					console.warn('AudioWorklet onset detector unavailable, using fallback:', err);
 				}
 			}
 			return true;
 		} catch (err) {
+			if (!currentRun(generation)) return false;
 			// A refusal (or no input device) is the player's call, not a fault:
 			// the page falls back to listen-only and says so.
 			const refused = err instanceof DOMException && ['NotAllowedError', 'NotFoundError', 'SecurityError'].includes(err.name);
@@ -363,10 +394,10 @@
 		}
 	}
 
-	async function startDetection() {
+	async function startDetection(generation = playGeneration) {
 		if (!pitchModule || !captureModule) return;
-		if (!(await ensureMicCapture())) return;
-		pitchDetector = await pitchModule.createPitchDetector(
+		if (!(await ensureMicCapture(generation)) || !currentRun(generation)) return;
+		const detector = await pitchModule.createPitchDetector(
 			micCapture!.analyser,
 			(reading, rawClarity) => {
 				if (reading) {
@@ -387,6 +418,8 @@
 				session.currentClarity = rawClarity;
 			}
 		);
+		if (!currentRun(generation)) { detector.stop(); return; }
+		pitchDetector = detector;
 		pitchDetector.start();
 		session.isDetecting = true;
 	}
@@ -421,6 +454,7 @@
 	async function handlePlay() {
 		if (starting) return;
 		if (!playback || !session.phrase) return;
+		const generation = ++playGeneration;
 		starting = true;
 		// A paused player may have retuned. Start fresh, and fence any replay
 		// still completing from the previous run before it can supply evidence.
@@ -438,17 +472,19 @@
 			// reports 'granted', the actual getUserMedia() stream may not exist yet
 			// (fresh page load). Calling getUserMedia() mid-Transport forces a
 			// full-duplex mode switch that disrupts metronome timing.
-			await ensureMicCapture();
-			if (destroyed) return;
+			await ensureMicCapture(generation);
+			if (!currentRun(generation)) return;
 
 			if (!playback.isInstrumentLoaded()) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
 				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, settings.backingInstrument);
+				if (!currentRun(generation)) return;
 				session.isLoadingInstrument = false;
 			} else {
 				// Ensure backing instrument matches current setting (idempotent)
 				await loadBackingInstruments(settings.backingInstrument);
+				if (!currentRun(generation)) return;
 			}
 
 			// Apply master volume (audio context is now initialized)
@@ -462,30 +498,47 @@
 			// the mic is live). Without a mic there's no handoff, so keep the
 			// bar-aligned stop.
 			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, {
-				resolveAtMelodyEnd: hasMic
+				resolveAtMelodyEnd: hasMic,
+				onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
 			});
 
+			if (!currentRun(generation)) return;
 			if (hasMic) {
 				looping = true;
-				await enterAwaitingInput();
+				await enterAwaitingInput(generation);
 			} else {
 				session.engineState = 'ready';
 			}
 		} catch (err) {
+			if (!currentRun(generation)) return;
 			console.error('Playback error:', err);
 			session.engineState = 'error';
 			session.isLoadingInstrument = false;
 		} finally {
-			starting = false;
+			if (currentRun(generation)) starting = false;
 		}
 	}
 
 	async function handleStop() {
 		if (!playback) return;
+		const generation = ++playGeneration;
+		micSetupAbort?.abort();
+		starting = false;
+		session.isLoadingInstrument = false;
+		if (micCapture) {
+			roomChecks.get(micCapture.source)?.cancel();
+			if (preparingMic) {
+				if (levelInterval) clearInterval(levelInterval);
+				levelInterval = null;
+				captureModule?.stopMicCapture();
+				micCapture = null;
+			}
+		}
 		if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
 		looping = false;
 		failCount = 0;
 		await playback.stopPlayback();
+		if (!currentRun(generation)) return;
 		stopRecording();
 		disposeArmedRecorder();
 		awaitingInput = false;
@@ -510,11 +563,12 @@
 	 * `finishRecording` trims the resulting lead-in back off — see
 	 * `trimToPerformance`.
 	 */
-	async function enterAwaitingInput() {
+	async function enterAwaitingInput(generation = playGeneration) {
 		if (!pitchModule || !captureModule) return;
-		if (!(await ensureMicCapture())) return;
+		if (!(await ensureMicCapture(generation)) || !currentRun(generation)) return;
 		if (!session.isDetecting) {
-			await startDetection();
+			await startDetection(generation);
+			if (!currentRun(generation)) return;
 		}
 		// Stop detector during cooldown so playback decay isn't captured
 		pitchDetector?.stop();
@@ -522,7 +576,7 @@
 		session.engineState = 'recording';
 		// Wait for acoustic decay + AnalyserNode buffer to flush (~85ms buffer + margin)
 		await new Promise(resolve => setTimeout(resolve, 150));
-		if (session.engineState !== 'recording') return; // bail if user stopped
+		if (!currentRun(generation) || session.engineState !== 'recording') return;
 		// Restart fresh — buffer now has only ambient/user audio
 		pitchDetector?.start();
 		recordingTransportSeconds = playback?.getTransportSeconds() ?? 0;
@@ -828,14 +882,17 @@
 
 	async function playNextInLoop() {
 		if (!playback || !session.phrase || !looping) return;
+		const generation = playGeneration;
 		session.lastScore = null;
 		try {
 			session.engineState = 'playing';
 			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), {
-				resolveAtMelodyEnd: true
+				resolveAtMelodyEnd: true,
+				onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
 			});
-			if (looping) await enterAwaitingInput();
+			if (looping && currentRun(generation)) await enterAwaitingInput(generation);
 		} catch (err) {
+			if (!currentRun(generation)) return;
 			console.error('Loop playback error:', err);
 			looping = false;
 			session.engineState = 'error';
@@ -983,6 +1040,7 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
+{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
 <EarTrainingConsole
 	{writtenKey}
 	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}
@@ -990,7 +1048,7 @@
 	elapsedMs={practiceElapsedMs}
 	{practising}
 	phase={session.isLoadingInstrument ? 'loading' : audioLoadFailed || session.engineState === 'error' ? 'error' : awaitingInput || session.isRecording ? 'play' : session.engineState === 'playing' ? 'listen' : practising ? 'next' : persistentScore ? 'paused' : 'ready'}
-	disabled={session.isLoadingInstrument || starting || audioLoadFailed || (!practising && !session.phrase)}
+	disabled={audioLoadFailed || (!practising && (session.isLoadingInstrument || !session.phrase))}
 	onToggle={practising ? handleStop : handlePlay}
 	score={persistentScore}
 	quote={bottomQuote}
