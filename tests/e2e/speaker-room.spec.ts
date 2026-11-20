@@ -70,7 +70,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 						gain.connect(dest);
 					}
 					const controls = window as unknown as { startBand: () => void; playNote: () => void };
-					function tone(hz: number, destination: AudioNode) {
+					function tone(hz: number, destination: AudioNode): void {
 						const osc = ctx.createOscillator(),
 							gain = ctx.createGain();
 						osc.frequency.value = hz;
@@ -142,7 +142,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 				try {
 					const score = await ctx.decodeAudioData(row.scoringBytes!.slice(0));
 					const mix = await ctx.decodeAudioData(row.bytes.slice(0));
-					function amplitude(buffer: AudioBuffer, hz: number) {
+					function amplitude(buffer: AudioBuffer, hz: number): number {
 						const x = buffer.getChannelData(0),
 							from = Math.round(0.5 * buffer.sampleRate);
 						const to = Math.min(from + buffer.sampleRate, x.length);

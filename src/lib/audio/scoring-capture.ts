@@ -1,25 +1,15 @@
 import { getNativeAudioContext } from './audio-context';
 import { encodeWavMono16 } from './wav';
 import { roomInputs } from './room-scoring-state.svelte';
+import { loadWorklet } from './load-worklet';
 
 const contexts = new WeakMap<AudioContext, AudioContext>();
-const modules = new WeakMap<AudioContext, Promise<void>>();
 
 /** Load before practice begins so opening a timed window needs no await. */
-export async function prepareScoringCapture(context: AudioContext): Promise<void> {
+export async function prepareScoringCapture(context: AudioContext, signal?: AbortSignal): Promise<void> {
 	const native = await getNativeAudioContext();
-	let module = modules.get(native);
-	if (!module) {
-		module = native.audioWorklet.addModule(new URL('./scoring-capture-worklet.js', import.meta.url));
-		modules.set(native, module);
-	}
-	try {
-		await module;
-		contexts.set(context, native);
-	} catch (error) {
-		modules.delete(native);
-		throw error;
-	}
+	await loadWorklet(native, new URL('./scoring-capture-worklet.js', import.meta.url), signal);
+	contexts.set(context, native);
 }
 
 export interface ScoringCapture {

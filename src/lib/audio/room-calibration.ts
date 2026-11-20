@@ -2,8 +2,8 @@ import type { MicCapture } from './capture';
 import { getMasterGain, getNativeAudioContext } from './audio-context';
 import { ownRoomGraph, roomChecks, roomInputs, roomStatus } from './room-scoring-state.svelte';
 import type { RoomFilter, RoomTimingCheck } from './room-filter';
+import { loadWorklet } from './load-worklet';
 
-const modules = new WeakMap<AudioContext, Promise<void>>();
 const duration = 5.6;
 const active = 'Speaker bleed reduction active';
 const fallback = 'Room check unavailable · scoring the original microphone';
@@ -34,34 +34,6 @@ function probe(ctx: AudioContext): AudioBuffer {
 		}
 	}
 	return buffer;
-}
-
-/** Stop waiting for a worklet whose download stalls, including on route teardown. */
-async function loadCaptureModule(ctx: AudioContext, signal: AbortSignal): Promise<void> {
-	signal.throwIfAborted();
-	let loading = modules.get(ctx);
-	if (!loading) {
-		loading = ctx.audioWorklet.addModule(new URL('./room-calibration-worklet.js', import.meta.url));
-		modules.set(ctx, loading);
-	}
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	let interrupt: (() => void) | undefined;
-	try {
-		await Promise.race([
-			loading,
-			new Promise<never>((_, reject) => {
-				interrupt = () => reject(new Error('Room module load cancelled'));
-				signal.addEventListener('abort', interrupt, { once: true });
-				timer = setTimeout(() => reject(new Error('Room module load timed out')), 5000);
-			})
-		]);
-	} catch (error) {
-		if (modules.get(ctx) === loading) modules.delete(ctx);
-		throw error;
-	} finally {
-		clearTimeout(timer);
-		if (interrupt) signal.removeEventListener('abort', interrupt);
-	}
 }
 
 /** Collect both speakers and the microphone over one exact audio-clock interval. */
@@ -207,7 +179,7 @@ export async function calibrateRoom(capture: MicCapture): Promise<void> {
 	ownRoomGraph(source, dispose);
 	try {
 		roomStatus.text = 'Calibrating speakers · stay quiet for six seconds';
-		await loadCaptureModule(ctx, life.signal);
+		await loadWorklet(ctx, new URL('./room-calibration-worklet.js', import.meta.url), life.signal);
 		life.signal.throwIfAborted();
 		master.connect(reference);
 		const buffer = probe(ctx);

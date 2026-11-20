@@ -6,6 +6,7 @@
  */
 
 import { getNativeAudioContext } from './audio-context';
+import { loadWorklet } from './load-worklet';
 import { roomInputs } from './room-scoring-state.svelte';
 
 export interface OnsetDetectorHandle {
@@ -19,8 +20,6 @@ export interface OnsetDetectorHandle {
 	dispose: () => void;
 }
 
-let moduleRegistered = false;
-
 /**
  * Create and connect the onset detector worklet.
  *
@@ -30,25 +29,21 @@ let moduleRegistered = false;
  * @param context - AudioContext (must be running)
  * @param source - MediaStreamAudioSourceNode from mic
  * @param onOnset - Optional callback fired when an onset is detected
+ * @param signal - Cancels a pending processor load when practice stops
  */
 export async function createOnsetDetector(
 	context: AudioContext,
 	source: MediaStreamAudioSourceNode,
-	onOnset?: (time: number) => void
+	onOnset?: (time: number) => void,
+	signal?: AbortSignal
 ): Promise<OnsetDetectorHandle> {
 	// Tone.js wraps AudioContext with standardized-audio-context (SAC).
 	// The native AudioWorkletNode constructor requires a real BaseAudioContext,
 	// so unwrap the SAC wrapper via the centralized helper.
 	const nativeCtx: AudioContext = await getNativeAudioContext();
 
-	// Register the worklet processor (once per AudioContext lifetime)
-	if (!moduleRegistered) {
-		// Plain JS so Vite emits it as-is (no TS transpile on raw-asset URLs).
-		// Algorithm is kept in sync with onset-core.ts (used by the replay path).
-		const workletUrl = new URL('./onset-worklet.js', import.meta.url);
-		await nativeCtx.audioWorklet.addModule(workletUrl);
-		moduleRegistered = true;
-	}
+	await loadWorklet(nativeCtx, new URL('./onset-worklet.js', import.meta.url), signal);
+	signal?.throwIfAborted();
 
 	const node = new AudioWorkletNode(nativeCtx, 'onset-detector');
 	const onsets: number[] = [];

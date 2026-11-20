@@ -111,6 +111,7 @@
 	let starting = $state(false);
 	let playGeneration = 0;
 	let preparingMic: Promise<boolean> | null = null;
+	let micSetupAbort: AbortController | undefined;
 	const currentRun = (generation: number): boolean => !destroyed && generation === playGeneration;
 
 	/**
@@ -307,6 +308,7 @@
 
 	onDestroy(() => {
 		destroyed = true;
+		micSetupAbort?.abort();
 		++playGeneration;
 		++latestRescoreId;
 		releaseScreenWakeLock();
@@ -329,13 +331,20 @@
 		if (!currentRun(generation)) return false;
 		if (!captureModule) return false;
 		if (micCapture) return true;
-		const pending = prepareMicrophone(generation);
+		const controller = new AbortController();
+		micSetupAbort = controller;
+		const pending = prepareMicrophone(generation, controller.signal);
 		preparingMic = pending;
 		try { return await pending; }
-		finally { if (preparingMic === pending) preparingMic = null; }
+		finally {
+			if (preparingMic === pending) {
+				preparingMic = null;
+				micSetupAbort = undefined;
+			}
+		}
 	}
 
-	async function prepareMicrophone(generation: number): Promise<boolean> {
+	async function prepareMicrophone(generation: number, signal: AbortSignal): Promise<boolean> {
 		if (!captureModule) return false;
 		try {
 			micCapture = await captureModule.startMicCapture();
@@ -346,7 +355,8 @@
 			}
 			await captureModule.preparePracticeRoom(micCapture);
 			if (!currentRun(generation) || !micCapture) return false;
-			await prepareScoringCapture(micCapture.context).catch(error => {
+			await prepareScoringCapture(micCapture.context, signal).catch(error => {
+				if (signal.aborted) return;
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);
 			});
 			if (!currentRun(generation)) return false;
@@ -358,7 +368,9 @@
 				try {
 					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
-						micCapture.source
+						micCapture.source,
+						undefined,
+						signal
 					);
 					if (!currentRun(generation)) {
 						onset.dispose();
@@ -366,6 +378,7 @@
 					}
 					onsetDetector = onset;
 				} catch (err) {
+					if (signal.aborted) return false;
 					console.warn('AudioWorklet onset detector unavailable, using fallback:', err);
 				}
 			}
@@ -509,6 +522,7 @@
 	async function handleStop() {
 		if (!playback) return;
 		const generation = ++playGeneration;
+		micSetupAbort?.abort();
 		starting = false;
 		session.isLoadingInstrument = false;
 		if (micCapture) {
