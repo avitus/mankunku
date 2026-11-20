@@ -1308,9 +1308,9 @@
 				const dx0 = m ? Number.parseFloat(m[1]) : 0;
 				const dy0 = m ? Number.parseFloat(m[2]) : 0;
 				// getBBox is local: add the prior translate to get the seated x.
-				const dx = parts.length > 1 ? anchor.x0 - (box.x + dx0) : pickupPartLabelDx(
+				const dx = pickupPartLabelDx(
 					{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
-					firstFull.x0,
+					anchor.x0,
 					spacing
 				);
 				if (Math.abs(dx) < 0.01) continue;

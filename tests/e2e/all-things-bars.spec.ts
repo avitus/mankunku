@@ -41,11 +41,19 @@ test('a labelled pickup and its following section keep separate marks on the sam
 	const tune = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
 	tune.sections[0].label = 'Intro';
 	tune.sections[1].label = 'A';
+	tune.sections[1].harmony = [{ chord: { root: 'F', quality: 'min7' }, scaleId: 'major.dorian',
+		startOffset: [0, 1], duration: [1, 1] }];
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [{ ...tune, id: 'two-pickup-marks', source: 'user' }]);
 	await page.goto('/tunes/two-pickup-marks');
-	const marks = page.locator('.abcjs-staff-wrapper').first().locator('g.abcjs-part');
+	const system = page.locator('.abcjs-staff-wrapper').first();
+	const marks = system.locator('g.abcjs-part');
 	await expect(marks).toHaveText(['Intro', 'A']);
 	await expect.poll(() => marks.evaluateAll(([intro, a]) =>
 		a.getBoundingClientRect().left - intro.getBoundingClientRect().right)).toBeGreaterThan(0);
+	const chord = system.locator('text.abcjs-chord').first();
+	await expect(chord).toBeVisible();
+	const chordBox = await chord.boundingBox();
+	const markBox = await marks.nth(1).boundingBox();
+	expect(markBox!.x + markBox!.width).toBeLessThan(chordBox!.x);
 });
