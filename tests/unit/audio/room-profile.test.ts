@@ -4,7 +4,9 @@ import { readProfile, restoreProfile, roomSetup, saveProfile } from '$lib/audio/
 const rate = 48000;
 const left = new Float32Array(rate * 0.12);
 left[100] = 0.4;
-const filter = { left, right: new Float32Array(left.length) };
+const right = new Float32Array(left.length);
+right[170] = -0.25;
+const filter = { left, right };
 
 describe('device-local room calibration', () => {
 	beforeEach(() => {
