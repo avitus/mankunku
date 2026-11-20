@@ -9,7 +9,48 @@ export interface MajorContinuation {
 	key: PitchClass;
 	/** Only the passage between the two cadenced collections. */
 	segmentIndices: number[];
-	exceptions: { index: number; role: 'borrowed iv' | 'passing diminished seventh' }[];
+	exceptions: { index: number; role: 'borrowed iv' | 'passing diminished seventh' | 'applied augmented dominant' }[];
+}
+
+export interface BorrowedMajorApproach {
+	key: PitchClass;
+	/** The borrowed iiø and V, excluding the major tonic that confirms them. */
+	segmentIndices: number[];
+}
+
+/** Extend an evidenced V–I backwards through its contiguous borrowed iiø7. */
+export function borrowedMajorApproaches(flat: FlattenedTune, order: number[], evidence: (ChordEvidence | null)[],
+	regions: MajorRegion[], boundaries: number[]): BorrowedMajorApproach[] {
+	const result: BorrowedMajorApproach[] = [];
+	const position = new Map(order.map((index, n) => [index, n]));
+	for (const region of regions) {
+		const cadence = region.evidence.cadences[0];
+		if (!cadence) continue;
+		const dominant = transposePitchClass(region.key, 7);
+		const tonicPosition = region.segmentIndices.indexOf(cadence[1]);
+		const dominantIndices = region.segmentIndices.slice(0, tonicPosition);
+		// The strict collection must open directly on V7 (possibly written in pieces).
+		const guideTones = [4, 10].map(step => transposePitchClass(dominant, step));
+		if (!dominantIndices.every(i => {
+			const chord = evidence[i];
+			return chord?.root === dominant && guideTones.every(p => chord.pitchClasses.includes(p));
+		})) continue;
+		const ii = transposePitchClass(region.key, 2);
+		const halfDiminished = [0, 3, 6, 10].map(step => transposePitchClass(ii, step));
+		const first = position.get(dominantIndices[0])!;
+		let start = first;
+		while (start > 0) {
+			const i = order[start - 1];
+			const chord = evidence[i];
+			const previous = flat.harmony[i], next = flat.harmony[order[start]];
+			if (chord?.root !== ii || chord.pitchClasses.length !== 4 || !halfDiminished.every(p => chord.pitchClasses.includes(p)) ||
+				compareFractions(addFractions(previous.startOffset, previous.duration), next.startOffset) !== 0 ||
+				boundaries.some(b => b > fractionToFloat(previous.startOffset) && b <= fractionToFloat(next.startOffset))) break;
+			start--;
+		}
+		if (start < first) result.push({ key: region.key, segmentIndices: [...order.slice(start, first), ...dominantIndices] });
+	}
+	return result;
 }
 
 /** Explain short tonic-free passages bracketed by cadences in the same major key. */
@@ -63,6 +104,10 @@ export function majorContinuations(flat: FlattenedTune, order: number[], evidenc
 			} else if (tones === '0,3,6,9' && [1, 11].includes(pitchClassInterval(from.root, chord.root)) &&
 				pitchClassInterval(from.root, chord.root) === pitchClassInterval(chord.root, to.root)) {
 				role = 'passing diminished seventh';
+			} else if (tones === '0,4,8,10' && pitchClassInterval(to.root, chord.root) === 7 &&
+				[2, 4, 9].includes(pitchClassInterval(key, to.root)) &&
+				[3, 7].every(step => to.pitchClasses.includes(transposePitchClass(to.root, step)))) {
+				role = 'applied augmented dominant';
 			} else { supported = false; break; }
 			for (const index of path.slice(first, n)) exceptions.push({ index, role });
 		}

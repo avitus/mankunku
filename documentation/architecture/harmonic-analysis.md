@@ -5,8 +5,9 @@ status, decisions, acceptance cases and remaining limitations as work lands.
 
 The current increment compares every bar of the production arrangement of
 [All the Things You Are](./all-the-things-harmonic-audit.md) with the key-center
-display. The first correction carries A♭ major across the descending return
-in chorus bars 30–32. Autumn remains the reference for applied dominants.
+display. G major now spans chorus bars 14–20, and A♭ major carries through
+the descending return in bars 30–32. Autumn remains a reference for distinguishing
+a tonicization from a change of governing key.
 
 ## Purpose
 
@@ -617,6 +618,31 @@ evidence, boundaries, ambiguous passages and remaining discrepancies.
 Validation reproduced the baseline gap, then passed 255 focused unit tests,
 39 browser cases across three engines, and the TypeScript/Svelte check.
 
+## Let the sounded resolution settle the center
+
+In *All the Things You Are*, chorus bars 14–20 now form one G-major span
+(A major on tenor). Two rules supply the additional evidence.
+
+- A contiguous iiø7 leading to a diatonic V7–I in major borrows its iiø
+  from minor. The written tonic establishes the arrival mode. A short minor
+  iiø–V cornerstone at that same occurrence remains available to practice
+  and retains its explanation. Gaps and section boundaries interrupt the inference.
+- Between two cadences in the same major key, a dominant seventh with a raised
+  fifth can tonicize ii, iii or vi. Require the augmented dominant to last at
+  most one bar and resolve directly down a fifth to a diatonic minor chord
+  with a minor third and perfect fifth. The existing four-bar maximum for
+  the intervening passage applies.
+
+Both rules describe chart context. Lick eligibility continues to use the
+written harmony and existing cornerstone reservations. The next comparison
+is chorus bar 24, where the altered dominant approaches a different key.
+
+The tune fixture and a separate progression in all twelve keys failed before the change.
+The Linux sandbox passed 1,148 unit tests across 85 files, all 39 key-center
+browser cases across Chromium, Firefox and WebKit, and the TypeScript/Svelte
+check. The browser tests cover the full width of each tenor chart bar and
+the key labels on practice setup.
+
 ## Later milestones
 
 | Milestone | Status | Scope / evidence needed |
@@ -626,7 +652,7 @@ Validation reproduced the baseline gap, then passed 255 focused unit tests,
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
-| Controlled chromaticism | Independent brief secondary dominants can share a governing center | Brief resolved tonicizations with an established parent center; altered/chained dominants, borrowed chords and passing diminished chords remain |
+| Controlled chromaticism | Implemented for brief applied dominants, borrowed iiø and iv, and passing diminished sevenths | Compare altered dominants at a modulation, chained dominants and further borrowed chords |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
 | Analysis explanations | Structured reasons implemented | Key-center evidence, implied destinations, subordinate tonicizations and chart visits remain in the model; compact user-facing inspection and optional overrides remain |
 

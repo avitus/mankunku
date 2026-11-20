@@ -19,6 +19,51 @@ const opening = ['Dm7', 'G7', 'Cmaj7', 'Fmaj7'];
 const closing = ['Dm7', 'G7', 'Cmaj7'];
 
 describe('phrase continuity', () => {
+	it('joins chorus bars 14–20 of All the Things, up to the next modulation', () => {
+		const display = tuneKeyCenters(allThings, INSTRUMENTS.concert);
+		expect(display.markers.filter(m => m.keyCenter?.label === 'G major').map(m => m.timeRange))
+			.toEqual([{ start: 18, end: 25 }]);
+		expect(display.markers.some(m => m.keyCenter?.label === 'G minor' && m.timeRange!.start === 18)).toBe(false);
+		expect(display.readings.some(r => r.mode === 'minor' && r.start === 18 && r.contextKey === 'G')).toBe(true);
+		expect(display.markers.find(m => m.keyCenter?.label === 'E major')?.timeRange?.start).toBe(25);
+	});
+	it.each(PITCH_CLASSES)('follows a borrowed iiø and a resolved augmented dominant in %s', key => {
+		const tune = { ...transposeTune(chart(['Dm7b5', 'G7', 'Cmaj7', 'A7#5', ...closing]), key), key: 'B' as const };
+		const analysis = analyze(tune);
+		expect(analysis.borrowedMajorApproaches).toEqual([{ key, segmentIndices: [0, 1] }]);
+		expect(analysis.majorContinuations).toEqual([{ key, segmentIndices: [3], exceptions: [{ index: 3, role: 'applied augmented dominant' }] }]);
+		expect(tuneKeyCenters(tune, INSTRUMENTS.concert).markers.find(m =>
+			m.timeRange?.start === 0 && m.timeRange.end === 7)).toBeDefined();
+		expect(analysis.compatibleMajorRegions.filter(r => r.key === key)
+			.every(r => !r.segmentIndices.includes(0) && !r.segmentIndices.includes(3))).toBe(true);
+	});
+	it.each(['Cm7', 'C7sus4', 'Abmaj7', 'C7'])('leaves the borrowed major approach unclaimed on arrival at %s', target => {
+		const tune = chart(['Dm7b5', 'G7', target]);
+		expect(tuneKeyCenters(tune, INSTRUMENTS.concert).markers.some(m =>
+			m.keyCenter?.label === 'C major' && m.timeRange!.start === 0)).toBe(false);
+	});
+	it('preserves the minor cornerstone when the short iiø–V resolves to minor or remains open', () => {
+		for (const tonic of ['Cm7', undefined]) {
+			const tune = sheet({ key: 'C', sections: [section({ bars: tonic ? 2 : 1, harmony: [
+				harmonicSegmentFromSymbol('Dm7b5', [0, 1], [1, 2])!,
+				harmonicSegmentFromSymbol('G7', [1, 2], [1, 2])!,
+				...(tonic ? [harmonicSegmentFromSymbol(tonic, [1, 1], [1, 1])!] : [])
+			] })] });
+			expect(analyze(tune).borrowedMajorApproaches).toEqual([]);
+			const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
+			expect(display.markers.find(m => m.keyCenter?.label === 'C minor')?.timeRange).toEqual({ start: 0, end: tonic ? 2 : 1 });
+		}
+	});
+	it('respects a gap or section boundary between iiø and V', () => {
+		const tune = chart(['Dm7b5', 'G7', 'Cmaj7']);
+		tune.sections[0].harmony[0].duration = [1, 2];
+		expect(analyze(tune).borrowedMajorApproaches).toEqual([]);
+		tune.sections = [...chart(['Dm7b5']).sections, ...chart(['G7', 'Cmaj7']).sections];
+		expect(analyze(tune).borrowedMajorApproaches).toEqual([]);
+	});
+	it.each(['A7alt', 'Ab7#5', 'Aaug', 'A7b9'])('requires the resolved augmented seventh for the bridge (%s)', chord => {
+		expect(analyze(chart([...closing, chord, ...closing])).majorContinuations).toEqual([]);
+	});
 	it.each([2, 4])('carries A-flat through the descending return with a 1/%i-bar final ii chord', denominator => {
 		const tune = structuredClone(allThings);
 		const ending = tune.sections.at(-1)!.harmony;

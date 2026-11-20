@@ -46,12 +46,23 @@ Gø7 one beat and C7♭9 three. Tests cover both timings. The proposed rule ends
 its contribution at the start of bar 33, where the existing cadenced reading
 resumes, so each arrangement retains its own turnaround boundary.
 
+## Bars 14–20
+
+The chart now shows one G-major span from Aø7 at the start of bar 14 through
+the end of bar 20 (A major for tenor sax). D7 resolves directly to Gmaj7.
+That arrival lets us hear Aø7 as a borrowed iiø. The half-bar iiø–V retains
+its minor cornerstone identity for practice. If the tonic is minor or the
+approach ends without a resolution, the minor reading remains visible.
+
+In the second half of bar 16, E7♯5 resolves to Am7. D7 then returns to Gmaj7.
+The G cadences on both sides support hearing E7♯5 as V/ii within the phrase.
+Both chromatic chords retain their written pitches for lick matching. The
+F♯m7–B7–Emaj7 modulation begins at bar 21.
+
 ## Next comparison
 
-Bar 14 is the clearest remaining mode disagreement. Use the actual major
-resolution to distinguish a borrowed iiø–V from an arrival in minor. Pair
-that case with the same approach resolving to Gm7. Bars 16 and 24 then offer
-two tests for altered dominants, one inside an established key and one at a
-key change. Track three outcomes separately in future audits: an unsupported
-key change, a missing stretch of a supported center, and a genuine modulation
-lost through excessive smoothing.
+Bar 24 poses a different question. C7♯5 leads to Fm7 in the returning A♭
+passage, and the preceding cadence is in E. Compare this incoming-key reading
+with a C7♯5–Fm passage that actually establishes F minor before extending
+the display across such a key change. Keep the finite-form turnaround in
+bar 36 as a separate test of whether a resolution is actually played.

@@ -124,6 +124,9 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 		const roles = [...new Set(passage.exceptions.map(e => e.role))].join(' and ');
 		add(passage.key, 'major', passage.segmentIndices, `Cadences on both sides support this center through the ${roles}.`);
 	}
+	for (const approach of analysis.borrowedMajorApproaches) {
+		add(approach.key, 'major', approach.segmentIndices, 'Borrowed iiø–V resolves directly to the major tonic.');
+	}
 	// Bridge the dominant and any held target before the incoming collection starts.
 	for (const transition of analysis.majorKeyTransitions) {
 		add(transition.to, 'major', transition.leadInIndices,
@@ -149,9 +152,15 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 					arrival.localKey === key && detection.segmentIndices.every((index, i) => arrival.segmentIndices[i] === index) &&
 					arrival.segmentIndices.length > detection.segmentIndices.length &&
 					arrival.segmentIndices.every(index => chordEvidence(flat.harmony[index]))) : undefined;
+			const borrowedApproach = detection.type === 'ii-V-I-minor' && !hasTonic &&
+				analysis.borrowedMajorApproaches.some(a => a.key === key && detection.segmentIndices.every(i => a.segmentIndices.includes(i)));
 			const transition = minorArrival && analysis.majorKeyTransitions.find(t => t.arrival === minorArrival);
+			let resolution = '';
+			if (minorArrival) resolution = ' The following tonic confirms a minor arrival.';
+			if (borrowedApproach) resolution = ' The following tonic confirms a major arrival.';
+			const parentKey = context?.key ?? transition?.to ?? (minorArrival || borrowedApproach ? key : undefined);
 			add(detection.localKey, detection.type === 'blues' ? 'blues' : progressionMode(detection.type), detection.segmentIndices,
-				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + (minorArrival ? ' The following tonic confirms a minor arrival.' : ''), context?.key ?? transition?.to ?? (minorArrival ? key : undefined));
+				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + resolution, parentKey);
 		}
 	}
 	const unique = new Map<string, KeyCenterReading>();
