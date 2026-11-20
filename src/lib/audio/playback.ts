@@ -688,6 +688,8 @@ export interface PhrasePlaybackOpts {
 	resolveAtMelodyEnd?: boolean;
 	/** After initial transport start, or after a continuation installs its backing schedule. */
 	onStarted?: () => void;
+	/** Audio-clock bounds of the demonstration, after its count-in and before the player enters. */
+	onDemonstration?: (start: number, duration: number) => void;
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
 	startTick?: number;
@@ -930,6 +932,11 @@ export async function playPhrase(
 	// whole-bar vs melody-end semantics.
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
 	const endTick = formStartTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
+	if (opts.onDemonstration && !skipMelody) {
+		transport.scheduleOnce(time => {
+			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, (endTick - formStartTicks) * 60 / (ppq * options.tempo));
+		}, `${formStartTicks}i`);
+	}
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {
@@ -1149,6 +1156,11 @@ export async function scheduleNextPhrase(
 	// whole-bar vs melody-end semantics.
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
 	const endTicks = nextBarTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
+	if (opts.onDemonstration && !skipMelody) {
+		transport.scheduleOnce(time => {
+			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, (endTicks - nextBarTicks) * 60 / (ppq * options.tempo));
+		}, `${nextBarTicks}i`);
+	}
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {
