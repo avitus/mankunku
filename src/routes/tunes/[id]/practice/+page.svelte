@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { recordRecentTune } from '$lib/persistence/recent-tunes';
-	import { isInPickupLeadIn } from '$lib/music/pickup';
+	import { firstBarNumber, isInPickupLeadIn } from '$lib/music/pickup';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
@@ -892,7 +892,7 @@
 		if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	}
 
-	/** Chart bar (1-based) for a freestyle match's transport tick. */
+	/** Printed chart bar for a freestyle match's transport tick. */
 	function freestyleDisplayBar(atTick: number): number {
 		if (!audioPlan || barTicksNR <= 0) return 1;
 		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
@@ -906,7 +906,7 @@
 			sheet.sections,
 			Math.max(0, Math.min(formBar, flat.totalBars - 1))
 		);
-		return (chartBar ?? 0) + 1;
+		return (chartBar ?? 0) + firstBarNumber(sheet);
 	}
 
 	function formatElapsed(seconds: number): string {

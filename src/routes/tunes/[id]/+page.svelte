@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { printedBarCount, firstBarNumber } from '$lib/music/pickup';
 	import { savedTuneKey, saveTuneKey, savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
 	import { recordRecentTune } from '$lib/persistence/recent-tunes';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
@@ -164,7 +165,8 @@
 	const showChordChart = $derived(solosOnly || (player.playing && player.showSoloChart));
 	const closingPreview = $derived(player.soloChoruses === 1 && solosOnly);
 	const displayedSheet = $derived(player.closing || closingPreview ? jamCharts?.closing : jamCharts?.returning);
-	const totalBars = $derived(displayedSheet?.sections.reduce((sum, section) => sum + section.bars, 0) ?? 0);
+	const openingBarNumber = $derived(displayedSheet ? firstBarNumber(displayedSheet) : 1);
+	const totalBars = $derived(displayedSheet ? printedBarCount(displayedSheet) : 0);
 	let showKeyCenters = $state(true);
 	onMount(() => {
 		showKeyCenters = savedTuneDisplay('key-centers', true);
@@ -292,7 +294,7 @@
 					</div>
 					{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
 					<div class="td-score-well" bind:clientWidth={chartWidth}>{#if showChordChart}<TuneChordChart keyCenterLaneCount={keyCenters?.laneCount ?? 0} highlightCurrentBeat={false} tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />{:else}<NotationDisplay staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} playheadStyle="wash-subtle" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />{/if}</div>
-					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
+					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + openingBarNumber}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>
 				{#if !tuneDeskView.focus}<TuneSessionOptions {hasMelody} disabled={player.busy}

@@ -10,7 +10,7 @@
 .tune-detail .td-detail-chart { padding:20px 20px 0; }
 .tune-detail .td-score-top { min-height:30px; margin-bottom:18px; gap:12px; }
 .tune-detail .td-chart-context,.tune-detail .td-chart-tools { display:flex; align-items:center; gap:12px; min-width:0; }
-.tune-detail .td-chart-context>strong { display:grid; place-items:center; height:28px; min-width:28px; border:1px solid var(--studio-border); font:500 15px var(--font-display); color:var(--studio-text); }
+.tune-detail .td-chart-context>strong { display:grid; place-items:center; height:28px; min-width:28px; flex:none; padding-inline:5px; border:1px solid var(--studio-border); font:500 15px var(--font-display); color:var(--studio-text); }
 .tune-detail .td-chart-context h1 { font:500 20px/1.2 var(--font-display); color:var(--studio-text); }
 .tune-detail .td-chart-context i { margin:0 8px; opacity:.5; }
 .tune-detail .td-chart-tools { flex-shrink:0; }

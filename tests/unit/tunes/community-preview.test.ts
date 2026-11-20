@@ -40,6 +40,13 @@ describe('community changes preview', () => {
 		});
 		expect(bars[7].cells[0].symbol).toBe('A7(b9,#11)/C#');
 	});
+	it('numbers an opening pickup zero and starts the full bars at one', () => {
+		const pickup: Tune = {
+			...tune,
+			sections: [{ label: '', bars: 1, pickupLength: [1, 4], notes: [], harmony: [] }, ...tune.sections]
+		};
+		expect(communityPreviewBars(pickup, 'C').map(bar => bar.number)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+	});
 	it('splits crossing changes at the real bar boundary in 3/4 and leaves missing harmony blank', () => {
 		const waltz: Tune = {
 			...tune,

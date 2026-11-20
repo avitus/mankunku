@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { printedBarCount } from '$lib/music/pickup';
 	import type { CommunityTune } from '$lib/persistence/tune-community';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { getInstrument } from '$lib/state/settings.svelte';
@@ -24,7 +25,7 @@
 	let selectedKey: PitchClass | null = $state(null);
 	const writtenKey = $derived(selectedKey ?? concertKeyToWritten(item.sheet.key, getInstrument()));
 	const bars = $derived(communityPreviewBars(item.sheet, writtenKey));
-	const totalBars = $derived(item.sheet.sections.reduce((sum, section) => sum + section.bars, 0));
+	const totalBars = $derived(printedBarCount(item.sheet));
 	const hasMelody = $derived(
 		item.sheet.sections.some((section) => section.notes.some((note) => note.pitch !== null))
 	);

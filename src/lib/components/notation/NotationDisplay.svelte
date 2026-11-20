@@ -366,13 +366,7 @@
 				// font must be a string for its size to affect engraving geometry.
 				gchordfont: compactStaff ? 'Fraunces 17' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
-				partsfont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 14,
-					weight: 'bold',
-					style: 'normal',
-					decoration: 'none'
-				},
+				partsfont: 'Fraunces 14 bold',
 				titlefont: {
 					face: 'Fraunces, Georgia, "Times New Roman", serif',
 					size: 22,
