@@ -57,3 +57,22 @@ test('a labelled pickup and its following section keep separate marks on the sam
 	const markBox = await marks.nth(1).boundingBox();
 	expect(markBox!.x + markBox!.width).toBeLessThan(chordBox!.x);
 });
+
+test('an inline section with its own pickup seats the mark at its first full bar', async ({ page }) => {
+	const tune = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
+	const pickup = { ...tune.sections[0], label: 'Intro', pickupLength: [1, 4],
+		notes: [{ pitch: 60, offset: [3, 4], duration: [1, 4] }] };
+	const body = { ...pickup, label: 'A', bars: 3, notes: [...pickup.notes, { pitch: 62, offset: [1, 1], duration: [1, 1] }] };
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [{ ...tune, sections: [pickup, body], id: 'inline-section-pickup', source: 'user' }]);
+	await page.goto('/tunes/inline-section-pickup');
+	const system = page.locator('.abcjs-staff-wrapper').first();
+	const mark = system.locator('g.abcjs-part').filter({ hasText: /^A$/ });
+	await expect(mark).toBeVisible();
+	const bars = system.locator('.abcjs-bar');
+	const opening = await bars.nth(0).boundingBox();
+	const fullBar = await bars.nth(1).boundingBox();
+	const box = await mark.boundingBox();
+	expect(box!.x + box!.width).toBeGreaterThan(opening!.x);
+	expect(box!.x + box!.width).toBeLessThan(fullBar!.x + fullBar!.width);
+});

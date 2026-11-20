@@ -1294,7 +1294,9 @@
 						sheet.sections[zone.sectionIdx].label.trim() === part.textContent?.trim());
 					if (index < 0) continue;
 					zoneIndex = index;
-					anchor = inSystem[index];
+					const start = inSystem[index];
+					anchor = inSystem.find(zone => zone.sectionIdx === start.sectionIdx &&
+						!partial.has(`${zone.sectionIdx}:${zone.bar}`)) ?? start;
 				}
 				let box: DOMRect;
 				try {
