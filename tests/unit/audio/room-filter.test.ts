@@ -48,3 +48,21 @@ it('subtracts independent stereo reflections on held-out audio and preserves add
 		});
 	}
 });
+
+it('distinguishes a shared bass pitch from an aligned speaker path after reopening practice', () => {
+	const rate = 12000;
+	let seed = 27;
+	const left = Float32Array.from({length: 3 * rate}, (_, i) => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return 0.3 * Math.sin(2 * Math.PI * 200 * i / rate) + 0.06 * (seed / 2147483648 - 1);
+	});
+	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const right = new Float32Array(left.length);
+	const same = checkRoomTiming({rate, left, right, mic: left}, filter);
+	expect(same?.transientReduction).toBeGreaterThan(10);
+	// Ten whole bass periods outside the adjustable delay range. The pitch still cancels.
+	const mic = Float32Array.from(left, (_, i) => left[i - 600] ?? 0);
+	const changed = checkRoomTiming({rate, left, right, mic}, filter);
+	expect(changed?.reduction).toBeGreaterThan(3);
+	expect(changed?.transientReduction).toBeLessThan(1);
+});
