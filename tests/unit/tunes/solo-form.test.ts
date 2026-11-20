@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { flattenTune } from '$lib/tunes/flatten';
@@ -24,6 +25,23 @@ const blackOrpheus: Tune = { id: 'black-orpheus', title: 'Black Orpheus', key: '
 ] };
 
 describe('explicit material omitted from solo choruses', () => {
+	it.each([undefined, false])('plays the labelled All the Things intro only on the requested passes (omit=%s)', omitFromSolos => {
+		const tune: Tune = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
+		// The saved chart puts the Intro mark on its pickup. The repeated
+		// four-bar fragment continues that mark until the 36-bar body.
+		tune.sections[0].label = ' Intro ';
+		tune.sections[0].labelExplicit = true;
+		tune.sections[0].omitFromSolos = omitFromSolos;
+		tune.sections[1].label = '';
+		const jam = buildJamForm(tune, 2);
+		const chorus = omitFromSolos === false ? 44 : 36;
+		expect(jam.headBars).toBe(45);
+		expect(jam.soloBars).toBe(chorus);
+		expect(jam.outroStartBar).toBe(45 + chorus * 2);
+		expect(jam.phraseBars).toBe(45 + chorus * 2 + 36);
+		expect(jam.sessionBarMap?.slice(-36)).toEqual(Array.from({ length: 36 }, (_, i) => 9 + i));
+		expect(buildJamForm(tune, 2, false).phraseBars).toBe(chorus * 2);
+	});
 	it('repairs the production Black Orpheus label layout without moving its closing repeat', () => {
 		let imported: Tune = { ...blackOrpheus, sections: [
 			section('A', 33, 72, { pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),

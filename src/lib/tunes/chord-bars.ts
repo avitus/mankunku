@@ -1,5 +1,6 @@
 import type { HarmonicSegment } from '$lib/types/music';
 import type { Tune, TuneSection } from '$lib/types/tune';
+import { sectionPlaybackRules } from './section-labels';
 import { flattenTune } from './flatten';
 import { addFractions, compareFractions, multiplyFraction, subtractFractions } from '$lib/music/intervals';
 import { isInPickupLeadIn } from '$lib/music/pickup';
@@ -23,7 +24,8 @@ export function tuneChordBars(tune: Tune): ChordBarSection[] {
 	const flat = clearPickupBarHarmony(tune, flattenTune(tune));
 	let absoluteBar = 0;
 	let printedBar = 0;
-	return tune.sections.map(section => {
+	const rules = sectionPlaybackRules(tune.sections);
+	return tune.sections.map((section, i) => {
 		const bars = Array.from({ length: section.bars }, () => {
 			const index = absoluteBar++;
 			if (isInPickupLeadIn(tune, index)) return null;
@@ -38,6 +40,6 @@ export function tuneChordBars(tune: Tune): ChordBarSection[] {
 			});
 			return { index, number: ++printedBar, harmony };
 		}).filter(bar => bar !== null);
-		return { label: section.label, ending: section.ending, omitFromSolos: section.omitFromSolos, bars };
+		return { label: section.label, ending: section.ending, omitFromSolos: rules[i].omitFromSolos, bars };
 	}).filter(section => section.bars.length > 0);
 }

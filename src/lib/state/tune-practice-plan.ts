@@ -619,7 +619,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
  */
 export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRepeats: boolean } {
 	const noRepeat = { headBars: flat.totalBars, formRepeats: false };
-	if (flat.omittedSoloSections?.length) return noRepeat;
+	if (flat.omittedSoloSections?.some(i => !flat.omittedOutroSections?.includes(i))) return noRepeat;
 	const sm = flat.sectionMap;
 
 	const seen = new Set<number>();
@@ -632,6 +632,9 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
 		seen.add(sm[i].sourceSection);
 	}
 	if (revisitIdx === -1) return noRepeat;
+	// A repeated intro is internal to the opening head. An intro before the
+	// repeat is already outside the solo form and leaves its voltas intact.
+	if (sm.slice(revisitIdx).some(entry => flat.omittedOutroSections?.includes(entry.sourceSection))) return noRepeat;
 
 	// From the second pass onward, a NEW section (never seen in pass one)
 	// followed later by a replayed one means new form material is sandwiched
@@ -845,7 +848,16 @@ export function buildSessionPhrase(args: {
 	sessionBarMap?: number[];
 	soloBars?: number;
 } {
-	if (args.flat.omittedSoloSections?.length) {
+	// A resolved repeat can already remove the intro from both returning passes.
+	const hasOmissionsAfter = (flat: FlattenedTune, omitted: number[] | undefined, start: number) =>
+		omitted?.length && flat.sectionMap.some((entry, i) => omitted.includes(entry.sourceSection) &&
+			(flat.sectionMap[i + 1]?.barOffset ?? flat.totalBars) > start);
+	const { headBars, formRepeats } = headBarsForFlat(args.flat);
+	const passStart = formRepeats ? headBars : 0;
+	const closingFlat = args.closingFlat ?? args.flat;
+	if (hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, passStart + (args.pickupBars ?? 0)) ||
+		hasOmissionsAfter(closingFlat, closingFlat.omittedOutroSections,
+			args.closingPickupBars ?? passStart + (args.pickupBars ?? 0))) {
 		const count = normalizeChoruses(args.choruses);
 		const built = sessionWithSoloOmissions({ ...args, choruses: count });
 		// The solo can select disjoint authored sections. Its emitted length and
@@ -884,8 +896,6 @@ export function buildSessionPhrase(args: {
 		sectionMap.push(...sectionMapFrom(built.sectionMap, built.headBars, built.headBars + chorus * chorusBars));
 	}
 	const soloEnd = built.headBars + chorusBars * count;
-	const { headBars, formRepeats } = headBarsForFlat(args.flat);
-	const closingFlat = args.closingFlat ?? args.flat;
 	const outroSourceStartBar = args.closingFlat
 		? (args.closingPickupBars ?? 0)
 		: (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);

@@ -40,7 +40,11 @@ function takeRanges(flat: FlattenedTune, meter: Fraction, ranges: BarRange[]) {
 
 /** Solo material from an explicitly annotated chart, with pickup and excluded bars removed. */
 export function soloPlaybackFlat(flat: FlattenedTune, meter: Fraction, pickupBars: number) {
-	const omitted = new Set(flat.omittedSoloSections);
+	return playbackWithoutSections(flat, meter, pickupBars, flat.omittedSoloSections);
+}
+
+function playbackWithoutSections(flat: FlattenedTune, meter: Fraction, pickupBars: number, sections?: number[]) {
+	const omitted = new Set(sections);
 	const ranges: BarRange[] = [];
 	flat.sectionMap.forEach((entry, i) => {
 		const end = flat.sectionMap[i + 1]?.barOffset ?? flat.totalBars;
@@ -79,12 +83,12 @@ export function sessionWithSoloOmissions(args: {
 	if (args.playHead) append(flat, Array.from({ length: flat.totalBars }, (_, i) => i), true);
 	const headBars = phraseBars;
 	for (let i = 0; i < args.choruses; i++) append(solo.flat, solo.sourceBars, false);
-	const outroStartBar = args.playHead && args.playOutro && solo.flat.totalBars > 0 ? phraseBars : null;
-	if (outroStartBar !== null) {
-		const closing = takeRanges(flat, meter, [{ start: args.pickupBars ?? 0, end: flat.totalBars }]);
-		append(closing.flat, closing.sourceBars, true);
-	}
+	const closing = args.playHead && args.playOutro && solo.flat.totalBars > 0
+		? playbackWithoutSections(flat, meter, args.pickupBars ?? 0, flat.omittedOutroSections)
+		: null;
+	const outroStartBar = closing?.flat.totalBars ? phraseBars : null;
+	if (closing && outroStartBar !== null) append(closing.flat, closing.sourceBars, true);
 	return { notes, harmony, sectionMap, phraseBars, headBars, duplicatedForm: true,
-		outroStartBar, outroSourceStartBar: args.pickupBars ?? 0, closingStartBar: outroStartBar,
+		outroStartBar, outroSourceStartBar: closing?.sourceBars[0] ?? args.pickupBars ?? 0, closingStartBar: outroStartBar,
 		noteSourceIndices, sessionBarMap, soloBars: solo.flat.totalBars };
 }
