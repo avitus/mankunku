@@ -8,6 +8,7 @@ const filter = { left, right: new Float32Array(left.length) };
 
 describe('device-local room calibration', () => {
 	beforeEach(() => {
+		vi.stubGlobal('navigator', { locks: { request: (_key: string, _options: unknown, callback: (lock: object) => boolean) => Promise.resolve(callback({})) } });
 		const values = new Map<string, string>();
 		vi.stubGlobal('localStorage', {
 			getItem: (key: string) => values.get(key) ?? null,
@@ -16,10 +17,10 @@ describe('device-local room calibration', () => {
 	});
 	afterEach(() => vi.unstubAllGlobals());
 
-	it('round trips both channels and matches the audio setup', () => {
+	it('round trips both channels and matches the audio setup', async () => {
 		const track = { getSettings: () => ({deviceId: 'webcam'}) } as MediaStreamTrack;
 		const setup = roomSetup(track, { sampleRate: rate, sinkId: 'speakers' });
-		saveProfile(null, setup, filter);
+		await saveProfile(null, setup, filter);
 		expect(restoreProfile(readProfile(), setup, rate)).toEqual(filter);
 		for (const [sinkId, sampleRate] of [['headphones',rate], ['speakers',44100]] as const) {
 			const changed = roomSetup(track, { sampleRate, sinkId });
@@ -27,18 +28,25 @@ describe('device-local room calibration', () => {
 		}
 	});
 
-	it('remembers a rejected setup and lets a new calibration replace it', () => {
-		expect(saveProfile(null, 'setup', null)).toBe(true);
+	it('remembers a rejected setup and lets a new calibration replace it', async () => {
+		expect(await saveProfile(null, 'setup', null)).toBe(true);
 		expect(restoreProfile(readProfile(), 'setup', rate)).toBeNull();
-		expect(saveProfile(null, 'setup', filter)).toBe(false);
-		expect(saveProfile(readProfile(), 'setup', filter)).toBe(true);
+		expect(await saveProfile(null, 'setup', filter)).toBe(false);
+		expect(await saveProfile(readProfile(), 'setup', filter)).toBe(true);
 		expect(restoreProfile(readProfile(), 'setup', rate)).toEqual(filter);
 	});
 
-	it('treats corrupt or unavailable storage as a fresh session', () => {
+	it('keeps the current value when another tab owns the lock or the microphone closes', async () => {
+		expect(await saveProfile(null, 'setup', filter, AbortSignal.abort())).toBe(false);
+		vi.stubGlobal('navigator', {locks: {request: (_key: string, _options: unknown, callback: (lock: null) => boolean) => callback(null)}});
+		expect(await saveProfile(null, 'setup', filter)).toBe(false);
+		expect(readProfile()).toBeNull();
+	});
+
+	it('treats corrupt or unavailable storage as a fresh session', async () => {
 		expect(restoreProfile('{"setup":"setup","left":"broken","right":"broken"}', 'setup', rate)).toBeUndefined();
 		vi.stubGlobal('localStorage', { getItem() { throw new Error(); }, setItem() { throw new Error(); } });
 		expect(readProfile()).toBeNull();
-		expect(() => saveProfile(null, 'setup', filter)).not.toThrow();
+		expect(await saveProfile(null, 'setup', filter)).toBe(false);
 	});
 });

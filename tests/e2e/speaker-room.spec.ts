@@ -114,7 +114,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await page.goto('/' + mode);
 		if (mode === 'ear-training') await page.locator('[data-tour="play-button"]').click();
 		else await page.getByRole('button', { name: /start daily practice/i }).click();
-		await expect(page.getByText('Checking saved speaker calibration during Listen')).toBeVisible();
+		await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
 		await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
 		await expect(page.getByText('Speaker bleed reduction active', { exact: true })).toBeVisible({timeout: 25_000});
 		expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
@@ -186,7 +186,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.evaluate(() => sessionStorage.setItem('moved', 'true'));
 			await page.reload();
 			await page.locator('[data-tour="play-button"]').click();
-			await expect(page.getByText('Checking saved speaker calibration during Listen')).toBeVisible();
+			await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
 			await expect(page.getByText('Saved speaker check did not pass · scoring the original microphone')).toBeVisible({timeout: 25_000});
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');

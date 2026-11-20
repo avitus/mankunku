@@ -214,11 +214,15 @@ export async function calibrateRoom(
 				bypass(fallback);
 				return;
 			}
-			saveProfile(snapshot, setup, null);
+			await saveProfile(snapshot, setup, null, life.signal);
+			if (life.signal.aborted) return;
 			bypass(rejected);
 			return 'rejected';
 		}
-		if (settingsCheck) return saveProfile(snapshot, setup, filter) ? 'saved' : 'unsaved';
+		if (settingsCheck) {
+			const stored = await saveProfile(snapshot, setup, filter, life.signal);
+			return stored ? 'saved' : 'unsaved';
+		}
 
 		const output = ctx.createGain();
 		output.channelCountMode = 'explicit';
@@ -264,12 +268,16 @@ export async function calibrateRoom(
 		}
 		if (!saved) {
 			enable(1);
-			saveProfile(snapshot, setup, filter);
+			void saveProfile(snapshot, setup, filter, life.signal);
 		}
 
 		async function verifyListen(startTime: number, seconds: number): Promise<void> {
 			listen?.abort();
-			if (life.signal.aborted || seconds < 1.8) return;
+			if (life.signal.aborted) return;
+			if (seconds < 1.8) {
+				if (saved) bypass('Listen too short to verify speakers · scoring the original microphone');
+				return;
+			}
 			const current = new AbortController();
 			listen = current;
 			const start = Math.ceil(Math.max(ctx.currentTime + 0.025, startTime + 0.04) * ctx.sampleRate);
@@ -303,7 +311,7 @@ export async function calibrateRoom(
 			}
 		}
 		roomChecks.set(source, { measure: verifyListen, cancel: () => listen?.abort() });
-		if (saved) roomStatus.text = 'Checking saved speaker calibration during Listen';
+		if (saved) roomStatus.text = 'Using original microphone until Listen verifies saved calibration';
 	} catch (error) {
 		if (!life.signal.aborted) {
 			console.warn('Speaker room check unavailable', error);

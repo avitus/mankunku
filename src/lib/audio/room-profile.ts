@@ -28,14 +28,22 @@ function encode(values: Float32Array): string {
 }
 
 /** Save fitted taps or a completed negative measurement (e.g. headphones). No microphone PCM. */
-export function saveProfile(previous: string | null, setup: string, filter: RoomFilter | null): boolean {
+export async function saveProfile(
+	previous: string | null,
+	setup: string,
+	filter: RoomFilter | null,
+	signal?: AbortSignal
+): Promise<boolean> {
 	try {
-		if (localStorage.getItem(key) !== previous) return false;
-		const record = filter
-			? { setup, left: encode(filter.left), right: encode(filter.right) }
-			: { setup, rejected: true };
-		localStorage.setItem(key, JSON.stringify(record));
-		return true;
+		// Never delay practice for another tab. The lock owner will finish its own save.
+		return await navigator.locks.request(key, { ifAvailable: true }, lock => {
+			if (!lock || signal?.aborted || localStorage.getItem(key) !== previous) return false;
+			const record = filter
+				? { setup, left: encode(filter.left), right: encode(filter.right) }
+				: { setup, rejected: true };
+			localStorage.setItem(key, JSON.stringify(record));
+			return true;
+		});
 	} catch { return false; }
 }
 
