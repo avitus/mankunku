@@ -528,11 +528,10 @@ export function tuneToAbcWithMap(
 		if (sectionPickup[i]) pickupPrefixByAbsBar.set(sectionBases[i], sectionPrefix[i]);
 	});
 	/**
-	 * The lone pickup section every importer writes: hangs off the front of
-	 * the form's first system, fills no column, carries no label of its own.
+	 * A standalone pickup fills no column, even when it has a rehearsal label.
 	 */
 	const isPickupOnly = (i: number): boolean =>
-		sectionPickup[i] !== null && sheet.sections[i].bars === 1 && sheet.sections[i].label.trim() === '';
+		sectionPickup[i] !== null && sheet.sections[i].bars === 1;
 
 	function absBarToSection(absBar: number): { sectionIdx: number; bar: number } {
 		let idx = 0;
@@ -587,6 +586,7 @@ export function tuneToAbcWithMap(
 		lineOpen = false;
 	}
 
+	let deferredPickupBarline = false;
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
 		currentSectionIdx = secIdx;
@@ -597,7 +597,6 @@ export function tuneToAbcWithMap(
 		// Bars of this section that fill no layout column: the partial first bar.
 		const partial = pickup ? 1 : 0;
 		const pickupOnly = isPickupOnly(secIdx);
-		const prevPickupOnly = secIdx > 0 && isPickupOnly(secIdx - 1);
 		const placement: EndingPlacement = placeEndingSection(
 			{ bars: sec.bars, ending: sec.ending, pickupBar: pickup !== null },
 			prevSec
@@ -613,20 +612,21 @@ export function tuneToAbcWithMap(
 			flushLine(sectionBaseBars);
 			// Section prelude: part label between systems. Blank labels (front
 			// matter) get no marker and don't disturb the consecutive-duplicate
-			// suppression. abcjs draws a part label only at a line start, so a
-			// pickup-only section opens its shared system with the boxed letter
+			// suppression. abcjs draws a part label only at a line start, so an
+			// unlabeled pickup-only section opens its shared system with the boxed letter
 			// of the section it leads INTO (NotationDisplay then nudges the box
 			// over that section's first bar).
-			const labelOf = pickupOnly ? (sheet.sections[secIdx + 1]?.label ?? '') : sec.label;
+			const labelSection = pickupOnly && !sec.label.trim() ? sheet.sections[secIdx + 1] : sec;
+			const labelOf = labelSection?.label ?? '';
 			if (labelOf.trim() !== '') {
-				if (labelOf !== previousLabel || (pickupOnly ? sheet.sections[secIdx + 1]?.labelExplicit : sec.labelExplicit)) {
+				if (labelOf !== previousLabel || labelSection?.labelExplicit) {
 					tokens.push(`P:${labelOf}\n`);
 				}
 				previousLabel = labelOf;
 			}
 			openLine(sectionBaseBars);
 		} else {
-			if (prevPickupOnly && sec.repeatStart) {
+			if (deferredPickupBarline) {
 				// The pickup's barline IS this repeat: a thin bar before |: would
 				// print two barlines. Close the pickup's span on the |: itself and
 				// restamp the printed bar count past the anacrusis.
@@ -637,7 +637,7 @@ export function tuneToAbcWithMap(
 			tokens.push(' ');
 			if (sec.label.trim() !== '') previousLabel = sec.label;
 		}
-		if (sec.repeatStart && !prevPickupOnly) tokens.push('|:');
+		if (sec.repeatStart && !deferredPickupBarline) tokens.push('|:');
 		// A stacked [2] opens on a barline as [1] did; the alignment pass moves
 		// it under [1]'s, where the bar the ending replaces begins. Without it
 		// the ending's first bar ran from the key signature. A repeat sign
@@ -793,8 +793,8 @@ export function tuneToAbcWithMap(
 		const next = isLast ? null : sheet.sections[secIdx + 1];
 		// A pickup leading into a |: takes that repeat as its barline (emitted
 		// by the next section's open, which also closes this bar's span).
-		const deferBarline = pickupOnly && !isLast && !sec.repeatEnd && next?.repeatStart === true;
-		if (deferBarline) {
+		deferredPickupBarline = pickupOnly && !sec.repeatEnd && !next?.ending && next?.repeatStart === true;
+		if (deferredPickupBarline) {
 			// nothing: the next section's ' |:' closes this bar
 		} else if (sec.repeatEnd) {
 			// First ending typically ends the repeat back to the start.
@@ -817,7 +817,7 @@ export function tuneToAbcWithMap(
 		} else {
 			tokens.push(' ||');
 		}
-		if (!deferBarline) {
+		if (!deferredPickupBarline) {
 			closeBarSpan(tokens.length - 1); // the section's last bar closes here
 			if (pickupOnly) tokens.push('[I:setbarnb 1]');
 		}
