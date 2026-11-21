@@ -1,0 +1,10 @@
+{
+  "swing/piano": "cd6e5f8de0f4092e151ad6ef3b5169d53be9fbe24545605a8e014cd937a0e7f1",
+  "swing/organ": "385cddef2557ae4d922548eccfdabaff96483685f1392d4f287bc888028fd9ca",
+  "straight/piano": "d09cce2870c22a28ef10d0d1c10a57854f961f5a7a8702c4e67891e88df0fd9a",
+  "straight/organ": "5b33a43d10e1164dd1cfcc22d160251c718d8c7403984ebb3b089b9d88889aa1",
+  "bossa-nova/piano": "f909343630d4fcd992954cf774a93097ef67ec094af7034c0dd45b271290596f",
+  "bossa-nova/organ": "22531de9b0e5277c81d6a6da60aacf78dcb88fb45d1b2153688bf0e3c1a94bd7",
+  "ballad/piano": "a5e235ec1a9daf833344e314fbcdd10458b0f1960bb39d5ebb6e125fd23aac44",
+  "ballad/organ": "66debd5e501dcdc4e3bb1cac78b7ec7845e15db95653a031d20f48e7d562990c"
+}

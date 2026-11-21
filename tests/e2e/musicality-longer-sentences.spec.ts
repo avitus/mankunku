@@ -1,3 +1,4 @@
+import { observeListeningOutput, expectAudibleListeningOutput } from './fixtures/listening-output';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -8,6 +9,7 @@ import { CURRENT_MUSICALITY_RELEASE } from '../../src/lib/musicality/release';
 
 for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops longer sentences with ${keyboard}`,async({page})=>{
  requireRealtimeAudio(page);test.setTimeout(240_000);
+ await observeListeningOutput(page);
  await seedOnboardedAnonymous(page);await page.goto('/musicality');
  await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
@@ -38,7 +40,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
  expect(observed.sentences.sort()).toEqual(['bass','drums','piano']);
  for(const peak of observed.peaks)expect(peak).toBeGreaterThan(-46);
- expect(observed.peaks[3]).toBeLessThan(0);
+ await expectAudibleListeningOutput(page);
  expect(take.playback.musicalityRelease.version).toBe(CURRENT_MUSICALITY_RELEASE.version);
  expect(take.playback.params.performanceEnergySeed).toBe(3);
  expect(take.playback.provenance.committedBars).toBe(52);

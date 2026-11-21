@@ -92,6 +92,8 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+ /** Previous gate in seconds, when a walking quarter was shortened. */
+ readonly walkingGateBefore?: number;
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
@@ -110,6 +112,8 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ /** MIDI velocity added to an offbeat over four walking pulses. */
+ readonly walkingOffbeatLift?: number;
  /** Committed cross-bar gate; omitted by every historical policy. */
  readonly barLineSustain?: { readonly version: 1 | 2; readonly releaseTick: number; readonly instrument: 'piano' | 'organ'; readonly originalDuration: number };
  readonly innerMotion?: InnerMotion;
@@ -126,6 +130,8 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+ /** Velocity added to this ride backbeat over four walking pulses. */
+ readonly walkingBackbeatLift?: number;
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
@@ -376,6 +382,8 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	/** Released walking bar, from relaxed (0) to driving (1), after bass realization. */
+	readonly walkingTouch?: number;
 	sectionIndex?: number;
 	chorusIndex?: number;
 	/** True on the first bar of a section (always true on bar 0 of a mapped phrase). */

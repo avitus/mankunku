@@ -2,7 +2,19 @@
 
 The `musicality` branch develops the accompaniment as an ensemble. The target is the [original specification](/musicality#original-spec); the [implementation ledger](/musicality) records individual requirements, evidence and remaining work. A legal note sequence or passing test does not establish that a performance sounds musical.
 
-The [development log](https://github.com/avitus/mankunku/blob/main/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
+The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
+
+## Walking pulse across the form — 0.21.0
+
+Swing and Straight can let the actual bass line guide the touch of all three players. A plain bar of four walking quarters qualifies. The current performance energy gives each quarter a gate of 0.58 to 0.85 beats, bounded by its existing release. A relaxed passage has more air between notes. A stronger solo passage has a more connected walk. Where the keyboard already plays an offbeat, its attack gains 4–14 MIDI velocity units. The existing ride cymbal on beats two and four gains 0.035–0.145 on its normalized velocity scale. A closed-hat passage or cushioned ride keeps its own dynamics. Pitches and onsets follow the existing arrangement.
+
+The drummer and keyboardist receive the walking decision only after the bassist has chosen the bar. Response ownership, dense-solo restraint, setups, launches and terminal reservations take priority. The seed determines how the energy wave runs across the choruses. The new policy is fingerprinted only for explicit Swing and Straight 4/4 performances. Bossa and Ballad keep their native 0.20 arrangements. The listening cards report the affected emitted notes and strokes under **Why this choice**.
+
+Load the 0.21.0 example and leave Mankunku Blues in F at 140 BPM with two solos. Listen first to the last bar of the opening head, then to Solo 2 bars 3–6. The four-bar intro makes Solo 2 bar 3 performed bar 31. Compare how long the bass speaks, where the keys put their weight between the pulses, and how the ride marks beats two and four as the solo builds.
+
+### Written full-band breaks on imported charts
+
+The PDF import worktree moved from `9623e33c` to the published 0.20 integration at `d95bebad`. Its uncommitted prepared-playback path now supplies contiguous planning harmony and then gates all three parts against the actual written spans. In 0.21, walking touch can only shorten a bass gate and change the velocity of existing keyboard and ride attacks. The remaining shared rolling work is to carry the written break spans and full form length into the arrangement input and fingerprint, including the cache key. Reserve silent beats before planning, bound earlier pitched gates and carried voices at break entry, and clamp an early re-entry attack to the written downbeat. A muted event must not seed phrase memory or appear on a musician card. Natural sample tails also need a listening check. The integration test should cover both passes of the opening head, a silent second ending, the first solo downbeat and the out-head's written G at Fine in prepared and rolling playback. This chart integration is pending in the import worktree.
 
 ## Keyboard support through quiet phrases and half-bar changes — 0.20.0
 

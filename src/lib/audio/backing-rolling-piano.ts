@@ -343,7 +343,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			...(texture ? { keyboardTexture: texture.trace } : {}), ...(articulation ? { keyboardArticulation: Object.freeze({ instrument: phrasing!.instrument,
 				profile: articulation.profile, durationSeconds: duration, durationBeats: duration * score.tempo / 60, originalDurationBeats: hit.durationBeats }) } : {}) }) } : resolved;
 		if (!selected.notes.length) return;
-		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: hit.velocity } };
+		// Give an existing syncopation a firmer attack between the four bass pulses.
+		const lift = info.walkingTouch !== undefined && !protectedGesture && !commonTones && hit.beatOffset % 1 === .5
+			? Math.round(4 + 10 * info.walkingTouch) : 0;
+		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: Math.min(127, hit.velocity + lift),
+			...(lift ? { walkingOffbeatLift: Math.min(lift, 127 - hit.velocity) } : {}) } };
 	};
 	// Preparation is pure: rejected replies retain the already valid native fallback,
 	// and neither candidate can advance the last actually emitted voicing.

@@ -567,6 +567,13 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
     softenedHits:bar.cushioning.softenedHits.map(h=>({before:tint(h.before),after:tint(h.after)}))}}:{})};
   freezeDrumPhraseTrace([bar]);
  }
+	const touch = input.info.walkingTouch;
+	if (touch !== undefined && !bar.cushioning && !input.compIsDrumReply && bar.ride.voice !== 'hihat') {
+		const lift = .035 + .11 * touch;
+		const hits = bar.hits.map(hit => hit.drum === 'ride' && hit.role === 'timekeeping' && hit.beatOffset % 2 === 1
+			? { ...hit, velocity: Math.min(1, hit.velocity + lift), walkingBackbeatLift: Math.min(lift, 1 - hit.velocity) } : hit);
+		bar = freezeDrumPhraseTrace([{ ...bar, hits }])[0];
+	}
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,

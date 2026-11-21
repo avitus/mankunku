@@ -123,6 +123,7 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+ readonly walkingBackbeatLift?: number;
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;

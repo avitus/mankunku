@@ -802,5 +802,12 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	const walkingQuarter = bass.find(e => e.walkingGateBefore !== undefined && e.duration < e.walkingGateBefore);
+	if (walkingQuarter) bassCard.evidence.push(`Walking quarter held for ${Math.round(walkingQuarter.duration * 1000)} ms`);
+	const offbeat = piano.find(e => e.walkingOffbeatLift && e.absBeat % 1 === .5);
+	if (offbeat) pianoCard.evidence.push('Offbeat chord accented between walking bass notes');
+	if (drums.some(e => e.walkingBackbeatLift && e.drum === 'ride' && e.absBeat % 2 === 1)) {
+		drumCard.evidence.push('Ride backbeat accented over the walking bass');
+	}
 	return [bassCard, pianoCard, drumCard];
 }
