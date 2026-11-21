@@ -282,8 +282,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const harmonyEnd = (fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4 * score.ppq;
 		const releaseLimit = phrasing ? Math.min(nextLimit, harmonyEnd) : nextLimit;
 		const availableBeats = (releaseLimit - tick) / score.ppq;
+		// Supporting chords need time to sound, with a longer final answer.
+		// Protected jabs/replies retain their articulation; actual attack and
+		// harmony bounds still own every release.
+		const supportedDuration = score.pianoContinuityVersion && harmonicSupport && !protectedGesture
+			? Math.max(hit.durationBeats, realized.length === 1 ? 3 : hit === realized.at(-1) ? 2.25 : .9) : hit.durationBeats;
 		const articulation = phrasing && availableBeats > 0 ? articulateKeyboardHit({ style: score.style ?? 'swing', instrument: phrasing.instrument,
-			durationBeats: hit.durationBeats, velocity: hit.velocity, availableBeats }) : undefined;
+			durationBeats: supportedDuration, velocity: hit.velocity, availableBeats }) : undefined;
 		const duration = articulation ? articulation.durationBeats * 60 / score.tempo
 			: Math.min(hit.durationBeats * 60 / score.tempo, (releaseLimit - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;

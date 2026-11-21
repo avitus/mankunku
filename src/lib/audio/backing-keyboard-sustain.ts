@@ -34,10 +34,17 @@ export function sustainAcrossBar(
 		beats < (score.style === 'bossa-nova' ? .12 : .4)) return;
 
 	const instrument = score.keyboardPhrasing.instrument;
-	const tail = score.style === 'bossa-nova' ? (instrument === 'organ' ? .5 : .25)
+	let tail = score.pianoContinuityVersion ? 1 : score.style === 'bossa-nova' ? (instrument === 'organ' ? .5 : .25)
 		: score.style === 'ballad' ? (instrument === 'organ' ? 1 : .65)
 			: (instrument === 'organ' ? .8 : .4);
 	const boundary = (bar + 1) * 4;
+	// A later hit can anticipate the next written harmony by half a beat.
+	// Keep the older short carry when fast changes leave no room for the
+	// longer gate, including a small margin for the scheduled microtiming.
+	if (score.pianoContinuityVersion && score.harmony.some(h => {
+		const start = fractionToFloat(h.startOffset) * 4;
+		return start > boundary && start < boundary + 1.6;
+	})) tail = .4;
 	const releaseTick = Math.round((boundary + tail) * score.ppq);
 	const source = score.harmony.find(h => event.absBeat >= fractionToFloat(h.startOffset) * 4 &&
 		event.absBeat < (fractionToFloat(h.startOffset) + fractionToFloat(h.duration)) * 4);

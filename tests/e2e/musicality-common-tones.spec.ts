@@ -40,6 +40,7 @@ for (const keyboard of ['piano','organ'] as const) test(`0.19 full Blues connect
  expect(carries.length).toBeGreaterThan(0);
  for(const held of carries){
   const boundary=(Math.floor(held.absBeat/4)+1)*4*192;
+  if(keyboard==='piano')expect(held.barLineSustain!.releaseTick-boundary).toBe(192);
   const entry=generated.compEvents.filter(e=>parseInt(e.time)>=boundary).sort((a,b)=>parseInt(a.time)-parseInt(b.time))[0];
   expect(parseInt(entry.time)).toBeLessThan(boundary+.15*192);
   for(const attack of generated.compEvents.filter(e=>parseInt(e.time)>=boundary&&parseInt(e.time)<held.barLineSustain!.releaseTick))expect(attack.notes.some(n=>held.notes.includes(n))).toBe(false);

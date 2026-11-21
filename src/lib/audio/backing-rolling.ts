@@ -36,6 +36,8 @@ import { captureDrumStatement, planDrumPianoFeedback, validateDrumPianoFeedback,
 import { pianoPhraseRecallEnabled, validatePianoPhraseRecall } from './backing-piano-motif-memory';
 
 export interface RollingBackingOptions {
+ /** 0.19.1: more sustained ordinary Swing/Straight piano support. */
+ readonly pianoContinuity?: true;
  /** 0.18: bounded same-harmony gate and a supported next-bar breath. */
  readonly keyboardSustain?: true | 'common-tones';
 	/** Normal playback owns a finite timeline; lab capture limits do not apply. */
@@ -88,6 +90,7 @@ export interface RollingBarIdentity {
 }
 
 export interface RollingBackingDefinition {
+ readonly pianoContinuityVersion?: 1;
 	/** Missing on legacy Swing checkpoints. */
 	readonly style?: BackingStyle;
 	readonly version: 1;
@@ -251,6 +254,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+  ...(keyboardPhrasing?.instrument === 'piano' && options.pianoContinuity && ['swing','straight'].includes(style.coordinatedStyle!) ? { pianoContinuityVersion: 1 as const } : {}),
   ...(keyboardPhrasing && options.keyboardVariety === 'developed' && options.longerSentences === true ? { longerSentencesVersion: 1 as const } : {}),
   ...(keyboardPhrasing && options.keyboardSustain ? { keyboardSustainVersion: options.keyboardSustain === 'common-tones' ? 2 as const : 1 as const } : {}),
   ...(keyboardPhrasing && options.innerMotion === true ? { innerMotionVersion: 1 as const } : {}),

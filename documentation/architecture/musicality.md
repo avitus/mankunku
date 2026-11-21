@@ -4,6 +4,14 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/main/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Audible piano support — 0.19.1, 20 November 2026
+
+Listening feedback on 0.19 found the piano still sparse and its cross-bar connection difficult to hear. `pianoContinuity: true` adds an independent fingerprint policy for Swing/Straight piano only. Existing two-attack native figures receive more selection weight, within the same planner permissions, motif development and response ownership. Ordinary supporting hits request longer gates: 0.9 quarter beats for an earlier hit, 2.25 for the final hit, or 3 for a single hit. Every request remains bounded by the next actual attack and written harmonic boundary. Protected arrivals, foreground replies, active-solo restraint and deliberate formal breaths retain their prior rules. Short accents still occur; velocity and sample gain do not change.
+
+Eligible piano carries now last one quarter beat into the next bar (about 0.43 seconds at 140 BPM, formerly 0.17). A following harmony change less than 1.6 beats into that bar retains the old short carry, allowing room for a half-beat anticipation and microtiming. The existing one-beat renderer/checkpoint limit remains intact. Common-tone pitch selection, clearing of other voices, fresh new-harmony entrances and no immediate carry renewal remain unchanged. Organ, Bossa and Ballad output is unchanged by this policy. Omitting the flag preserves the captured complete 0.19 performances; 0.18 replay retains its own policy.
+
+The listening example remains Mankunku Blues in F, Swing 140, two solo choruses, seed 3. Listen for fuller support across the whole head and solo choruses, not just an isolated bar-line tie. Use **Solo 1, chorus bars 3→4 / 5→6 / 7→8** when describing locations; the desk's elapsed performance bar numbers include the intro and all repeated choruses and differ from printed chart numbers. The progress log records measured event coverage and browser evidence; human judgment of audible continuity and naturalness remains pending.
+
 ## Common-tone harmonic connections — 0.19.0, 18 November 2026
 
 `keyboardSustain: 'common-tones'` selects fingerprint version 2; `true` retains the 0.18 policy. Eligible existing late attacks (or native Ballad pads) can carry at most two actual MIDI pitches that belong to both written chords across one bar line. The other pitches keep their original releases. A carry does not cross an intervening chord, section, chorus or loop, renew on the following bar, or turn a detached jab into a pad. Same-harmony whole-chord carries keep the 0.18 rules. Common tones are drawn from the authored chord definitions, not every note of the surrounding scale.

@@ -13,6 +13,8 @@ for (const figure of additional) {
  Object.freeze(figure.hits); Object.freeze(figure.tags); Object.freeze(figure);
 }
 export const KEYBOARD_VARIETY_FIGURES: readonly CompFigure[] = Object.freeze([...COMP_FIGURES, ...additional]);
-export const keyboardFigures = (score: { readonly keyboardVarietyVersion?: 1 | 2 }): readonly CompFigure[] =>
- score.keyboardVarietyVersion ? KEYBOARD_VARIETY_FIGURES : COMP_FIGURES;
+const continuityFigures = Object.freeze(KEYBOARD_VARIETY_FIGURES.map(figure =>
+ Object.freeze({...figure,weight:figure.weight*(figure.bars===1 && figure.hits[0].length===2?8:1)})));
+export const keyboardFigures = (score: { readonly keyboardVarietyVersion?: 1 | 2; readonly pianoContinuityVersion?: 1 }): readonly CompFigure[] =>
+ score.keyboardVarietyVersion ? score.pianoContinuityVersion ? continuityFigures : KEYBOARD_VARIETY_FIGURES : COMP_FIGURES;
 export const hasWrittenKeyboardArticulation = (id: string): boolean => additional.some(figure => figure.id === id);

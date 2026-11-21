@@ -83,6 +83,9 @@ it('clears an altered tone, refuses incompatible harmony and protects formal bou
  const incompatible={...selected,harmony:selected.harmony.map((h,i)=>i===1?{...h,chord:{root:'D' as const,quality:'maj7' as const}}:{...h,chord:{root:'C' as const,quality:'7' as const}})};
  expect(sustainAcrossBar(incompatible,1,info,[{...event,notes:[60,64,67,70]}])).toBeUndefined();
  expect(sustainAcrossBar({...selected,keyboardSustainVersion:1},1,info,[event])).toBeUndefined();
+ const fast={...selected,pianoContinuityVersion:1 as const,harmony:[selected.harmony[0],{...selected.harmony[1],duration:[1,4] as [number,number]},{...selected.harmony[1],startOffset:[9,4] as [number,number],duration:[199,4] as [number,number],chord:{root:'F#' as const,quality:'maj7' as const}}]};
+ // The next chord can be anticipated at beat .5: retain the .4-beat gate.
+ expect(sustainAcrossBar(fast,1,info,[event])!.at(-1)!.barLineSustain!.releaseTick).toBe(Math.round(8.4*192));
  expect(sustainAcrossBar(selected,1,info,[event],1600)).toBeUndefined();
  expect(sustainAcrossBar({...selected,bars:selected.bars.map((b,i)=>i===2?{...b,sourceSectionIndex:b.sourceSectionIndex+1}:b)},1,info,[event])).toBeUndefined();
 });
