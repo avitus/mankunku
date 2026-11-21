@@ -96,7 +96,7 @@ describe('buildAdminUserRows', () => {
 			],
 			lickOwners: ['u1', 'u1', 'u1'],
 			tuneOwners: ['u1'],
-			settings: [{ user_id: 'u1', updated_at: '2026-08-16T08:00:00Z' }]
+			settings: [{ user_id: 'u1', updated_at: '2026-08-16T08:00:00Z', instrument_id: 'tenor-sax' }]
 		});
 
 		expect(rows).toEqual([
@@ -117,6 +117,7 @@ describe('buildAdminUserRows', () => {
 				lickCount: 3,
 				tuneCount: 1,
 				lastSyncAt: '2026-08-16T08:00:00Z',
+				instrumentName: 'Tenor Saxophone',
 				devices: []
 			}
 		]);
@@ -146,8 +147,24 @@ describe('buildAdminUserRows', () => {
 				lickCount: 0,
 				tuneCount: 0,
 				lastSyncAt: null,
+				instrumentName: null,
 				devices: []
 			}
+		]);
+	});
+
+	it('joins each saved instrument by owner and preserves unknown instrument ids', () => {
+		const rows = buildAdminUserRows({
+			...emptyInput(),
+			authUsers: [{ id: 'u1' }, { id: 'u2' }, { id: 'u3' }],
+			settings: [
+				{ user_id: 'u2', instrument_id: 'concert', updated_at: '2026-08-16T08:00:00Z' },
+				{ user_id: 'u1', instrument_id: 'vibraphone', updated_at: '2026-08-16T08:00:00Z' },
+				{ user_id: 'u3', instrument_id: 'future-instrument', updated_at: '2026-08-16T08:00:00Z' }
+			]
+		});
+		expect(rows.map(row => [row.id, row.instrumentName])).toEqual([
+			['u1', 'Vibraphone'], ['u2', 'Other C Instrument'], ['u3', 'future-instrument']
 		]);
 	});
 

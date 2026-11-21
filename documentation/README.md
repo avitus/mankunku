@@ -1,5 +1,7 @@
 # Mankunku Documentation
 
+The shared audio mixer is documented in the [Settings guide](./user-guide.md#setting-a-comfortable-listening-balance), [signal-path overview](./architecture/audio-pipeline.md#audio-routing-and-reference-levels), and [Audio API](./api-reference/audio.md#mixer-policyts-and-mixerts), with [reference measurements](../docs/maintenance/audio-mixer/README.md) captured before and after the November 17, 2026 change.
+
 Current contributor setup and framework references were reviewed on 2026-11-08. See the [maintenance audit](../docs/maintenance/2026-11-08-audit.md) for test exclusions, dependency risks and validation. Dated incident notes below preserve what happened at the time; current instructions live in the linked reference pages.
 
 

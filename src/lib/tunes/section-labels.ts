@@ -2,6 +2,30 @@ import type { Tune, TuneSection } from '$lib/types/tune';
 import { addFractions, subtractFractions, compareFractions, multiplyFraction } from '$lib/music/intervals';
 import { resolvePickupLength } from '$lib/music/pickup';
 
+export function isIntroLabel(label: string): boolean {
+	return label.trim().toLowerCase() === 'intro';
+}
+
+function startsRehearsalMark(section: TuneSection, previous: string): boolean {
+	const label = section.label.trim();
+	return !!label && (label !== previous || section.labelExplicit === true);
+}
+
+/** Unlabelled fragments belong to the preceding rehearsal mark. */
+export function sectionPlaybackRules(sections: TuneSection[]) {
+	let previous = '';
+	let intro = false;
+	let introOmission = true;
+	return sections.map(section => {
+		if (startsRehearsalMark(section, previous)) {
+			previous = section.label.trim();
+			intro = isIntroLabel(section.label);
+			introOmission = section.omitFromSolos ?? true;
+		}
+		return { omitFromSolos: section.omitFromSolos ?? (intro && introOmission), omitFromOutro: intro };
+	});
+}
+
 /** Visible rehearsal marks; ending fragments inherit their body's mark. */
 export function sectionLabels(tune: Pick<Tune, 'sections' | 'timeSignature'>) {
 	let bar = 0;
@@ -10,7 +34,7 @@ export function sectionLabels(tune: Pick<Tune, 'sections' | 'timeSignature'>) {
 		const start = bar;
 		bar += section.bars;
 		const label = section.label.trim();
-		if (!label || (label === previous && !section.labelExplicit)) return [];
+		if (!startsRehearsalMark(section, previous)) return [];
 		previous = label;
 		return [{ sectionIdx, label, bar: start + (resolvePickupLength(tune, sectionIdx) && section.bars > 1 ? 1 : 0) }];
 	});
@@ -64,7 +88,7 @@ function joinUnmarked(sections: TuneSection[], meter: Tune['timeSignature']): Tu
 	for (const section of sections) {
 		const prev = result.at(-1);
 		if (prev && !section.label && !section.repeatStart && !prev.repeatEnd && !section.pickupLength &&
-			prev.ending === section.ending && !!prev.omitFromSolos === !!section.omitFromSolos) {
+			prev.ending === section.ending && prev.omitFromSolos === section.omitFromSolos) {
 			const shift = multiplyFraction(meter, prev.bars);
 			prev.notes.push(...section.notes.map(n => ({ ...n, offset: addFractions(shift, n.offset) })));
 			prev.harmony.push(...section.harmony.map(h => ({ ...h, startOffset: addFractions(shift, h.startOffset) })));

@@ -8,6 +8,7 @@
 
 import type { MicPermissionState } from '$lib/types/audio';
 import { initAudio } from './audio-context';
+import { releaseRoomGraph, roomCorrectionEnabled, roomStatus } from './room-scoring-state.svelte';
 
 export interface MicCapture {
 	stream: MediaStream;
@@ -46,7 +47,14 @@ export async function checkMicPermission(): Promise<MicPermissionState> {
 export async function startMicCapture(): Promise<MicCapture> {
 	if (capture) return capture;
 
+	capture = await openMicrophone();
+	return capture;
+}
+
+/** Open an independent microphone graph, owned by its caller. */
+export async function openMicrophone(signal?: AbortSignal): Promise<MicCapture> {
 	const audioCtx = await initAudio();
+	signal?.throwIfAborted();
 
 	const stream = await navigator.mediaDevices.getUserMedia({
 		audio: {
@@ -56,20 +64,18 @@ export async function startMicCapture(): Promise<MicCapture> {
 		}
 	});
 
-	const source = audioCtx.createMediaStreamSource(stream);
-
-	// AnalyserNode for pitch detection (time-domain data)
-	// Use factory method — Tone.js v15 returns a standardized-audio-context
-	// wrapper, not a native AudioContext, so the AnalyserNode constructor rejects it.
-	const analyser = audioCtx.createAnalyser();
-	analyser.fftSize = 4096;
-	analyser.smoothingTimeConstant = 0;
-
-	source.connect(analyser);
-	// Deliberately NOT connecting to destination — no feedback loop
-
-	capture = { stream, source, analyser, context: audioCtx };
-	return capture;
+	try {
+		signal?.throwIfAborted();
+		const source = audioCtx.createMediaStreamSource(stream);
+		const analyser = audioCtx.createAnalyser();
+		analyser.fftSize = 4096;
+		analyser.smoothingTimeConstant = 0;
+		source.connect(analyser);
+		return { stream, source, analyser, context: audioCtx };
+	} catch (error) {
+		for (const track of stream.getTracks()) track.stop();
+		throw error;
+	}
 }
 
 /**
@@ -78,11 +84,24 @@ export async function startMicCapture(): Promise<MicCapture> {
 export function stopMicCapture(): void {
 	if (!capture) return;
 
+	releaseRoomGraph(capture.source);
 	capture.source.disconnect();
 	for (const track of capture.stream.getTracks()) {
 		track.stop();
 	}
 	capture = null;
+}
+
+/** Attach a matching saved profile for scored practice. */
+export async function preparePracticeRoom(current: MicCapture, backing = false): Promise<void> {
+	if (!roomCorrectionEnabled(backing)) return;
+	try {
+		const { calibrateRoom } = await import('./room-calibration');
+		if (capture === current) await calibrateRoom(current, { mode: 'practice' });
+	} catch (error) {
+		console.warn('Speaker calibration unavailable', error);
+		if (capture === current) roomStatus.text = 'Room check unavailable · scoring the original microphone';
+	}
 }
 
 /**

@@ -139,7 +139,7 @@ test('all practice choices and tune key survive reloads and return visits', asyn
 test('chart display choices persist while focus remains escapable', async ({ page }) => {
 	await seedTunes(page, [SAINTS_USER_TUNE]);
 	await page.goto('/tunes/e2e-when-the-saints');
-	const colors = page.getByRole('button', { name: 'Harmony colors', exact: true });
+	const colors = page.getByRole('button', { name: 'Show Key Centers', exact: true });
 	await colors.click();
 	await page.getByRole('button', { name: /⛶ Focus/ }).click();
 	await reloadTunePage(page);

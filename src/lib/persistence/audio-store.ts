@@ -76,6 +76,10 @@ function openRawDb(name: string): Promise<IDBDatabase> {
  * reaching back into live session state.
  */
 export interface RecordingMetadata {
+	/** Absent on legacy mixed-only takes. New takes never fall back to scoring the mix. */
+	scoringAudio?: 'microphone' | 'unavailable';
+	/** Whether persisted score/notes came from live detection or the completed replay. */
+	scoreSource?: 'live' | 'replay';
 	phraseId: string;
 	phraseName: string;
 	source: 'ear-training' | 'lick-practice';
@@ -88,7 +92,8 @@ export interface RecordingMetadata {
 	backingTrackLog: BackingTrackLog | null;
 	bleedFilterLog: BleedFilterLog | null;
 	/**
-	 * Transport clock at the first sample of the blob, and whether the
+	 * Transport clock at the scoring audio origin (arm instant for microphone
+	 * WAVs, first blob sample for legacy takes), and whether the
 	 * metronome was audible. Together these let a replay reconstruct the
 	 * click grid via `getMetronomeBleedOnsets` — without them the segmenter
 	 * runs unsuppressed and /diagnostics can report a different segmentation
@@ -121,6 +126,8 @@ export interface RecordingMetadata {
 }
 
 export interface RecordingRecord {
+	/** Local microphone WAV on the capture arm clock, separate from playback. */
+	scoringBlob?: Blob;
 	sessionId: string;
 	blob: Blob;
 	timestamp: number;
@@ -137,6 +144,8 @@ export interface RecordingRecord {
  * builds wrote.
  */
 interface ByteRecording {
+	scoringBytes?: ArrayBuffer;
+	scoringType?: string;
 	sessionId: string;
 	bytes: ArrayBuffer;
 	type: string;
@@ -167,6 +176,8 @@ export interface RecordingSummary {
 }
 
 export interface SaveRecordingOptions {
+	/** Saved locally with metadata; cloud playback continues to use the mix. */
+	scoringBlob?: Blob;
 	metadata?: RecordingMetadata;
 	supabase?: SupabaseClient<Database>;
 	userId?: string;
@@ -191,6 +202,22 @@ function idbTx(t: IDBTransaction): Promise<void> {
 	});
 }
 
+/** Read one row at a time, retaining metadata rather than every take's PCM. */
+function recordingSummaries(store: IDBObjectStore): Promise<RecordingSummary[]> {
+	return new Promise((resolve, reject) => {
+		const summaries: RecordingSummary[] = [];
+		const request = store.openCursor();
+		request.onerror = () => reject(request.error);
+		request.onsuccess = () => {
+			const cursor = request.result;
+			if (!cursor) { resolve(summaries); return; }
+			const row = cursor.value as StoredRecording;
+			summaries.push({ sessionId: row.sessionId, timestamp: row.timestamp, metadata: row.metadata ?? null });
+			cursor.continue();
+		};
+	});
+}
+
 /**
  * Save a recording blob (and optional metadata), pruning oldest entries
  * beyond the local cap.
@@ -209,7 +236,7 @@ export async function saveRecording(
 	blob: Blob,
 	options: SaveRecordingOptions = {}
 ): Promise<void> {
-	const { metadata, supabase, userId } = options;
+	const { metadata, scoringBlob, supabase, userId } = options;
 
 	// The local IndexedDB write is best-effort and MUST NOT throw: a quota /
 	// private-mode failure should neither lose the take (the cloud upload below
@@ -223,6 +250,7 @@ export async function saveRecording(
 			// Read the bytes before the transaction opens: an await on anything
 			// but an IDB request inside it lets the transaction auto-commit.
 			const bytes = await blob.arrayBuffer();
+			const scoringBytes = await scoringBlob?.arrayBuffer();
 			const transaction = db.transaction(STORE_NAME, 'readwrite');
 			const store = transaction.objectStore(STORE_NAME);
 			// JSON round-trip strips Svelte 5 $state proxies that structuredClone
@@ -232,13 +260,15 @@ export async function saveRecording(
 				sessionId,
 				bytes,
 				type: blob.type,
+				scoringBytes,
+				scoringType: scoringBlob?.type,
 				timestamp: Date.now(),
 				metadata: plainMetadata
 			};
 			store.put(record);
 
-			const all = await idbReq(store.getAll());
-			if (all.length > MAX_RECORDINGS) {
+			if (await idbReq(store.count()) > MAX_RECORDINGS) {
+				const all = await recordingSummaries(store);
 				all.sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
 				for (let i = 0; i < all.length - MAX_RECORDINGS; i++) {
 					store.delete(all[i].sessionId);
@@ -414,6 +444,9 @@ export async function getRecordingFull(sessionId: string): Promise<RecordingReco
 			sessionId: result.sessionId,
 			// A metadata-only record (no audio) still serves its metadata.
 			blob: toBlob(result) ?? new Blob([]),
+			scoringBlob: 'scoringBytes' in result && result.scoringBytes
+				? new Blob([result.scoringBytes], { type: result.scoringType ?? 'audio/wav' })
+				: undefined,
 			timestamp: result.timestamp,
 			metadata: result.metadata ?? null
 		};
@@ -425,20 +458,14 @@ export async function getRecordingFull(sessionId: string): Promise<RecordingReco
 /**
  * Return every local recording's summary (sessionId + timestamp + metadata),
  * sorted newest first. Omits the blob so the diagnostics list can render
- * many rows without loading audio into memory.
+ * many rows without retaining every take’s audio in memory.
  */
 export async function getAllRecordingSummaries(): Promise<RecordingSummary[]> {
 	const db = await openDb();
 	try {
 		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
-		const all = await idbReq(store.getAll());
-		return all
-			.map((r: { sessionId: string; timestamp: number; metadata?: RecordingMetadata | null }) => ({
-				sessionId: r.sessionId,
-				timestamp: r.timestamp,
-				metadata: r.metadata ?? null
-			}))
-			.sort((a: RecordingSummary, b: RecordingSummary) => b.timestamp - a.timestamp);
+		const all = await recordingSummaries(store);
+		return all.sort((a: RecordingSummary, b: RecordingSummary) => b.timestamp - a.timestamp);
 	} finally {
 		db.close();
 	}

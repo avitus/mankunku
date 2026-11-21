@@ -1,0 +1,87 @@
+.tune-report{color:var(--studio-text)}
+.tr-masthead{display:flex;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--studio-border);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--studio-muted)}
+.tr-masthead time{font-family:monospace;letter-spacing:0}
+.tr-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:24px 0}
+.tr-heading h1{font-family:var(--font-display);font-weight:500;font-size:clamp(28px,4vw,43px);line-height:1.1;letter-spacing:-.035em}
+.tr-heading p{color:var(--studio-muted);font-size:11px;margin-top:12px}
+.tr-heading p span{margin:0 10px}
+.tr-summary{display:flex;gap:20px;align-items:center;max-width:50%;overflow-x:auto;padding-bottom:4px}
+.tr-summary>div{display:flex;flex-direction:column;flex-shrink:0}
+.tr-summary>div>span{text-transform:uppercase;letter-spacing:.1em;font-size:9px;color:var(--studio-muted);white-space:nowrap}
+.tr-summary strong{font-family:var(--font-display);font-size:36px;font-weight:400;color:var(--studio-text)}
+.tr-summary small{font-size:22px;opacity:.65}
+.tr-landed-label{font-size:11px;color:var(--studio-muted);align-self:flex-end;padding-bottom:8px}
+.tr-toolbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:12px}
+.tr-filter{display:flex;gap:18px}
+.tr-filter button{font-size:11px;padding:8px 0;border-bottom:2px solid transparent;color:var(--studio-muted)}
+.tr-filter button.active{color:var(--studio-text);border-color:var(--color-brass)}
+.tr-filter button span{margin-left:5px;background:var(--studio-panel);border-radius:20px;padding:2px 6px}
+.tr-legend{display:flex;gap:17px;font-size:10px;color:var(--studio-muted)}
+.tune-report .open,.tune-report .unplayed,.tune-report .unavailable{color:var(--studio-muted)}
+.tr-system{padding:17px 0;border-top:1px solid var(--studio-border)}
+.tr-changes{display:grid;align-items:end;margin-bottom:10px}
+.tr-meter{font-family:var(--font-display);font-size:14px;color:var(--studio-muted);align-self:center}
+.tr-bar{--practice-cell-height:30px;min-width:0;border-left:1px solid var(--color-practice-divider);padding:0 8px}
+.tr-bar:last-child{border-right:1px solid var(--color-practice-divider)}
+.tr-bar.selected{background:var(--studio-well)}
+.tr-bar>small{display:block;font-size:9px;color:var(--studio-muted);margin-bottom:5px}
+.tr-bar .chord-cell{padding:0!important;border:0!important;min-height:30px!important;align-items:flex-start!important;justify-content:center!important}
+.tr-bar .chord-symbol{font-size:clamp(15px,2.5vw,25px)}
+.tr-bar .beat-dot,.tr-bar .beat-dots{display:none}
+.tr-slashes{display:flex;justify-content:space-around;align-items:center;height:24px;margin:8px -8px 0;border-top:1px solid var(--color-practice-divider);border-bottom:1px solid var(--color-practice-divider)}
+.tr-slashes i{height:11px;width:3px;transform:skew(-23deg);background:var(--studio-muted);opacity:.6}
+.tr-no-chord{height:30px;display:grid;place-items:center;color:var(--studio-muted)}
+.tr-chorus{display:grid;grid-template-columns:62px minmax(0,1fr);align-items:start}
+.tr-chorus-label{font-size:10px;color:var(--studio-muted);padding-top:10px;white-space:nowrap}
+.tr-lane{position:relative;min-width:0}
+.tr-take{overflow:hidden;position:absolute;display:flex;align-items:center;gap:9px;height:34px;padding:7px 10px;min-width:0;border:1px solid transparent;border-radius:3px;text-align:left;transition:opacity .15s,border-color .15s}
+/* Medal tiles reuse the global lp-medal-chip treatment in both themes. */
+.tr-take.flat-score{color:var(--score-tone);background:color-mix(in srgb,var(--score-tone) 20%,var(--color-bg))}
+.tr-take.open{border:1px dashed var(--color-practice-divider)}
+.tr-take.unplayed,.tr-take.unavailable{background:var(--studio-panel)}
+.tr-take.chosen{border-color:var(--color-brass)}
+.tr-take:hover{border-color:var(--color-brass)}
+.tr-take.dimmed{opacity:.25}
+.tr-symbol{font-size:15px;line-height:1}
+.tr-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.tr-name small{margin-left:12px;opacity:.7;font-size:10px}
+.tr-score{font-variant-numeric:tabular-nums;font-size:11px;flex-shrink:0}
+.tr-movement{font-size:15px;line-height:1}
+.tr-no-window{display:block;color:var(--studio-muted);font-size:12px;padding:8px 10px;opacity:.5}
+.tr-selection{display:flex;align-items:center;gap:22px;border-top:1px solid var(--studio-border);border-bottom:1px solid var(--studio-border);padding:21px 0;flex-wrap:wrap}
+.tr-selection-title{flex:1;min-width:160px}
+.tr-selection-title>span{font-size:10px;color:var(--studio-muted)}
+.tr-selection h2{font-family:var(--font-display);font-size:23px;margin-top:5px}
+.tr-selected-scores{display:flex;gap:18px;overflow-x:auto;max-width:60%;padding-bottom:4px}
+.tr-selected-scores>div{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.tr-selected-scores span{font-size:10px;color:var(--studio-muted)}
+.tr-selected-scores strong{font-size:13px;font-weight:500}
+.tr-action{background:var(--studio-button);color:white;font-size:11px;font-weight:600;border:1px solid var(--studio-border);border-radius:4px;padding:10px 14px;white-space:nowrap}
+.tr-action.queued{background:transparent;color:var(--color-brass);border-color:var(--color-brass)}
+.tr-footer{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-top:16px}
+.tr-footer p{font-size:10px;color:var(--studio-muted)}
+.tr-exit{display:flex;justify-content:flex-end;gap:20px;padding-top:20px;font-size:12px;color:var(--studio-muted)}
+.tr-exit a,.tr-exit button{padding:5px 0}
+.tr-empty{padding:20px 0;color:var(--studio-muted);font-size:13px}
+.tune-report button:focus-visible,.tune-report a:focus-visible{outline:2px solid var(--color-brass-soft);outline-offset:3px}
+.tune-report button{cursor:pointer}
+@media(max-width:650px){.tr-heading{align-items:flex-start;flex-direction:column;gap:18px}
+.tr-summary{max-width:100%;gap:18px}
+.tr-summary strong{font-size:28px}
+.tr-summary small{font-size:18px}
+.tr-toolbar{align-items:flex-start;flex-direction:column;gap:10px}
+.tr-legend{gap:14px;font-size:9px}
+.tr-take{gap:4px;padding:6px 4px}
+.tr-name{font-size:9px}
+.tr-name small{display:none}
+.tr-score{font-size:9px}
+.tr-symbol{font-size:11px}
+.tr-bar{padding:0 4px}
+.tr-slashes{margin-left:-4px;margin-right:-4px}
+.tr-bar .chord-symbol{font-size:15px}
+.tr-chorus-label{font-size:9px}
+.tr-movement{font-size:11px}
+.tr-selected-scores{max-width:100%;flex:1 1 100%}
+.tr-footer{align-items:flex-start;flex-direction:column}
+.tr-selection{gap:15px}
+.tr-selection h2{font-size:21px}}

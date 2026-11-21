@@ -3,6 +3,12 @@
 Living implementation plan. Started 2026-11-07 (Pacific). Update the milestone
 status, decisions, acceptance cases and remaining limitations as work lands.
 
+The current increment compares every bar of the production arrangement of
+[All the Things You Are](./all-the-things-harmonic-audit.md) with the key-center
+display. G major now spans chorus bars 14–20, and A♭ major returns at bar 24 and carries
+through the descending line and the final turnaround in bar 36. Autumn remains a reference for distinguishing
+a tonicization from a change of governing key.
+
 ## Purpose
 
 Tune lick practice should recognize useful stretches of harmony even when they
@@ -28,16 +34,21 @@ Tenor sax displays G. Each listed chord lasts half a bar:
 | 1 | Gm7, Am7 | Am7, Bm7 | ii, iii |
 | 2 | Bbmaj7, C7 | Cmaj7, D7 | IV, V |
 | 3 | Fmaj7, Gm7 | Gmaj7, Am7 | I, ii |
-| 4 | Am7, D7 | Bm7, E7 | Beginning of the next ii–V–i |
-| 5, first half | Gm7 | Am7 | Minor arrival |
+| 4 | Am7, D7 | Bm7, E7 | iii, V/ii; overlapping short minor arrival |
+| 5 | Gm7, Am7 | Am7, Bm7 | ii, iii: return to the opening harmony |
+| 6 | Bbmaj7, C7 | Cmaj7, D7 | IV, V |
 
 Bars 1–3 contain only notes of F major (G major written for tenor), including
 a dominant-to-tonic arrival in bar 3. Bar 4's first chord also belongs to that
 scale, but belongs functionally to the following cornerstone. The major practice
 window therefore ends at the **start of bar 4**, not at its E7 or at the next
-barline after it. The analytical G-major reading continues through Bm7 to the
-E7 entrance: Bm7 has both functions. The exercise boundary cannot depend on the
-available lick library.
+barline after it. The strictly scale-compatible G-major reading continues through
+Bm7 to the E7 entrance. The **governing G-major center continues through bar 6**:
+E7 is a brief secondary dominant, V/ii, resolved by Am7 before the opening harmony
+returns. These are different analytical layers. A G-major key-center rail must
+not authorize a G-major lick across E7. The exercise boundary cannot depend on
+the available lick library. Production's stored chart was checked read-only on
+2026-11-17 and confirms these six bars; bar 7 changes to Bm7♭5 in tenor.
 
 The bar-4 ii is m7, not m7b5. Preserve the authored chord. Recognize the
 m7–V7–minor-tonic variant for harmonic reservation without declaring an ordinary
@@ -81,7 +92,7 @@ and a major label on a lick does not guarantee every placement sounds convincing
 
 ## Phase 1: analysis foundation
 
-Status: implemented locally and sandbox-validated on 2026-11-07. No production
+Historical checkpoint (2026-11-07): implemented locally and sandbox-validated. No production
 caller is switched in this phase; existing chart annotations and practice
 suggestions retain their behavior. Nothing has been deployed.
 
@@ -325,20 +336,41 @@ native cadence phrases and tagged major phrases to share the same opportunities.
   candidate row with the chart selection; browser regression checks passed.
 - No database changes, proficiency edits or production-account writes.
 
-## Key-center highlighting — next visual milestone
+## Key-center highlighting
 
-Status: planned (2026-11-14). This is a core part of understanding lick placement.
+Status: initial implementation and local validation complete (2026-11-15).
+Production verification and human musical acceptance remain separate.
 
-The current “Harmony colors” control calls `tunes/harmony-colors.ts`. It tints
+The former “Harmony colors” control calls `tunes/harmony-colors.ts`. It tints
 individual tonic, subdominant (including ii) and dominant chords relative to the
 **whole tune's key**. It neither detects progression spans nor establishes local
 key centers. Neutral chords are simply outside that small role classifier.
 
-Add an explicit **Key centers** display choice, with clear distinction from the
-existing chord-role colors. A compact Off / Chord roles / Key centers control is
-the initial direction; avoid making one unlabeled color mean both function and
-key. First connect the tune detail chart and tune-practice setup. Editor/import
-parity should follow the same shared marker builder rather than another detector.
+Replace the existing control with **Show Key Centers**, as requested on 2026-11-15.
+There is no separate chord-role display mode. Tune detail and practice setup share
+the display preference; editor/import use the same marker builder and control.
+An explicitly saved old display preference is the fallback until the user chooses
+the new one. Show compact labeled rails in reserved gutters, with separate lanes
+for genuinely competing centers. Analytical explanations remain in the display
+model; the current compact UI has no expandable reading panel.
+
+Implementation decisions for this increment:
+- Analyze the finite displayed form with expanded repeats, then project contiguous
+  pieces through section/bar provenance. Do not paint across repeat jumps or
+  skipped endings. Retain visit numbers when a printed passage has repeat contexts.
+- Practice and solo charts reuse the session’s solo-form mapping, excluding
+  pickups and head-only sections without shifting their printed bar locations.
+- Show compatible major collections and cornerstone destinations, with their
+  separate explanations. Merge duplicate visual coverage only for the same center;
+  retain each analytical explanation. Stationary chords alone and unsupported
+  symbols do not establish a new center. Minor arrivals describe a destination,
+  not a broad minor-scale region. Blues has its own explicit label.
+- Name an implied progression center explicitly when its tonic is absent; a
+  ii–V can suggest its destination before the arrival appears in the chart.
+- Key colors follow the written tonic; text labels and reading details do not
+  require color discrimination. Minor bands also use a dashed outline.
+- Keep display state outside session planning, readiness, rotation and scoring.
+  Freestyle may show key centers without gaining insertion windows.
 
 - Build from the same `analyzeHarmony` evidence and cadence local keys used by
   practice. Show full analytical readings (`compatibleMajorRegions`), not only
@@ -363,6 +395,23 @@ parity should follow the same shared marker builder rather than another detector
   centers independently of its signature; transposition, ambiguous regions,
   repeated forms and phone-width labels remain correct.
 
+### Validation evidence (2026-11-15)
+
+- Linux sandbox: 150 focused unit tests passed across analysis, key-center
+  projection, preference migration and practice planning. Replacing full
+  compatible collections with reserved exercise regions caused 13 expected
+  failures, confirming that the overlap regressions detect that mistake.
+- Chromium, Firefox and WebKit: 119 distinct checks passed across seven tune
+  suites, with four existing Linux Firefox audio skips. The final 36-case batch
+  passed 35 with one such skip after correcting fixture seeding and the test's
+  mistaken assumption that a ii–V cannot imply a center before its tonic.
+- Desktop and 390px phone screenshots were inspected; notation, lick labels,
+  legends and shared-chord bands remain legible. Browser assertions also cover
+  preference persistence, transposition, split-bar chord strips, freestyle,
+  All the Things You Are and changes to closing-ending context.
+- TypeScript/Svelte validation reports zero errors and zero warnings. No session
+  eligibility, reservation, capture or scoring rules change in this increment.
+
 ## Phase 4: phrase-aware ranking
 
 Status: initial implementation and local validation complete (2026-11-14).
@@ -379,7 +428,7 @@ lick and removes none. It never edits notes, stretches timing or moves pickups.
   notes through chord changes, short offbeat stepwise approaches resolving
   immediately to a supported target, and a supported final sounding note.
 - Meter matters: 4-beat measures emphasize beats 1 and 3; simple other meters
-  claim the downbeat; compound eighth-note meters use dotted beats. Asymmetric
+  claim the downbeat; compound meters use dotted beats in their stated unit. Asymmetric
   groupings beyond the downbeat are deferred until explicit grouping exists.
 - Tied continuations are one attack and one sustained event. Rests, pickups and
   the last sounding end keep their authored timing; trailing rest padding is
@@ -430,18 +479,233 @@ key-center display.
 - Direct source review completed. No database/proficiency changes or production
   account writes. Dev delivery does not establish production or musical acceptance.
 
+## Contextual key centers — 2026-11-17
+
+Status: implemented and sandbox-validated. This increment takes priority
+over cross-chorus windows following the production Autumn review.
+
+- Add `contextualMajorRegions` to the analysis result, separately from strict
+  `compatibleMajorRegions` and reserved `majorRegions`. No matcher or planner
+  consumes the new regions as lick eligibility.
+- Require an established V–I arrival in at least two bars of compatible harmony.
+  Do not use the song signature to force a center. Inspect all twelve possible
+  keys, using authored chord evidence rather than per-chord scale defaults.
+- Permit one applied dominant event of at most one bar, immediately resolving by
+  fifth to a diatonic major/minor triad on ii, iii, IV, V or vi. Repeated notation
+  segments of the same chord count as one event. Require the dominant-seventh
+  core and reject unexplained chromatic extensions or bass tones.
+- Require prompt return to varied established harmony: at least three roots,
+  two shared non-target roots, and the parent's tonic or dominant within two
+  bars. The returning compatible span must last at least one bar. A prolonged
+  destination, unexplained chord, gap or section/repeat boundary prevents bridging.
+- Paint the continuing major rail. Retain contained cornerstone readings with
+  `contextKey` and V/degree explanations as subordinate tonicizations rather
+  than equally prominent competing key rails. Other overlapping readings remain.
+- Autumn acceptance: G-major rail covers bars 1–6; A-minor arrival at bar 4 is
+  retained as a tonicization, while the later minor cadence from bar 7 is still
+  visible. Strict G compatibility ends at bar 4 beat 3 and the major exercise
+  still ends before bar 4. The rule must work in every transposition and away
+  from the tune's signature. Tune chart and setup use the same projection.
+
+This is intentionally a conservative first contextual rule, not a full modulation
+model. Multiple chromatic events in one region, altered secondary dominants,
+tonic-free context, borrowed chords and passing diminished harmony remain future
+work. The returning-vocabulary thresholds need musical calibration on more tunes.
+
+### Validation and delivery
+
+- CircleCI Smarter Testing in the isolated Linux sandbox: **375 unit tests passed
+  across 17 selected files** (575 unrelated files excluded, no selected file
+  skipped), covering analysis, all 12 transpositions, unrelated signatures,
+  applied degrees, counterexamples, repeat projection and existing lick planning.
+- Disabling contextual analysis in the sandbox caused **33 expected regression
+  failures**; restoring it returned the complete selected suite to green.
+- TypeScript/Svelte: **0 errors, 0 warnings**. The first check exhausted Node's
+  default heap; the successful run used a 3 GB heap inside the 4 GB container.
+- Chromium, Firefox and WebKit: **66 distinct browser checks passed**, with
+  **3 existing Linux Firefox audio skips**, across `tune-key-centers`,
+  `tune-harmonic-regions` and `tune-practice-setup` (126 unrelated files excluded).
+  A new assertion initially queried the chord-only renderer after navigating to
+  the engraved setup chart. Correcting that locator yielded a fresh **36/36**
+  pass for the full key-center file across all three browsers.
+- Inspected desktop tune-chart and mobile setup screenshots: continuous G-major
+  rails through bar 6, the later minor cadence visible, existing lick windows
+  retained. Reports and screenshots are retained under
+  `test-results/harmonic-analysis-contextual-centers/` (gitignored).
+- Direct source review completed. Delivery target: `dev`; no schema, account
+  data or proficiency changes, and no production deployment in this increment.
+
+Commands inside the isolated container:
+
+```sh
+circleci testsuite run 'unit tests' --local --run-tests=all --analyze-tests=none \
+  -t 'tests/unit/(tunes/(tonal-centers|key-centers|harmonic-analysis|major-region-matcher|lick-matcher|progression-detector)|state/tune-practice.*|music/chord-evidence|lick-practice/progression-fit)\.test\.ts$'
+circleci testsuite run 'e2e tests' --local --run-tests=all --analyze-tests=none \
+  -t '^(tune-key-centers|tune-harmonic-regions|tune-practice-setup)\.spec\.ts$'
+```
+
+## Longer governing key centers — 2026-11-18
+
+Once a V–I cadence establishes a major key, the chart can carry it across
+successive secondary dominants. Each dominant must resolve immediately and the
+following chords must independently meet the November 17 return criteria using
+the harmony just before that excursion. A failed return ends the span at the
+last supported chord. The analysis records each successful V/degree with its
+own segment indices. Practice still allocates each cornerstone independently.
+
+For wholly diatonic passages, prefer a single cadenced parent key when it
+contains the entire competing collection and lasts at least one bar longer.
+The shorter reading stays inspectable. A cadence in the shorter reading, an
+equally long reading, or multiple qualifying parents preserves the alternatives.
+
+Regression examples (concert pitch):
+
+- In Autumn at bar 16 the local minor arrival overlaps a change between two
+  established major centers. The split at beat 3 is described below.
+- C6–F6–C6–G7–Cmaj7 gives one five-bar C rail. F major also fits the first
+  three bars, but the only cadence establishes C. This also holds with an F
+  key signature.
+- After C is established, A7–Dm7 and E7–Am7 can occur in the same C span when
+  each returns to familiar diatonic harmony. A subsequent A7–Dmaj7 with a
+  confirming cadence in D starts a separate reading.
+
+Altered dominants, successive dominants without intervening returns, and
+general minor-key continuity remain open. The one-bar margin is an initial
+display choice for comparing fully contained readings.
+
+The Linux sandbox passed 211 focused unit tests across six files, 39 chart and
+setup browser cases across Chromium, Firefox and WebKit, and the TypeScript/Svelte
+check. Both new display regressions reproduced the extra rail on the previous
+dev revision.
+
+## An applied dominant at a change of key
+
+In the tenor chart of *Autumn in New York*, Em7–A7–Dmaj7 establishes D.
+Bar 16 opens with Bm7, its vi7. E7 on beat 3 leads to Am7, the ii of the
+returning G major. The subsequent D7–Gmaj7 confirms G. The chart places
+the D-to-G boundary at the E7 entrance. The underlying Bm7–E7–Am7
+minor-arrival interpretation remains available for cornerstone practice.
+
+For any contiguous m7–V7–minor arrival, look for exactly one cadenced major
+collection ending on its approach and one beginning on its resolution.
+Require a different tonic on each side and a V–I arrival within four bars
+on each side. The written approach must have a minor third and perfect fifth.
+The dominant must supply a supported dominant seventh. Both the dominant
+and its minor target may last up to one bar each. Read the target as ii, iii
+or vi according to the incoming key. These timing bounds are conservative
+defaults for distinguishing a tonicization from a sustained destination.
+
+Use performed chord occurrences, including across the barline or into the
+next section. Existing evidence for continuation in a single key has priority.
+The strict collections still determine scale-based lick eligibility.
+
+The Linux sandbox reproduced the previous bar-16 reading on both chart
+timelines. The new rule passed transposition checks in all twelve keys,
+separate iii and vi targets, and counterexamples for a prolonged tonic,
+missing cadences, an altered dominant and a half-diminished approach. Across
+the focused suites, 282 unit tests and 39 browser checks passed, including
+the exact half-bar rail boundary in Chromium, Firefox and WebKit.
+
+## Tonic-free passages between cadences
+
+Analyze the passage between two major cadences in the same key. A brief
+borrowed iv or a chromatic passing diminished seventh may explain the gap,
+provided the neighboring diatonic harmony supports that function. Preserve a
+separate record of the chord indices and their roles for the chart. The
+four-bar passage limit and one-bar chromatic chord limit are initial calibration
+choices. The [chorus audit](./all-the-things-harmonic-audit.md) records the
+evidence, boundaries, ambiguous passages and remaining discrepancies.
+Validation reproduced the baseline gap, then passed 255 focused unit tests,
+39 browser cases across three engines, and the TypeScript/Svelte check.
+
+## Let the sounded resolution settle the center
+
+In *All the Things You Are*, chorus bars 14–20 now form one G-major span
+(A major on tenor). Two rules supply the additional evidence.
+
+- A contiguous iiø7 leading to a diatonic V7–I in major borrows its iiø
+  from minor. The written tonic establishes the arrival mode. A short minor
+  iiø–V cornerstone at that same occurrence remains available to practice
+  and retains its explanation. Gaps and section boundaries interrupt the inference.
+- Between two cadences in the same major key, a dominant seventh with a raised
+  fifth can tonicize ii, iii or vi. Require the augmented dominant to last at
+  most one bar and resolve directly down a fifth to a diatonic minor chord
+  with a minor third and perfect fifth. The existing four-bar maximum for
+  the intervening passage applies.
+
+Both rules describe chart context. Lick eligibility continues to use the
+written harmony and existing cornerstone reservations.
+
+The tune fixture and a separate progression in all twelve keys failed before the change.
+The Linux sandbox passed 1,148 unit tests across 85 files, all 39 key-center
+browser cases across Chromium, Firefox and WebKit, and the TypeScript/Svelte
+check. The browser tests cover the full width of each tenor chart bar and
+the key labels on practice setup.
+
+## An altered dominant introducing a different key
+
+In chorus bar 24 of *All the Things You Are*, E major has just cadenced.
+C7♯5 resolves to Fm7, and B♭m7–E♭7–A♭maj7 puts that Fm7 in context as vi.
+Start the returning A♭-major chart span on C7♯5. The same opening followed
+by Gø7–C7–Fm7 confirms F minor and earns no incoming A♭ span.
+
+The outgoing cadenced collection must end on its major tonic. The written
+7♯5 must resolve directly down a fifth to ii, iii or vi of a different major
+collection that confirms its key with V–I. Allow up to one bar for the
+dominant and one for the minor target. Require the two major tonic arrivals
+within four bars of the dominant entrance and minor resolution respectively.
+These initial limits apply in the tune's own meter. Adjacent segments of one
+sustained chord count together. A gap, a section break across the approach,
+or an unspecified alteration interrupts this reading.
+
+The existing transition model records the exact dominant and resolution
+occurrences and the target degree. Chart and setup use this evidence. The
+new reading adds no scale-compatible lick window. Regression checks cover
+all twelve transpositions, ii/iii/vi targets, split and prolonged chords,
+gaps, section boundaries, and the F-minor counterexample. The Linux sandbox
+passed 1,170 selected unit tests and all 39 key-center browser checks across
+Chromium, Firefox and WebKit. The TypeScript/Svelte check was clean.
+
+### The relative-minor turnaround at the form boundary
+
+In written B♭ tenor pitch, *All the Things You Are* stays in B♭ major
+through all of chorus bar 36. After Cm7–F7–B♭maj7, Aø7–D7♭9 points to
+Gm7 (vi). The governing center covers both chords. The F♯ in D7♭9 still
+matters when matching a lick.
+
+Apply this reading in any key after a V–I cadence. The major tonic can
+continue for up to four bars before iiø/vi–V/vi. Together the two approach
+chords can last up to one bar in the tune's meter. Check their written
+pitches and exact adjacency. The dominant may be a seventh or a seventh
+with a flat ninth. The approach stays within one performed section.
+
+- When the form ends on the dominant, record the target as implied.
+- When vi actually follows, including on a repeat, require a brief minor
+  target (up to one bar) in a compatible passage that cadences back in the
+  same major key within four bars. A subsequent cadence establishing minor
+  keeps its own reading.
+- Preserve every detected cornerstone and its practice reservation. Show its
+  local minor interpretation underneath the governing major reading. The
+  turnaround contributes no extra scale-based lick coverage.
+
+Validated in all twelve keys, with the quarter/three-quarter and half/half
+bar splits, explicit repeats, a finite ending, gaps, and a genuine minor
+cadence. The Linux sandbox passed 1,185 unit tests across 85 files and all
+39 key-center browser checks across Chromium, Firefox and WebKit. On the
+engraved tenor review chart, the B♭ rail ends inside the final double barline.
+
 ## Later milestones
 
 | Milestone | Status | Scope / evidence needed |
 | --- | --- | --- |
 | Cross-chorus windows | Pending | Occurrence-aware cadence capture and incoming-resolution reservations; first/middle/final chorus handling |
-| Key-center highlighting | Planned next | Shared analysis overlays, local-key labels, overlapping readings and chart/practice provenance |
+| Key-center highlighting | Initial implementation validated | Shared chart/setup overlays, written-key labels, overlapping readings, repeat provenance and inspectable reasons; human musical acceptance remains |
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
-| Controlled chromaticism | Pending | Secondary dominants, borrowed chords, passing diminished chords; distinguish “key center retained” from “one scale fits every chord” |
+| Controlled chromaticism | Implemented for brief applied dominants, borrowed iiø and iv, and passing diminished sevenths | Incoming 7♯5 at a modulation implemented. Relative-minor turnarounds supported on final and returning passes. Compare chained dominants and further borrowed chords. |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
-| Analysis explanations | Pending | Inspectable reasons, rejected alternatives and optional user overrides, with a versioned persistence design if needed |
+| Analysis explanations | Structured reasons implemented | Key-center evidence, implied destinations, subordinate tonicizations and chart visits remain in the model; compact user-facing inspection and optional overrides remain |
 
 ## Acceptance and regression matrix
 
@@ -573,6 +837,19 @@ implementation and tests. Further changes should keep both surfaces on the same
 planning path.
 
 ## Decision log
+
+- 2026-11-17: favor the simplest supported governing center over a new key for
+  every short arrival. Autumn's first six bars remain G major in tenor, with
+  E7 as V/ii. Retain the minor-arrival reading and cornerstone reservation;
+  distinguish tonal continuity from strict scale and lick compatibility.
+
+- 2026-11-15: replace Harmony colors with Show Key Centers rather than retaining
+  multiple coloring modes. Share display state and evidence across tune detail,
+  practice setup, editor and import preview; preserve analytical overlaps and
+  keep cornerstone exercise priority independent of display.
+- 2026-11-15 (PR #307 review): apply the compound dotted-beat ranking grid to
+  6/4 and 6/16 as well as 6/8. Regression cases fail on the original denominator
+  restriction; asymmetric meter still claims only the downbeat.
 
 - 2026-11-14: key-center visualization is a core harmonic-analysis deliverable,
   distinct from the current global-key chord-role colors. Begin phrase-aware

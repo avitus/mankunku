@@ -619,7 +619,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
  */
 export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRepeats: boolean } {
 	const noRepeat = { headBars: flat.totalBars, formRepeats: false };
-	if (flat.omittedSoloSections?.length) return noRepeat;
+	if (flat.omittedSoloSections?.some(i => !flat.omittedOutroSections?.includes(i))) return noRepeat;
 	const sm = flat.sectionMap;
 
 	const seen = new Set<number>();
@@ -632,6 +632,9 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
 		seen.add(sm[i].sourceSection);
 	}
 	if (revisitIdx === -1) return noRepeat;
+	// A repeated intro is internal to the opening head. An intro before the
+	// repeat is already outside the solo form and leaves its voltas intact.
+	if (sm.slice(revisitIdx).some(entry => flat.omittedOutroSections?.includes(entry.sourceSection))) return noRepeat;
 
 	// From the second pass onward, a NEW section (never seen in pass one)
 	// followed later by a replayed one means new form material is sandwiched
@@ -650,7 +653,8 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
 	// the rest of the form, and the repeat only enclosed a section of it.
 	const headBars = sm[revisitIdx].barOffset;
 	const tailBars = firstNewIdx === -1 ? 0 : flat.totalBars - sm[firstNewIdx].barOffset;
-	if (tailBars >= headBars) return noRepeat;
+	const repeatStart = sm.find(entry => entry.sourceSection === sm[revisitIdx].sourceSection)!;
+	if (tailBars >= headBars - repeatStart.barOffset) return noRepeat;
 	return { headBars, formRepeats: true };
 }
 
@@ -845,21 +849,19 @@ export function buildSessionPhrase(args: {
 	sessionBarMap?: number[];
 	soloBars?: number;
 } {
-	if (args.flat.omittedSoloSections?.length) {
+	// A resolved repeat can already remove the intro from both returning passes.
+	const hasOmissionsAfter = (flat: FlattenedTune, omitted: number[] | undefined, start: number) =>
+		omitted?.length && flat.sectionMap.some((entry, i) => omitted.includes(entry.sourceSection) &&
+			(flat.sectionMap[i + 1]?.barOffset ?? flat.totalBars) > start);
+	const { headBars, formRepeats } = headBarsForFlat(args.flat);
+	const passStart = formRepeats ? headBars : 0;
+	const closingFlat = args.closingFlat ?? args.flat;
+	const soloStart = passStart + (args.pickupBars ?? 0);
+	const outroSourceStartBar = args.closingFlat ? (args.closingPickupBars ?? 0) : soloStart;
+	if (hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, soloStart) ||
+		hasOmissionsAfter(closingFlat, args.playHead && args.playOutro ? closingFlat.omittedOutroSections : closingFlat.omittedSoloSections, outroSourceStartBar)) {
 		const count = normalizeChoruses(args.choruses);
-		const built = sessionWithSoloOmissions({ ...args, choruses: count });
-		// The solo can select disjoint authored sections. Its emitted length and
-		// section map describe the performance; source-bar modulo does not.
-		const choruses: Omit<PerformanceChorus, 'index'>[] = [];
-		if (built.headBars > 0) choruses.push({ role: 'head', startBar: 0, endBarExclusive: built.headBars });
-		for (let chorus = 0; chorus < count && built.soloBars > 0; chorus++) {
-			const startBar = built.headBars + chorus * built.soloBars;
-			choruses.push({ role: 'solo', startBar, endBarExclusive: startBar + built.soloBars });
-		}
-		if (built.outroStartBar !== null && built.phraseBars > built.outroStartBar) {
-			choruses.push({ role: 'head', startBar: built.outroStartBar, endBarExclusive: built.phraseBars });
-		}
-		return { ...built, performanceForm: buildPerformanceForm({ totalBars: built.phraseBars, sectionMap: built.sectionMap, choruses }) };
+		return sessionWithSoloOmissions({ ...args, headBars, soloStart, closingStart: outroSourceStartBar, choruses: count });
 	}
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
@@ -884,11 +886,6 @@ export function buildSessionPhrase(args: {
 		sectionMap.push(...sectionMapFrom(built.sectionMap, built.headBars, built.headBars + chorus * chorusBars));
 	}
 	const soloEnd = built.headBars + chorusBars * count;
-	const { headBars, formRepeats } = headBarsForFlat(args.flat);
-	const closingFlat = args.closingFlat ?? args.flat;
-	const outroSourceStartBar = args.closingFlat
-		? (args.closingPickupBars ?? 0)
-		: (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);
 	const noteSourceIndices = args.flat.noteSourceIndices.slice(0, built.notes.length);
 	const outroStartBar = args.playOutro && args.playHead ? soloEnd : null;
 	const closingStartBar = outroStartBar ?? (args.closingFlat ? built.headBars + chorusBars * (count - 1) : null);
@@ -1039,7 +1036,6 @@ export type CueLevel = 'lick' | 'progression' | 'none';
 
 export interface StrictnessKnobs {
 	octaveInsensitive: boolean;
-	bleedFilterEnabled: boolean;
 	/**
 	 * What the bands name: the lick (and, in points mode, the pick card), the
 	 * progression alone, or nothing.
@@ -1059,7 +1055,7 @@ export interface StrictnessKnobs {
  * nothing.
  */
 export function strictnessKnobs(strictness: TunePracticeStrictness): StrictnessKnobs {
-	const listening = { octaveInsensitive: true, bleedFilterEnabled: true };
+	const listening = { octaveInsensitive: true };
 	switch (strictness) {
 		case 'guided':
 			return { ...listening, cueLevel: 'lick' };

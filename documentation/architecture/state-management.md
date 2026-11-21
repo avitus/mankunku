@@ -54,7 +54,7 @@ const defaultSettings = {
   onboardingComplete: false,
   tonalityOverride: null as Tonality | null,   // null = auto-selected daily tonality
   highestNote: null as number | null,          // null = instrument default
-  bleedFilterEnabled: false                     // A/B toggle for bleed-filtered scoring
+  bleedFilterEnabled: false                     // legacy field for older clients
 };
 export const settings = $state(loadSettings());
 ```

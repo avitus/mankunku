@@ -11,8 +11,8 @@ import type { ListeningTuneSession } from './listening-tunes';
 export function listeningScoreBars(session: ListeningTuneSession): readonly (number | null)[] {
 	const flat = flattenTune(session.tune, { expandRepeats: true });
 	const laterPassStart = flat.totalBars - session.chorusBars;
-	return session.bars.map(({ context }) => {
-		const sourceBar = (context.chorusIndex === 0 ? 0 : laterPassStart) + context.barInChorus;
+	return session.bars.map(({ context }, i) => {
+		const sourceBar = session.sessionBarMap?.[i] ?? ((context.chorusIndex === 0 ? 0 : laterPassStart) + context.barInChorus);
 		return notationBarForPlaybackBar(flat.sectionMap, session.tune.sections, sourceBar);
 	});
 }

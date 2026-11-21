@@ -77,7 +77,9 @@ vi.mock('$lib/audio/audio-context', () => ({
 		createGain: () => ({ gain: {}, connect: noop, disconnect: noop }),
 		createDelay: () => ({ delayTime: {}, connect: noop, disconnect: noop })
 	}),
-	getMasterGain: () => ({}),
+	getProgramGain: () => ({}),
+	getClickGain: () => ({}),
+	getMelodyGain: () => ({}),
 	setMasterVolume: vi.fn()
 }));
 vi.mock('$lib/audio/metronome', () => ({

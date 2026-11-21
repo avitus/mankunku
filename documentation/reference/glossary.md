@@ -140,13 +140,13 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 ## App-specific
 
-**Musicality / Original** — The device-local accompaniment choice in Settings → Rhythm & band. Musicality coordinates the rhythm section across supported 4/4 forms; Original is the alternative and automatic fallback for unsupported passages. The choice applies to the next playback. See [The band](../user-guide.md#the-band).
+**Musicality / Original** — Musicality is the default accompaniment, coordinating the rhythm section across supported 4/4 forms. Original remains the automatic fallback for unsupported passages and a comparison option in the listening lab. See [The band](../user-guide.md#the-band).
 
 **Listening lab** — The diagnostic workspace for comparing arrangements and testing the band’s responses to microphone observations. Its live adaptive behavior is separate from ordinary practice, which prepares an arrangement before playback.
 
 **Backing style** — Which band you practice with: Swing, Bossa Nova, Ballad, or Straight. Chosen on the Lick Practice and tune-practice setup screens. Ear Training uses the saved backing style when backing is enabled.
 
-**Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at every strictness level, and nothing else does. There is no user-facing toggle.
+**Bleed filter** — Removes likely backing-track notes from microphone detections. Ear Training, Lick Practice and Tune Practice use the filtered notes whenever the band plays. Metronome-only practice uses a separate click-timing check.
 
 **Combinatorial lick** (or phrase) — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand — under half the catalog: 471 of these, alongside 652 hand-written ones. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
 

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 import type { SampleLoader, SampleLoaderLoadOptions, Smolken, SmplrPreset, Scheduler, Storage } from 'smplr';
+import { SAMPLE_CHANNEL_REFERENCE } from '$lib/audio/mixer-policy';
 import { BACKING_BASS_SELECTION_GAIN, loadBackingBass } from '$lib/audio/backing-bass-instrument';
 import { normalizeBackingBassPreset } from '$lib/audio/backing-bass-samples';
 
@@ -62,7 +63,7 @@ describe('bank-qualified backing bass playback balance', () => {
 		const options = { instrument: 'Pizzicato', loader: f.loader, destination: {} as AudioNode };
 		const bass = await loadBackingBass(f.context, f.Bass, options);
 		expect(bass).toBe(f.instance());
-		expect(f.gain.gain.value).toBe(7.74);
+		expect(f.gain.gain.value).toBe(7.74 * SAMPLE_CHANNEL_REFERENCE);
 		expect(f.context.createGain).toHaveBeenCalledOnce();
 		expect(f.addInsert).toHaveBeenCalledExactlyOnceWith(f.gain);
 		expect(f.loader.load).toHaveBeenCalledTimes(2);
@@ -74,15 +75,16 @@ describe('bank-qualified backing bass playback balance', () => {
 		expect(f.disconnect).toHaveBeenCalledOnce();
 	});
 
-	it.each(['foreign', 'modified', 'absent'])('keeps unity for an unrecognized bank: %s', async (kind) => {
+	it.each(['foreign', 'modified', 'absent'])('applies only channel calibration for an unrecognized bank: %s', async (kind) => {
 		const p = preset();
 		if (kind === 'foreign') p.samples.baseUrl += '-other';
 		if (kind === 'modified') p.groups[29].regions[0].pitch = 90;
 		const before = structuredClone(p);
 		const f = setup(kind === 'absent' ? [] : [p]);
 		await loadBackingBass(f.context, f.Bass, { loader: f.loader });
-		expect(f.context.createGain).not.toHaveBeenCalled();
-		expect(f.addInsert).not.toHaveBeenCalled();
+		expect(f.context.createGain).toHaveBeenCalledOnce();
+		expect(f.addInsert).toHaveBeenCalledOnce();
+		expect(f.gain.gain.value).toBe(SAMPLE_CHANNEL_REFERENCE);
 		expect(p).toEqual(before);
 	});
 
@@ -126,7 +128,8 @@ describe('bank-qualified backing bass playback balance', () => {
 		unknown.samples.baseUrl += '-unknown';
 		const f = setup([preset(), unknown]);
 		await loadBackingBass(f.context, f.Bass, { loader: f.loader });
-		expect(f.addInsert).not.toHaveBeenCalled();
+		expect(f.addInsert).toHaveBeenCalledOnce();
+		expect(f.gain.gain.value).toBe(SAMPLE_CHANNEL_REFERENCE);
 	});
 
 	it('keeps decisions local when simultaneous instruments share the same underlying loader', async () => {
@@ -140,7 +143,8 @@ describe('bank-qualified backing bass playback balance', () => {
 			loadBackingBass(otherBass.context, otherBass.Bass, { loader: knownBass.loader })
 		]);
 		expect(knownBass.addInsert).toHaveBeenCalledOnce();
-		expect(otherBass.addInsert).not.toHaveBeenCalled();
+		expect(otherBass.addInsert).toHaveBeenCalledOnce();
+		expect(otherBass.gain.gain.value).toBe(SAMPLE_CHANNEL_REFERENCE);
 		expect(knownBass.loader.load).toBe(originalLoad);
 		expect(knownBass.loader.load).toHaveBeenCalledTimes(2);
 	});

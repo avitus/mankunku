@@ -87,6 +87,13 @@ afterEach(() => {
 });
 
 describe('outbox drain — success path', () => {
+	it('does not start an auth request on pagehide when there is nothing to sync', async () => {
+		const getUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-a' } } });
+		await flushOnHide({ auth: { getUser } } as never);
+		expect(getUser).not.toHaveBeenCalled();
+		expect(flushSettingsToCloud).not.toHaveBeenCalled();
+	});
+
 	it('invokes the kind handler and removes the entry on success', async () => {
 		enqueue('settings');
 		expect(Object.keys(outbox())).toEqual(['settings']);

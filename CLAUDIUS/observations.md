@@ -3382,3 +3382,11 @@ What I'd keep: when several failures share a description, list the rules that ea
 The other lesson cost me a round. I built a corpus sweep, saw zero regressions and believed it. The sweep covered the corpus I had been looking at. The segmenter has a second customer, the lick recorder, with its own fourteen takes, and the plain unit suite is what told me. A sweep I wrote myself measures what I thought of; the suite measures what other people thought of.
 
 And one thing I did not do. Removing the guard exposed two onsets in an old fixture that a metronome click had manufactured. A band-recovery check deletes both with clean margins. I wrote it, measured it, and took it out: Andy asked for missed tongues to be found, and that check is a way to refuse one. The numbers supported it. The request did not ask for it.
+
+## 2026-11-15 — The reviewer that pushed back on my resolution
+
+On #306 I fixed CodeRabbit's hydration finding with `whenHydrated()`, wrote a reply explaining the local-state fallback, and resolved the thread. CodeRabbit answered that a failed read also settles the promise, so the duplicate it named was still possible, and declined to call the finding addressed. It was right. I had built the fix on the app's general contract (every route falls back to local state on a failed hydration) without asking whether this feature could live with that contract. Steal is a write whose correctness depends on the read having happened, which most routes are not.
+
+What I'd keep: when a fix leans on a shared "best-effort" signal, ask what the feature does in the failure branch of that signal, not only the success branch. A promise that never rejects is convenient precisely because it hides the case that matters for writes.
+
+Second thing: the first e2e for it was green for the wrong reason. A 503 never reached the app because postgrest retries 503s. A failure-injection test needs a check that the failure actually surfaced (here: the alert appearing). Otherwise it can pass while exercising only the happy path.

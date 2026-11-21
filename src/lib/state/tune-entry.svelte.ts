@@ -1514,7 +1514,7 @@ export function changeSectionLabel(from: number | null, to: number | null, text?
 /** Apply the solo instruction through the next visible mark, including endings. */
 export function setSectionSoloOmission(index: number, omit: boolean): void {
 	const next = sectionLabels(buildDraftTune()).find(m => m.sectionIdx > index)?.sectionIdx ?? tuneEntry.sections.length;
-	for (let i = index; i < next; i++) tuneEntry.sections[i].omitFromSolos = omit || undefined;
+	for (let i = index; i < next; i++) tuneEntry.sections[i].omitFromSolos = omit;
 }
 
 /** Append a new section (auto-labeled) and navigate to it. */

@@ -66,6 +66,8 @@
 
 	/** Tinted bar-range band on a tune chart, in absolute notation bars. */
 	export interface RangeMarker {
+		/** Separate display lanes preserve overlapping tonal readings without covering lick labels. */
+		keyCenter?: { lane: number; lanes: number; label: string; minor: boolean };
 		id: string;
 		startBar: number;
 		endBarExclusive: number;
@@ -92,7 +94,7 @@
 	}
 
 	/** Visual treatment for the current-bar playhead marker. */
-	export type PlayheadStyle = 'under-bar' | 'cursor-line' | 'box' | 'wash-strong' | 'underline-caret';
+	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle';
 
 	/**
 	 * Chart presentation:
@@ -135,6 +137,10 @@
 		rangeMarkers?: RangeMarker[];
 		/** Visual treatment for `status: 'playhead'` markers. Default 'under-bar'. */
 		playheadStyle?: PlayheadStyle;
+		/** Reserve stable space below tune systems for labeled key-center rails. */
+		keyCenterRails?: boolean;
+		/** Full producer lane count, retained when rails are hidden. */
+		keyCenterLaneCount?: number;
 		/**
 		 * Auto-scroll the chart within a clipped viewport as the playhead
 		 * advances. Off by default so multi-chart pages don't fight over the
@@ -215,6 +221,8 @@
 		cursorIndex = null,
 		rangeMarkers,
 		playheadStyle = 'under-bar',
+		keyCenterRails = false,
+		keyCenterLaneCount = 2,
 		autoScrollPlayhead = false,
 		playheadBarFraction = null,
 		onSelect,
@@ -259,6 +267,7 @@
 	/** Per-system vertical geometry, measured before any hit rects go in. */
 	interface SystemBand extends BandGeometry {
 		wrapper: SVGGElement;
+		bottom: number;
 	}
 
 	// Non-reactive per-render caches consumed by the positioning effect.
@@ -328,7 +337,7 @@
 			chordSlotAnchors: ChordSlotAnchor[];
 			gapAnchors: GapAnchor[];
 		} = tune
-			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, preserveRestBoundaries: !!onSelect })
+			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, ...(keyCenterRails ? { staffSeparation: 110 + Math.max(0, keyCenterLaneCount - 2) * 18 } : {}), preserveRestBoundaries: !!onSelect })
 			: {
 					...phraseToAbcWithMap(phrase!, instrument, [1, 8], !!onSelect),
 					barAnchors: [],
@@ -348,7 +357,7 @@
 			...(tuneOptions?.omitMasthead && tune ? { ariaLabel: `Sheet Music for "${tune.title}"` } : {}),
 			staffwidth: staffWidth ?? CHART_STAFF_WIDTH,
 			paddingtop: compactStaff ? 0 : showEngravedMasthead ? 8 : 12,
-			paddingbottom: compactStaff ? 2 : 16,
+			paddingbottom: compactStaff ? 2 : keyCenterRails ? 68 + Math.max(0, keyCenterLaneCount - 2) * 18 : 16,
 			paddingleft: 12,
 			paddingright: 12,
 			add_classes: true,
@@ -357,13 +366,7 @@
 				// font must be a string for its size to affect engraving geometry.
 				gchordfont: compactStaff ? 'Fraunces 17' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
-				partsfont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 14,
-					weight: 'bold',
-					style: 'normal',
-					decoration: 'none'
-				},
+				partsfont: 'Fraunces 14 bold',
 				titlefont: {
 					face: 'Fraunces, Georgia, "Times New Roman", serif',
 					size: 22,
@@ -576,7 +579,8 @@
 				absBar: bases[z.sectionIdx] + z.bar,
 				systemIdx: z.systemIdx
 			})),
-			systemBands.map((b) => b.top * scale)
+			systemBands.map((b) => b.top * scale),
+			systemBands.map((b) => b.bottom * scale)
 		);
 		followOffsetPx = computeFollowOffset({
 			systems,
@@ -656,6 +660,55 @@
 				}
 
 				const spec = barHitRect(run, band);
+				if (marker.keyCenter) {
+					const { lane, lanes, label, minor } = marker.keyCenter;
+					if (keyCenterRails) {
+						const y = band.staffBottom + band.spacing * 5 + lane * 18;
+						const group = svgEl('g');
+						group.setAttribute('class', 'range-marker key-center-rail');
+						group.setAttribute('data-key-center', label);
+						group.setAttribute('data-key-center-lane', String(lane));
+						group.setAttribute('role', 'img');
+						group.setAttribute('aria-label', label);
+						group.style.color = marker.color ?? 'currentColor';
+						const line = svgEl('line');
+						line.setAttribute('x1', run.x0.toFixed(2));
+						line.setAttribute('x2', run.x1.toFixed(2));
+						line.setAttribute('y1', y.toFixed(2));
+						line.setAttribute('y2', y.toFixed(2));
+						if (minor) line.setAttribute('stroke-dasharray', '5 3');
+						group.appendChild(line);
+						// Labels repeat at system breaks; narrow partial spans retain
+						// their accessible name without overflowing neighboring rails.
+						const compact = label.replace(/ major$/, ' maj').replace(/ minor$/, ' min');
+						if (run.x1 - run.x0 >= compact.length * 6 + 12) {
+							const text = svgEl('text');
+							text.setAttribute('x', (run.x0 + 7).toFixed(2));
+							text.setAttribute('y', (y + 3).toFixed(2));
+							text.textContent = compact;
+							group.appendChild(text);
+						}
+						band.wrapper.appendChild(group);
+						continue;
+					}
+
+					const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+					rect.setAttribute('x', spec.x.toFixed(2));
+					rect.setAttribute('y', (spec.y + lane * spec.h / lanes).toFixed(2));
+					rect.setAttribute('width', Math.max(0, spec.w).toFixed(2));
+					rect.setAttribute('height', (spec.h / lanes - 1).toFixed(2));
+					rect.setAttribute('rx', '2');
+					rect.setAttribute('class', 'range-marker key-center-band');
+					rect.setAttribute('data-key-center', label);
+					rect.setAttribute('data-key-center-lane', String(lane));
+					rect.setAttribute('role', 'img');
+					rect.setAttribute('aria-label', label);
+					rect.style.fill = marker.color ?? 'currentColor';
+					rect.style.stroke = marker.color ?? 'currentColor';
+					if (minor) rect.setAttribute('stroke-dasharray', '4 3');
+					band.wrapper.insertBefore(rect, band.wrapper.firstChild);
+					continue;
+				}
 				const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
 				rect.setAttribute('x', spec.x.toFixed(2));
 				rect.setAttribute('y', spec.y.toFixed(2));
@@ -828,7 +881,8 @@
 			if (!staffEl) break; // keep index alignment: stop at the first oddity
 			const staffBox = staffEl.getBBox();
 			const wrapBox = wrapper.getBBox();
-			systemBands.push({ wrapper, ...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
+			systemBands.push({ wrapper, bottom: Math.max(wrapBox.y + wrapBox.height, staffBox.y + staffBox.height),
+				...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
 		}
 		// Wrapper↔system alignment is load-bearing (follow-scroll + range markers
 		// index into systemBands by system number). A short count means the break
@@ -868,12 +922,15 @@
 				height: (band.staffBottom - band.staffTop) / vb.height * 100 }];
 			});
 			const svgBox = svg.getBoundingClientRect();
+			const placedParts = new Set<SVGGraphicsElement>();
 			labelMarks = sectionLabels(sheet).flatMap(mark => {
 				const zone = lastBarZones.find(z => bases[z.sectionIdx] + z.bar === mark.bar);
 				if (!zone) return [];
 				const band = systemBands[zone.systemIdx];
 				if (!band) return [];
-				const part = partLabelElements(band.wrapper)[0]?.getBoundingClientRect();
+				const element = partLabelElements(band.wrapper).find(el => !placedParts.has(el) && el.textContent?.trim() === mark.label);
+				if (element) placedParts.add(element);
+				const part = element?.getBoundingClientRect();
 				return [{ ...mark, x: part ? (part.left - svgBox.left) / svgBox.width * 100 : zone.x0 / vb.width * 100,
 					y: part ? (part.top - svgBox.top) / svgBox.height * 100 : Math.max(0, band.top - 20) / vb.height * 100 }];
 			});
@@ -945,10 +1002,9 @@
 	): void {
 		const sp = band.spacing;
 		const w = Math.max(0, x1 - x0);
-		const add = (el: SVGElement, extra?: string) => {
+		const add = (el: SVGElement) => {
 			el.setAttribute('data-marker-id', id);
 			el.classList.add('range-marker', `playhead-${style}`);
-			if (extra) el.classList.add(extra);
 			wrapper.insertBefore(el, wrapper.firstChild);
 		};
 		const rect = (x: number, y: number, width: number, height: number, rx = 0) => {
@@ -961,39 +1017,12 @@
 			return r;
 		};
 
-		if (style === 'cursor-line') {
-			const top = band.staffTop - sp;
-			const line = svgEl('line');
-			line.setAttribute('x1', x0.toFixed(2));
-			line.setAttribute('x2', x0.toFixed(2));
-			line.setAttribute('y1', top.toFixed(2));
-			line.setAttribute('y2', (band.staffBottom + sp).toFixed(2));
-			add(line);
-			const fx = x0 + sp * 1.5;
-			const fy2 = top + sp * 1.1;
-			const flag = svgEl('path');
-			flag.setAttribute('d', ['M', x0, top, 'L', fx, top, 'L', x0, fy2, 'Z'].join(' '));
-			add(flag, 'playhead-solid');
-			return;
-		}
 		if (style === 'under-bar') {
 			const svg = wrapper.ownerSVGElement;
 			const bottom = compactStaff && svg ? svg.viewBox.baseVal.y + svg.viewBox.baseVal.height - 2 : band.staffBottom + sp * 0.35;
-			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35), 'playhead-solid');
+			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35));
 			return;
 		}
-		if (style === 'underline-caret') {
-			add(rect(x0, band.staffBottom + sp * 0.45, w, sp * 0.4, sp * 0.15), 'playhead-solid');
-			const cy = band.staffBottom + sp * 0.35;
-			const caret = svgEl('path');
-			caret.setAttribute(
-				'd',
-				['M', x0, cy, 'L', x0 + sp * 0.9, cy + sp * 0.55, 'L', x0, cy + sp * 1.1, 'Z'].join(' ')
-			);
-			add(caret, 'playhead-solid');
-			return;
-		}
-		// 'box' and 'wash-strong' both cover the full bar.
 		const spec = barHitRect({ x0, x1 }, band);
 		add(rect(spec.x, spec.y, spec.w, spec.h, 4));
 	}
@@ -1246,14 +1275,29 @@
 		for (let sys = 0; sys < systemBands.length; sys++) {
 			const inSystem = zones.filter((z) => z.systemIdx === sys).sort((a, b) => a.x0 - b.x0);
 			if (inSystem.length < 2) continue;
-			const [first, firstFull] = inSystem;
+			const first = inSystem[0];
 			if (!partial.has(`${first.sectionIdx}:${first.bar}`)) continue;
+			const firstFull = inSystem.find(zone => !partial.has(`${zone.sectionIdx}:${zone.bar}`)) ?? inSystem[1];
 			const wrapper = systemBands[sys].wrapper;
 			const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
 			if (!staffEl) continue;
 			const spacing = staffEl.getBBox().height / 4;
 			if (!Number.isFinite(spacing) || spacing <= 0) continue;
-			for (const part of partLabelElements(wrapper)) {
+			const parts = partLabelElements(wrapper);
+			// A shared pickup system can carry several authored rehearsal marks.
+			// Leave its opening mark at the clef and seat each inline mark on its bar.
+			let zoneIndex = 0;
+			for (const part of parts.length > 1 ? parts.slice(1) : parts) {
+				let anchor = firstFull;
+				if (parts.length > 1) {
+					const index = inSystem.findIndex((zone, i) => i > zoneIndex && zone.bar === 0 &&
+						sheet.sections[zone.sectionIdx].label.trim() === part.textContent?.trim());
+					if (index < 0) continue;
+					zoneIndex = index;
+					const start = inSystem[index];
+					anchor = inSystem.find(zone => zone.sectionIdx === start.sectionIdx &&
+						!partial.has(`${zone.sectionIdx}:${zone.bar}`)) ?? start;
+				}
 				let box: DOMRect;
 				try {
 					box = part.getBBox();
@@ -1268,7 +1312,7 @@
 				// getBBox is local: add the prior translate to get the seated x.
 				const dx = pickupPartLabelDx(
 					{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
-					firstFull.x0,
+					anchor.x0,
 					spacing
 				);
 				if (Math.abs(dx) < 0.01) continue;
@@ -1902,6 +1946,30 @@
 		stroke: none;
 		pointer-events: none;
 	}
+	.notation-container :global(svg .key-center-rail line),
+	:global(:root.light) .notation-container :global(svg .key-center-rail line) {
+		stroke: currentColor !important;
+		stroke-width: 2.5;
+		stroke-opacity: 0.72;
+	}
+	.notation-container :global(svg .key-center-rail text),
+	:global(:root.light) .notation-container :global(svg .key-center-rail text) {
+		fill: currentColor !important;
+		font: 500 10px system-ui, sans-serif;
+		stroke: var(--studio-well, var(--color-bg)) !important;
+		stroke-width: 4px;
+		paint-order: stroke fill;
+	}
+	.notation-container :global(svg .playhead-wash-subtle) {
+		fill: var(--color-text);
+		fill-opacity: 0.045;
+		stroke: none !important;
+	}
+	.notation-container :global(svg .key-center-band) {
+		fill-opacity: 0.09;
+		stroke-opacity: 0.65;
+		stroke-width: 0.8;
+	}
 	.notation-container :global(svg .range-marker.marker-upcoming) {
 		fill: var(--color-accent);
 		fill-opacity: 0.08;
@@ -1918,39 +1986,16 @@
 		fill: var(--color-error);
 		fill-opacity: 0.1;
 	}
-	/* Moving current-bar playhead — geometry set in drawPlayhead(); these rules
-	   own the color. Class-specificity beats the global svg line/path stroke
-	   override even though both are !important, so lines/carets keep their
-	   color in dark mode. */
+	/* Current-bar playhead colors. drawPlayhead sets the geometry. */
 	.notation-container :global(svg .playhead-under-bar) {
 		fill: var(--color-brass);
 		fill-opacity: 0.9;
-		stroke: none !important;
-	}
-	.notation-container :global(svg .playhead-cursor-line) {
-		stroke: var(--color-onair) !important;
-		stroke-width: 2.6;
-		fill: var(--color-onair) !important;
-	}
-	.notation-container :global(svg .playhead-cursor-line.playhead-solid) {
 		stroke: none !important;
 	}
 	.notation-container :global(svg .playhead-box) {
 		fill: none;
 		stroke: var(--color-brass) !important;
 		stroke-width: 2;
-	}
-	.notation-container :global(svg .playhead-wash-strong) {
-		fill: var(--color-brass);
-		fill-opacity: 0.24;
-		stroke: var(--color-brass) !important;
-		stroke-width: 1;
-		stroke-opacity: 0.55;
-	}
-	.notation-container :global(svg .playhead-underline-caret) {
-		fill: var(--color-brass-soft);
-		fill-opacity: 0.95;
-		stroke: none !important;
 	}
 	/* Band labels (lick / progression names) — colored to match their band.
 	   The dark-mode text rule targets svg text broadly, so these need !important

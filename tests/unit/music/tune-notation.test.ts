@@ -30,6 +30,15 @@ describe('tuneToAbc — headers', () => {
   expect(desk.abc).not.toMatch(/^[TCR]:/m);
   expect(desk.noteAnchors.map(a => desk.abc.slice(a.startChar, a.endChar))).toEqual(ordinary.noteAnchors.map(a => ordinary.abc.slice(a.startChar, a.endChar)));
  });
+	it('reserves rail spacing without shifting note, bar or chord anchors off their music', () => {
+		const ordinary = tuneToAbcWithMap(simpleSheet());
+		const rails = tuneToAbcWithMap(simpleSheet(), undefined, { staffSeparation: 110 });
+		expect(rails.abc).toContain('%%staffsep 110');
+		for (const key of ['noteAnchors', 'barAnchors', 'chordSlotAnchors'] as const) {
+			expect(rails[key].map(a => rails.abc.slice(a.startChar, a.endChar))).toEqual(
+				ordinary[key].map(a => ordinary.abc.slice(a.startChar, a.endChar)));
+		}
+	});
 	it('emits a composer line when present', () => {
 		const abc = tuneToAbc({ ...simpleSheet(), composer: 'Trad.' });
 		expect(abc).toMatch(/^C:Trad\.$/m);
@@ -1239,6 +1248,19 @@ describe('tuneToAbc — pickup bars', () => {
 		const abc = tuneToAbc(s, undefined, BPL4);
 		expect(abc).toContain('[V:M]G,2 |:[I:setbarnb 1] C8 | C8 | C8 | C8 |\n');
 		expect(abc).not.toContain('| |:');
+	});
+
+	it('prints the next rehearsal mark once after consecutive standalone pickups', () => {
+		const pickup = section({ label: 'Intro', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP] });
+		const abc = tuneToAbc(sheet({ sections: [pickup, { ...pickup, label: '' }, A8()] }), undefined, BPL4);
+		expect(abc.match(/P:A/g)).toHaveLength(1);
+		expect(abc).toContain('[P:A]');
+	});
+
+	it.each([false, true])('keeps the bar count through a mid-tune pickup (opening repeat=%s)', repeatStart => {
+		const pickup = section({ label: 'Bridge', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP] });
+		const s = sheet({ sections: [A8(), pickup, { ...A8(), repeatStart }] });
+		expect(tuneToAbc(s, undefined, BPL4)).not.toContain('setbarnb');
 	});
 
 	it('keeps a rest INSIDE the pickup while dropping the silent prefix', () => {

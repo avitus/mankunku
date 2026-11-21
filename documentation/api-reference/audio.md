@@ -8,11 +8,11 @@ Audio modules handle playback, capture, pitch detection, onset detection, note s
 
 ## audio-context.ts
 
-Shared `AudioContext` singleton for Tone.js and smplr, plus a master gain node routed to destination.
+Shared `AudioContext` singleton for Tone.js and smplr, with one mixer for generated audio and recording replay. Concurrent initialization shares one graph.
 
 ### `initAudio(): Promise<AudioContext>`
 
-Initialize the audio engine. Must be called from a user gesture (click/tap). Idempotent — safe to call multiple times. Returns the raw `AudioContext` (not Tone.js's wrapper). Installs `guardTickRedelivery` on the transport (see `tick-redelivery.ts` below); nothing can sound earlier, because every voice routes through `getMasterGain()`, which throws until this has run.
+Initialize the audio engine. Must be called from a user gesture (click/tap). Idempotent — safe to call multiple times. Returns the raw `AudioContext` (not Tone.js's wrapper). Installs `guardTickRedelivery` on the transport (see `tick-redelivery.ts` below); nothing can sound earlier, because every voice uses a named mixer input, which throws until this has run.
 
 ### `getAudioContext(): Promise<AudioContext>`
 
@@ -28,11 +28,37 @@ Returns `true` if audio has been initialized.
 
 ### `getMasterGain(): GainNode`
 
-Returns the shared master gain node. All instrument chains and backing-track output connect to this node, which in turn connects to `context.destination`. Throws if `initAudio()` hasn't run.
+Returns the final listening gain connected to `context.destination`. Sources use `getMelodyGain()` (melody), `getClickGain()` (metronome and count-off), `getProgramGain()` (calibrated backing), or `getReplayGain()` (recorded media). Recording taps Program before listening Master. All accessors throw before initialization.
 
 ### `setMasterVolume(volume: number): void`
 
-Set the master gain value (0–1). Applied at the graph's final node so it affects melody, metronome, and backing track simultaneously.
+Set the listening amplitude (0–1), including before initialization. It affects melody, click, backing and replay, but not the recorded microphone/accompaniment balance. `mixer-policy.ts` owns defaults and the shared 60 dB control taper; settings store amplitudes, not knob positions. `media-playback.ts` routes native media through output protection and Master. Browser media controls can still attenuate their own element locally.
+
+---
+
+## mixer-policy.ts and mixer.ts
+
+`mixer-policy.ts` is the source of truth for reference levels and the common fader law. `MIXER_DEFAULTS` contains linear amplitudes: `{ master: 0.8, melody: 1, click: 0.5, backing: 0.6 }`. Sample channels explicitly use smplr volume 127 and Soundfonts use `extraGain: 1`; their former implicit factors are included in named calibration instead.
+
+- `faderToGain(position, max = 1)` maps normalized control travel onto a 60 dB span, with exact zero at position zero. `gainToFader(gain, max = 1)` is the inverse. Advanced controls pass `max = 3`.
+- `gainLabel(gain)` displays amplitude dB, or `Muted` for zero. `clampGain(value, max = 1, fallback = 0)` bounds untrusted amplitudes and rejects non-finite values.
+- `createMixer(context, destination, levels?)` creates Melody and Click feeding Program; Program feeds the listening output, then output protection and Master. Initial levels are immediate; live positive changes are smoothed with a 5 ms time constant and mute is immediate. The returned `dispose()` disconnects its owned nodes.
+- `getMixerLevels()`, `setMixerLevels(partial)` and `subscribeMixer(listener)` share levels before or after initialization without creating an AudioContext. Subscribers receive the current levels immediately; subscription returns an unsubscribe function.
+- Backing owns its compressor and post-compression gain in `backing-track.ts` / `backing-output.ts`, feeds Program, and subscribes to the same levels. `backingOutputGain(volume)` is `4 × clampGain(volume) / 0.6`; compressor drive remains fixed at 0.6.
+
+Use the named inputs from `audio-context.ts`. Do not connect a new source directly to Master or destination: doing so bypasses output protection or the recording/listening separation. Replay uses the listening output, never Program. See [Audio routing and reference levels](../architecture/audio-pipeline.md#audio-routing-and-reference-levels) for the complete graph and recording behavior.
+
+---
+
+## media-playback.ts
+
+`connectMediaPlayback(element)` routes a media element through Replay and the
+shared listening Master, reusing its source node. `mixAudio` is the native-controls
+Svelte action; it preserves the element's volume across routing and remounts.
+Call `pauseMediaPlayback(element)` when switching to synthesized playback: unlike
+native `pause()`, it also cancels pending Play intent while routing already has
+the element paused. `disconnectMediaPlayback(element)` cancels intent, pauses,
+and detaches the source. Destroying the action prevents late routing allocations.
 
 ---
 
@@ -97,7 +123,6 @@ Returns `true` if an instrument (custom sampler or SoundFont) is loaded and read
 interface PhrasePlaybackOpts {
   skipMelody?: boolean;          // Don't schedule melody notes (backing-only rescheduling)
   loopBacking?: boolean;         // Loop the backing track at phrase end
-  melodyLevel?: number;          // Linear gain on the melody under the band for this take, playPhrase only (default 1, and 1 when no band can play); tunes pass tuneMelodyLevel() from backing-mix.ts
   resolveAtMelodyEnd?: boolean;  // Resolve the promise 1 beat after the melody's last note (call-and-response handoffs); ignored when skipMelody is set or the phrase has no melody
   onStarted?: () => void;        // Callback fired after Transport start
   startTick?: number;            // Explicit start tick for bar-aligned scheduling
@@ -622,7 +647,7 @@ Schedule a finite run of count-in clicks from transport 0: high, dead-short wood
 
 ### `setMetronomeVolume(volume): Promise<void>`
 
-Set metronome volume from the settings knob (`0–1`). The knob value is a **mix position, not a raw gain**: `METRONOME_TRIM` (0.6, ≈ −4.4 dB) applies underneath the whole knob range so the synthesized click sits under the music rather than beside it. The knob's shipped default is 0.5.
+Set the shared Click amplitude (`0–1`, default 0.5) through `setMixerLevels`. The UI converts its logarithmic dial position to this amplitude before calling. Synthesized clicks retain the fixed `CLICK_CALIBRATION` / `METRONOME_TRIM` of 0.6 (about −4.4 dB) before Click; the separately calibrated drummer’s count-off also follows Click.
 
 ### `disposeMetronome(): void`
 
@@ -632,35 +657,40 @@ Stop and dispose the metronome sequences (kit and count-in).
 
 ## recorder.ts
 
-Mixes the microphone input with the master gain (metronome + playback) into a single `MediaRecorder` stream. Used to let the user play back their attempt.
+Mixes microphone input with Program (melody, click and backing before listening Master) into a `MediaRecorder` stream for listening, and separately captures microphone-only PCM for scoring. Replay and Master changes do not alter the digitally recorded accompaniment balance.
 
 ### `RecorderHandle` interface
 
 ```typescript
+interface RecordedAudio {
+  blob: Blob;                  // Listening mix
+  scoringBlob: Blob | null;   // Microphone-only WAV; null if capture failed
+}
+
 interface RecorderHandle {
-  start(): void;
-  stop(): Promise<Blob>;
+  start(contextTime?: number): void; // Single-use; defaults to audioCtx.currentTime
+  stop(): Promise<RecordedAudio>;
   dispose(): void;
   /** The latest start() call and the recorder's `start` event, on the audio and page clocks. Null before start(). */
   timing(): RecorderTiming | null;
 }
 ```
 
-### `createRecorder(micSource, masterGain, audioCtx): RecorderHandle`
+### `createRecorder(micSource, programGain, audioCtx): RecorderHandle`
 
 | Parameter | Type | Description |
 |---|---|---|
 | `micSource` | `MediaStreamAudioSourceNode` | From `startMicCapture()` |
-| `masterGain` | `GainNode` | From `getMasterGain()` |
+| `programGain` | `GainNode` | From `getProgramGain()`; before listening Master |
 | `audioCtx` | `AudioContext` | Shared audio context |
 
-Fans out both sources into a `MediaStreamDestinationNode` without disturbing existing connections. Mic signal is attenuated (~−8 dB) so it sits alongside the metronome. Chooses `audio/webm;codecs=opus` where supported, falling back to `audio/mp4` (Safari) or browser default.
+Fans out both sources into a `MediaStreamDestinationNode` without disturbing existing connections. Mic signal in the listening mix is multiplied by `MICROPHONE_RECORDING_GAIN` (0.4, about −8 dB); microphone-only scoring capture bypasses that trim. Program is tapped before the listening sample ceiling as well as Master, so that ceiling does not protect the recording sum. Chooses `audio/webm;codecs=opus` where supported, falling back to `audio/mp4` (Safari) or browser default.
 
 ---
 
 ## replay.ts
 
-Offline replay of a captured buffer through the same pitch + onset pipeline as the live path (`detectFrame`, `processOnsetFrame`). Deterministic — no rAF jitter, no worklet scheduling — which is why the **authoritative** score is the post-hoc rescore of the saved recording, not the live readings. Also drives `tests/integration/pitch-replay.test.ts` and the /diagnostics Pitch Replay panel.
+Offline replay of a captured buffer through the same pitch + onset pipeline as the live path (`detectFrame`, `processOnsetFrame`). Deterministic — no rAF jitter or worklet scheduling. Ear Training uses a completed microphone-only capture for its authoritative post-hoc score, falling back to the live score when capture fails; it does not rescore the listening mix. Lick Practice scores live microphone readings. Also drives `tests/integration/pitch-replay.test.ts` and the /diagnostics Pitch Replay panel.
 
 ### `replayFromAudioBuffer(buffer, opts?: ReplayOptions): Promise<ReplayResult>`
 
@@ -780,7 +810,7 @@ type DrumBufferName =
 - **`SOPRANO_SAX_SAMPLES: SampleMap`** — Soprano sax multi-samples with per-note tuning corrections.
 - The per-instrument registry is `INSTRUMENT_VOICES` in `instrument-voices.ts` (its `samples` field), not this file.
 - **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0), one per velocity layer/articulation (kick, three ride layers + bell, hats + pedal, three snare layers, cross-stick, crash).
-- **`DRUM_ARTICULATIONS: Record<DrumVoice, DrumLayer[]>`** — velocity layers per semantic voice, `DrumLayer = { buffer, maxVelocity }` (inclusive upper bound, 0–1): ride `ride_soft` ≤ 0.38 / `ride` ≤ 0.72 / `ride_acc`; snare `snare_ghost` ≤ 0.3 / `snare_med` ≤ 0.62 / `snare_acc`; every other voice one layer. Layers exist only where a soft and a hard stroke differ in timbre, not just level — all buffers are peak-normalized to −3 dBFS, so velocity (times the mix trims) is the only level control. **`drumBufferForVelocity(voice, velocity)`** picks the buffer for a generated, pre-trim velocity (the top layer when nothing matches).
+- **`DRUM_ARTICULATIONS: Record<DrumVoice, DrumLayer[]>`** — velocity layers per semantic voice, `DrumLayer = { buffer, maxVelocity }` (inclusive upper bound, 0–1): ride `ride_soft` ≤ 0.38 / `ride` ≤ 0.72 / `ride_acc`; snare `snare_ghost` ≤ 0.3 / `snare_med` ≤ 0.62 / `snare_acc`; every other voice one layer. Layers exist only where a soft and a hard stroke differ in timbre, not just level — all buffers are peak-normalized to −3 dBFS, so musical velocity controls articulation dynamics; separate amplitude gains control voice balance. **`drumBufferForVelocity(voice, velocity)`** picks the buffer for a generated, pre-trim velocity (the top layer when nothing matches).
 - **`DRUM_FAMILY_BY_VOICE`** / **`DRUM_BUFFER_FAMILY`** — which sampler family (kick / snare / cymbals — see `DrumFamily` in backing-mix.ts) plays each semantic voice; the buffer-level table is derived from `DRUM_ARTICULATIONS` so a future velocity layer lands in its voice's family automatically.
 
 ### `layerToBuffers(layer): Record<string, string>`
@@ -978,15 +1008,33 @@ Jitter draws come from dedicated per-`(role, bar)` streams (`seedFrom(phraseId, 
 
 ## backing-mix.ts
 
-Per-instrument mix levels for the backing track, persisted per device (localStorage key `backing-mix-levels-v2`) so a mix tuned on `/diagnostics/backing-mixer` applies to every session. `bass`/`comp`/`drums`/`room` are linear gain multipliers layered on the overall backing volume; the drum-voice keys are velocity multipliers applied at drum trigger time (voices share their family sampler's output, so within-family balance can only be shaped through velocity). All values clamp to `[0, 3]`; `1` means "as generated".
+Per-instrument amplitude levels persist per device under `backing-mix-levels-v3`.
+Every value is a gain in `[0, 3]`; unity preserves the calibrated balance. Drum
+voices have separate gain nodes, so a fader changes amplitude without changing
+musical velocity or sample-layer selection. The fourth Listening Studio fader is
+Room. There is one overall Backing level after compression across all pages.
 
 ### `BackingMixLevels` interface, `DEFAULT_BACKING_MIX`
 
-`bass`/`comp`/`drums`/`room` are linear gain multipliers; the drum-voice keys are velocity multipliers applied at trigger time. `room` (increment 9) scales the ambience return; pre-room persisted mixes normalize to its default rather than going dry.
+`bass`, `comp`, `drums`, `room` and the eight drum-voice keys default to unity.
+The retired band `master` is absent. Main Master, Melody, Click and Backing
+settings belong to `mixer.ts`/`mixer-policy.ts`.
 
 ### `BACKING_BASE_TRIMS`
 
-Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). The crash trim (`0.47`) sits deliberately below its family estimate: peak normalization is blind to sustain, and the crash's sustained body would otherwise ride far above the ride bed (Milestone B finding, walked down `0.9 → 0.55 → 0.51 → 0.47` in two confirm-listen passes; see `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
+Bass 0.05, keyboard 0.1 and kit 1.8 retain their instrument calibrations.
+The historical drum-voice trims are squared into fixed amplitude calibration by
+`drumCalibration`; they no longer multiply user velocity. Samplers use explicit
+unity channel volume, with the former channel default and Soundfont extra gain
+incorporated into named calibrations. Keyboard style corrections and the
+bank-qualified bass compensation are retained.
+
+### `migrateBackingMix(value): BackingMixLevels`
+
+Converts v2 device mixes once: squares the former drum velocity faders and folds
+the former band Master into the three instrument faders, bounded at 3. Mutes
+survive. Historical saturation/compression is not exactly reproducible. The
+original v2 entry remains stored; subsequent loads read v3 directly.
 
 ### `normalizeBackingMix(value): BackingMixLevels`
 
@@ -1002,7 +1050,7 @@ Apply a voice trim to a generated drum velocity, clamped to `[0, 1]`.
 
 ### Spatial + bus policy (`DrumFamily`, `BACKING_PANS`, `ROOM_SENDS`, `ROOM_RETURN_GAIN`, `ROOM_IR_URL`, `BACKING_BUS_COMPRESSOR`)
 
-One place for every number the live graph (backing-track.ts) and the offline bounce (backing-bounce.ts) must agree on, so a lab WAV keeps sounding like the app: the kit's three sampler families and their stereo positions (bass/kick centered — low frequencies pull the image; comp −0.2, snare −0.1, cymbals +0.25), per-source room-send levels (low end nearly dry), the −18 dB room return, the IR path, and the backing-bus glue-compressor parameters.
+One place for every number the live graph (backing-track.ts) and the offline bounce (backing-bounce.ts) must agree on, so a lab WAV keeps sounding like the app: the kit's three panner families and their stereo positions (bass/kick centered — low frequencies pull the image; comp −0.2, snare −0.1, cymbals +0.25), per-source room-send levels (low end nearly dry), the −18 dB room return, the IR path, and the backing-bus glue-compressor parameters.
 
 ---
 
@@ -1054,15 +1102,17 @@ Backing-track scheduler: loads the instruments, calls `backing-generation.ts` fo
 **Instruments:**
 - **Upright bass** — Smolken "Pizzicato" double-bass sample library
 - **Comp** — `SplendidGrandPiano` (Splendid library: PPP, PP, MP, MF and FF velocity bands, with filtered PP samples reused for PPP) for piano, or `Soundfont('drawbar_organ', kit: 'MusyngKite')` for organ
-- **Drums** — three `smplr.Sampler`s (kick / snare-family / cymbals, partitioned by `DRUM_BUFFER_FAMILY`) driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
+- **Drums** — one `smplr.Sampler` and calibrated gain per semantic voice, grouped into kick / snare-family / cymbal panners by `DRUM_FAMILY_BY_VOICE`. `createDrumMixer` also owns an independent cross-stick count-off sampler routed through Click (Virtuosity Drums, CC0).
 
 The CDN libraries (bass, piano, organ) load through smplr's `CacheStorage` (versioned cache `mankunku-samples-v1`) when the Cache API is available, so revisits skip the network and the instruments work offline after a first load.
 
-**The backing bus** (increment 9): everything backing flows through `backingGain` (the volume fader) into a gentle glue `DynamicsCompressor` (`BACKING_BUS_COMPRESSOR`) and only then into `getMasterGain()` — master itself is untouched and carries the melody dry. Comp is panned (`BACKING_PANS.comp`), the three drum-family samplers sit behind their own `StereoPanner`s on a shared `drumBus` (gain = kit trim; the volume lives upstream on `backingGain`), and a small-room `ConvolverNode` (IR fetched best-effort from `ROOM_IR_URL` — failure leaves the backing dry) takes post-pan sends per `ROOM_SENDS` and returns at `ROOM_RETURN_GAIN × mix.room` into the bus. The decoded IR is cached module-wide and survives `disposeBackingTrack`; the graph around it rebuilds on the next load. Per-instrument trims come from `backing-mix.ts` and are adjustable live via `setBackingMix`.
+**The backing bus:** calibrated bass, comp and drum voices feed `backingGain` at fixed drive 0.6, then the gentle glue compressor (`BACKING_BUS_COMPRESSOR`), then the shared Backing output gain, then `getProgramGain()`. The output gain is `4 × Backing / 0.6`; changing Backing does not change compressor drive. Melody bypasses this compressor.
+
+Comp is panned (`BACKING_PANS.comp`); drum voices share three family panners and a `drumBus` at `BACKING_BASE_TRIMS.drums × mix.drums`. The small-room convolver takes post-pan sends per `ROOM_SENDS` and returns at `ROOM_RETURN_GAIN × mix.room` before the compressor. Drum sends include the kit trim and fader so they track the dry kit. The return node exists before the optional IR arrives; a missing IR leaves the mix dry. The decoded IR is cached across teardown.
 
 ### `getBackingMix()` / `setBackingMix(partial)`
 
-Read / update per-instrument mix levels. Updates apply to live gain nodes immediately (kick/ride/hihat velocity trims take effect from the next drum trigger) and persist via `saveBackingMix`. The `/diagnostics/backing-mixer` page is the UI over these.
+Read / update per-instrument mix levels. Instrument and Room gains update live; drum-voice amplitude gains use a 5 ms smoothing time constant with immediate mute, without changing velocity or sample layers. Offline setup applies initial drum gains immediately, including events at time zero. Changes persist via `saveBackingMix`. The `/diagnostics/backing-mixer` page is the UI over these.
 
 ### Diagnostics types
 
@@ -1138,7 +1188,7 @@ Full teardown: dispose parts, disconnect bass/comp/drum samplers and the shared 
 
 ### `setBackingTrackVolume(volume: number): void`
 
-Clamp to `0–1` and set the shared backing gain node's value. Affects bass + comp + drums together.
+Clamp to `0–1` and update the shared Backing level. The post-compression output gain follows `backingOutputGain(volume)`; fixed compressor drive is unchanged. Affects bass, comp, drums and their Room return together, but not Click/count-off.
 
 ### `playTransitionChords(stabs, velocity?): void`
 
@@ -1194,7 +1244,7 @@ Swing drum vocabulary: composable per-bar passes the swing `drumPattern` assembl
 The backing **listening lab** (see `documentation/contributing/backing-listening.md` for the protocol). All four modules are pure/Node-testable except the render call itself.
 
 - **backing-lab-presets.ts** — `BACKING_LAB_PRESETS` (ii-V-I-VI loop, 12-bar F blues, rhythm-changes A, 3-chorus AABA with a `sectionMap`), `LAB_TEMPO_PRESETS` (90/160/240), `labPhraseWithSeed(preset, seed)` (suffixes the phrase id — all generation streams derive from it, so a suffix re-rolls every stream), and `buildChorusedForm(sections, choruses)` which emits the flattened harmony plus a sectionMap whose `sourceSection` restart marks each chorus boundary.
-- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers, roomIr?)` (renders to a WAV blob via smplr `renderOffline` at `BOUNCE_SAMPLE_RATE = 44100`, mirroring the live bus: volume → glue compressor, panned comp, three panned drum-family samplers, optional room-convolver sends, per-voice velocity trims), `renderEventsToWav`, `renderGoldenJsonToWav` (plays a past engine's committed events through today's instruments), `eventTicksToSeconds`, `harmonyDurationBeats`, `eventsDurationSeconds`, `bounceFilename`. Output is peak-normalized to −1 dBFS, with the gain capped at 50× so a genuinely silent render can't be amplified into its own noise floor.
+- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers, roomIr?)` (renders to a WAV blob via smplr `renderOffline` at `BOUNCE_SAMPLE_RATE = 44100`, mirroring the live bus: fixed drive → glue compressor → Backing fader, panned comp, calibrated per-voice drum samplers grouped into three panned families, optional room-convolver sends, amplitude faders), `renderEventsToWav`, `renderGoldenJsonToWav` (plays a past engine's committed events through today's instruments), `eventTicksToSeconds`, `harmonyDurationBeats`, `eventsDurationSeconds`, `bounceFilename`. Output preserves the calibrated program amplitude before listening Master, with no peak normalization. A latency-free −1 dBFS sample ceiling matches live output protection; it is not a true-peak limiter. The compressor drive stays fixed at 0.6 and the Backing fader follows it, so volume changes do not change compression.
 
   Two non-obvious mechanics: every instrument in a bounce shares **one smplr `Scheduler` whose lookahead spans the entire render**, because an offline context finishes in milliseconds and a normal `setInterval`-pumped queue would fire almost none of the events (the original "one beat of music" bug). And the IR is decoded on a throwaway `OfflineAudioContext` pinned to the bounce sample rate, *not* reused from the live graph's cache: `decodeAudioData` resamples to its own context's rate and `ConvolverNode.buffer` throws on a rate mismatch, so a 48 kHz output device would otherwise have killed the whole 44.1 kHz render. A mismatch that slips through renders dry rather than throwing.
 

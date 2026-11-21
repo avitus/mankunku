@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findReArticulations, findSameMidiRuns, mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
+import { findReArticulations, findSameMidiRuns, mergeWholeNoteOctaveUpLocks, segmentNotes } from '$lib/audio/note-segmenter';
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 
@@ -22,6 +22,76 @@ function reading(
 function frames(specs: Array<{ midi: number; octaveUp?: boolean; warmup?: boolean }>): PitchReading[] {
 	return specs.map((s, i) => reading(s.midi, 0.1 + i * 0.05, s));
 }
+
+describe('segmentNotes: semitone-boundary flutter', () => {
+	function contour(pitches: number[]): PitchReading[] {
+		return pitches.flatMap((pitch, run) => Array.from({ length: 18 }, (_, i) => ({
+			...reading(Math.round(pitch), run * 0.3 + i / 60),
+			midiFloat: pitch,
+			cents: Math.round((pitch - Math.round(pitch)) * 100),
+			frequency: 440 * 2 ** ((pitch - 69) / 12)
+		})));
+	}
+	const detect = (readings: PitchReading[], onsets: number[] = [0], worklet: number[] = [], articulation: number[] = []) =>
+		segmentNotes(readings, onsets, readings[readings.length - 1].time + 1 / 60,
+			undefined, undefined, undefined, worklet, [], articulation);
+
+	it('keeps a held note whole across small rounding-boundary fluctuations', () => {
+		const notes = detect(contour([70.48, 70.54, 70.47, 70.56, 70.55, 74]));
+		expect(notes.map(n => n.midi)).toEqual([71, 74]);
+		expect(notes[0].onsetTime).toBe(0);
+		expect(notes[0].duration).toBeCloseTo(1.5);
+		expect(notes[0].cents).toBe(-46);
+	});
+
+	it('preserves supplied onset boundaries when provenance is omitted', () => {
+		const readings = contour([70.4, 70.6]);
+		expect(segmentNotes(readings, [0, .3], .6).map(n => n.midi)).toEqual([70, 71]);
+		expect(segmentNotes(readings, [0], .6)).toHaveLength(1);
+	});
+
+	it('does not round a mostly lower-side note up toward an expected pitch', () => {
+		const notes = detect(contour([70.48, 70.54, 70.47, 70.46]));
+		expect(notes).toHaveLength(1);
+		expect(notes[0].midi).toBe(70);
+		expect(notes[0].cents).toBeGreaterThanOrEqual(47);
+		expect(notes[0].cents).toBeLessThanOrEqual(48);
+	});
+
+	it('uses the physical pitch when a warmup seed shifts midiFloat across a boundary', () => {
+		const readings = contour([70.48, 70.54, 70.47, 70.56, 70.55]);
+		for (const r of readings.slice(0, 18)) r.warmup = true;
+		for (const r of readings.slice(13, 18)) {
+			r.midiFloat = 69.50;
+			r.cents = -50;
+			r.frequency = 440 * 2 ** ((70.50 - 69) / 12);
+		}
+		const notes = detect(readings);
+		expect(notes.map(n => n.midi)).toEqual([71]);
+		expect(notes[0].onsetTime).toBe(0);
+	});
+
+	it('preserves real legato semitone steps without attacks', () => {
+		expect(detect(contour([70, 71, 70, 71])).map(n => n.midi)).toEqual([70, 71, 70, 71]);
+	});
+
+	for (const source of ['worklet', 'articulation'] as const) {
+		it(`preserves a repeat with a ${source} attack near the rounding boundary`, () => {
+			const notes = detect(contour([70.48, 70.54]), [0, 0.3],
+				source === 'worklet' ? [0, 0.3] : [], source === 'articulation' ? [0.3] : []);
+			expect(notes.map(n => n.midi)).toEqual([70, 71]);
+		});
+	}
+
+	it('preserves separate notes on either side of a silence gap', () => {
+		const readings = contour([70.48, 70.54]).map(r => r.time >= 0.3 ? { ...r, time: r.time + 0.2 } : r);
+		expect(detect(readings, [0, 0.5]).map(n => n.midi)).toEqual([70, 71]);
+	});
+
+	it('does not merge sustained movement away from the shared boundary', () => {
+		expect(detect(contour([70.48, 70.8])).map(n => n.midi)).toEqual([70, 71]);
+	});
+});
 
 describe('findReArticulations: instrument-band evidence at a baseline onset', () => {
 	const onset = 0.6;

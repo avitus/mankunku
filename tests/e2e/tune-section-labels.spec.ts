@@ -45,6 +45,25 @@ test.describe('section label interactions', () => {
 		expect(saved.sections.at(-1)?.repeatEnd).toBe(true);
 	});
 
+	test('updates the Intro default while renaming and remembers an explicit solo opt-in', async ({ page }) => {
+		await page.getByRole('button', { name: 'Edit section label A', exact: true }).click();
+		const dialog = page.getByRole('dialog');
+		const label = dialog.getByLabel('Label', { exact: true });
+		const omission = dialog.getByLabel('Omit from solos');
+		await label.fill('Intro');
+		await expect(omission).toBeChecked();
+		await label.fill('Verse');
+		await expect(omission).not.toBeChecked();
+		await label.fill('Intro');
+		await omission.uncheck();
+		await dialog.getByRole('button', { name: 'Apply label' }).click();
+		await page.getByRole('button', { name: 'Update tune', exact: true }).click();
+		await page.waitForURL('**/tunes/section-labels');
+		await page.goto('/tunes/editor?edit=e2e-labels');
+		await page.getByRole('button', { name: 'Edit section label Intro', exact: true }).click();
+		await expect(omission).not.toBeChecked();
+	});
+
 	test('adds, renames, and removes labels without removing bars, and persists solo omission', async ({ page }) => {
 		const bar = page.locator('[data-bar-pos="0:4"]');
 		const bounds = (await bar.boundingBox())!;

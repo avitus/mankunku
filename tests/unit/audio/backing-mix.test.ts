@@ -3,6 +3,7 @@ import {
 	DEFAULT_BACKING_MIX,
 	BACKING_BASE_TRIMS,
 	normalizeBackingMix,
+ migrateBackingMix,
 	loadBackingMix,
 	saveBackingMix,
 	voiceVelocity,
@@ -72,7 +73,6 @@ describe('load/save round-trip', () => {
 	it('round-trips through localStorage', () => {
 		stubStorage();
 		const tuned: BackingMixLevels = {
-            master: 0.8,
 			bass: 0.7,
 			comp: 1.4,
 			drums: 1.1,
@@ -104,7 +104,7 @@ describe('load/save round-trip', () => {
 		expect(mix.bass).toBe(3);
 		expect(mix.comp).toBe(DEFAULT_BACKING_MIX.comp);
 
-		store['backing-mix-levels-v2'] = 'not json {{';
+		store['backing-mix-levels-v3'] = 'not json {{';
 		expect(loadBackingMix()).toEqual(DEFAULT_BACKING_MIX);
 	});
 
@@ -202,8 +202,21 @@ describe('voiceVelocity', () => {
 	});
 });
 
- it('restores legacy mixes at unity master and bounds master independently', () => {
-  expect(normalizeBackingMix({ bass: .7 }).master).toBe(1);
-  expect(normalizeBackingMix({ master: 0, bass: .7 })).toMatchObject({ master: 0, bass: .7 });
-  expect(normalizeBackingMix({ master: 9 }).master).toBe(3);
- });
+it('migrates old velocity faders once and folds the retired band master into instrument balance', () => {
+ const store=stubStorage();
+ store['backing-mix-levels-v2']=JSON.stringify({bass:.7,master:.5,kick:1.5,ride:.5});
+ const mix=loadBackingMix();
+ expect(mix).toMatchObject({bass:.35,comp:.5,drums:.5,kick:2.25,ride:.25});
+ expect(mix).not.toHaveProperty('master');
+ expect(loadBackingMix()).toEqual(mix);
+ expect(migrateBackingMix({kick:3,master:3})).toMatchObject({kick:3,bass:3});
+});
+
+it('retains migrated mute and balance when saving the migration fails', () => {
+ const store = stubStorage();
+ store['backing-mix-levels-v2'] = JSON.stringify({ bass: 0, ride: .5 });
+ localStorage.setItem = () => { throw new Error('Quota exceeded'); };
+ expect(loadBackingMix()).toMatchObject({ bass: 0, ride: .25 });
+ expect(loadBackingMix()).toMatchObject({ bass: 0, ride: .25 });
+ expect(store).not.toHaveProperty('backing-mix-levels-v3');
+});

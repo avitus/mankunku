@@ -52,7 +52,9 @@ const text = (value: unknown, max: number, empty = false): value is string => ty
 const integer = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 const within = (value: unknown, max: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max;
 const capturedSettingNames = ['phraseId', 'swing', 'volume', 'mix', 'ending', 'instrument'];
+// Legacy archived takes may carry the former band master; validate it when present.
 const mixKeys = Object.keys(DEFAULT_BACKING_MIX) as (keyof BackingMixLevels)[];
+const archivedMixKeys: string[] = [...mixKeys, 'master'];
 function freeze<T>(value: T): T {
 	if (value !== null && typeof value === 'object') {
 		for (const child of Object.values(value)) freeze(child);
@@ -60,6 +62,7 @@ function freeze<T>(value: T): T {
 	}
 	return value;
 }
+/** Accept bounded archived takes from both the old and shared mixer formats. */
 function isFeedback(value: unknown): value is ListeningFeedback {
 	if (!object(value) || value.version !== 1 || !text(value.id, 200) || !text(value.createdAt, 50) || !Number.isFinite(Date.parse(value.createdAt)) ||
 		!text(value.buildVersion, 200) || (value.musicalityRelease !== undefined && !isMusicalityRelease(value.musicalityRelease)) ||
@@ -68,7 +71,7 @@ function isFeedback(value: unknown): value is ListeningFeedback {
 		(value.completion === 'complete' && value.reachedBars !== value.totalBars) ||
 		!['promising', 'needs-work', 'unsure'].includes(String(value.verdict)) || !text(value.note, 2000, true) ||
 		!Array.isArray(value.marks) || value.marks.length > 50) return false;
-	if (value.monitoring !== undefined && (!object(value.monitoring) || typeof value.monitoring.adjusted !== 'boolean' || !object(value.monitoring.mix) || mixKeys.some(key => { const level = (value.monitoring as {mix: Record<string, unknown>}).mix[key]; return !(key === 'master' && level === undefined) && !within(level, 3); }))) return false;
+	if (value.monitoring !== undefined && (!object(value.monitoring) || typeof value.monitoring.adjusted !== 'boolean' || !object(value.monitoring.mix) || archivedMixKeys.some(key => { const level = (value.monitoring as {mix: Record<string, unknown>}).mix[key]; return !(key === 'master' && level === undefined) && !within(level, 3); }))) return false;
 	const settings = value.settings;
 	if (settings.performanceEnergySeed !== undefined && !integer(settings.performanceEnergySeed, 0, 0xffffffff)) return false;
 	if (!['swing', 'straight', 'bossa-nova', 'ballad'].includes(String(settings.style)) || !['original', 'coordinated'].includes(String(settings.mode)) ||
@@ -77,7 +80,7 @@ function isFeedback(value: unknown): value is ListeningFeedback {
 	if (capturedSettingNames.some(key => settings[key] !== undefined) &&
 		(!text(settings.phraseId, 500) || !within(settings.swing, 1) || !within(settings.volume, 1) ||
 		!['continue', 'hold-release'].includes(String(settings.ending)) || !['piano', 'organ'].includes(String(settings.instrument)) ||
-		!object(settings.mix) || mixKeys.some(key => { const level = (settings.mix as Record<string, unknown>)[key]; return !(key === 'master' && level === undefined) && !within(level, 3); }))) return false;
+		!object(settings.mix) || archivedMixKeys.some(key => { const level = (settings.mix as Record<string, unknown>)[key]; return !(key === 'master' && level === undefined) && !within(level, 3); }))) return false;
 	const reachedBars = value.reachedBars;
 	const totalBars = value.totalBars;
 	return value.marks.every(mark => object(mark) && integer(mark.barIndex, 0, reachedBars - 1) && typeof mark.elapsedBeats === 'number' &&

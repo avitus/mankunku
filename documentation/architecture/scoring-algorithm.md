@@ -116,7 +116,7 @@ The score is a tool for tracking your accuracy on the *content* of the phrase. O
 
 If you don't use headphones, your microphone may pick up the playback or the backing track and mistake it for notes you played. To prevent that, the app runs a bleed filter on the detected notes before scoring: notes that line up with active backing-track pitches are dropped if the signal is weak. The filter is conservative — it only drops what looks like room bleed, not what looks like you playing the same note as the backing track.
 
-There is **no user-facing switch** for it. The filter always runs, but whether its result becomes your score is decided for you: Tune Practice turns it on at every strictness level, and everywhere else the app scores the unfiltered notes. On headphones none of this matters — there's no bleed to find.
+Ear Training, Lick Practice and Tune Practice use the filtered notes whenever the take has a backing-track schedule. With the metronome alone, scoring uses its separate click-timing check.
 
 ## When the score doesn't match how it felt
 

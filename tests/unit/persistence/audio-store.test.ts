@@ -543,3 +543,18 @@ describe('cloud pruning', () => {
 		warnSpy.mockRestore();
 	});
 });
+
+it('keeps microphone audio separate through metadata updates and removes both with the take', async () => {
+	const mix = new Blob(['mix'], { type: 'audio/webm' });
+	const mic = new Blob(['microphone'], { type: 'audio/wav' });
+	const metadata = makeMetadata({ scoringAudio: 'microphone' });
+	await saveRecording('dual-audio', mix, { metadata, scoringBlob: mic });
+	await updateRecordingMetadata('dual-audio', { ...metadata, tempo: 130 });
+	const full = await getRecordingFull('dual-audio');
+	expect(await full!.scoringBlob!.text()).toBe('microphone');
+	expect(full!.scoringBlob!.type).toBe('audio/wav');
+	expect(await (await getRecording('dual-audio'))!.text()).toBe('mix');
+	expect(full!.metadata!.tempo).toBe(130);
+	await deleteRecording('dual-audio');
+	expect(await getRecordingFull('dual-audio')).toBeNull();
+});

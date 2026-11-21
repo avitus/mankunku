@@ -38,7 +38,7 @@ const mocks = vi.hoisted(() => {
 	return {
 		transport, repeats, onces, startCoda,
 		scheduleMetronome: vi.fn(async () => {}),
-		playBackingHitsNow: vi.fn(),
+		playCountOff: vi.fn(),
 		backingLoaded: { value: true },
 		kitLoaded: { value: true }
 	};
@@ -85,7 +85,9 @@ vi.mock('$lib/audio/audio-context', () => ({
 		createGain: () => ({ gain: {}, connect: noop, disconnect: noop }),
 		createDelay: () => ({ delayTime: {}, connect: noop, disconnect: noop })
 	}),
-	getMasterGain: () => ({}),
+	getProgramGain: () => ({}),
+	getClickGain: () => ({}),
+	getMelodyGain: () => ({}),
 	setMasterVolume: vi.fn()
 }));
 vi.mock('$lib/audio/metronome', () => ({
@@ -103,7 +105,7 @@ vi.mock('$lib/audio/backing-track', () => ({
 	prepareBackingSection: vi.fn(async () => mocks.startCoda),
 	isBackingLoaded: () => mocks.backingLoaded.value,
 	canPlayDrum: () => mocks.kitLoaded.value,
-	playBackingHitsNow: mocks.playBackingHitsNow,
+	playCountOff: mocks.playCountOff,
 	scheduleBackingTrack: vi.fn(async () => {})
 }));
 
@@ -181,8 +183,8 @@ describe('playPhrase drum count-in', () => {
 		const events = countInEvents(2 * BAR);
 		expect(events.map((e) => e.tick / PPQ)).toEqual([0, 2, 4, 5, 6, 7]);
 		events[0].callback(1.25);
-		expect(mocks.playBackingHitsNow).toHaveBeenCalledWith(
-			[expect.objectContaining({ kind: 'drum', drum: 'crossstick' })],
+		expect(mocks.playCountOff).toHaveBeenCalledWith(
+			0.7,
 			1.25
 		);
 		// The tune's end (its last bar, then a ringing beat) moves with its start.
@@ -268,7 +270,7 @@ describe('playPhrase drum count-in', () => {
 		await stopPlayback();
 		await playing;
 		first.callback(2);
-		expect(mocks.playBackingHitsNow).not.toHaveBeenCalled();
+		expect(mocks.playCountOff).not.toHaveBeenCalled();
 	});
 
 	// 2026-10-25, Andy (Black Orpheus on production): the drummer counted the

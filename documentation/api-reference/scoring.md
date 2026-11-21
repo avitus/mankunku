@@ -166,7 +166,7 @@ interface ScorePipelineInputs {
   tempo: number;
   transportSeconds: number;
   swing: number;
-  bleedFilterEnabled: boolean;
+  bleedFilterEnabled?: boolean;  // defaults to true; historical replay may override
   bleedResult?: { kept: DetectedNote[]; filtered: DetectedNote[] } | null;
   octaveInsensitive?: boolean;   // default false; lick-practice continuous mode passes true
 }
@@ -183,9 +183,8 @@ interface ScorePipelineResult {
 ```
 
 The unfiltered score is **always** computed. When `bleedResult` is supplied
-the filtered score is computed too and `bleedLog` is populated; the
-`bleedFilterEnabled` toggle only decides which one lands in `chosen`. Both
-come back either way, so `/diagnostics` can show the A/B without re-scoring.
+practice uses the filtered score as `chosen`. Both scores are available in
+`bleedLog` for diagnostics. A historical replay can request the raw score explicitly.
 
 ---
 

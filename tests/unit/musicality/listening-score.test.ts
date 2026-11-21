@@ -22,6 +22,16 @@ describe('listening lead-sheet position', () => {
 		expect(map.slice(16)).toEqual([...laterPass, ...laterPass, ...laterPass]);
 	});
 
+	it.each([true, false, undefined])('maps an Intro independently on solos and the closing melody (omit=%s)', omitFromSolos => {
+		const tune = structuredClone(LOCAL_LISTENING_AABA);
+		tune.sections[0].label = 'Intro';
+		tune.sections[0].omitFromSolos = omitFromSolos;
+		const session = buildListeningTuneSessionFromTune(tune, { soloChoruses: 1 });
+		const head = Array.from({ length: 32 }, (_, i) => i);
+		const body = head.slice(8);
+		expect(listeningScoreBars(session)).toEqual([...head, ...(omitFromSolos === false ? head : body), ...body]);
+	});
+
 	it('maps saved AABA charts by source section rather than repeated labels', () => {
 		const session = buildListeningTuneSessionFromTune(LOCAL_LISTENING_AABA, { key: 'Eb', soloChoruses: 1 });
 		const map = listeningScoreBars(session);

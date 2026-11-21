@@ -12,7 +12,9 @@
 	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
 	import { saveUserTune } from '$lib/persistence/user-tunes';
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
-	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
+	import { tuneKeyCenters } from '$lib/tunes/key-centers';
+	import KeyCenterLegend from './KeyCenterLegend.svelte';
+	import { savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import type { Tune } from '$lib/types/tune';
 	import './tune-import-desk.css';
@@ -21,6 +23,8 @@
 	let { kind }: { kind: TuneImportKind } = $props();
 	const config = $derived(IMPORT_METHODS[kind]);
 	let mounted = $state(false);
+	let showKeyCenters = $state(true);
+	onMount(() => { showKeyCenters = savedTuneDisplay('key-centers', true); });
 	let input = $state('');
 	let file = $state<File | null>(null);
 	let rawSheets = $state<Tune[]>([]);
@@ -38,6 +42,7 @@
 	const busy = $derived(phase === 'reading');
 	const ready = $derived(phase === 'results');
 	const sheets = $derived(rawSheets.map(sheet => writtenSheetToConcert(sheet, source, getInstrument())));
+	const keyCenters = $derived(sheets[0] ? tuneKeyCenters(sheets[0], getInstrument()) : null);
 	const activeStep = $derived(busy ? 1 : ready ? 2 : 0);
 	const canRead = $derived(mounted && !busy && (kind === 'ireal' ? !!input.trim() : !!file));
 
@@ -162,10 +167,11 @@
 					{#if kind === 'musescore' && declaredTransposition !== 0 && sheets.length}<p class="ti-extraction"><TuneSourceIcon name="check" size={16} />Transposing part converted to concert pitch.</p>{/if}
 					<ImportResultList {sheets} {warnings} onreview={review} onadd={add} searchable={kind === 'ireal'} />
 					{#if kind === 'musescore' && sheets[0]}
-						<div class="ti-score-heading"><span>Score preview · {getInstrument().name}</span><span>Melody &amp; changes</span></div>
+						<div class="ti-score-heading"><span>Score preview · {getInstrument().name}</span><button class="ti-text-button" aria-pressed={showKeyCenters} onclick={() => showKeyCenters = saveTuneDisplay('key-centers', !showKeyCenters)}>Show Key Centers</button></div>
 						<!-- Keyboard focus lets players pan a dense score without a pointer. -->
+						{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-						<div class="ti-score-well" role="region" aria-label="Imported score preview" tabindex="0"><div><NotationDisplay tune={sheets[0]} instrument={getInstrument()} tuneOptions={{ omitMasthead: true }} rangeMarkers={tuneHarmonyMarkers(sheets[0])} frameless /></div></div>
+						<div class="ti-score-well" role="region" aria-label="Imported score preview" tabindex="0"><div><NotationDisplay keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} tune={sheets[0]} instrument={getInstrument()} tuneOptions={{ omitMasthead: true }} rangeMarkers={showKeyCenters ? keyCenters?.markers ?? [] : []} frameless /></div></div>
 					{/if}
 					{#if sheets.length}<p class="ti-results-foot">Review a tune in the editor, or add it directly to your book.</p>{/if}
 				{:else}

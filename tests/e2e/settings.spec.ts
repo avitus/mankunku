@@ -132,7 +132,7 @@ for (const width of [1440, 768, 390]) {
 		await volume.focus();
 		await volume.press('Home');
 		await volume.press('ArrowUp');
-		await expect(volume).toHaveAttribute('aria-valuenow', '0.05');
+		await expect(volume).toHaveAttribute('aria-valuenow', '0.01');
 		const enabled = await section.boundingBox();
 		// Firefox's scrolled bounding boxes differ by ~0.00003px; keep the
 		// invariant at hundredth-pixel precision, well below a visible shift.
@@ -143,10 +143,10 @@ for (const width of [1440, 768, 390]) {
 		expect((await section.boundingBox())!.height).toBeCloseTo(before!.height, 2);
 		await backing.click();
 		await expect(organ).toHaveAttribute('aria-checked', 'true');
-		await expect(volume).toHaveAttribute('aria-valuenow', '0.05');
+		await expect(volume).toHaveAttribute('aria-valuenow', '0.01');
 		await page.reload();
 		await expect(organ).toHaveAttribute('aria-checked', 'true');
-		await expect(volume).toHaveAttribute('aria-valuenow', '0.05');
+		await expect(volume).toHaveAttribute('aria-valuenow', '0.01');
 		await expect(backing).toHaveAttribute('aria-checked', 'true');
 		for (const theme of ['Light', 'Dark']) {
 			await page
@@ -216,12 +216,12 @@ test('console keyboard controls update the real setup and persist', async ({
 		page.getByRole('complementary', { name: 'Your setup' })
 	).toContainText('79%');
 	const metro = page.getByRole('switch', { name: 'Metronome', exact: true });
-	const level = page.getByRole('slider', { name: 'Metronome volume' });
+	const level = page.getByRole('slider', { name: 'Click and count-in volume' });
 	const rhythm = page.getByRole('region', { name: 'Rhythm & band' });
 	const before = await rhythm.boundingBox();
 	await metro.click();
 	await expect(level).toBeVisible();
-	await expect(level).toBeDisabled();
+	await expect(level).toBeEnabled(); // Count-off remains independently controllable.
 	expect((await rhythm.boundingBox())?.height).toBe(before?.height);
 	await page.reload();
 	await expect(tempo).toHaveAttribute('aria-valuenow', '110');

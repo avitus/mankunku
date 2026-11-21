@@ -23,7 +23,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
   const sentences=new Set<string>(),peaks=[-60,-60,-60,-60];
   const timer=setInterval(()=>{
    for(const instrument of ['bass','piano','drums'])if(document.querySelector(`[data-testid="musician-${instrument}"]`)?.textContent?.includes('Eight-bar sentence'))sentences.add(instrument);
-   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Master'].entries()) {
+   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Backing'].entries()) {
     const db=Number(document.querySelector(`[role="meter"][aria-label="${label} audio signal"]`)?.getAttribute('aria-valuenow')??-60);
     if(Number.isFinite(db))peaks[i]=Math.max(peaks[i],db);
    }

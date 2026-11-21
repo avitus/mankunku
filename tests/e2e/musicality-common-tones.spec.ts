@@ -36,7 +36,7 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
    const card=document.querySelector('[data-testid="musician-piano"]')?.textContent??'';
    if(card.includes('Carry common tones into the next chord'))data.carry++;
    if(card.includes('Voice the new chord around held tones'))data.breath++;
-   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Master'].entries()){
+   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Backing'].entries()){
     const db=Number(document.querySelector(`[role="meter"][aria-label="${label} audio signal"]`)?.getAttribute('aria-valuenow')??-60);
     if(Number.isFinite(db))data.peaks[i]=Math.max(data.peaks[i],db);
     const bar=document.querySelector('[data-testid="musician-piano"]')?.getAttribute('data-bar-index');

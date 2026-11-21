@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { printedBarCount } from '$lib/music/pickup';
 	import { onMount } from 'svelte';
+	import { tuneKeyCenters } from '$lib/tunes/key-centers';
+	import KeyCenterLegend from '$lib/components/tunes/KeyCenterLegend.svelte';
 	import { savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
@@ -40,10 +43,12 @@
 
 	let chartWidth = $state(800);
 	let focus = $state(false);
-	onMount(() => { focus = savedTuneDisplay('practice-focus', false); });
+	let showKeyCenters = $state(true);
+	onMount(() => { focus = savedTuneDisplay('practice-focus', false); showKeyCenters = savedTuneDisplay('key-centers', true); });
+	const keyCenters = $derived(previewSheet ? tuneKeyCenters(previewSheet, getInstrument(), { solo: true }) : null);
 	/** Persist the practice setup’s focus view, including an Escape exit. */
 	function setFocus(enabled: boolean): void { focus = saveTuneDisplay('practice-focus', enabled); }
-	const totalBars = $derived((previewSheet ?? tune).sections.reduce((sum, section) => sum + section.bars, 0));
+	const totalBars = $derived(printedBarCount(previewSheet ?? tune));
 	const tuneHasMelody = $derived(tune.sections.some(section => section.notes.some(note => note.pitch !== null)));
 	const startCaption = $derived(!tuneHasMelody
 		? 'This chart has no melody — straight to the changes.'
@@ -89,7 +94,7 @@
 	<div class="td-detail-layout">
 		<div class="td-workspace">
 			<section class="le-panel td-detail-chart" aria-label="Practice chart">
-				<div class="td-score-top"><div class="td-chart-context"><strong>{tune.sections[0]?.label || '♪'}</strong><h2>Practice licks</h2><span>{totalBars} bars</span></div><button class="td-focus-button" aria-pressed={focus} onclick={() => setFocus(!focus)}>{focus ? 'Exit focus' : '⛶ Focus'}</button></div>
+				<div class="td-score-top"><div class="td-chart-context"><strong>{tune.sections[0]?.label || '♪'}</strong><h2>Practice licks</h2><span>{totalBars} bars</span></div><div class="td-chart-tools"><button aria-pressed={showKeyCenters} onclick={() => showKeyCenters = saveTuneDisplay('key-centers', !showKeyCenters)}><i class="td-color-dot" aria-hidden="true"></i><span>Show Key Centers</span><i class="td-switch" class:active={showKeyCenters} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={focus} onclick={() => setFocus(!focus)}>{focus ? 'Exit focus' : '⛶ Focus'}</button></div></div>
 				<div class="tp-insertion-status" role="status">
 					<span class="tp-status-dot" aria-hidden="true"></span>
 					<div>
@@ -105,7 +110,8 @@
 						{:else}<p>No known progressions detected in this tune yet — you can still play along.</p>{/if}
 					</div>
 				</div>
-				{#if previewSheet}<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay tune={previewSheet} instrument={getInstrument()} staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} rangeMarkers={tunePractice.config.mode === 'freestyle' ? [] : chartMarkers} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} frameless /></div>{/if}
+				{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
+				{#if previewSheet}<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} tune={previewSheet} instrument={getInstrument()} staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} rangeMarkers={[...(showKeyCenters ? keyCenters?.markers ?? [] : []), ...(tunePractice.config.mode === 'freestyle' ? [] : chartMarkers)]} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} frameless /></div>{/if}
 				<div class="td-transport td-desk-transport tp-start">
 					<button class="le-button le-play" onclick={onstart} disabled={isLoading || !audioModulesReady}><EditorIcon name="play" size={16} />{isLoading ? 'Setting up…' : 'Start'}</button>
 					<div class="td-play-summary"><strong>{tunePractice.config.backingTrackEnabled ? `${BACKING_STYLE_NAMES[tunePractice.config.backingStyle]} backing` : 'Backing off'} · {tunePractice.config.tempo} BPM</strong><p>{startCaption}</p></div>
@@ -148,8 +154,9 @@
 								<summary><span>{lick.name}</span><small>{lick.ready ? 'Ready now' : 'Needs practice'}</small></summary>
 								<ul aria-label={`Placements for ${lick.name}`}>
 									{#each lick.placements as p}
+										{@const firstBar = preview!.firstBar[p.closingPass ? 'closing' : 'returning']}
 										<li><strong>{keyLabel(concertKeyToWritten(p.key, getInstrument()), p.mode)} · {p.context}</strong>
-											<span>Bars {p.startBar + 1}–{p.endBarExclusive}{p.closingPass ? ' · Closing chart' : ''}</span>
+											<span>Bars {p.startBar + firstBar}–{p.endBarExclusive - 1 + firstBar}{p.closingPass ? ' · Closing chart' : ''}</span>
 											<span>{p.keyReady && p.tempoReady ? 'Ready now' : [!p.keyReady ? 'Practise this key' : '', !p.tempoReady ? `Practised to ${p.practicedTempo} BPM` : ''].filter(Boolean).join(' · ')}</span>
 										</li>
 									{/each}

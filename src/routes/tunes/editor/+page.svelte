@@ -9,7 +9,9 @@
 	import StudioPage from '$lib/components/console/StudioPage.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
-	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
+	import { tuneKeyCenters } from '$lib/tunes/key-centers';
+	import KeyCenterLegend from '$lib/components/tunes/KeyCenterLegend.svelte';
+	import { savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
 	import { EditorHistory } from '$lib/step-entry/editor-history';
 	import { midiToDisplayName } from '$lib/music/notation';
 	import type { Tune } from '$lib/types/tune';
@@ -21,6 +23,7 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import SectionLabelDialog from '$lib/components/tune-entry/SectionLabelDialog.svelte';
+	import { firstBarNumber } from '$lib/music/pickup';
 	import { sectionLabels, sectionGroups } from '$lib/tunes/section-labels';
 	import SectionConfigPanel from '$lib/components/tune-entry/SectionConfigPanel.svelte';
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
@@ -145,7 +148,8 @@
 	const formGroups = $derived(sectionGroups(draft));
 	const currentGroup = $derived(formGroups.find(group => group.sectionIdx <= tuneEntry.currentSection && tuneEntry.currentSection < group.endSectionIdx));
 	const currentSectionLabel = $derived(currentGroup?.label ?? 'Music');
-	const currentSectionBar = $derived(currentAbsoluteBar - (currentGroup?.startBar ?? 0) + 1);
+	const groupFirstBar = $derived(currentGroup?.startBar ? 1 : firstBarNumber(draft));
+	const currentSectionBar = $derived(currentAbsoluteBar - (currentGroup?.startBar ?? 0) + groupFirstBar);
 
 	/** Map the buffer selection onto the full-sheet preview's flattened indices. */
 	const previewSelectedIndex = $derived(
@@ -277,8 +281,10 @@
 		scoreRoot?.querySelector(`[data-bar-pos="${index}:0"]`)?.scrollIntoView({ block: 'center' });
 	}
 
-	let harmonyColors = $state(true);
-	const harmonyMarkers = $derived(harmonyColors ? tuneHarmonyMarkers(draft) : []);
+	let showKeyCenters = $state(true);
+	onMount(() => { showKeyCenters = savedTuneDisplay('key-centers', true); });
+	const keyCenters = $derived(tuneKeyCenters(draft, previewInstrument));
+	const harmonyMarkers = $derived(showKeyCenters ? keyCenters.markers : []);
 	let editHydrationActive = true;
 	let historyReady = $state(false);
 	const history = new EditorHistory();
@@ -490,7 +496,8 @@
 				<header class="td-chart-heading"><div><p class="studio-label">Your chart <span class="le-badge">{tuneEntry.writtenKey} · {tuneEntry.timeSignature.join('/')} · {tuneEntry.style || 'No style'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
 				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each formGroups as group}<button class:current={group === currentGroup} aria-pressed={group === currentGroup} onclick={() => jumpToSection(group.sectionIdx)}><strong>{group.label}</strong><span>{group.bars} bars</span></button>{/each}<button onclick={() => { const existing = sectionLabels(draft).find(m => m.bar === labelDestination); void labelDialog.open(existing?.sectionIdx ?? null, labelDestination); }}>Add section label</button><button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
                 <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} compact /></div>
-                <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
+                <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={showKeyCenters} onclick={() => showKeyCenters = saveTuneDisplay('key-centers', !showKeyCenters)}><i class="td-color-dot" aria-hidden="true"></i>Show Key Centers <i class="td-switch" class:active={showKeyCenters} aria-hidden="true"></i></button></div>
+				{#if showKeyCenters}<KeyCenterLegend display={keyCenters} />{/if}
 				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay {sectionEditor} tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={selectChartBar} onGapClick={gap => tuneSelectGap(gap.sectionIdx, gap.offset, gap.duration)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
 				<div class="td-status"><span><i aria-hidden="true"></i>{selectedRange ? `${selectedRange.end - selectedRange.start + 1} selected` : (selectedName ?? 'Ready to write')} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
 			</section>

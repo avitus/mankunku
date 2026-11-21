@@ -61,6 +61,19 @@ describe('createOnsetDetector', () => {
 		expect(src.connect).toHaveBeenCalledWith(expect.objectContaining({ port: nodes[0].port }));
 	});
 
+	it('abandons a stalled registration and installs only the retried detector', async () => {
+		const controller = new AbortController();
+		nativeCtx.audioWorklet.addModule.mockImplementationOnce(() => new Promise<void>(() => {}));
+		const first = mod.createOnsetDetector(context, source(), undefined, controller.signal);
+		await vi.waitFor(() => expect(nativeCtx.audioWorklet.addModule).toHaveBeenCalledTimes(1));
+		controller.abort();
+		await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+		expect(nodes).toHaveLength(0);
+		await mod.createOnsetDetector(context, source());
+		expect(nativeCtx.audioWorklet.addModule).toHaveBeenCalledTimes(2);
+		expect(nodes).toHaveLength(1);
+	});
+
 	it('collects onset messages relative to the reset start time and ignores other messages', async () => {
 		const seen: number[] = [];
 		const handle = await mod.createOnsetDetector(context, source(), (t) => seen.push(t));

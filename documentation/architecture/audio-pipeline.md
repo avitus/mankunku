@@ -12,6 +12,51 @@ The algorithm Mankunku uses is called the **McLeod Pitch Method**. It's an autoc
 
 Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes. Frames between 0.50 and 0.80 are set aside rather than thrown away: they're how the app hears a ghosted note (see below).
 
+## Audio routing and reference levels
+
+The shared mixer gives generated melody, clicks and backing one consistent listening path across Ear Training, Lick Practice, tune playback, Tune Practice and the laboratory. Source calibration establishes the reference balance; musical velocity still controls expression and sample layers. User volume controls change amplitude independently of that velocity.
+
+```text
+Melody → Calibration → Melody fader ──────────────┐
+Clicks → Fixed trim → Click fader ────────────────┤
+Count-off → Calibration → Click fader ────────────┤
+Band → Instrument/voice faders + Room             │
+     → Fixed drive → Compressor → Backing fader ─┤
+                                                 Program
+                                                    ├→ Recording mix
+                                                    └→ Listening sum
+Recorded media → Native media volume ────────────────→ Listening sum
+Listening sum → Sample ceiling → Master → Speakers
+Microphone → Fixed 0.4 trim ──────────────────────────→ Recording mix
+Microphone → Separate untrimmed capture/detector ─────→ Scoring
+```
+
+**Program** is the sum of newly generated audio, before output protection and listening Master. Replay joins only at the listening sum, so it is not digitally fed back into a new recording. The microphone has no connection to speakers. The listening ceiling clamps samples at −1 dBFS before Master; it is a last-resort hard clamp, not automatic loudness matching or a true-peak limiter. Excessive advanced boosts can still distort.
+
+| Control or stage | Reference and scope |
+| --- | --- |
+| Master | Default amplitude 0.8 (−1.9 dB); listening only, including replay. |
+| Melody | Default 1 (0.0 dB); device-local example/head balance. |
+| Click | Default 0.5 (−6.0 dB); synthesized clicks have a fixed 0.6 source trim. The separately calibrated drummer’s count-off also uses Click. |
+| Backing | Default 0.6 (−4.4 dB); the band’s compressor input stays at 0.6 and its output gain is `4 × Backing / 0.6` on every page. |
+| Advanced mix | Instrument, drum-voice and Room gains default to 1; range 0–3. The old extra band Master is removed. The Backing output meter is read-only and sits before the listening ceiling. |
+| Recorded microphone | Fixed 0.4 (about −8 dB) in the listening recording; separate scoring capture bypasses this trim. |
+| Backing WAV export | The shared band graph and −1 dBFS sample ceiling, before listening Master, with no peak normalization. |
+
+The main controls store amplitudes from 0 to 1. Every volume dial uses the same 60 dB logarithmic travel with exact mute at the bottom; 0 dB always means unity gain. Advanced instrument changes can alter how hard the band hits its compressor; the post-compressor Backing control cannot. Drum-voice faders leave musical velocity and layer selection intact. Count-off is independent of Backing, kit and cross-stick balance.
+
+Existing main volume settings retain their amplitudes. Advanced mixes migrate from `backing-mix-levels-v2` to `backing-mix-levels-v3`: old drum-voice values are squared, the retired band Master is folded into bass/comp/drums, values are capped at 3, and mutes remain zero. Historical clipping and compression cannot be reproduced exactly. The new reference intentionally brings previously quieter practice and lab paths up to the former tune level.
+
+For the calibration measurements and migration limits, see the [shared mixer reference](https://github.com/avitus/mankunku/blob/dev/docs/maintenance/audio-mixer/README.md). The [Audio API](https://github.com/avitus/mankunku/blob/dev/documentation/api-reference/audio.md#mixer-policyts-and-mixerts) documents ownership and entry points; the [Settings guide](../user-guide.md#setting-a-comfortable-listening-balance) explains the controls.
+
+## Scoring audio and playback recordings
+
+Saved playback includes your instrument, metronome and backing track. Scoring uses microphone audio separately: ear training reprocesses a microphone-only recording for its final score; lick practice scores its live microphone readings. App output is never digitally added to either scoring input. Speakers can still bleed into the microphone, so the existing bleed checks remain useful.
+
+Rhythm comes from the timing of your note attacks against the phrase's tempo and swing. The microphone capture shares the app's audio clock, so it does not need recorded clicks to know where the beats fall. Ear training still removes the reaction-time lead-in; lick practice still starts each window on its scheduled bar line.
+
+New recordings keep a microphone WAV locally alongside the listening mix, under the same recording limit. Diagnostics replay and scoring-error exports use that WAV. Cloud playback keeps the mixed recording; the microphone WAV and diagnostic metadata remain local. Older recordings retain their original mixed-audio diagnostic replay. If microphone capture fails, ear training keeps its live microphone score and does not rescore the listening mix. Ear-training recording metadata marks whether its score came from live detection or a completed replay; the replay marker is committed with the authoritative notes and score. Leaving ear training releases its microphone stream, including a permission request that completes after navigation. Pending worklet preparation cannot publish a detector or start playback after teardown. End Session in lick practice likewise cancels the entire pending setup, even while the report remains on the same route. Tune practice also invalidates pending setup on teardown or a change of tune, releasing late microphone results before they can start playback.
+
 ## When the app starts listening
 
 In ear training the microphone opens the moment your turn starts — before you play a note. That matters more than it sounds: a recording that waits for a confident pitch reading before it starts can't contain the attack of the note that triggered it, because a confident reading needs most of one analysis window of the note first. So the app arms the mic early and then trims the take back to a fixed third of a second before your first *played* note. Your reaction time is discarded, not scored, and you can take a breath before coming in.
@@ -32,6 +77,7 @@ Once the app has both the pitch readings and the onset times, segmenting them in
 
 After segmentation, the app runs cleanup passes that handle real-world failure modes the raw detector can't avoid:
 
+- **Rounding-boundary fluctuations.** A sustained note close to halfway between two semitones can flip note names as its pitch moves by only a few cents. Adjacent fragments are joined when their pitch estimates cluster within 15 cents of the same rounding boundary, the readings stay continuous, and there is no attack evidence. The full span is checked, so a real semitone change or a drift away from that boundary stays separate. The combined note keeps its measured intonation and is chosen without consulting the exercise's expected notes. The soprano Third–Fifth Rise recording from November 16, 2026 (November 17 UTC) pins this: one flat held note was split five ways and charged as two extra notes, despite both expected notes being credited.
 - **Same-pitch consolidation.** If two adjacent segments share the same MIDI pitch *and* the boundary between them has no AudioWorklet onset within ±75 ms — meaning there was no actual attack — they're merged back into one note. This catches octave glitches and clarity dropouts that briefly split a single sustained note into two.
 - **Octave-boundary collapse.** When the McLeod method temporarily locks to the wrong octave for a few frames, the app spots the artifact (three or more raw frames inside the segment match the lower fundamental) and merges the stray segment back into its neighbour.
 - **Octave respell of a re-attack.** A saxophone re-attack often speaks on its second harmonic for the first 50–100 ms before the fundamental fills in. When that transient gets cut into a note of its own — very short, exactly an octave above the note before it, with the lower fundamental still showing in the raw frequencies around it and the next note not continuing the upper octave — it keeps its attack and takes the neighbour's octave, rather than scoring as a wrong pitch.
@@ -92,7 +138,7 @@ If yes to all three, the filter drops the note as bleed. If your clarity is high
 
 The filter is conservative on purpose. False positives (dropping notes you actually played) are worse than false negatives (keeping a few bleed notes), so the threshold is biased toward keeping ambiguous notes.
 
-The filter always *runs* — it's how the `/diagnostics` A/B comparison gets its two scores — but whether its result becomes your actual score is a separate internal flag, currently off by default. Tune Practice turns it on at every strictness level. If you're using headphones none of this matters: there's no bleed to filter, so the filter finds nothing either way.
+When a backing-track schedule is available, practice scores the filtered notes. Ear Training applies this to both the live score and the saved microphone replay. Exact-phrase scoring retains both scores for the diagnostics comparison. Tune Practice also filters backing notes before recognizing licks in Freestyle.
 
 ### Metronome and backing-track bleed
 

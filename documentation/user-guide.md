@@ -106,9 +106,8 @@ Above the console, a ⚠ line warns you when licks you've tagged for practice ha
 
 The rhythm section is generated, not looped: bass, comping (piano or organ, your pick in Settings), and drums, played fresh each time from a seeded engine. It doesn't repeat a two-bar sample at you.
 
-In **Settings → Rhythm & band**, choose **Musicality 0.16.1** or **Original**.
-The choice stays on this device and takes effect when you next start playback.
-Musicality coordinates the bass, keyboard and drums across the form. It supports
+**Musicality 0.16.1** is the default accompaniment and coordinates the bass,
+keyboard and drums across the form. No arrangement selection is needed. It supports
 complete 4/4 forms up to 128 bars; other passages automatically use Original.
 Normal practice prepares the arrangement before playback. Live microphone-driven
 band responses are a listening-lab experiment, not part of ordinary practice.
@@ -321,13 +320,15 @@ The global Settings page controls things that aren't specific to a single sessio
 |---|---|
 | **Instrument** | Soprano sax, tenor sax, alto sax, trumpet, or Concert Pitch — choosing Concert Pitch asks which C instrument you play (piano, guitar, bass, trombone, flute, vibes, violin, voice, or other). Affects transposition (sheet music in your key), playback timbre, the range phrases are pitched in, and the tuning advice. |
 | **Highest** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
-| **Master** | Overall output level; playback, metronome, and backing track are all relative to it. |
+| **Master** | Listening level for music, clicks, count-ins and recorded playback. It does not change the balance saved in a recording. |
+| **Melody** | The played example or tune head relative to the band. Saved on this device; changing it does not alter an existing recording. |
 | **Theme** | Dark (default) or light. |
 | **Key Center** / **Scale Type** | Override the daily tonality, or leave it alone. Locked keys and scales are visible but disabled with their unlock requirement in a tooltip; a **Reset to daily** link appears once you've overridden. |
 | **Tempo** | 60–200 BPM. Ear Training's tempo. Tune practice's Tempo knob and the tune desk start here only for a tune you haven't set a tempo for — each tune remembers its own. It's also the tempo the play buttons on your lick pages use. |
 | **Swing** | 50% (straight) to 80% (heavy), in 1% steps; 62% out of the box. 67% is the usual triplet swing. Applies to the **Swing** backing style — you and the band both play it. Bossa Nova, Ballad and Straight set their own feel and ignore this. |
-| **Metronome** + **Metro Vol** | The click on or off, and where it sits in the mix (halfway by default, trimmed to sit under the music). |
+| **Metronome** + **Click** | The metronome switch controls the ongoing click. Click sets the level of both clicks and count-ins, including the drummer’s count-off, and remains available with the metronome off. |
 | **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live in **Rhythm & band** and apply to Ear Training, Lick Practice and Tune Practice. Switching backing off disables its voice and volume controls without moving them or discarding their settings. |
+| **Speaker bleed reduction** | To calibrate, open **Rhythm & band**, set Master to a comfortable level, and select **Start speaker sound check**. Allow microphone access and stay quiet while the speakers play six seconds of hiss. **Stop sound check** ends it early. Ear Training and Lick Practice use the original microphone until Listen verifies a saved calibration for your setup. Repeat the check in Settings if you move the microphone or speakers. |
 | **Lick Practice** | Nothing to set here — a **Go to Lick Practice** link, because those settings live on the Lick Practice page. |
 | **Account** | Shown when you're signed in: who you're signed in as, a **Display Name** (shown on the licks and tunes you share; leave it blank to stay anonymous), a **Password** change (*Change* emails you a reset link), and **Delete Account**, which removes your cloud account and its data after a confirmation. |
 | **Tours, help & data** | A **Browse docs** link, a *Take tour* / *Replay* button for each guided tour, and **Reset all tour history** so the first-run prompts and "Need help?" links come back. |
@@ -337,7 +338,17 @@ Session settings that belong to a *session* aren't here: session type, progressi
 
 Settings uses the Studio Desk layout: **Your instrument**, **Ear Training** (keys and scales), and **Rhythm & band**, alongside a read-only **Your setup** summary. The summary moves below the controls on smaller screens. Account controls remain available when signed in. **Tours, help & data** can be collapsed. Both dark and light themes are supported.
 
-Drag a dial up or down, or use arrow keys, Home/End, and PageUp/PageDown. Arrow keys select the next available selector pad; Home/End select the first/last. Locked options are skipped. Switching backing or metronome off disables its volume without changing the panel size or forgetting your level.
+Drag a dial up or down, or use arrow keys, Home/End, and PageUp/PageDown. Arrow keys select the next available selector pad; Home/End select the first/last. Locked options are skipped. Switching backing off disables its volume without forgetting your level. Click stays available because count-ins use it even when the ongoing metronome is off.
+
+### Setting a comfortable listening balance
+
+Use **Master** for overall listening comfort, then **Melody**, **Click** and **Backing Vol** to balance the parts. These levels apply across practice, tune playback and the listening lab. Muting Backing or the kit does not mute the drummer’s count-off; use Click for that.
+
+All volume dials use the same logarithmic travel and show decibels. **0.0 dB** means unity gain; **−6.0 dB** is approximately half the signal amplitude, not a promise of half the perceived loudness. The bottom position is **Muted**. Defaults are Master **−1.9 dB**, Melody **0.0 dB**, Click **−6.0 dB** and Backing **−4.4 dB**. The middle of a dial is not half volume.
+
+Master affects what you hear, including saved takes, but does not turn down the accompaniment recorded alongside your microphone. Melody, Click and Backing changes do affect the accompaniment captured in a new take. A saved take already contains its balance: on replay, use Master or the recording’s own volume control. Turning Melody or Backing now cannot separate those parts out of an existing recording.
+
+The band now uses one reference level everywhere. Ear Training, Lick Practice and the lab may sound louder than before at the same stored setting; adjust Master for comfort. Instrument timbres and musical dynamics still differ, so equal dB settings do not make every source sound equally loud. See [Audio routing and reference levels](./architecture/audio-pipeline.md#audio-routing-and-reference-levels) for the signal paths.
 
 ## Scales
 

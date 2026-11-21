@@ -1,6 +1,6 @@
 /**
- * The admin user table's "No activity in 30 days" filter. Pure, so the date
- * choice is Node-testable outside the Svelte page.
+ * Calendar-day activity filters for the admin user list. Pure, so the date
+ * choices are Node-testable outside the Svelte page.
  */
 
 /** The dates an admin user row carries that say when the account was last used. */
@@ -12,6 +12,7 @@ export interface AdminSeenDates {
 }
 
 const INACTIVE_DAYS = 30;
+const ACTIVE_DAYS = 14;
 
 /**
  * Newest day the account shows any sign of use: the latest of its last
@@ -24,6 +25,17 @@ export function lastSeenDate(row: AdminSeenDates): string | null {
 		.filter((date): date is string => !!date)
 		.map((date) => date.slice(0, 10));
 	return days.length ? days.sort().at(-1)! : null;
+}
+
+/**
+ * True when the newest sign of use reaches the day two weeks before `nowMs`
+ * (UTC), inclusive. Practice dates are local, so they can be a day ahead of
+ * UTC today; use the same lower-bound comparison as the weekly totals.
+ */
+export function isActive(row: AdminSeenDates, nowMs: number): boolean {
+	const seen = lastSeenDate(row);
+	const cutoff = new Date(nowMs - ACTIVE_DAYS * 86_400_000).toISOString().slice(0, 10);
+	return !!seen && seen >= cutoff;
 }
 
 /**

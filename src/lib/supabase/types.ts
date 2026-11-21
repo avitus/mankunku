@@ -207,7 +207,7 @@ export type Database = {
           tune_tempos: Json
           /** Backing-track feel: swing|bossa-nova|ballad|straight. NULL = 'swing'. */
           backing_style: string | null
-          /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
+          /** Legacy A/B setting for older clients. Current scoring follows the backing schedule. */
           bleed_filter_enabled: boolean | null
           /** Trick practice state: { selectedVariants, selectedUpdatedAt, migrations, progress, unlockCounts, history } */
           trick_state: Json

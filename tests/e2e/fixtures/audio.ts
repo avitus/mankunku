@@ -47,6 +47,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 
 interface AudioMockOptions {
+	/** Keep the native recorder to verify the real playback graph in Linux. */
+	recordLiveGraph?: boolean;
 	/** Path relative to tests/fixtures/recordings/ */
 	fixturePath?: string;
 	/**
@@ -57,6 +59,10 @@ interface AudioMockOptions {
 	 * replaced by the stub, leaving the count at zero.
 	 */
 	countGetUserMediaCalls?: boolean;
+	/** Observe real synthetic tracks without wrapping a separate init script. */
+	trackMicrophoneStreams?: boolean;
+	/** Hold the synthetic permission response until __releaseMockMic is called. */
+	delayMicrophonePermission?: boolean;
 }
 
 const FIXTURES_DIR = resolve(__dirname, '..', '..', 'fixtures', 'recordings');
@@ -87,9 +93,13 @@ export async function installAudioMock(
 	}
 
 	await page.addInitScript(
-		([fixtureArr, mime, countCalls]) => {
+		([fixtureArr, mime, countCalls, recordLiveGraph, trackStreams, delayPermission]) => {
 			const fixtureUint8 = new Uint8Array(fixtureArr as number[]);
 			if (countCalls) (window as unknown as { __gumCount: number }).__gumCount = 0;
+
+			const probe = window as unknown as { __mockMicTracks: MediaStreamTrack[]; __mockMicPending: boolean; __releaseMockMic: () => void };
+			if (trackStreams) probe.__mockMicTracks = [];
+			if (delayPermission) probe.__mockMicPending = false;
 
 			// ── getUserMedia stub ───────────────────────────────────────
 			// Build a real MediaStream backed by a silent oscillator. Real
@@ -111,6 +121,11 @@ export async function installAudioMock(
 				const dest = ctx.createMediaStreamDestination();
 				osc.connect(dest);
 				osc.start();
+				if (trackStreams) probe.__mockMicTracks.push(...dest.stream.getTracks());
+				if (delayPermission) await new Promise<void>(resolve => {
+					probe.__mockMicPending = true;
+					probe.__releaseMockMic = resolve;
+				});
 				return dest.stream;
 			};
 			// Installed on MediaDevices.prototype, NOT on the navigator.mediaDevices
@@ -131,6 +146,8 @@ export async function installAudioMock(
 			} else if (navigator.mediaDevices) {
 				navigator.mediaDevices.getUserMedia = syntheticGetUserMedia;
 			}
+
+			if (recordLiveGraph) return;
 
 			// ── MediaRecorder stub ──────────────────────────────────────
 			// Replaces the constructor. Inherits from EventTarget so calls
@@ -181,9 +198,12 @@ export async function installAudioMock(
 			(window as unknown as { MediaRecorder: typeof MediaRecorder }).MediaRecorder =
 				MockMediaRecorder as unknown as typeof MediaRecorder;
 		},
-		[fixtureBytes, fixtureMime, options.countGetUserMediaCalls === true] as [
+		[fixtureBytes, fixtureMime, options.countGetUserMediaCalls === true, options.recordLiveGraph === true, options.trackMicrophoneStreams === true, options.delayMicrophonePermission === true] as [
 			number[],
 			string,
+			boolean,
+			boolean,
+			boolean,
 			boolean
 		]
 	);

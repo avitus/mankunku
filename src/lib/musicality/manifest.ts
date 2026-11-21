@@ -7,7 +7,6 @@ import {
 /** Evidence is pinned to the inspected engine, independently of the serving app build. */
 export const MUSICALITY_AUDIT_DATE = '2026-10-15';
 export const MUSICALITY_AUDIT_REVISION = 'ced5186931aafc4b75151d8704db88217861672c';
-export const MUSICALITY_AUDIT_SCOPE = 'Source inspection of the reachable accompaniment engine. Core devices are distinguished from their missing musical context. Test links are references, not a claim that this audit ran them. The new specification has not passed a listening acceptance review.';
 
 const source = (file: string, line = 1): MusicalityEvidence => ({ kind: 'source', path: `src/lib/audio/${file}.ts`, line, revision: 'musicality' });
 const test = (file: string): MusicalityEvidence => ({ kind: 'test', path: `tests/unit/audio/${file}.test.ts`, revision: 'musicality' });

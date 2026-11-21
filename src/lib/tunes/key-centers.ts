@@ -1,0 +1,234 @@
+import type { Tune } from '$lib/types/tune';
+import type { PitchClass } from '$lib/types/music';
+import type { InstrumentConfig } from '$lib/types/instruments';
+import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
+import { fractionToFloat } from '$lib/music/intervals';
+import { concertKeyToWritten } from '$lib/music/transposition';
+import { keyLabel, keyLabelLong } from '$lib/music/notation';
+import { isInPickupLeadIn } from '$lib/music/pickup';
+import { chordEvidence } from '$lib/music/chord-evidence';
+import { progressionMode, PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+import { analyzeHarmony } from './harmonic-analysis';
+import { flattenTune } from './flatten';
+import { soloPlaybackFlat } from './solo-form';
+
+export interface KeyCenterReading {
+	key: PitchClass;
+	mode: 'major' | 'minor' | 'blues';
+	label: string;
+	color: string;
+	start: number;
+	end: number;
+	/** Visit to this printed passage, preserving alternate repeat contexts. */
+	visits: number[];
+	repeated: boolean;
+	reason: string;
+	rangeLabel: string;
+	/** Concert tonic of the stronger reading that supplies the chart rail. */
+	contextKey?: PitchClass;
+}
+
+export interface KeyCenterDisplay {
+	readings: KeyCenterReading[];
+	markers: RangeMarker[];
+	legend: { label: string; color: string }[];
+	barLength: number;
+	/** Full layout capacity, independent of whether markers are visible. */
+	laneCount: number;
+}
+
+/** Stable written-tonic hues. Text labels carry the identity independently of color. */
+function centerColor(key: PitchClass): string {
+	return `var(--key-center-${key.toLowerCase().replace('#', '-sharp')})`;
+}
+
+/**
+ * Analyze performed repeat contexts, then project each contiguous piece through
+ * section/bar provenance. Never bridge a skipped ending or a repeat jump.
+ * This display reads full compatible collections, never reserved exercise regions.
+ */
+export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options: { solo?: boolean } = {}): KeyCenterDisplay {
+	const barLength = tune.timeSignature[0] / tune.timeSignature[1];
+	const display: KeyCenterDisplay = { readings: [], markers: [], legend: [], barLength, laneCount: 0 };
+	const expanded = flattenTune(tune, { expandRepeats: true });
+	const notation = flattenTune(tune);
+	let pickupBars = 0;
+	while (pickupBars < expanded.totalBars && isInPickupLeadIn(tune, pickupBars)) pickupBars++;
+	const played = options.solo ? soloPlaybackFlat(expanded, tune.timeSignature, pickupBars)
+		: { flat: expanded, sourceBars: Array.from({ length: expanded.totalBars }, (_, i) => i) };
+	const { flat } = played;
+	const analysis = analyzeHarmony(flat, tune, { cyclic: false });
+	if (analysis.issues.length) return display;
+	const counts = new Map<number, number>();
+	const sourceMap: { bar: number; visit: number; section: number }[] = [];
+	for (const entry of expanded.sectionMap) {
+		const visit = (counts.get(entry.sourceSection) ?? 0) + 1;
+		counts.set(entry.sourceSection, visit);
+		const base = notation.sectionMap[entry.sourceSection].barOffset;
+		for (let bar = 0; bar < tune.sections[entry.sourceSection].bars; bar++) {
+			sourceMap[entry.barOffset + bar] = { bar: base + bar, visit, section: entry.sourceSection };
+		}
+	}
+	/** Project one evidenced interpretation, retaining its separate functional explanation. */
+	function add(key: PitchClass, mode: KeyCenterReading['mode'], indices: number[], reason: string, contextKey?: PitchClass): void {
+		if (indices.some(i => !chordEvidence(flat.harmony[i]))) return;
+		const written = concertKeyToWritten(key, instrument);
+		const label = mode === 'blues' ? `${keyLabel(written)} blues` : keyLabelLong(written, mode);
+		let piece: KeyCenterReading | undefined;
+		for (const index of indices) {
+			const segment = flat.harmony[index];
+			const from = fractionToFloat(segment.startOffset);
+			const to = from + fractionToFloat(segment.duration);
+			for (let bar = Math.floor(from / barLength); bar * barLength < to - 1e-8; bar++) {
+				const source = sourceMap[played.sourceBars[bar]];
+				if (!source) continue;
+				const start = source.bar * barLength + Math.max(0, from - bar * barLength);
+				const end = source.bar * barLength + Math.min(barLength, to - bar * barLength);
+				const repeated = (counts.get(source.section) ?? 0) > 1;
+				if (piece && Math.abs(piece.end - start) < 1e-8 && piece.visits[0] === source.visit) {
+					piece.end = end;
+					piece.repeated ||= repeated;
+				} else {
+					piece = { key, mode, label, color: centerColor(written), start, end, visits: [source.visit], repeated, reason, rangeLabel: '', contextKey };
+					display.readings.push(piece);
+				}
+			}
+		}
+	}
+	// Subordinate only the arrival belonging to the resolved event on this visit.
+	function appliedContext(key: PitchClass, indices: number[]) {
+		for (const region of analysis.contextualMajorRegions) {
+			const event = region.secondaryDominants.find(event => event.targetKey === key &&
+				event.segmentIndices.every(index => indices.includes(index)));
+			if (event && indices.every(index => region.segmentIndices.includes(index))) return { key: region.key, event };
+		}
+	}
+	for (const region of analysis.compatibleMajorRegions) {
+		const applied = appliedContext(region.key, region.segmentIndices);
+		// A short collection can fit the same chords as a longer cadenced key.
+		// Preserve equally supported interpretations when no single parent wins.
+		const parents = region.evidence.cadences.length ? [] : analysis.compatibleMajorRegions.filter(parent =>
+			parent.key !== region.key && parent.evidence.cadences.length &&
+			fractionToFloat(parent.duration) >= fractionToFloat(region.duration) + barLength &&
+			region.segmentIndices.every(index => parent.segmentIndices.includes(index)));
+		const parentKey = applied?.key ?? (parents.length === 1 ? parents[0].key : undefined);
+		const reason = region.evidence.cadences.length ? 'Compatible major collection with a V–I arrival.'
+			: 'Compatible major collection with a tonic chord; other readings may also fit.';
+		add(region.key, 'major', region.segmentIndices, reason, parentKey);
+	}
+	for (const region of analysis.contextualMajorRegions) {
+		const functions = region.secondaryDominants.map(event => `V/${event.targetDegree}`).join(', ');
+		add(region.key, 'major', region.segmentIndices, `Continuing major center through ${functions} with a diatonic return after each resolution.`);
+	}
+	for (const passage of analysis.majorContinuations) {
+		const roles = [...new Set(passage.exceptions.map(e => e.role))].join(' and ');
+		add(passage.key, 'major', passage.segmentIndices, `Cadences on both sides support this center through the ${roles}.`);
+	}
+	for (const turnaround of analysis.majorTurnarounds) {
+		const resolution = turnaround.resolutionIndices.length ? 'resolves to vi before the home cadence' : 'implies vi at the end of the form';
+		add(turnaround.key, 'major', turnaround.segmentIndices, `The iiø–V/vi turnaround ${resolution}.`);
+	}
+	for (const approach of analysis.borrowedMajorApproaches) {
+		add(approach.key, 'major', approach.segmentIndices, 'Borrowed iiø–V resolves directly to the major tonic.');
+	}
+	// Bridge the dominant and any held target before the incoming collection starts.
+	for (const transition of analysis.majorKeyTransitions) {
+		add(transition.to, 'major', transition.leadInIndices,
+			`V/${transition.dominant.targetDegree} leads into the incoming major key.`);
+	}
+	for (const cornerstone of analysis.cornerstones) {
+		const key = cornerstone.kind === 'minor-arrival' ? cornerstone.localKey : cornerstone.detection.localKey;
+		const context = appliedContext(key, cornerstone.segmentIndices);
+		const explanation = context ? ` Brief tonicization within ${keyLabelLong(concertKeyToWritten(context.key, instrument), 'major')} (V/${context.event.targetDegree}).` : '';
+		if (cornerstone.kind === 'minor-arrival') {
+			const transition = analysis.majorKeyTransitions.find(t => t.arrival === cornerstone);
+			const reason = transition
+				? `Minor arrival across a key change. The approach belongs to ${keyLabelLong(concertKeyToWritten(transition.from, instrument), 'major')} and V/${transition.dominant.targetDegree} introduces ${keyLabelLong(concertKeyToWritten(transition.to, instrument), 'major')}.`
+				: 'Minor arrival: ii–V–i. A local destination, not one minor scale over every chord.' + explanation;
+			add(key, 'minor', cornerstone.segmentIndices, reason, transition?.to ?? context?.key);
+		} else {
+			const detection = cornerstone.detection;
+			const hasTonic = detection.segmentIndices.some(i => flat.harmony[i].chord.root === detection.localKey);
+			// A two-chord approach can imply major even when the very same
+			// ii and V lead directly to a sounded minor tonic on this visit.
+			const minorArrival = !hasTonic && progressionMode(detection.type) === 'major' ?
+				analysis.cornerstones.find(arrival => arrival.kind === 'minor-arrival' &&
+					arrival.localKey === key && detection.segmentIndices.every((index, i) => arrival.segmentIndices[i] === index) &&
+					arrival.segmentIndices.length > detection.segmentIndices.length &&
+					arrival.segmentIndices.every(index => chordEvidence(flat.harmony[index]))) : undefined;
+			const borrowedApproach = detection.type === 'ii-V-I-minor' && !hasTonic &&
+				analysis.borrowedMajorApproaches.some(a => a.key === key && detection.segmentIndices.every(i => a.segmentIndices.includes(i)));
+			const transition = minorArrival && analysis.majorKeyTransitions.find(t => t.arrival === minorArrival);
+			let resolution = '';
+			if (minorArrival) resolution = ' The following tonic confirms a minor arrival.';
+			if (borrowedApproach) resolution = ' The following tonic confirms a major arrival.';
+			const turnaround = detection.type === 'ii-V-I-minor' && analysis.majorTurnarounds.find(t =>
+				t.segmentIndices[0] === detection.segmentIndices[0] &&
+				detection.segmentIndices.every(i => t.segmentIndices.includes(i) || t.resolutionIndices.includes(i)));
+			if (turnaround) resolution = ' The minor approach functions as a turnaround to vi of the governing major key.';
+			const parentKey = context?.key ?? transition?.to ?? (turnaround ? turnaround.key : undefined) ?? (minorArrival || borrowedApproach ? key : undefined);
+			add(detection.localKey, detection.type === 'blues' ? 'blues' : progressionMode(detection.type), detection.segmentIndices,
+				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + resolution, parentKey);
+		}
+	}
+	const unique = new Map<string, KeyCenterReading>();
+	for (const reading of display.readings) {
+		const id = `${reading.key}/${reading.mode}/${reading.start}/${reading.end}/${reading.reason}/${reading.contextKey ?? ''}`;
+		const existing = unique.get(id);
+		if (existing) {
+			existing.visits = [...new Set([...existing.visits, ...reading.visits])];
+			existing.repeated ||= reading.repeated;
+		} else unique.set(id, reading);
+	}
+	display.readings = [...unique.values()].sort((a, b) => a.start - b.start || b.end - a.end || a.label.localeCompare(b.label));
+	let printed = 0;
+	const barLabels = Array.from({ length: notation.totalBars }, (_, i) => isInPickupLeadIn(tune, i) ? 'Pickup' : `Bar ${++printed}`);
+	/** End labels name the exclusive boundary, not the chord after it. */
+	const position = (time: number, end = false): string => {
+		const bar = Math.floor(time / barLength + 1e-8);
+		const beat = Math.round((time - bar * barLength) * tune.timeSignature[1] * 1000) / 1000 + 1;
+		if (end && beat === 1) return `${barLabels[bar - 1]} end`;
+		return `${barLabels[bar]}, beat ${beat}`;
+	};
+	for (const reading of display.readings) reading.rangeLabel = `${position(reading.start)} → ${position(reading.end, true)}`;
+	// Union duplicate coverage of the SAME center only; keep all evidence above.
+	const spans: KeyCenterReading[] = [];
+	const centers = display.readings.filter(r => r.contextKey === undefined);
+	for (const label of new Set(centers.map(r => r.label))) {
+		const readings = centers.filter(r => r.label === label);
+		display.legend.push({ label, color: readings[0].color });
+		let previous: KeyCenterReading | undefined;
+		for (const reading of readings) {
+			if (previous && reading.start <= previous.end + 1e-8) previous.end = Math.max(previous.end, reading.end);
+			else { previous = { ...reading }; spans.push(previous); }
+		}
+	}
+	const laneEnds: number[] = [];
+	for (const [index, span] of spans.sort((a, b) => a.start - b.start || b.end - a.end || a.label.localeCompare(b.label)).entries()) {
+		let lane = laneEnds.findIndex(end => end <= span.start + 1e-8);
+		if (lane === -1) lane = laneEnds.length;
+		laneEnds[lane] = span.end;
+		display.markers.push({ id: `key-center-${index}`, startBar: Math.floor(span.start / barLength),
+			endBarExclusive: Math.ceil(span.end / barLength), timeRange: { start: span.start, end: span.end },
+			status: 'upcoming', color: span.color, keyCenter: { lane, lanes: 0, label: span.label, minor: span.mode === 'minor' } });
+	}
+	display.laneCount = laneEnds.length;
+	for (const marker of display.markers) marker.keyCenter!.lanes = display.laneCount;
+	return display;
+}
+
+/** The first span wide enough for a label on this responsive chart row. */
+export function keyCenterLabelStartsRow(marker: RangeMarker, bar: number, rowStart: number, barLength: number): boolean {
+	if (keyCenterBarSpan(marker, bar, barLength).width <= 40) return false;
+	for (let previous = Math.max(rowStart, marker.startBar); previous < bar; previous++) {
+		if (keyCenterBarSpan(marker, previous, barLength).width > 40) return false;
+	}
+	return true;
+}
+
+/** Half-open coverage within an individual chart bar, including split-bar transitions. */
+export function keyCenterBarSpan(marker: RangeMarker, bar: number, barLength: number): { left: number; width: number } {
+	const start = Math.max(bar * barLength, marker.timeRange?.start ?? marker.startBar * barLength);
+	const end = Math.min((bar + 1) * barLength, marker.timeRange?.end ?? marker.endBarExclusive * barLength);
+	return { left: (start / barLength - bar) * 100, width: Math.max(0, (end - start) / barLength * 100) };
+}

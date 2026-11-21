@@ -23,7 +23,7 @@ for (const keyboard of ['piano','organ'] as const) test(`0.18 full Rhythm Change
    const card=document.querySelector('[data-testid="musician-piano"]')?.textContent??'';
    if(card.includes('Carry harmony across the bar line'))data.carry++;
    if(card.includes('Breathe over the held harmony'))data.breath++;
-   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Master'].entries()){
+   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Backing'].entries()){
     const db=Number(document.querySelector(`[role="meter"][aria-label="${label} audio signal"]`)?.getAttribute('aria-valuenow')??-60);
     if(Number.isFinite(db))data.peaks[i]=Math.max(data.peaks[i],db);
    }

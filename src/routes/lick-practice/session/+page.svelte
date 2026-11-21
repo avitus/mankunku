@@ -3,6 +3,7 @@
 	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
+	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
 	import { goto } from '$app/navigation';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
@@ -81,7 +82,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
+	import { setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { scoreFluency } from '$lib/scoring/fluency';
 	import { getTrickById, transposeTrickContext } from '$lib/tricks';
@@ -90,6 +91,7 @@
 	import { durationThroughLastReading } from '$lib/audio/capture-window';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
@@ -164,6 +166,8 @@
 	let loadError = $state(false);
 	/** Set by onDestroy, so a late import rejection knows the page is gone. */
 	let destroyed = false;
+	let setupGeneration = 0;
+	const setupIsCurrent = (generation: number): boolean => !destroyed && generation === setupGeneration;
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
 	const useKeyMap = $derived.by(() => !!sessionReport && lickPractice.phase === 'complete' && !sessionReport.licks.some(lick => isTrickReportEntry(lick.lickId)));
@@ -493,18 +497,25 @@
 		};
 	}
 
-	async function ensureMicCapture(): Promise<boolean> {
+	async function ensureMicCapture(generation: number): Promise<boolean> {
 		if (!captureModule) return false;
 		if (micCapture) return true;
 		try {
-			micCapture = await captureModule.startMicCapture();
-			if (destroyed) {
-				// Teardown ran while the prompt was open: onDestroy's stopAll()
-				// found nothing to release, so release it here, publish nothing.
-				captureModule.stopMicCapture();
-				micCapture = null;
+			const capture = await captureModule.startMicCapture();
+			if (!setupIsCurrent(generation)) {
+				// A newer setup may already own this shared capture.
+				if (micCapture !== capture && captureModule.getMicCapture() === capture) captureModule.stopMicCapture();
 				return false;
 			}
+			micCapture = capture;
+			await captureModule.preparePracticeRoom(capture, settings.backingTrackEnabled);
+			if (!setupIsCurrent(generation)) return false;
+			await prepareScoringCapture(micCapture.context).catch(error => {
+				console.warn('Microphone scoring capture unavailable, using live detection:', error);
+			});
+			// End Session also cancels setup while this route remains mounted.
+			// stopAll has released this capture; do not touch a newer setup.
+			if (!setupIsCurrent(generation)) return false;
 			levelInterval = setInterval(() => {
 				captureModule!.getInputLevel();
 			}, 50);
@@ -525,9 +536,8 @@
 							}
 						}
 					);
-					if (destroyed) {
-						// The worklet came up after teardown; the caller's stopAll()
-						// releases the mic and its poll, this releases the worklet.
+					if (!setupIsCurrent(generation)) {
+						// The worklet came up after Stop released its capture.
 						onset.dispose();
 						return false;
 					}
@@ -550,7 +560,7 @@
 	 * starting/stopping the detector per key. This avoids the small
 	 * re-arm gap at bar boundaries where the first note could be missed.
 	 */
-	async function ensurePitchDetector(): Promise<void> {
+	async function ensurePitchDetector(generation: number): Promise<void> {
 		if (!pitchModule || !micCapture || pitchDetector) return;
 		const detector = await pitchModule.createPitchDetector(
 			micCapture.analyser,
@@ -561,7 +571,7 @@
 		// Teardown during creation has already released the capture; a
 		// detector that was never started has nothing to stop — just don't
 		// publish it (or read `micCapture.context` off a cleared capture).
-		if (destroyed || !micCapture) return;
+		if (!setupIsCurrent(generation) || !micCapture) return;
 		pitchDetector = detector;
 		// Capture the mic-context time at the exact moment start() sets its
 		// internal recordingStartTime. PitchReading.time is always relative
@@ -579,6 +589,7 @@
 	 */
 	async function initializeSession() {
 		if (!playback) return;
+		const generation = ++setupGeneration;
 
 		// Build the first lick's key stack NOW, before the mic, worklet, samples
 		// and detector below. The rows are plan state, not audio state, and the
@@ -594,17 +605,8 @@
 
 		isLoading = true;
 		micError = false;
-		const micOk = await ensureMicCapture();
-		// A navigation during the mic prompt — or the sample load and the
-		// detector start below — lands here with the page gone. onDestroy's
-		// stopAll() ran before these resources existed, so it runs again for
-		// them (the mic, its level poll, the onset worklet, the detector),
-		// and nothing below may start a session.
-		if (destroyed) {
-			isLoading = false;
-			stopAll();
-			return;
-		}
+		const micOk = await ensureMicCapture(generation);
+		if (!setupIsCurrent(generation)) return;
 		if (!micOk) {
 			isLoading = false;
 			// The rows were built above, before the mic was asked for; a refused
@@ -630,21 +632,13 @@
 			} else if (backingTrack) {
 				await backingTrack.loadBackingInstruments(settings.backingInstrument);
 			}
-			if (destroyed) {
-				isLoading = false;
-				stopAll();
-				return;
-			}
+			if (!setupIsCurrent(generation)) return;
 
 			setMasterVolume(settings.masterVolume);
-			await ensurePitchDetector();
+			await ensurePitchDetector(generation);
 		} catch (err) {
+			if (!setupIsCurrent(generation)) return;
 			isLoading = false;
-			if (destroyed) {
-				// The mic above is already open on the dead page; release it.
-				stopAll();
-				return;
-			}
 			console.warn('[lick-practice] audio setup failed:', err);
 			// The mic, its level poll and the elapsed timer are already
 			// running; the banner below is a stopped session, not a paused one.
@@ -655,12 +649,8 @@
 			rowOfKey = [];
 			return;
 		}
+		if (!setupIsCurrent(generation)) return;
 		isLoading = false;
-		if (destroyed) {
-			// The detector came up after teardown; stop it with the rest.
-			stopAll();
-			return;
-		}
 
 		// Stamp the session log base id + timestamp once per session. Per-key
 		// upserts keyed off the composite `${baseId}-${progressionType}` keep
@@ -879,6 +869,19 @@
 			trailingBars:
 				lickPractice.mode === 'single-lick' ? turnaroundBars : INTER_LICK_REST_BARS
 		});
+		const roomCheck = micCapture && roomChecks.get(micCapture.source)?.measure;
+		if (roomCheck) {
+			for (const segment of nextTimeline) {
+				if (segment.phase !== 'listen') continue;
+				const seconds = (segment.endTick - segment.startTick) * 60 / (transport.PPQ * lickPractice.currentTempo);
+				if (boundaryTime !== undefined && segment.startTick === audioStartTick) {
+					roomCheck(boundaryTime, seconds);
+				} else {
+					const event = transport.scheduleOnce(time => roomCheck(time, seconds), `${segment.startTick}i`);
+					scheduledEventIds.push(event);
+				}
+			}
+		}
 
 		// Keep PLAY stable across a joined boundary, including the lookahead
 		// between the scheduled callback and the audible downbeat.
@@ -1290,9 +1293,9 @@
 				: null
 		};
 
-		// Spin up a recorder that mixes mic + master (metronome + backing)
-		// exactly as ear-training does, so /diagnostics can replay what the
-		// user heard alongside what they played. A failed recorder init is
+		// Keep the listening mix plus microphone-only PCM for diagnostics.
+		// The score above continues to use the live microphone detector;
+		// replay must not add the master bus to what that detector heard. A failed recorder init is
 		// non-fatal — scoring and progress still work without the audio blob.
 		// A rehearsal pass keeps no recording: nothing in keyResults would
 		// reference it, and /diagnostics would list an orphan take.
@@ -1301,10 +1304,10 @@
 			try {
 				tmpRecorder = createRecorder(
 					micCapture.source,
-					getMasterGain(),
+					getProgramGain(),
 					micCapture.context
 				);
-				tmpRecorder.start();
+				tmpRecorder.start(currentWindow.micStartTime);
 				recorderHandle = tmpRecorder;
 			} catch (err) {
 				// If createRecorder succeeded but start() threw, the audio
@@ -1388,8 +1391,7 @@
 			windowItem.trickContext
 		) {
 			const trick = getTrickById(windowItem.trickId);
-			const played =
-				settings.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+			const played = bleedResult?.kept ?? detected;
 			// Window-scoped like every other input here: a close callback that
 			// fires after advance() must stay rooted at the window it recorded.
 			const key = window.key;
@@ -1418,7 +1420,6 @@
 				tempo: lickPractice.currentTempo,
 				transportSeconds: window.recordingTransportSeconds,
 				swing: effectiveSwing,
-				bleedFilterEnabled: settings.bleedFilterEnabled,
 				bleedResult,
 				// Continuous mode: accept any octave of the right pitch class.
 				// Call-response stays strict so the user reproduces the demo
@@ -1542,11 +1543,12 @@
 				: undefined;
 			void handle
 				.stop()
-				.then(async (blob) => {
+				.then(async ({ blob, scoringBlob }) => {
 					if (blob.size === 0) return;
 					await saveLickPracticeRecording({
 						sessionId: windowForSave.sessionId,
 						blob,
+						scoringBlob: scoringBlob ?? undefined,
 						phrase: windowForSave.phrase,
 						tempo: tempoForSave,
 						swing: swingForSave,
@@ -1630,6 +1632,8 @@
 
 	/** Stop playback and capture, discard pending visual cycles, and finalize completed attempts. */
 	function stopAll() {
+		setupGeneration++;
+		isLoading = false;
 		// If the session ends during the score-hold bar — after the last
 		// key was scored but before the delayed handleLickComplete has
 		// archived the lick — run the archival now so tempo adjustments,
@@ -2175,6 +2179,7 @@
 		{/if}
 
 		<!-- Lick header -->
+		{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
 		<LickHeader
 			daily={isDailyPractice()}
 			phraseNumber={currentItem.phraseNumber}

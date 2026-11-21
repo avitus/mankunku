@@ -24,7 +24,7 @@ export async function resetAllPracticeData(supabase?: SupabaseClient<Database>):
 	clearLickPracticeSessions();
 	// 3. Tonality override lives in settings, not progress.
 	settings.tonalityOverride = null;
-	saveSettings(supabase);
+	saveSettings(supabase, ['tonalityOverride']);
 	// 4. Local recordings (IndexedDB) + cloud audio (was orphaned before).
 	try {
 		await clearAllRecordings();

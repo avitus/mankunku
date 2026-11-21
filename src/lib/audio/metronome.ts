@@ -1,3 +1,5 @@
+import { CLICK_CALIBRATION } from './mixer-policy';
+import { setMixerLevels } from './mixer';
 /**
  * Jazz-style metronome using Tone.js.
  *
@@ -5,7 +7,7 @@
  * Synthesized from filtered noise bursts — no samples needed.
  */
 
-import { getMasterGain } from './audio-context';
+import { getClickGain } from './audio-context';
 
 type ToneModule = typeof import('tone');
 
@@ -31,19 +33,18 @@ async function getTone(): Promise<ToneModule> {
  * the synthesized ride on level terms with the horn, and the click should sit
  * under the music, not beside it. 0.6 ≈ −4.4 dB across the whole knob range.
  */
-const METRONOME_TRIM = 0.6;
+const METRONOME_TRIM = CLICK_CALIBRATION;
 
-/** Knob value assumed before setMetronomeVolume is first called. */
-const DEFAULT_METRONOME_VOLUME = 0.5;
 
+/** Build calibrated click voices behind the shared Click fader once. */
 async function ensureSynths(): Promise<void> {
 	if (rideSynth) return;
 	const Tone = await getTone();
 
-	// Route metronome through master gain for global volume control
-	const master = getMasterGain();
-	gainNode = new Tone.Gain(DEFAULT_METRONOME_VOLUME * METRONOME_TRIM);
-	gainNode.connect(master);
+	// Fixed source calibration feeds the shared Click fader.
+	const click = getClickGain();
+	gainNode = new Tone.Gain(METRONOME_TRIM);
+	gainNode.connect(click);
 
 	// Ride cymbal: bright filtered noise, longer decay
 	rideFilter = new Tone.Filter({ frequency: 8000, type: 'highpass' }).connect(gainNode);
@@ -246,10 +247,8 @@ export async function scheduleCountInClicks(
 
 /** Set metronome volume from the settings knob (0-1); METRONOME_TRIM applies underneath. */
 export async function setMetronomeVolume(volume: number): Promise<void> {
-	if (!gainNode) {
-		await ensureSynths();
-	}
-	gainNode!.gain.value = Math.max(0, Math.min(1, volume)) * METRONOME_TRIM;
+ setMixerLevels({ click: volume });
+ await ensureSynths();
 }
 
 /** Stop and dispose the metronome sequences (kit and count-in) */

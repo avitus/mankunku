@@ -1,3 +1,4 @@
+import { MIXER_DEFAULTS } from '$lib/audio/mixer-policy';
 import type { InstrumentConfig, BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
 import { INSTRUMENTS, isInstrumentId } from '$lib/types/instruments';
@@ -32,12 +33,14 @@ function loadSettings() {
 const defaultSettings = {
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
-	masterVolume: 0.8,
+	masterVolume: MIXER_DEFAULTS.master,
+	/** Device-local melody balance; cloud volume columns retain their amplitude meaning. */
+	melodyVolume: MIXER_DEFAULTS.melody,
 	metronomeEnabled: true,
-	metronomeVolume: 0.5,
+	metronomeVolume: MIXER_DEFAULTS.click,
 	backingTrackEnabled: false,
 	backingInstrument: 'piano' as BackingInstrument,
-	backingTrackVolume: 0.6,
+	backingTrackVolume: MIXER_DEFAULTS.backing,
 	backingStyle: 'swing' as BackingStyle,
 	/** Personal accompaniment choices for curated and adopted tunes, keyed by stable tune id. */
 	tuneBackingStyles: {} as Record<string, BackingStyle>,
@@ -55,7 +58,7 @@ const defaultSettings = {
 	tonalityOverride: null as Tonality | null,
 	/** User-configured highest concert pitch MIDI. null = instrument default. */
 	highestNote: null as number | null,
-	/** When true, use bleed-filtered notes as the primary score (A/B testing toggle). */
+	/** Legacy field synced for older clients. Current practice uses the backing schedule. */
 	bleedFilterEnabled: false
 };
 
@@ -69,28 +72,56 @@ export const settings = $state(loadSettings());
  */
 let settingsHydrationOk = false;
 
-/**
- * Monotonic local-edit counter vs the highest revision successfully pushed.
- * `localRev > syncedRev` means there are unsynced local edits — a whole-blob
- * cloud read must NOT overwrite them, or a re-hydration (auth refresh) that
- * fires before the outbox flush would silently revert the user's edit.
- *
- * PERSISTED (per-user namespace) so the dirty state survives a restart: an edit
- * made just before a reload, still pending in the durable outbox, would
- * otherwise reset both counters to 0 and be clobbered by the next hydration.
- */
+type Settings = typeof defaultSettings;
+type SettingsKey = keyof Settings;
+type FieldRevisions = Partial<Record<SettingsKey, number>>;
+// Melody balance is device-local and must not enqueue an empty cloud patch.
+const settingsKeys = (Object.keys(defaultSettings) as SettingsKey[]).filter(key => key !== 'melodyVolume');
+
+// Track edits per field: an unsent volume change must not keep a fresh browser's
+// default instrument or push it over the account's instrument on another device.
+// Keep the old counters for returning browsers whose unsent edits predate this map.
 const LOCAL_REV_KEY = 'settings-local-rev';
 const SYNCED_REV_KEY = 'settings-synced-rev';
+const PENDING_FIELDS_KEY = 'settings-pending-fields';
 let localRev = load<number>(LOCAL_REV_KEY) ?? 0;
 let syncedRev = load<number>(SYNCED_REV_KEY) ?? 0;
+const pendingFields: FieldRevisions = load<FieldRevisions>(PENDING_FIELDS_KEY) ??
+	(localRev > syncedRev ? Object.fromEntries(settingsKeys.map((key) => [key, localRev])) : {});
+// An instrument and its range form one edit, including pending edits from older builds.
+if (pendingFields.instrumentId !== undefined || pendingFields.highestNote !== undefined) {
+	const revision = Math.max(pendingFields.instrumentId ?? 0, pendingFields.highestNote ?? 0);
+	pendingFields.instrumentId = pendingFields.highestNote = revision;
+}
+// Also remember already-sent edits for reads that began BEFORE those edits.
+const lastEdited: FieldRevisions = { ...pendingFields };
+let savedSnapshot: Settings = snapshotSettings();
 
-export function saveSettings(supabase?: SupabaseClient<Database>): void {
-	localRev++;
-	save(LOCAL_REV_KEY, localRev);
+function snapshotSettings(): Settings {
+	return JSON.parse(JSON.stringify(settings)) as Settings;
+}
+
+/** Persist edits, with explicit fields for resets that must replace a stale cloud value. */
+export function saveSettings(supabase?: SupabaseClient<Database>, explicitFields: readonly SettingsKey[] = []): void {
+	const snapshot = snapshotSettings();
+	const changed = settingsKeys.filter((key) => explicitFields.includes(key) || JSON.stringify(snapshot[key]) !== JSON.stringify(savedSnapshot[key]));
+	// A range reset belongs to the instrument choice, including null → null:
+	// another browser may have saved an explicit range for the previous instrument.
+	if (changed.includes('instrumentId') || changed.includes('highestNote')) {
+		if (!changed.includes('instrumentId')) changed.push('instrumentId');
+		if (!changed.includes('highestNote')) changed.push('highestNote');
+	}
+	if (changed.length > 0) {
+		localRev++;
+		for (const key of changed) pendingFields[key] = lastEdited[key] = localRev;
+		save(LOCAL_REV_KEY, localRev);
+		save(PENDING_FIELDS_KEY, pendingFields);
+	}
+	savedSnapshot = snapshot;
 	save(STORAGE_KEY, settings);
 
 	// Queue a durable cloud sync for authenticated users.
-	if (supabase) enqueue('settings');
+	if (supabase && Object.keys(pendingFields).length > 0) enqueue('settings');
 }
 
 /** Remember a tune's tempo so the next visit opens at it. */
@@ -104,9 +135,20 @@ export async function flushSettingsToCloud(supabase: SupabaseClient<Database>): 
 	// Never push over a cloud row we never successfully read — a failed hydration
 	// would otherwise clobber it with stale/default local settings on the next edit.
 	if (!settingsHydrationOk) throw new Error('settings not hydrated — deferring push');
+	const gen = getScopeGeneration();
 	const rev = localRev;
-	const ok = await syncSettingsToCloud(supabase, settings);
+	const sending = { ...pendingFields };
+	const keys = settingsKeys.filter((key) => sending[key] !== undefined);
+	if (keys.length === 0) return;
+	const snapshot = snapshotSettings();
+	const patch = Object.fromEntries(keys.map((key) => [key, snapshot[key]]));
+	const ok = await syncSettingsToCloud(supabase, patch);
+	if (gen !== getScopeGeneration()) return;
 	if (!ok) throw new Error('settings push failed');
+	for (const key of keys) {
+		if (pendingFields[key] === sending[key]) delete pendingFields[key];
+	}
+	save(PENDING_FIELDS_KEY, pendingFields);
 	syncedRev = Math.max(syncedRev, rev);
 	save(SYNCED_REV_KEY, syncedRev);
 }
@@ -120,6 +162,7 @@ export async function flushSettingsToCloud(supabase: SupabaseClient<Database>): 
 export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
 	const gen = getScopeGeneration();
 	const readLocalRev = localRev;
+	const readPending = { ...pendingFields };
 	try {
 		const result = await fetchSettingsFromCloud(supabase);
 		if (result.status === 'error') return; // keep local — do not clobber, stay un-hydrated
@@ -130,21 +173,21 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		if (result.status === 'empty') {
 			// Brand-new cloud account: push the existing local settings up so they
 			// adopt to other devices without waiting for the user's next edit.
-			enqueue('settings');
-			return;
-		}
-		// Unsynced local edits outrank a whole-blob cloud read: keep local and let
-		// the pending outbox flush push it, rather than reverting the user's edit.
-		// An edit made while the read was in flight outranks it too, even once
-		// pushed: the read predates it, and syncedRev alone can't tell.
-		if (localRev > syncedRev || localRev !== readLocalRev) {
+			for (const key of settingsKeys) pendingFields[key] ??= localRev;
+			save(PENDING_FIELDS_KEY, pendingFields);
 			enqueue('settings');
 			return;
 		}
 		const cloudSettings = result.data;
 
-		// Merge cloud settings with defaults, preferring cloud values
-		const merged = { ...defaultSettings, ...cloudSettings };
+		// Apply cloud values except for fields with unsent edits, or edits made
+		// after this read started (even if a concurrent flush already sent them).
+		const merged = { ...defaultSettings, ...cloudSettings, melodyVolume: settings.melodyVolume };
+		for (const key of settingsKeys) {
+			if (pendingFields[key] !== undefined || readPending[key] !== undefined || (lastEdited[key] ?? 0) > readLocalRev) {
+				Object.assign(merged, { [key]: settings[key] });
+			}
+		}
 		// Clamp swing to valid range (same as loadSettings)
 		merged.swing = Math.max(STRAIGHT_SWING, Math.min(MAX_SWING, merged.swing as number));
 		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {
@@ -156,9 +199,11 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 
 		// Update the reactive state in place (preserves Svelte 5 $state reactivity)
 		Object.assign(settings, merged);
+		savedSnapshot = snapshotSettings();
 
 		// Persist merged state locally for offline cache
 		save(STORAGE_KEY, settings);
+		if (Object.keys(pendingFields).length > 0) enqueue('settings');
 
 		// Re-apply theme in case it changed from cloud data
 		applyTheme();

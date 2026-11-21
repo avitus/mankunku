@@ -77,4 +77,15 @@ describe('remembered tune settings', () => {
 		expect(savedTunePracticeStyle('first', 'ballad')).toBe('ballad');
 		expect(savedTuneDisplay('focus', false)).toBe(false);
 	});
+	it('migrates the old harmony display choice until the replacement is explicitly set', () => {
+		saveTuneDisplay('harmony-colors', false);
+		expect(savedTuneDisplay('key-centers', true)).toBe(false);
+		saveTuneDisplay('key-centers', true);
+		expect(savedTuneDisplay('key-centers', false)).toBe(true);
+		saveTuneDisplay('key-centers', false);
+		saveTuneDisplay('harmony-colors', true);
+		expect(savedTuneDisplay('key-centers', true)).toBe(false);
+		setActiveUid('another-player');
+		expect(savedTuneDisplay('key-centers', true)).toBe(true);
+	});
 });

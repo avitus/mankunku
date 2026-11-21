@@ -1,6 +1,6 @@
 import type { Mode, Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import type { Tune } from '$lib/types/tune';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { fractionToFloat } from './intervals';
 import { concertKeyToWritten, concertToWritten, transposePitchClass } from './transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from './chord-symbol';
@@ -71,6 +71,8 @@ export interface TuneAbcOptions {
 	defaultLength?: Fraction;
 	/** Bars per system before a line break. */
 	barsPerLine?: number;
+	/** Minimum gap between systems, in ABC points, for below-staff overlays. */
+	staffSeparation?: number;
 	/**
 	 * How to read `sheet.key`: minor draws the relative major's signature and
 	 * prints `K:Dm` (as `phraseToAbc` does for a minor lick). Default major —
@@ -263,6 +265,7 @@ export function tuneToAbcWithMap(
 		// Boxed rehearsal marks [A] [B] — standard lead-sheet / Real Book form
 		// so section letters never read as chord symbols.
 		`%%partsbox 1`,
+		...(options.staffSeparation !== undefined ? [`%%staffsep ${options.staffSeparation}`] : []),
 		// Measure numbers at the start of every system (abcjs: 0 = each line).
 		...(options.measureNumbers === false ? [] : [`%%measurenb 0`]),
 		// Don't stretch a short last system to full width — a bar or two spread
@@ -416,6 +419,7 @@ export function tuneToAbcWithMap(
 
 	let flattenedNoteBase = 0;
 	let previousLabel: string | null = null;
+	let lineLabelSection: TuneSection | undefined;
 	// Ending placement: [1] may flow inline; [2] always starts a fresh system
 	// with NO pad bars (alignment under [1] is post-render).
 	let endingState = initialEndingLayoutState();
@@ -525,11 +529,10 @@ export function tuneToAbcWithMap(
 		if (sectionPickup[i]) pickupPrefixByAbsBar.set(sectionBases[i], sectionPrefix[i]);
 	});
 	/**
-	 * The lone pickup section every importer writes: hangs off the front of
-	 * the form's first system, fills no column, carries no label of its own.
+	 * A standalone pickup fills no column, even when it has a rehearsal label.
 	 */
 	const isPickupOnly = (i: number): boolean =>
-		sectionPickup[i] !== null && sheet.sections[i].bars === 1 && sheet.sections[i].label.trim() === '';
+		sectionPickup[i] !== null && sheet.sections[i].bars === 1;
 
 	function absBarToSection(absBar: number): { sectionIdx: number; bar: number } {
 		let idx = 0;
@@ -584,6 +587,7 @@ export function tuneToAbcWithMap(
 		lineOpen = false;
 	}
 
+	let deferredPickupBarline = false;
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
 		currentSectionIdx = secIdx;
@@ -594,7 +598,6 @@ export function tuneToAbcWithMap(
 		// Bars of this section that fill no layout column: the partial first bar.
 		const partial = pickup ? 1 : 0;
 		const pickupOnly = isPickupOnly(secIdx);
-		const prevPickupOnly = secIdx > 0 && isPickupOnly(secIdx - 1);
 		const placement: EndingPlacement = placeEndingSection(
 			{ bars: sec.bars, ending: sec.ending, pickupBar: pickup !== null },
 			prevSec
@@ -610,31 +613,37 @@ export function tuneToAbcWithMap(
 			flushLine(sectionBaseBars);
 			// Section prelude: part label between systems. Blank labels (front
 			// matter) get no marker and don't disturb the consecutive-duplicate
-			// suppression. abcjs draws a part label only at a line start, so a
-			// pickup-only section opens its shared system with the boxed letter
+			// suppression. abcjs draws a part label only at a line start, so an
+			// unlabeled pickup-only section opens its shared system with the boxed letter
 			// of the section it leads INTO (NotationDisplay then nudges the box
 			// over that section's first bar).
-			const labelOf = pickupOnly ? (sheet.sections[secIdx + 1]?.label ?? '') : sec.label;
+			const labelSection = pickupOnly && !sec.label.trim() ? sheet.sections[secIdx + 1] : sec;
+			lineLabelSection = labelSection;
+			const labelOf = labelSection?.label ?? '';
 			if (labelOf.trim() !== '') {
-				if (labelOf !== previousLabel || (pickupOnly ? sheet.sections[secIdx + 1]?.labelExplicit : sec.labelExplicit)) {
+				if (labelOf !== previousLabel || labelSection?.labelExplicit) {
 					tokens.push(`P:${labelOf}\n`);
 				}
 				previousLabel = labelOf;
 			}
 			openLine(sectionBaseBars);
 		} else {
-			if (prevPickupOnly && sec.repeatStart) {
+			if (deferredPickupBarline) {
 				// The pickup's barline IS this repeat: a thin bar before |: would
 				// print two barlines. Close the pickup's span on the |: itself and
 				// restamp the printed bar count past the anacrusis.
 				tokens.push(' |:');
 				closeBarSpan(tokens.length - 1);
-				tokens.push('[I:setbarnb 1]');
+				if (secIdx === 1) tokens.push('[I:setbarnb 1]');
 			}
 			tokens.push(' ');
-			if (sec.label.trim() !== '') previousLabel = sec.label;
+			if (sec.label.trim() !== '') {
+				if (prevSec && isPickupOnly(secIdx - 1) && sec !== lineLabelSection &&
+					(sec.label !== previousLabel || sec.labelExplicit)) tokens.push(`[P:${sec.label}]`);
+				previousLabel = sec.label;
+			}
 		}
-		if (sec.repeatStart && !prevPickupOnly) tokens.push('|:');
+		if (sec.repeatStart && !deferredPickupBarline) tokens.push('|:');
 		// A stacked [2] opens on a barline as [1] did; the alignment pass moves
 		// it under [1]'s, where the bar the ending replaces begins. Without it
 		// the ending's first bar ran from the key signature. A repeat sign
@@ -725,7 +734,7 @@ export function tuneToAbcWithMap(
 					closeBarSpan(tokens.length - 1);
 					// abcjs counts the anacrusis as bar 1; restamp so the next
 					// system prints the number the chart's reader expects.
-					if (partial && prevBar === 0) tokens.push('[I:setbarnb 1]');
+					if (secIdx === 0 && partial && prevBar === 0) tokens.push('[I:setbarnb 1]');
 					// lineColumn + bar: an inline-flowed section (a first ending
 					// continuing the body's line) enters mid-line, so breaks track
 					// the ABSOLUTE column, not the section-local bar. A partial
@@ -790,8 +799,8 @@ export function tuneToAbcWithMap(
 		const next = isLast ? null : sheet.sections[secIdx + 1];
 		// A pickup leading into a |: takes that repeat as its barline (emitted
 		// by the next section's open, which also closes this bar's span).
-		const deferBarline = pickupOnly && !isLast && !sec.repeatEnd && next?.repeatStart === true;
-		if (deferBarline) {
+		deferredPickupBarline = pickupOnly && !sec.repeatEnd && !next?.ending && next?.repeatStart === true;
+		if (deferredPickupBarline) {
 			// nothing: the next section's ' |:' closes this bar
 		} else if (sec.repeatEnd) {
 			// First ending typically ends the repeat back to the start.
@@ -814,9 +823,9 @@ export function tuneToAbcWithMap(
 		} else {
 			tokens.push(' ||');
 		}
-		if (!deferBarline) {
+		if (!deferredPickupBarline) {
 			closeBarSpan(tokens.length - 1); // the section's last bar closes here
-			if (pickupOnly) tokens.push('[I:setbarnb 1]');
+			if (secIdx === 0 && pickupOnly) tokens.push('[I:setbarnb 1]');
 		}
 
 		endingState = advanceEndingLayout(

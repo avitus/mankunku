@@ -133,7 +133,11 @@ None of this happens in Lick Practice, because a two-bar vamp has no form to mar
 
 ## The report
 
-**Take complete** in Suggest and Points opens with how many of the insertion points you hit, then lists every one in the form: the bar it started in, the key the window is played in (in your written pitch — a single-chord window names its chord's root), what the window was for (the progression, or the chord), the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. Points mode adds the total and your best streak. **Practice again** returns you to the setup screen; **Back to tune** takes you out.
+**Take complete** in Suggest and Points compares your solo choruses beneath the tune's changes. Each insertion keeps its outcome symbol: **✓ Landed**, **× Unsuccessful**, or **○ Missed opening**. Unreached windows show **No take**; spots without a fitting lick show **No matching lick**.
+
+Score colors use the same accuracy scale as Lick Practice: gold at 95% and above, silver at 85–94%, bronze at 70–84%, teal at 55–69%, and deep teal below 55%. Colors follow the original score before the displayed percentage is rounded. Unscored spots stay neutral, and a brass border marks your selection independently of its score.
+
+Select a spot to compare its results across choruses. **Needs work** focuses on spots whose latest completed attempt was unsuccessful or missed. **Practice this spot** adds the selection to a retry queue; the footer starts practice for the selected spots, keeping the full tune backing. Points mode also shows your total and best streak. **Practice again** returns to setup; **Back to tune** takes you out.
 
 Freestyle has no insertion points to report, so its take instead lists every lick the app recognised, with the bar it landed in and how close the match was.
 

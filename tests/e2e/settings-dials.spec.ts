@@ -1,36 +1,10 @@
+import { faderToGain, gainLabel } from '../../src/lib/audio/mixer-policy';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 
 // Product contracts, deliberately independent of the component's min/max/step.
 // Exercise every selectable value so a coarser step cannot silently skip one.
 const numericDials = [
-	{
-		name: 'Master volume',
-		key: 'masterVolume',
-		min: 0,
-		max: 100,
-		step: 5,
-		divisor: 100,
-		unit: '%'
-	},
-	{
-		name: 'Metronome volume',
-		key: 'metronomeVolume',
-		min: 0,
-		max: 100,
-		step: 5,
-		divisor: 100,
-		unit: '%'
-	},
-	{
-		name: 'Backing track volume',
-		key: 'backingTrackVolume',
-		min: 0,
-		max: 100,
-		step: 5,
-		divisor: 100,
-		unit: '%'
-	},
 	{
 		name: 'Default tempo',
 		key: 'defaultTempo',
@@ -212,4 +186,23 @@ for (const instrument of highestNotes) {
 			instrument.notes.at(-1)!
 		);
 	});
+}
+
+for (const [name,key] of [['Master volume','masterVolume'],['Melody volume','melodyVolume'],['Click and count-in volume','metronomeVolume'],['Backing track volume','backingTrackVolume']]) {
+ test(`${name} uses the shared dB scale, exact mute and persistent amplitude`, async ({page}) => {
+  await seedOnboardedAnonymous(page);
+  await page.goto('/settings');
+  if (key === 'backingTrackVolume') await page.getByRole('switch',{name:'Backing track',exact:true}).click();
+  const dial=page.getByRole('slider',{name,exact:true});
+  await dial.press('Home');
+  await expect(dial).toHaveAttribute('aria-valuetext','Muted');
+  for (let step=1;step<=100;step++) {
+   await dial.press('ArrowUp');
+   await expect(dial).toHaveAttribute('aria-valuetext',gainLabel(faderToGain(step/100)));
+  }
+  await dial.press('ArrowDown');
+  await page.reload();
+  await expect(dial).toHaveAttribute('aria-valuetext',gainLabel(faderToGain(.99)));
+  expect(await page.evaluate(key=>JSON.parse(localStorage.getItem('mankunku:settings')??'{}')[key],key)).toBeCloseTo(faderToGain(.99),8);
+ });
 }

@@ -163,6 +163,6 @@ describe('tune-practice route reads the captured session setting', () => {
 
 it('uses the same raised band and unity melody for Tunes + Licks', () => {
 	const route = readFileSync(join(__dirname, '../../../src/routes/tunes/[id]/practice/+page.svelte'), 'utf8');
-	expect(route).toContain('backingOutputLevel: TUNE_BACKING_LEVEL');
+	expect(route).not.toContain('backingOutputLevel:');
 	expect(route).not.toContain('melodyLevel:');
 });

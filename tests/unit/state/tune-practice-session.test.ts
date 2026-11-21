@@ -48,13 +48,12 @@ function mkSuggestion(lickId: string): LickSuggestion {
 }
 
 describe('strictnessKnobs', () => {
-	it('listens the same way at every level: any octave, bleed filter on', () => {
+	it('listens the same way at every level: any octave', () => {
 		// Nothing is demonstrated in tune practice, so there is no heard
 		// register to match — a lick legitimately moves an octave to stay on
 		// the horn at every level, Solo included.
 		for (const level of ['guided', 'standard', 'solo'] as const) {
 			expect(strictnessKnobs(level).octaveInsensitive).toBe(true);
-			expect(strictnessKnobs(level).bleedFilterEnabled).toBe(true);
 		}
 	});
 

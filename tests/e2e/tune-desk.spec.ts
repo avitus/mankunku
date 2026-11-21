@@ -121,7 +121,7 @@ test('mobile controls fit, keep focus in the dialog and return it to Settings', 
 	await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
 });
 
-test('playing locks style changes and stopping releases the chart cursor', async ({ page, browserName }) => {
+test('playing locks style changes and shows only a neutral current-bar highlight', async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 	await stubCdnInstrumentSamples(page);
 	await page.goto('/tunes/ls-rhythm-changes');
@@ -131,6 +131,8 @@ test('playing locks style changes and stopping releases the chart cursor', async
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeDisabled();
 	await expect(page.locator('.td-status')).toContainText('Head');
 	await expect(page.getByTestId('chart-scroll-viewport')).toHaveClass(/following/);
+	await expect(page.locator('svg .playhead-wash-subtle')).toBeVisible();
+	await expect(page.locator('svg .cursor-note, svg .playhead-under-bar')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeEnabled();
 	await expect(page.locator('.td-status')).toContainText('Ready to play');

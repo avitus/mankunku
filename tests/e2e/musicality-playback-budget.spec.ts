@@ -38,7 +38,7 @@ test(`completes 52-bar ${keyboard} take with seed ${seed}`, async ({ page, brows
     const label=document.querySelector(`[data-testid="musician-${instrument}"] h4`)?.textContent;
     if(label)labels.add(label);
    }
-   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Master'].entries()){
+   for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Backing'].entries()){
     const db=Number(document.querySelector(`[role="meter"][aria-label="${label} audio signal"]`)?.getAttribute('aria-valuenow')??-60);
     if(Number.isFinite(db))peaks[i]=Math.max(peaks[i],db);
    }
@@ -47,7 +47,7 @@ test(`completes 52-bar ${keyboard} take with seed ${seed}`, async ({ page, brows
  }),keyboard);
 
  for(const peak of observed.peaks)expect(peak).toBeGreaterThan(-46);
- expect(observed.peaks[3]).toBeLessThan(0);
+ // This tap is before the shared output limiter; audio-mixer.spec.ts pins its ceiling.
  await page.locator('details.take-notes > summary').click();
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByTestId('listening-export').click()]);
  const path=(await download.path())!;

@@ -1,10 +1,11 @@
 import { ALL_CURATED_TUNES } from '$lib/data/tunes';
 import { transposeTune } from '$lib/tunes/book-loader';
+import { sectionPlaybackRules } from '$lib/tunes/section-labels';
 import { flattenTune } from '$lib/tunes/flatten';
 import { buildSessionPhrase, headBarsForFlat } from '$lib/state/tune-practice-plan';
 import { PITCH_CLASSES, type Phrase, type PitchClass } from '$lib/types/music';
-import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext, type PerformanceForm } from '$lib/audio/performance-form';
-import { addFractions, subtractFractions, compareFractions, fractionToFloat } from '$lib/music/intervals';
+import { performanceBarContext, type PerformanceBarContext, type PerformanceForm } from '$lib/audio/performance-form';
+import { fractionToFloat } from '$lib/music/intervals';
 import { chordSymbol, CHORD_DEFINITIONS } from '$lib/music/chords';
 import type { Tune } from '$lib/types/tune';
 import { validateAdoptedTune } from '$lib/tunes/adopted-tune-validator';
@@ -39,6 +40,7 @@ export interface ListeningTuneSession {
 	bars: ListeningTuneBar[];
 	headBars: number;
 	chorusBars: number;
+	sessionBarMap?: number[];
 	soloChoruses: number;
 }
 
@@ -58,9 +60,10 @@ export function assessCuratedListeningTune(options: ListeningTuneOptions): Liste
 	}
 }
 
-/** The closing-head adapter currently requires a contiguous solo form. */
+/** Retain the listening studio’s admission policy for other explicit solo omissions. */
 function assertSupportedListeningArrangement(tune: Tune): void {
-	if (tune.sections.some(section => section.omitFromSolos === true)) {
+	const rules = sectionPlaybackRules(tune.sections);
+	if (tune.sections.some((section, i) => section.omitFromSolos === true && !rules[i].omitFromOutro)) {
 		throw new Error('Full-tune listening does not yet support sections omitted from solos; use an arrangement that keeps every section');
 	}
 }
@@ -78,44 +81,20 @@ function buildSessionFromSource(original: Tune, options: ListeningTuneBuildOptio
 	if (!PITCH_CLASSES.includes(key)) throw new Error('Unknown concert key');
 	const tune = structuredClone(transposeTune(original, key));
 	const flat = flattenTune(tune, { expandRepeats: true });
-	const built = buildSessionPhrase({ flat, timeSignature: tune.timeSignature, playHead: true, choruses: soloChoruses });
-	const chorusBars = (built.phraseBars - built.headBars) / soloChoruses;
-	const headOutStart = built.phraseBars;
-	const totalBars = headOutStart + chorusBars;
+	const built = buildSessionPhrase({ flat, timeSignature: tune.timeSignature, playHead: true, playOutro: true, choruses: soloChoruses });
+	const chorusBars = built.soloBars ?? ((built.outroStartBar ?? built.phraseBars) - built.headBars) / soloChoruses;
+	const totalBars = built.phraseBars;
 	if (!Number.isSafeInteger(totalBars) || chorusBars <= 0 || totalBars < 1 || totalBars > MAX_LISTENING_SOURCE_BARS) {
 		throw new Error(`This arrangement exceeds the ${MAX_LISTENING_SOURCE_BARS}-bar listening limit; choose fewer solo choruses or a shorter chart`);
 	}
-	// The final resolved pass supplies the closing head, including its second
-	// ending. This retains practice's repeat semantics and does not replay an intro.
-	const sourceStart = flat.totalBars - chorusBars;
-	const boundary: [number, number] = [sourceStart, 1];
-	const shift: [number, number] = [headOutStart - sourceStart, 1];
-	const headOutHarmony = flat.harmony.flatMap((segment) => {
-		const end = addFractions(segment.startOffset, segment.duration);
-		if (compareFractions(end, boundary) <= 0) return [];
-		const start = compareFractions(segment.startOffset, boundary) < 0 ? boundary : segment.startOffset;
-		return [{ ...segment, chord: { ...segment.chord }, startOffset: addFractions(start, shift), duration: subtractFractions(end, start) }];
-	});
-	const headOutNotes = flat.notes.flatMap((note) => {
-		const end = addFractions(note.offset, note.duration);
-		if (compareFractions(end, boundary) <= 0) return [];
-		const start = compareFractions(note.offset, boundary) < 0 ? boundary : note.offset;
-		return [{ ...note, offset: addFractions(start, shift), duration: subtractFractions(end, start) }];
-	});
-	const sectionMap = [...built.sectionMap, ...flat.sectionMap.flatMap((entry, index) => {
-		const end = flat.sectionMap[index + 1]?.barOffset ?? flat.totalBars;
-		return end <= sourceStart ? [] : [{ sourceSection: entry.sourceSection,
-			barOffset: headOutStart + Math.max(sourceStart, entry.barOffset) - sourceStart }];
-	})];
-	const performanceForm = buildPerformanceForm({ totalBars, sectionMap,
-		choruses: [...built.performanceForm.choruses, { role: 'head', startBar: headOutStart, endBarExclusive: totalBars }] });
+	const { performanceForm, sectionMap } = built;
 	const phrase: ListeningTuneSession['phrase'] = {
 		id: `musicality-${original.id}-${key}-${soloChoruses}`,
 		name: tune.title,
 		key,
 		timeSignature: tune.timeSignature,
-		notes: [...built.notes, ...headOutNotes],
-		harmony: [...built.harmony, ...headOutHarmony],
+		notes: built.notes,
+		harmony: built.harmony,
 		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, ...tune.difficulty, lengthBars: totalBars },
 		category: 'user', tags: [...tune.tags], source: tune.source,
 		sectionMap, performanceForm
@@ -134,7 +113,7 @@ function buildSessionFromSource(original: Tune, options: ListeningTuneBuildOptio
 			sectionLabel: context.sourceSection === null ? 'Unlabelled' : tune.sections[context.sourceSection].label,
 			chordSymbols: changes.map((change) => change.symbol), changes };
 	});
-	return { tune, phrase, bars, headBars: built.headBars, chorusBars, soloChoruses };
+	return { tune, phrase, bars, headBars: built.headBars, chorusBars, soloChoruses, ...(built.sessionBarMap && { sessionBarMap: built.sessionBarMap }) };
 }
 
 export type ListeningTuneBuildOptions = Omit<ListeningTuneOptions, 'tuneId'>;
@@ -205,8 +184,12 @@ function validateListeningSource(input: unknown, options: ListeningTuneBuildOpti
 	if (openRepeat || needsSecondEnding) invalidForm();
 	const flat = flattenTune(tune, { expandRepeats: true });
 	const { headBars, formRepeats } = headBarsForFlat(flat);
-	const chorusBars = formRepeats ? flat.totalBars - headBars : flat.totalBars;
-	const totalBars = headBars + (solos + 1) * chorusBars;
+	const passBars = formRepeats ? flat.totalBars - headBars : flat.totalBars;
+	const omittedBars = (sections?: number[]) => flat.sectionMap.reduce((sum, entry, i) =>
+		sum + (sections?.includes(entry.sourceSection) && (!formRepeats || entry.barOffset >= headBars)
+			? (flat.sectionMap[i + 1]?.barOffset ?? flat.totalBars) - entry.barOffset : 0), 0);
+	const chorusBars = passBars - omittedBars(flat.omittedSoloSections);
+	const totalBars = headBars + solos * chorusBars + passBars - omittedBars(flat.omittedOutroSections);
 	if (!Number.isSafeInteger(totalBars) || chorusBars <= 0 || totalBars < 1 || totalBars > MAX_LISTENING_SOURCE_BARS) {
 		throw new Error(`This arrangement exceeds the ${MAX_LISTENING_SOURCE_BARS}-bar listening limit; choose fewer solo choruses or a shorter chart`);
 	}

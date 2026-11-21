@@ -1,4 +1,5 @@
 <script lang="ts">
+ import { mixAudio } from '$lib/audio/media-playback';
 	import { onMount, onDestroy } from 'svelte';
 	import { getBackingTrackLog } from '$lib/audio/backing-track';
 	import type { BackingTrackLog } from '$lib/audio/backing-track';
@@ -16,6 +17,7 @@
 	import {
 		buildDiagnosticsPayload,
 		decodeToWav,
+		scoringRecordingBlob,
 		fixtureBaseName,
 		replayRecording,
 		triggerDownload,
@@ -175,7 +177,7 @@
 			const full = await getRecordingFull(rec.sessionId);
 			if (!full) throw new Error('recording not found');
 
-			const wavBlob = new Blob([await decodeToWav(full.blob)], { type: 'audio/wav' });
+			const wavBlob = new Blob([await decodeToWav(scoringRecordingBlob(full))], { type: 'audio/wav' });
 			await triggerDownload(wavBlob, fixtureName(rec));
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
@@ -464,7 +466,7 @@
 										 from the start (currentTime=0 alone is unreliable on
 										 MediaRecorder webm/opus blobs). -->
 									{#key audioUrl}
-										<audio
+										<audio use:mixAudio
 											src={audioUrl}
 											controls
 											onended={(e) => {

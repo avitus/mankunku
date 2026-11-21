@@ -1,5 +1,5 @@
 <script lang="ts">
-
+	import { gainToFader, faderToGain, gainLabel } from '$lib/audio/mixer-policy';
 	import {
 		INSTRUMENTS,
 		TRANSPOSING_INSTRUMENT_IDS,
@@ -15,6 +15,8 @@
 		getInstrument
 	} from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { onMount } from 'svelte';
+	import { roomPreference, setRoomCorrection } from '$lib/audio/room-scoring-state.svelte';
 	import { getUnlockContext } from '$lib/state/progress.svelte';
 	import {
 		concertKeyToWritten,
@@ -47,6 +49,56 @@
 	import { hasSeen, resetTours } from '$lib/state/tour.svelte';
 	import { goto, invalidate } from '$app/navigation';
 	import { passwordRecoveryRedirect } from '$lib/supabase/password-recovery';
+
+	let explicitRoomPreference = $state<boolean>();
+	let roomCorrection = $derived(explicitRoomPreference ?? settings.backingTrackEnabled);
+	let roomMessage = $state('');
+	let calibrating = $state(false);
+	let calibration: AbortController | undefined;
+	onMount(() => {
+		explicitRoomPreference = roomPreference();
+		return () => calibration?.abort();
+	});
+
+	function cancelCalibration(message = ''): void {
+		calibration?.abort();
+		calibration = undefined;
+		calibrating = false;
+		roomMessage = message;
+	}
+
+	async function calibrateSpeakers(): Promise<void> {
+		if (calibrating || !roomCorrection) return;
+		const controller = new AbortController();
+		calibration = controller;
+		calibrating = true;
+		roomMessage = 'Allow microphone access and stay quiet during the sound check.';
+		let mic: import('$lib/audio/capture').MicCapture | undefined;
+		try {
+			const [{ openMicrophone }, { calibrateRoom }] = await Promise.all([
+				import('$lib/audio/capture'), import('$lib/audio/room-calibration')
+			]);
+			controller.signal.throwIfAborted();
+			mic = await openMicrophone(controller.signal);
+			const result = await calibrateRoom(mic, { mode: 'sound-check', signal: controller.signal });
+			if (controller.signal.aborted) return;
+			switch (result) {
+				case 'saved': roomMessage = 'Speaker calibration saved on this device.'; break;
+				case 'rejected': roomMessage = 'No reliable speaker return. Practice will use the original microphone.'; break;
+				case 'unsaved': roomMessage = 'Calibration passed, but could not be saved on this device.'; break;
+				default: roomMessage = 'Calibration unavailable. You can retry here.';
+			}
+		} catch {
+			if (!controller.signal.aborted) roomMessage = 'Microphone unavailable. Allow access and try again.';
+		} finally {
+			mic?.source.disconnect();
+			for (const track of mic?.stream.getTracks() ?? []) track.stop();
+			if (calibration === controller) {
+				calibration = undefined;
+				calibrating = false;
+			}
+		}
+	}
 
 	const instrument = $derived(getInstrument());
 
@@ -363,15 +415,20 @@
 						size="lg"
 						label="Master"
 						ariaLabel="Master volume"
-						helpText="Overall output level. Affects playback, metronome, and backing track."
-						value={settings.masterVolume}
+						helpText="Listening level for music, clicks and recordings. Does not change the saved recording mix."
+						value={gainToFader(settings.masterVolume)}
 						min={0}
 						max={1}
-						step={0.05}
-						displayValue={`${Math.round(settings.masterVolume * 100)}%`}
-						onInput={handleMasterVolumeInput}
+						step={0.01}
+						displayValue={gainLabel(settings.masterVolume)}
+						onInput={(v) => handleMasterVolumeInput(faderToGain(v))}
 						onCommit={syncSettingsToCloud}
 					/>
+					<Knob size="lg" label="Melody" ariaLabel="Melody volume"
+						helpText="Melody level relative to backing. Saved on this device."
+						value={gainToFader(settings.melodyVolume)} min={0} max={1} step={0.01}
+						displayValue={gainLabel(settings.melodyVolume)}
+						onInput={(v) => (settings.melodyVolume = faderToGain(v))} onCommit={syncSettingsToCloud} />
 					<div class="settings-appearance">
 						<p class="studio-label">Appearance</p>
 						<SelectorPad
@@ -502,16 +559,15 @@
 							/>
 							<Knob
 								size="lg"
-								disabled={!settings.metronomeEnabled}
-								label="Metro Vol"
-								ariaLabel="Metronome volume"
-								helpText="Metronome click level, relative to master."
-								value={settings.metronomeVolume}
+								label="Click"
+								ariaLabel="Click and count-in volume"
+								helpText="Click and count-in level, including the drummer’s count-off."
+								value={gainToFader(settings.metronomeVolume)}
 								min={0}
 								max={1}
-								step={0.05}
-								displayValue={`${Math.round(settings.metronomeVolume * 100)}%`}
-								onInput={(v) => (settings.metronomeVolume = v)}
+								step={0.01}
+								displayValue={gainLabel(settings.metronomeVolume)}
+								onInput={(v) => (settings.metronomeVolume = faderToGain(v))}
 								onCommit={syncSettingsToCloud}
 							/>
 						</div>
@@ -521,10 +577,12 @@
 							<RockerSwitch
 								label="Backing"
 								ariaLabel="Backing track"
+								helpText="Play the rhythm section during practice."
 								checked={settings.backingTrackEnabled}
 								onChange={(v) => {
 									settings.backingTrackEnabled = v;
 									saveSettings(supabase);
+									if (!v) cancelCalibration();
 								}}
 							/>
 							<Knob
@@ -533,12 +591,12 @@
 								label="Backing Vol"
 								ariaLabel="Backing track volume"
 								helpText="Backing track level, relative to master."
-								value={settings.backingTrackVolume}
+								value={gainToFader(settings.backingTrackVolume)}
 								min={0}
 								max={1}
-								step={0.05}
-								displayValue={`${Math.round(settings.backingTrackVolume * 100)}%`}
-								onInput={(v) => (settings.backingTrackVolume = v)}
+								step={0.01}
+								displayValue={gainLabel(settings.backingTrackVolume)}
+								onInput={(v) => (settings.backingTrackVolume = faderToGain(v))}
 								onCommit={syncSettingsToCloud}
 							/>
 						</div>
@@ -560,6 +618,24 @@
 						</fieldset>
 					</div>
 				</div>
+				<div class="settings-room">
+					<RockerSwitch label="Speaker bleed reduction" checked={roomCorrection}
+						helpText="Use a saved speaker calibration to reduce backing spill in the scoring microphone."
+						onChange={(v) => {
+							explicitRoomPreference = v;
+							setRoomCorrection(v);
+							if (!v) cancelCalibration();
+						}} />
+					<div class="settings-room-check">
+						<p id="speaker-check-description">The sound check plays six seconds of hiss through your speakers. Set Master to a comfortable level and keep your instrument quiet.</p>
+						<button type="button" class="studio-action disabled:opacity-50" disabled={!roomCorrection}
+							aria-describedby="speaker-check-description"
+							onclick={() => calibrating ? cancelCalibration('Sound check stopped.') : calibrateSpeakers()}>
+							{calibrating ? 'Stop sound check' : 'Start speaker sound check'}
+						</button>
+						<p role="status" class="studio-caption">{roomMessage}</p>
+					</div>
+				</div>
 				<p class="studio-caption settings-footnote">
 					Tempo also sets library playback and the starting pace for tune practice. Backing applies to lick and tune practice; each lick keeps its own tempo.
 				</p>
@@ -575,7 +651,7 @@
 			<dl>
 				<div>
 					<dt>Master</dt>
-					<dd>{Math.round(settings.masterVolume * 100)}%</dd>
+					<dd>{gainLabel(settings.masterVolume)}</dd>
 				</div>
 				<div>
 					<dt>Tonality</dt>
@@ -980,7 +1056,27 @@
 		padding: 0;
 		margin: 0;
 	}
+	.settings-room {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: center;
+		gap: 20px;
+		border-top: 1px solid var(--studio-border);
+		margin-top: 20px;
+	}
+	.settings-room-check {
+		display: grid;
+		justify-items: start;
+		gap: 8px;
+		padding-top: 16px;
+	}
+	.settings-room-check [role='status']:empty { margin: 0; }
+	@media (max-width: 600px) {
+		.settings-room { grid-template-columns: 1fr; }
+		.settings-room-check { padding-top: 0; }
+	}
 	.settings-footnote {
+
 		border-top: 1px solid var(--studio-border);
 		padding-top: 18px;
 		margin-top: 24px;

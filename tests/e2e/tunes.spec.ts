@@ -18,13 +18,13 @@ test.beforeEach(async ({ page }) => {
 	await seedTunes(page);
 });
 
-test('header links route to the community browse and the add chooser', async ({ page, consoleCollector: _c }) => {
+test('browse links route to the community browse and the add chooser', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes');
 	await expect(page.getByRole('link', { name: /browse community/i }).first()).toHaveAttribute(
 		'href',
 		'/tunes/community'
 	);
-	await expect(page.getByRole('link', { name: /\+ add a tune/i })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: /^Add a tune/i })).toHaveAttribute(
 		'href',
 		'/tunes/add'
 	);
@@ -36,20 +36,20 @@ test('tune book lists curated tunes and the user book', async ({ page, consoleCo
 	await expect(page.getByRole('heading', { name: 'Tunes', exact: true })).toBeVisible();
 
 	// Seeded user sheet under "Your book".
-	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Open Test Session Tune/ })).toBeVisible();
 
 	// Curated catalog.
-	await expect(page.getByRole('button', { name: /Open Mankunku Blues/ })).toBeVisible();
-	await expect(page.getByRole('button', { name: /Open Rhythm Changes/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Open Mankunku Blues/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Open Rhythm Changes/ })).toBeVisible();
 });
 
 test('search filters the catalog', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes');
 
-	await page.getByPlaceholder(/search by title/i).fill('rhythm');
-	await expect(page.getByRole('button', { name: /Open Rhythm Changes/ })).toBeVisible();
-	await expect(page.getByRole('button', { name: /Open Mankunku Blues/ })).toHaveCount(0);
-	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);
+	await page.getByLabel('Search tunes').fill('rhythm');
+	await expect(page.getByRole('link', { name: /Open Rhythm Changes/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Open Mankunku Blues/ })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: /Open Test Session Tune/ })).toHaveCount(0);
 });
 
 test('detail page renders a multi-system chart with transposed chord symbols', async ({ page, consoleCollector: _c }) => {
@@ -79,7 +79,7 @@ test('tunes link by title slug, and the minted id keeps resolving', async ({ pag
 	// 2026-09-16: `/tunes/sheet-1789579191100-55iq/practice` → `/tunes/autumn-leaves/practice`.
 	// The slug is an alias derived from the title; the id stays the storage key.
 	await page.goto('/tunes');
-	await page.getByRole('button', { name: /Open Test Session Tune/ }).click();
+	await page.getByRole('link', { name: /Open Test Session Tune/ }).click();
 	await expect(page).toHaveURL(/\/tunes\/test-session-tune$/);
 	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
 
@@ -111,7 +111,7 @@ test('user sheet detail supports the two-stage delete', async ({ page, consoleCo
 	await page.getByRole('button', { name: 'Confirm Delete' }).click();
 
 	await page.waitForURL('**/tunes');
-	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: /Open Test Session Tune/ })).toHaveCount(0);
 
 	// Gone from storage too, not just the view.
 	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));

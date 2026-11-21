@@ -22,8 +22,8 @@ const EPSILON = 1e-8;
 function meterGrid(meter: [number, number]): { beat: number; strong: number[] } | null {
 	const [beats, unit] = meter;
 	if (!Number.isInteger(beats) || beats <= 0 || ![2, 4, 8, 16].includes(unit)) return null;
-	if (unit === 8 && beats >= 6 && beats % 3 === 0) {
-		return { beat: 3 / 8, strong: Array.from({ length: beats / 3 }, (_, i) => i * 3 / 8) };
+	if (beats >= 6 && beats % 3 === 0) {
+		return { beat: 3 / unit, strong: Array.from({ length: beats / 3 }, (_, i) => i * 3 / unit) };
 	}
 	return { beat: 1 / unit, strong: beats === 4 ? [0, 2 / unit] : [0] };
 }

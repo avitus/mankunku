@@ -1,4 +1,3 @@
-import { BACKING_OUTPUT_GAIN } from '$lib/audio/backing-output';
 import { releasedBackingOptions } from '$lib/audio/backing-release';
 /** A finite, reproducible listening take with a view tied to the sounding audio clock. */
 import { normalizeBackingMix, type BackingMixLevels } from '$lib/audio/backing-mix';

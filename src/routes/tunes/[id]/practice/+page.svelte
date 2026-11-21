@@ -1,14 +1,20 @@
 <script lang="ts">
-	import { isInPickupLeadIn } from '$lib/music/pickup';
+	import { recordRecentTune } from '$lib/persistence/recent-tunes';
+	import { firstBarNumber, isInPickupLeadIn } from '$lib/music/pickup';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import { anticipatoryFollowPosition } from '$lib/notation/follow-scroll';
+	import { tuneKeyCenters } from '$lib/tunes/key-centers';
+	import { savedTuneDisplay } from '$lib/tunes/preferences';
+	import KeyCenterLegend from '$lib/components/tunes/KeyCenterLegend.svelte';
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
+	import { MissingPracticeSpotsError } from '$lib/tunes/practice-report';
+	import TunePracticeReport from '$lib/components/tune-practice/TunePracticeReport.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
 	import { transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
@@ -16,8 +22,7 @@
 	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
 	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
-	import { TUNE_BACKING_LEVEL } from '$lib/audio/backing-mix';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+		import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
 		initTunePractice,
@@ -62,8 +67,6 @@
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
-	import { GRADE_LABELS } from '$lib/scoring/grades';
-	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { practiceTargetColor } from '$lib/tunes/practice-target';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
@@ -107,6 +110,14 @@
 		return resolveTuneRef(page.params.id ?? '');
 	});
 
+	const recentTuneId = $derived(baseSheet?.id);
+	$effect(() => {
+		if (recentTuneId) recordRecentTune(recentTuneId);
+	});
+	$effect(() => {
+		if (tunePractice.phase === 'count-in' && recentTuneId) recordRecentTune(recentTuneId);
+	});
+
 	// ── Audio modules + live handles (lick-practice session pattern) ──────────
 	let audioModulesReady = $state(false);
 	let playback: typeof import('$lib/audio/playback') | null = null;
@@ -123,6 +134,10 @@
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let beatAnimFrame: number | null = null;
 	let mounted = true;
+	let setupGeneration = 0;
+	/** Only the current mounted setup may publish resources or begin playback. */
+	const setupIsCurrent = (generation: number): boolean => mounted && generation === setupGeneration;
+	let showKeyCenters = $state(true);
 
 	interface OpenWindow {
 		ip: InsertionPoint;
@@ -163,6 +178,8 @@
 	let micError = $state(false);
 	let loadError = $state(false);
 	let audioPlan = $state<TunePracticeAudioPlan | null>(null);
+	let retrySpots = $state<string[]>([]);
+	let retryUnavailable = $state(false);
 	let cursorIndex = $state<number | null>(null);
 	/** 0-based playback bar (negative during the count-in). */
 	let currentBar = $state(-1);
@@ -230,6 +247,10 @@
 	const showAnnotations = $derived(
 		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
 	);
+	const activeKeyCenters = $derived.by(() => {
+		const sheet = showSoloChart ? chartSheet : displayedSheet;
+		return sheet ? tuneKeyCenters(sheet, getInstrument(), { solo: showSoloChart }) : null;
+	});
 	const markers = $derived.by<RangeMarker[]>(() => {
 		const byKey = new Map<string, RangeMarker>();
 		const annotated = showAnnotations ? tunePractice.plan : [];
@@ -285,7 +306,7 @@
 				if (label && (status === 'active' || !existing.label)) existing.label = label;
 			}
 		});
-		const result: RangeMarker[] = [...byKey.values()];
+		const result: RangeMarker[] = [...(showKeyCenters ? activeKeyCenters?.markers ?? [] : []), ...byKey.values()];
 
 		// Current-bar playhead (repeat passes land on the same chart bars).
 		if (playheadBar !== null && (tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro')) {
@@ -320,9 +341,6 @@
 
 	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
-	const hitCount = $derived(
-		tunePractice.results.filter((r) => r.grade !== null && r.grade !== 'try-again').length
-	);
 
 	// Points mode: the pick card always targets the NEXT window to open (the
 	// open window already locked in its pick at open time).
@@ -400,6 +418,12 @@
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
 			// A new tune starts from its saved tempo, whatever moved the knob before.
 			tempoChosenFor = null;
+			if (isLoading || isSessionRunning || micCapture) {
+				stopAll();
+				if (audioModulesReady) timerInterval = setInterval(() => updateElapsedTime(), 1000);
+			}
+			retrySpots = [];
+			retryUnavailable = false;
 			initTunePractice(baseSheet);
 		}
 	});
@@ -446,25 +470,32 @@
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
 			backingTrackVolume: settings.backingTrackVolume,
-			backingOutputLevel: TUNE_BACKING_LEVEL,
+
 			backingStyle: tunePractice.config.backingStyle
 		};
 	}
 
-	async function ensureMicCapture(): Promise<boolean> {
+	async function ensureMicCapture(generation: number): Promise<boolean> {
 		if (!captureModule) return false;
 		if (micCapture) return true;
 		try {
-			micCapture = await captureModule.startMicCapture();
+			const capture = await captureModule.startMicCapture();
+			if (!setupIsCurrent(generation)) {
+				if (micCapture !== capture && captureModule.getMicCapture() === capture) captureModule.stopMicCapture();
+				return false;
+			}
+			micCapture = capture;
 			if (onsetModule && !onsetDetector) {
 				try {
-					onsetDetector = await onsetModule.createOnsetDetector(
+					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
 						micCapture.source,
 						(time: number) => {
 							if (tunePractice.windowOpen) pitchDetector?.resetOctaveStateAt(time);
 						}
 					);
+					if (!setupIsCurrent(generation)) { onset.dispose(); return false; }
+					onsetDetector = onset;
 				} catch {
 					// AudioWorklet unavailable — scoring still works from pitch data.
 				}
@@ -475,11 +506,13 @@
 		}
 	}
 
-	async function ensurePitchDetector(): Promise<void> {
+	async function ensurePitchDetector(generation: number): Promise<void> {
 		if (!pitchModule || !micCapture || pitchDetector) return;
-		pitchDetector = await pitchModule.createPitchDetector(micCapture.analyser, () => {
+		const detector = await pitchModule.createPitchDetector(micCapture.analyser, () => {
 			/* windows slice the readings themselves */
 		});
+		if (!setupIsCurrent(generation) || !micCapture) return;
+		pitchDetector = detector;
 		sessionPitchStartMicTime = micCapture.context.currentTime;
 		pitchDetector.start();
 	}
@@ -490,12 +523,15 @@
 	 * Any setup failure unwinds `isLoading` and shows its banner.
 	 */
 	async function startSession() {
-		if (!playback || !toneModule || !baseSheet || isLoading) return;
+		if (!mounted || !playback || !toneModule || !baseSheet || isLoading) return;
+		const generation = ++setupGeneration;
+		showKeyCenters = savedTuneDisplay('key-centers', true);
 		isLoading = true;
 		micError = false;
 		loadError = false;
 
-		const micOk = await ensureMicCapture();
+		const micOk = await ensureMicCapture(generation);
+		if (!setupIsCurrent(generation)) return;
 		if (!micOk) {
 			isLoading = false;
 			micError = true;
@@ -513,19 +549,33 @@
 			} else if (backingTrack) {
 				await backingTrack.loadBackingInstruments(settings.backingInstrument);
 			}
+			if (!setupIsCurrent(generation)) return;
 			setMasterVolume(settings.masterVolume);
-			await ensurePitchDetector();
+			await ensurePitchDetector(generation);
 		} catch (err) {
+			if (!setupIsCurrent(generation)) return;
+			stopAll();
 			console.error('[tune-practice] audio setup failed:', err);
 			isLoading = false;
 			loadError = true;
 			return;
 		}
+		if (!setupIsCurrent(generation)) return;
 		isLoading = false;
 
 		const transport = toneModule.getTransport();
 		ppqNR = transport.PPQ;
-		const plan = startTunePracticeSession(baseSheet, ppqNR);
+		let plan: TunePracticeAudioPlan;
+		retryUnavailable = false;
+		try {
+			plan = startTunePracticeSession(baseSheet, ppqNR, tunePractice.config.mode === 'freestyle' ? [] : retrySpots);
+		} catch (error) {
+			if (!(error instanceof MissingPracticeSpotsError)) throw error;
+			stopAll();
+			retryUnavailable = true;
+			if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
+			return;
+		}
 		audioPlan = plan;
 		barTicksNR = plan.sheet.timeSignature[0] * 4 / plan.sheet.timeSignature[1] * ppqNR;
 		countInTicksNR = plan.countInBars * barTicksNR;
@@ -534,6 +584,7 @@
 		cursorIndex = null;
 		freestyleFloorSec = 0;
 		isSessionRunning = true;
+		if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
 		startBeatTracking();
 
 		if (tunePractice.config.mode === 'freestyle') {
@@ -568,7 +619,7 @@
 			console.warn('[tune-practice] playback failed:', err);
 		}
 		// Natural end of the tune (or a stop that resolved the promise).
-		if (isSessionRunning) finishSession();
+		if (setupIsCurrent(generation) && isSessionRunning) finishSession();
 	}
 
 	/** Registered via onStarted so the events survive playPhrase's internal cancel. */
@@ -607,8 +658,7 @@
 
 	/**
 	 * One freestyle scan: re-segment the trailing readings slice (pure batch —
-	 * pitch-derived onsets only; worklet/bleed refinement is scored-mode
-	 * machinery) and ask the recognizer. Runs on the audio clock per bar.
+	 * pitch-derived onsets), then filter any scheduled backing before matching.
 	 */
 	function runFreestyleScan() {
 		if (!isSessionRunning || tunePractice.phase !== 'running' || !pitchDetector || !freestyleRecognizer || !toneModule) return;
@@ -625,7 +675,14 @@
 		if (slice.length === 0) return;
 		const onsets = resolveOnsets([], slice);
 		const detected = segmentNotes(slice, onsets, nowSec - sliceStart);
-		const match = freestyleRecognizer.scan(detected, toneModule.getTransport().ticks);
+		// Onsets are relative to the start of this rolling slice. Map that
+		// instant on the microphone clock to the backing transport clock.
+		const schedule = backingTrack?.getActiveSchedule();
+		const transport = toneModule.getTransport();
+		const played = schedule
+			? filterBleed(detected, schedule, transport.getSecondsAtTime(sessionPitchStartMicTime + sliceStart)).kept
+			: detected;
+		const match = freestyleRecognizer.scan(played, transport.ticks);
 		if (match) recordFreestyleMatch(match);
 	}
 
@@ -730,10 +787,8 @@
 		const scoreCandidate = (candidate: WindowCandidate): Score | null => {
 			if (candidate.trickInfo) {
 				// Trick windows judge FLUENCY (conformance to the device's formula),
-				// not exact reproduction — route around runScorePipeline. Bleed
-				// handling collapses to the chosen-notes rule: filtered notes when
-				// the knob is on and a schedule produced them, raw notes otherwise.
-				let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+				// not exact reproduction — route around runScorePipeline.
+				let played = bleedResult?.kept ?? detected;
 				// The window opens at the progression start but the trick is aligned
 				// to a later bar; Fluency slots start at 0, so played onsets must be
 				// rebased to the aligned bar (notes before it go negative and
@@ -756,7 +811,6 @@
 				tempo,
 				transportSeconds: win.recordingTransportSeconds,
 				swing: effectiveSwing,
-				bleedFilterEnabled: knobs.bleedFilterEnabled,
 				bleedResult,
 				octaveInsensitive: knobs.octaveInsensitive,
 				readings: rebased
@@ -799,6 +853,8 @@
 	}
 
 	function stopAll() {
+		setupGeneration++;
+		isLoading = false;
 		const wasRunning = isSessionRunning;
 		isSessionRunning = false;
 		currentWindow = null;
@@ -828,14 +884,16 @@
 		completeTunePracticeSession();
 	}
 
-	function practiceAgain() {
+	function practiceAgain(spots: string[] = []) {
+		retrySpots = spots;
+		retryUnavailable = false;
 		resetTunePractice();
 		audioPlan = null;
 		// The teardown cleared the elapsed-time interval; re-arm for the next run.
 		if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	}
 
-	/** Chart bar (1-based) for a freestyle match's transport tick. */
+	/** Printed chart bar for a freestyle match's transport tick. */
 	function freestyleDisplayBar(atTick: number): number {
 		if (!audioPlan || barTicksNR <= 0) return 1;
 		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
@@ -849,7 +907,7 @@
 			sheet.sections,
 			Math.max(0, Math.min(formBar, flat.totalBars - 1))
 		);
-		return (chartBar ?? 0) + 1;
+		return (chartBar ?? 0) + firstBarNumber(sheet);
 	}
 
 	function formatElapsed(seconds: number): string {
@@ -876,6 +934,13 @@
 			<a href="/tunes" class="mt-2 inline-block text-sm text-[var(--color-accent)]">Back to Tunes</a>
 		</div>
 	{:else if tunePractice.phase === 'setup'}
+		{#if retryUnavailable && retrySpots.length}<p role="alert">Selected spots no longer match these settings. Restore the previous setup or practice all spots.</p>{/if}
+		{#if retrySpots.length && tunePractice.config.mode !== 'freestyle'}
+			<div class="flex items-center justify-between gap-3 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm">
+				<span>{retrySpots.length} selected {retrySpots.length === 1 ? 'spot' : 'spots'} · full tune backing</span>
+				<button class="text-[var(--color-brass)]" onclick={() => retrySpots = []}>Practice all spots</button>
+			</div>
+		{/if}
 		<TunePracticeSetup
 			tune={baseSheet}
 			{previewSheet}
@@ -949,12 +1014,14 @@
 			/>
 		{/if}
 
+		{#if showKeyCenters && activeKeyCenters}<KeyCenterLegend display={activeKeyCenters} />{/if}
 		{#if displayedSheet && showSoloChart}
-			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
+			<TuneChordChart keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0} tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
 			<NotationDisplay
+				keyCenterRails keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0}
 				tune={displayedSheet}
 				instrument={getInstrument()}
 				tuneOptions={audioPlan?.chartOptions}
@@ -964,6 +1031,13 @@
 				playheadBarFraction={followBarFraction}
 			/>
 		{/if}
+	{:else if tunePractice.config.mode !== 'freestyle' && audioPlan}
+		<TunePracticeReport returnHref={tunePath(baseSheet)} tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
+			clock={{ barTicks: barTicksNR, countInTicks: countInTicksNR }}
+			results={tunePractice.results} picked={tunePractice.pickedSuggestion} instrument={getInstrument()}
+			tempo={tunePractice.config.tempo} elapsed={formatElapsed(tunePractice.elapsedSeconds)}
+			points={tunePractice.config.mode === 'points' ? { total: tunePractice.totalPoints, streak: tunePractice.bestStreak } : null}
+			onretry={practiceAgain} />
 	{:else}
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<h1 class="text-2xl font-bold">Take complete</h1>
@@ -1002,52 +1076,11 @@
 					</div>
 				{/if}
 			</div>
-		{:else}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<p class="text-sm text-[var(--color-text-secondary)]">
-				{hitCount} of {tunePractice.plan.length} insertion point{tunePractice.plan.length === 1
-					? ''
-					: 's'} landed
-				{#if tunePractice.config.mode === 'points'}
-					&middot; {tunePractice.totalPoints} points &middot; best streak {tunePractice.bestStreak}
-				{/if}
-			</p>
-
-			<div class="mt-3 space-y-2">
-				{#each tunePractice.plan as ip (ip.id)}
-					{@const result = resultByInsertion.get(ip.id)}
-					<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
-						<span class="w-8 shrink-0 font-mono text-xs text-[var(--color-text-secondary)]">
-							b{ip.notationBarRange.start + 1}
-						</span>
-						<span class="shrink-0 font-medium text-[var(--color-brass)]">
-							{concertKeyToWritten(ip.keyCenter, getInstrument())}
-						</span>
-						<span class="min-w-0 flex-1 truncate">
-							{ip.bandName}
-							{#if result?.lickName}
-								<span class="text-[var(--color-text-secondary)]"> — {result.lickName}</span>
-							{/if}
-						</span>
-						{#if result?.score && result.grade}
-							<span
-								class="smallcaps shrink-0 text-xs font-medium"
-								style="color: {accuracyTierInfo(result.score.overall).color}"
-							>
-								{GRADE_LABELS[result.grade]}
-							</span>
-						{:else}
-							<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">No take</span>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		</div>
 		{/if}
 
 		<div class="flex gap-3">
 			<button
-				onclick={practiceAgain}
+				onclick={() => practiceAgain()}
 				class="flex-1 rounded-lg bg-[var(--color-accent)] py-2.5 font-medium text-white transition-opacity hover:opacity-90"
 			>
 				Practice again

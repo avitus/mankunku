@@ -48,6 +48,8 @@ export interface FollowSystem {
 	lastBarExclusive: number;
 	/** Top of the system in rendered pixels (already scaled from SVG user space). */
 	topPx: number;
+	/** Measured bottom of this system's ink, when available. */
+	bottomPx?: number;
 }
 
 export interface FollowScrollArgs {
@@ -73,10 +75,13 @@ export interface FollowScrollArgs {
  * Compute the `translateY` (negative = content moves up) that places the
  * music for `barFraction` on the reading line.
  *
- * Within a multi-bar system the target Y lerps from this system's top toward
- * the next system's top, so the chart drifts continuously instead of sitting
- * still for a whole line then jumping. The last system holds its top (clamped
- * so we never overscroll past the content end).
+ * Interpolate between safe reading positions at system boundaries. Each
+ * boundary must still leave the preceding system's top visible: its final
+ * bar is sounding right up to that boundary. This matters when key-center
+ * rails or a short viewport make the system spacing exceed the reading line.
+ * Sharing endpoints keeps motion continuous when both systems fit. Otherwise,
+ * measured ink bounds take priority and the sounding system stays visible.
+ * The last system holds, and the content-end clamp prevents overscrolling.
  */
 export function followOffsetPx(args: FollowScrollArgs): number {
 	const { systems, barFraction, viewportPx, contentPx } = args;
@@ -94,9 +99,24 @@ export function followOffsetPx(args: FollowScrollArgs): number {
 	const maxScroll = Math.max(0, contentPx - viewportPx);
 	if (maxScroll === 0) return 0;
 
-	const targetY = targetContentY(systems, barFraction);
+	const readingLinePx = viewportPx * readingLine;
+	const safeSystems = systems.map((system, i) => ({
+		...system,
+		// Reserve a little space above the ink. Do not let the next line's
+		// desired reading position scroll away the line still being played.
+		topPx: i === 0 ? system.topPx : Math.min(
+			system.topPx, systems[i - 1].topPx + readingLinePx - 8
+		)
+	}));
+	const targetY = targetContentY(safeSystems, barFraction);
 	if (!Number.isFinite(targetY)) return 0;
-	const offset = targetY - viewportPx * readingLine;
+	const current = systems[systemIndexForBar(systems, barFraction)];
+	// If two systems cannot fit, prioritize the sounding system. The scroll
+	// may jump at that boundary; preserving continuity would hide its notes.
+	const bottom = current.bottomPx ?? current.topPx;
+	const latestTop = current.topPx - 8;
+	const earliestBottom = Math.min(latestTop, bottom - viewportPx + 8);
+	const offset = clamp(targetY - readingLinePx, earliestBottom, latestTop);
 	// Negate for translateY; coerce -0 → 0 so callers can use Object.is-stable zeros.
 	const scrolled = -clamp(offset, 0, maxScroll);
 	return scrolled === 0 ? 0 : scrolled;
@@ -132,7 +152,8 @@ export function targetContentY(systems: readonly FollowSystem[], barFraction: nu
  */
 export function buildFollowSystems(
 	barZones: readonly { absBar: number; systemIdx: number }[],
-	systemTopsPx: readonly number[]
+	systemTopsPx: readonly number[],
+	systemBottomsPx: readonly number[] = []
 ): FollowSystem[] {
 	if (barZones.length === 0 || systemTopsPx.length === 0) return [];
 
@@ -154,7 +175,9 @@ export function buildFollowSystems(
 		const topPx = systemTopsPx[idx];
 		if (topPx === undefined || !Number.isFinite(topPx)) continue;
 		const range = bySystem.get(idx)!;
-		out.push({ firstBar: range.min, lastBarExclusive: range.maxEx, topPx });
+		const bottomPx = systemBottomsPx[idx];
+		out.push({ firstBar: range.min, lastBarExclusive: range.maxEx, topPx,
+			...(Number.isFinite(bottomPx) ? { bottomPx } : {}) });
 	}
 	return out;
 }

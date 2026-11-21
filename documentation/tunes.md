@@ -6,18 +6,21 @@ A tune in Mankunku is a chart you can read, hear, transpose to any key, and then
 
 ## The book
 
-Open **Tunes** in the nav and you get two shelves:
+Open **Tunes** to see a compact songbook with **Recent** at the top: the last two distinct tunes you opened or played. Recent tunes appear once, above the remaining tunes in alphabetical order. This history belongs to your account on this browser; it starts as you visit tunes and does not sync between devices. Removed tunes drop out of the display.
 
-- **Your book** — everything you charted by hand, imported, or adopted from the community. Adopted charts carry an **Adopted** badge and *shared by* the player who shared them.
-- **Curated tunes** — the two charts that ship with the app, both written for it: *Mankunku Blues* and *Rhythm Changes*; their pages carry a **Curated** badge.
+Search beside the title matches title, composer, style, or tag across the selected collection, including recent tunes. While searching, all matches appear together. Rows show the title, composer, and community attribution; key, time signature, and length are omitted from the catalog. The chart still has its key and transposition controls.
 
-One search box filters both shelves at once, matching on title, composer, style, or tag. The buttons at the top right: **Browse Community** (charts other players have shared), **+ Add a tune**, a *How your songbook works* tour link, and a docs link.
+The **Browse** panel on the right holds the collection filters, Compact/Cards view, and 20/40/All page-size choice:
 
-If your book is empty the page says so and points you at the two places to start.
+- **Your book** includes tunes you charted, imported, or adopted. Adopted charts keep the contributor's name.
+- **Curated** contains *Mankunku Blues* and *Rhythm Changes*, the two charts included with the app.
+- **All tunes** combines both collections. Recent tunes respect the selected collection.
+
+The same panel holds **Add a tune**, **Browse community**, import shortcuts, help, and the tour. On smaller screens, the **Browse** button opens these controls above the list. Page navigation appears below the list only when there is another page, and returns you to the first result when you change pages. If your book is empty, the page offers a link to add your first tune.
 
 ## Five ways to add a tune
 
-Tap **+ Add a tune** and you land on a chooser with five routes in. They all end in the same place — a chart in your book — but they start from very different material.
+Tap **Add a tune** and you land on a chooser with five routes in. They all end in the same place — a chart in your book — but they start from very different material.
 
 | Route | Start from | Good for |
 |---|---|---|
@@ -59,7 +62,7 @@ Tap any tune to open it. Its address is readable — `/tunes/autumn-leaves`, and
 The workflow:
 
 1. **Set up the tune** — type the title and composer above the chart. **Tune settings** holds the style, *Chart written for*, and the key (with *Move notes with key* once there is melody). A new chart starts in 4/4; imported charts keep their meter.
-2. **Build the form** — drag a boxed section label to another bar; the bar below it highlights before you release. Click a label to rename it, enter its starting bar, or **Remove label**. Delete/Backspace on a focused label removes only the label; arrow keys move it a bar. Select a bar and choose **Add section label** to place a new mark. These edits preserve the music and the repeat/ending anchors, and support Undo/Redo. **Omit from solos** skips that labeled section (through the next label, including its ending fragments) during solo choruses while keeping it in the opening and closing melody. For Black Orpheus, this is the printed instruction on C; A and B remain the solo form. **Edit form** groups the music, first/second endings and continuation bars under their rehearsal label. These pieces stay together in the form navigation; they are not extra unlabeled sections. Rename or **Remove label** here without removing music, or edit each piece’s bar count and repeat markers. **+ Add section & music** appends empty music; **Delete bars & music** deletes its bars, notes and chords. The **Pickup** control adds a short unlabeled bar before the form, with its lead-in already filled so entry starts on the pickup beat. Section buttons above the chart jump to the corresponding music. Bar numbers start at the first full bar and the section letter sits over it.
+2. **Build the form** — drag a boxed section label to another bar; the bar below it highlights before you release. Click a label to rename it, enter its starting bar, or **Remove label**. Delete/Backspace on a focused label removes only the label; arrow keys move it a bar. Select a bar and choose **Add section label** to place a new mark. These edits preserve the music and the repeat/ending anchors, and support Undo/Redo. **Omit from solos** skips that labeled section (through the next label, including its ending fragments) during solo choruses. A section labelled **Intro** plays on the opening head and defaults to skipping solos. Uncheck **Omit from solos** to include it in solo choruses. The closing melody skips the Intro either way. For Black Orpheus, this is the printed instruction on C; A and B remain the solo form. **Edit form** groups the music, first/second endings and continuation bars under their rehearsal label. These pieces stay together in the form navigation; they are not extra unlabeled sections. Rename or **Remove label** here without removing music, or edit each piece’s bar count and repeat markers. **+ Add section & music** appends empty music; **Delete bars & music** deletes its bars, notes and chords. The **Pickup** control adds a short unlabeled bar before the form, with its lead-in already filled so entry starts on the pickup beat. Section buttons above the chart jump to the corresponding music. Bar numbers start at the first full bar and the section letter sits over it.
 3. **Enter the changes.** Type chord symbols in *written* pitch — the same text you would write on the page. Lower case is fine for the note letters: `a-7/g` saves as `A-7/G`. Click a chord slot on the chart, press `K`, or use **Edit chord at cursor** to edit it in place.
 4. **Enter the melody.** The full score stays visible, with four full bars per line where the form allows. Click a bar to place the next note. The note-entry rail stays on the right as you scroll, showing *Section A · Bar 3, Beat 2*, duration, pitch, accidental and octave controls. On phones, **Open note entry** expands the bottom drawer; close it to give the score more room. Entry pages commit as you navigate, so moving between pages or sections keeps your work.
 5. **Hear and save.** Play, tempo, swing, metronome and backing controls sit above the score. **Save tune** (*Update tune* when editing) and **Cancel** are in the page header. Undo and redo sit beside the title. Keyboard shortcuts remain available from the header and note-entry rail.

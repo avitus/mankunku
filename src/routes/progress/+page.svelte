@@ -1,4 +1,5 @@
 <script lang="ts">
+ import { connectMediaPlayback, disconnectMediaPlayback } from '$lib/audio/media-playback';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import { extractSoundingNotes } from '$lib/music/expression';
 	import { lickMode } from '$lib/music/mode';
@@ -71,6 +72,7 @@
 	let recordingIds = $state<Set<string>>(new Set());
 	let playingSessionId: string | null = $state(null);
 	let audioElement: HTMLAudioElement | null = null;
+	let replayGeneration = 0;
 	let audioUrl: string | null = null;
 	let playingLickSessionId: string | null = $state(null);
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
@@ -86,8 +88,9 @@
 	});
 
 	onDestroy(() => {
+		replayGeneration++;
 		if (audioElement) {
-			audioElement.pause();
+			disconnectMediaPlayback(audioElement);
 			audioElement = null;
 		}
 		if (audioUrl) {
@@ -99,9 +102,11 @@
 		}
 	});
 
+	/** Cancel a pending load and release the current recorded take. */
 	function stopRecordingPlayback(): void {
+		replayGeneration++;
 		if (audioElement) {
-			audioElement.pause();
+			disconnectMediaPlayback(audioElement);
 			audioElement = null;
 		}
 		if (audioUrl) {
@@ -118,18 +123,20 @@
 		playingLickSessionId = null;
 	}
 
+	/** Toggle one recorded take through Master, ignoring superseded async loads. */
 	async function toggleAudio(sessionId: string) {
-		// If a lick is playing, stop it first so audio sources don't overlap.
-		if (playingLickSessionId) {
-			await stopLickPlayback();
-		}
-
 		// Capture before stopping — stopRecordingPlayback() nulls
 		// playingSessionId, so checking it afterwards would always miss.
 		const wasPlayingSameSession = playingSessionId === sessionId;
 		stopRecordingPlayback();
+		const generation = replayGeneration;
 		if (wasPlayingSameSession) {
 			return;
+		}
+		// Claim this request before any await, including stopping a synthesized lick.
+		if (playingLickSessionId) {
+			await stopLickPlayback();
+			if (generation !== replayGeneration) return;
 		}
 
 		try {
@@ -138,23 +145,28 @@
 			// another device) falls back to the cloud copy — previously this was
 			// called without them, making the cloud-restore path dead code.
 			const blob = await getRecording(sessionId, supabase ?? undefined, page.data?.user?.id);
-			if (!blob || blob.size === 0) return;
+			if (!blob || blob.size === 0 || generation !== replayGeneration) return;
 
 			audioUrl = URL.createObjectURL(blob);
-			audioElement = new Audio(audioUrl);
-			audioElement.volume = 0.25;
+			const element = new Audio(audioUrl);
+			audioElement = element;
+			await connectMediaPlayback(element);
+			if (generation !== replayGeneration) { disconnectMediaPlayback(element); return; }
 			audioElement.onended = () => {
+				disconnectMediaPlayback(element);
+				if (generation !== replayGeneration) return;
 				playingSessionId = null;
 				if (audioUrl) {
 					URL.revokeObjectURL(audioUrl);
 					audioUrl = null;
 				}
 			};
-			await audioElement.play();
+			await element.play();
+			if (generation !== replayGeneration) { disconnectMediaPlayback(element); return; }
 			playingSessionId = sessionId;
 		} catch (err) {
 			console.error('Failed to play recording:', err);
-			playingSessionId = null;
+			if (generation === replayGeneration) playingSessionId = null;
 		}
 	}
 
@@ -195,7 +207,7 @@
 				phrase: phraseForScoringExport(s),
 				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
 			});
-			const wav = await exporter.decodeToWav(full.blob);
+			const wav = await exporter.decodeToWav(exporter.scoringRecordingBlob(full));
 			// Both files are ready before either download starts, so the pair
 			// goes out together (a browser may ask once to allow the second).
 			const base = exporter.fixtureBaseName(full.timestamp, full.metadata?.phraseName ?? s.phraseName);

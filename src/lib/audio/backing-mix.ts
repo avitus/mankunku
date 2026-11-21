@@ -1,20 +1,5 @@
-/**
- * Per-instrument mix levels for the backing track.
- *
- * `bass`, `comp`, `drums` and `room` are linear gain multipliers layered
- * on top of the overall backing volume; the drum-voice keys are velocity
- * multipliers applied at drum trigger time — voices share their family's
- * sampler output, so within-family balance can only be shaped through
- * velocity.
- *
- * Levels persist to localStorage so a mix tuned on the
- * /diagnostics/backing-mixer page applies to every session on this device.
- * All values are clamped to [0, 3]; 1 means "as generated".
- */
-
+/** Device-local backing balance. Every user value is a linear amplitude gain. */
 export interface BackingMixLevels {
-	/** Band output after compression; 1 preserves the session reference level. */
-	master: number;
 	bass: number;
 	comp: number;
 	drums: number;
@@ -32,7 +17,6 @@ export interface BackingMixLevels {
 }
 
 export const DEFAULT_BACKING_MIX: BackingMixLevels = {
-	master: 1,
 	bass: 1,
 	comp: 1,
 	drums: 1,
@@ -49,8 +33,8 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
 
 /**
  * Baseline trims that equalize instrument loudness. bass/comp/drums are
- * gain factors; the drum-voice entries multiply generated velocities
- * before the [0, 1] clamp.
+ * gain factors; historical drum-voice values are squared by drumCalibration
+ * into fixed amplitude calibration. They no longer multiply user velocity.
  *
  * ⚠️ Drum-voice trims live in VELOCITY space, and smplr maps velocity to
  * gain QUADRATICALLY (`(vel/127)²` — midiVelToGain). Converting a trim
@@ -69,7 +53,7 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
  * the generator barely emits yet start at family-matched estimates for
  * the milestone listening pass.
  */
-export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room' | 'master'>, number> = {
+export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room'>, number> = {
 	bass: 0.05,
 	// Piano reference; live/bounce use backingKeyboardTrim for organ calibration.
 	comp: 0.1,
@@ -91,7 +75,8 @@ export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room' |
 };
 
 const MIX_MAX = 3;
-const STORAGE_KEY = 'backing-mix-levels-v2';
+const STORAGE_KEY = 'backing-mix-levels-v3';
+const VELOCITY_STORAGE_KEY = 'backing-mix-levels-v2';
 /**
  * Pre-base-trim key. Levels stored there were tuned against the old flat
  * gains — exactly the correction BACKING_BASE_TRIMS now bakes in — so
@@ -115,16 +100,30 @@ export function normalizeBackingMix(value: unknown): BackingMixLevels {
 	return mix;
 }
 
-/** Load the persisted mix, or defaults when absent/corrupt (also SSR-safe). */
+/** Convert old velocity faders once, retaining balance where the old clamp allowed it. */
+export function migrateBackingMix(value: unknown): BackingMixLevels {
+ const mix=normalizeBackingMix(value);
+ const master=typeof value === 'object' && value !== null ? (value as Record<string,unknown>).master : undefined;
+ const overall=typeof master === 'number' && Number.isFinite(master) ? Math.max(0,Math.min(3,master)) : 1;
+ for (const key of ['bass','comp','drums'] as const) mix[key]=Math.min(3,mix[key]*overall);
+ for (const key of ['kick','ride','hihat','hihat-pedal','snare','crossstick','ride-bell','crash'] as const) mix[key]=Math.min(3,mix[key]**2);
+ return mix;
+}
+
+/** Load amplitude faders, migrating old device mixes without applying conversion twice. */
 export function loadBackingMix(): BackingMixLevels {
-	if (typeof localStorage === 'undefined') return { ...DEFAULT_BACKING_MIX };
-	try {
-		localStorage.removeItem(LEGACY_STORAGE_KEY);
-		const raw = localStorage.getItem(STORAGE_KEY);
-		return raw ? normalizeBackingMix(JSON.parse(raw)) : { ...DEFAULT_BACKING_MIX };
-	} catch {
-		return { ...DEFAULT_BACKING_MIX };
-	}
+ if (typeof localStorage === 'undefined') return { ...DEFAULT_BACKING_MIX };
+ try {
+  const current=localStorage.getItem(STORAGE_KEY);
+  if (current) return normalizeBackingMix(JSON.parse(current));
+  const old=localStorage.getItem(VELOCITY_STORAGE_KEY);
+  const mix=old ? migrateBackingMix(JSON.parse(old)) : { ...DEFAULT_BACKING_MIX };
+  try {
+   localStorage.setItem(STORAGE_KEY,JSON.stringify(mix));
+   localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch { /* Keep the migrated balance; retry persistence on the next load. */ }
+  return mix;
+ } catch { return { ...DEFAULT_BACKING_MIX }; }
 }
 
 /** Persist the mix (no-op without localStorage). */
@@ -182,11 +181,6 @@ export const ROOM_RETURN_GAIN = 0.126;
 /** Path to the small-room impulse response (Opus, same fetch+decode path
  *  as the drum samples). Load is best-effort: no IR → dry backing. */
 export const ROOM_IR_URL = '/samples/ir/room.ogg';
-
-/** Tune backing plays 12 dB above the accompaniment bed, with melody
- * kept at the same unity level as ear-training and lick-practice demos.
- * Applied after compression so the boost does not change compression. */
-export const TUNE_BACKING_LEVEL = 4;
 
 /**
  * Glue compressor on the backing bus only (master carries the melody and

@@ -41,7 +41,6 @@ Routes that belong to the lick-practice domain:
 
 - `/lick-practice` — setup
 - `/lick-practice/session` — running session
-- `/lick-practice/cue-preview` — temporary listen/play cue design compare, unlinked from the nav (inherits the prefix)
 
 **Identity color**: warm terracotta / burnt sienna. This is the LP-sleeve counterpart to the ear-training teal — complementary in hue, same visual weight, reads as jazz-era rather than "success/error" signal.
 
@@ -178,6 +177,24 @@ revision `472419107531280384`. Keep all 12 keys readable with horizontal
 scrolling on small screens and a sticky lick-name column. Canvas sample
 scores are examples only; the application retains real session results,
 written-key transposition, historical scores and Deep Practice actions.
+
+### Tune chorus report
+
+`TunePracticeReport.svelte` applies the Studio Desk palette to the existing
+chorus-comparison layout. Its source design is MagicPath component
+`472917335972401152`, revision `473223231814402048`.
+
+Each scored insertion uses `accuracyTierInfo()` on the original 0–1 result,
+before rounding its displayed percentage. Gold, silver and bronze reuse
+`.lp-medal-chip` and `.lp-chip-*`; teal and deep teal use the shared flat 20%
+tier-color mix. The selected-spot readout uses the same tier and exposes its
+short grade label. Both themes inherit the application's existing tokens.
+
+Outcome symbols (✓ / × / ○), landed counts, filters and retry actions retain
+their existing meaning. They do not determine the score color. Unscored
+openings, unreached windows and unavailable licks stay neutral; selection and
+keyboard focus use brass independently of performance. The report retains real
+session data and does not persist practice progress or import prototype scores.
 
 ### Progression identity palette
 
@@ -334,7 +351,7 @@ Every component that uses `var(--color-accent)` flips for free when the domain c
 - **`PracticeSetup`** selected state, and the console controls' accent parts — the `Knob` value arc and the active `SelectorPad` pad + LED
 - All `border-l-[var(--color-accent)]` / `text-[var(--color-accent)]` / `bg-[var(--color-accent)]` usages
 
-The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged. What does *not* follow the domain, by design: the active-nav marker (a brass hairline under the desktop item, a brass left border in the mobile menu), the practice-phase indicators on `UpcomingKeysDisplay` / `PhaseCueBar` (the phase aliases), the `KeyProgressRing` (medal tokens for scored keys, a pulsing `--color-brass-soft` outline on the current key), and the `RockerSwitch`'s on-air legend and LED.
+The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged. What does *not* follow the domain, by design: the active-nav marker (a brass hairline under the desktop item, a brass left border in the mobile menu), the practice-phase indicators on `UpcomingKeysDisplay` (the phase aliases), the `KeyProgressRing` (medal tokens for scored keys, a pulsing `--color-brass-soft` outline on the current key), and the `RockerSwitch`'s on-air legend and LED.
 
 ## What we deliberately don't change
 
@@ -368,7 +385,7 @@ The base behavior lives in just two files:
 
 No component-level files need to change. Every existing `var(--color-accent)` usage automatically picks up the new color.
 
-`tests/unit/ui/design-token-consistency.test.ts` pins the contract: every `var(--color-*)` and every `var(--font-*)` referenced under `src/` is defined in `app.css` (an undefined custom property fails silently — the property computes to nothing, or to the next font in the stack); solid coloured fills on text-bearing elements set explicit white text; the two phase aliases resolve to brass and on-air; the phase surfaces it sweeps — `UpcomingKeysDisplay`, `PhaseCueBar` and the cue-preview route's `CueStage` — never reach past the aliases to a raw `--color-brass` / `--color-onair` token (the other listen/play surfaces use the aliases by convention, unswept); and feedback *text* uses the `-text` variants, never the fill tokens.
+`tests/unit/ui/design-token-consistency.test.ts` pins the contract: every `var(--color-*)` and every `var(--font-*)` referenced under `src/` is defined in `app.css` (an undefined custom property fails silently — the property computes to nothing, or to the next font in the stack); solid coloured fills on text-bearing elements set explicit white text; the two phase aliases resolve to brass and on-air; `UpcomingKeysDisplay` never reaches past the aliases to a raw `--color-brass` / `--color-onair` token (the other listen/play surfaces use the aliases by convention, unswept); and feedback *text* uses the `-text` variants, never the fill tokens.
 
 ## Verification
 
@@ -756,6 +773,35 @@ or its MagicPath skill does not update every existing page.
   distinct. Playback moves the highlight using the audio clock without
   re-engraving the score. Color is supplementary to labels and geometry.
 
+### Tune key-center rails
+
+The tune detail reference is MagicPath component `459518519676121088`, revision
+`472893533464973312`. Use the shared harmonic analysis and native Svelte notation;
+the prototype's illustrative score and playback data are not production inputs.
+
+- Show key centers as 2.5px muted rails below the staff, with compact names
+  (`G maj`, `A min`) at each span/system start. Chord-only rows show the first span wide enough for a label, including when a center begins late in the preceding bar. Minor rails are dashed. Retain
+  partial-bar boundaries and separate lanes for overlapping centers; the normal
+  layout reserves at least two lanes and grows by 18 units per additional lane,
+  including inter-system separation and final SVG padding. The producer supplies
+  its full lane count independently of marker visibility, so hiding three or
+  more readings preserves both staff and chord-chart geometry.
+- Keep the wrapping legend suitable for seven or more distinct centers. Use
+  stable tonic hues at 25% saturation and the theme's `--key-center-lightness`
+  so labels remain legible on dark and light score wells.
+- The tune desk uses only a neutral current-bar wash (4.5% ink), without a
+  moving pointer or highlighted individual note/chord. Keep practice feedback
+  and exercise cues independent of harmonic identity.
+- Retain native Fraunces/Edwin chord symbols, baseline minor signs and raised
+  extensions. Number only the first bar of each system; do not add repeated-chord
+  dots. Do not restore the removed key-center readings disclosure.
+- Reuse these rails and the same legend in practice setup, active practice and
+  import preview. Reserve their vertical space even when hidden so toggling
+  centers does not reflow the score or interrupt playback. Active tune practice
+  carries the setup visibility choice through the head and solo chart, recomputing
+  harmonic context for the displayed returning/closing sheet. Key-center rails
+  remain independent of lick prompts, which stay hidden during the head.
+
 ### Shared editing controls
 
 Lick Editor and Tune Editor use the same `DurationSelector`,
@@ -909,6 +955,12 @@ Admin · Operations Desk, component `461211093453402112`, revision
 `461217195662393344`. The rail stacks below the user list at 900px.
 User rows use compact vertical spacing and inline label/value pairs, wrapping
 on narrow screens while retaining every account fact and inspection control.
+The Show dropdown includes **Active Users (past two weeks)**, using the newest
+practice, visit, sign-in, or signup date on or after the UTC cutoff day 14 days
+ago. Local practice dates may be one day ahead of UTC. The filter combines
+with search and the joined-date filter.
+Each row displays the last synced instrument selection by its shared catalog
+name, preserving unknown saved IDs and showing **Not selected** when absent.
 
 ### Record a lick
 
@@ -987,3 +1039,25 @@ Canvas references: catalog `459518182248550400`, triad detail
 `459518232861229056`, enclosure detail `461351673714057216`. The native Svelte
 components are the functional source of truth for unlocks, persistence, audio
 and drill handoff.
+
+
+### Tunes · Compact Desk
+
+`/tunes` uses the refined Compact Desk layout approved on 2026-11-17, translated
+into native Svelte 5 runes and the existing neutral Studio Desk tokens. A single
+48px Fraunces title shares its row with search. The 240px right rail owns collection,
+view, page-size, add/community/import and help controls. Below 900px, Browse reveals
+the rail above the list; it is collapsed by default. No repeated introductory panel
+or top pagination precedes the music. Bottom pagination appears only when needed;
+changing pages returns scroll and keyboard focus to the result heading before the
+list changes height.
+
+`TuneCard` is a real navigation link with compact divided rows or optional cards.
+Composer, contributor attribution and origin badges remain; catalog key, meter,
+length and instrument readouts are removed. Chart and playback settings are unchanged.
+The two latest available tunes in the selected collection occupy Recent, with no
+repetition in the alphabetical paginated remainder. Search includes Recent and shows
+all matches together. History uses canonical tune IDs in the existing per-user local
+storage namespace (`recent-tunes`, bounded to 50 IDs); detail/practice visits and new
+playback starts record activity. Unknown/deleted IDs are skipped. History is local to
+this browser, starts with actual activity, and is not synthesized from creation dates.
