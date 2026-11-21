@@ -5,8 +5,8 @@ status, decisions, acceptance cases and remaining limitations as work lands.
 
 The current increment compares every bar of the production arrangement of
 [All the Things You Are](./all-the-things-harmonic-audit.md) with the key-center
-display. G major now spans chorus bars 14–20, and A♭ major carries through
-the descending return in bars 30–32. Autumn remains a reference for distinguishing
+display. G major now spans chorus bars 14–20, and A♭ major returns at bar 24 and carries
+through the descending line in bars 30–32. Autumn remains a reference for distinguishing
 a tonicization from a change of governing key.
 
 ## Purpose
@@ -634,14 +634,39 @@ In *All the Things You Are*, chorus bars 14–20 now form one G-major span
   the intervening passage applies.
 
 Both rules describe chart context. Lick eligibility continues to use the
-written harmony and existing cornerstone reservations. The next comparison
-is chorus bar 24, where the altered dominant approaches a different key.
+written harmony and existing cornerstone reservations.
 
 The tune fixture and a separate progression in all twelve keys failed before the change.
 The Linux sandbox passed 1,148 unit tests across 85 files, all 39 key-center
 browser cases across Chromium, Firefox and WebKit, and the TypeScript/Svelte
 check. The browser tests cover the full width of each tenor chart bar and
 the key labels on practice setup.
+
+## An altered dominant introducing a different key
+
+In chorus bar 24 of *All the Things You Are*, E major has just cadenced.
+C7♯5 resolves to Fm7, and B♭m7–E♭7–A♭maj7 puts that Fm7 in context as vi.
+Start the returning A♭-major chart span on C7♯5. The same opening followed
+by Gø7–C7–Fm7 confirms F minor and earns no incoming A♭ span.
+
+The outgoing cadenced collection must end on its major tonic. The written
+7♯5 must resolve directly down a fifth to ii, iii or vi of a different major
+collection that confirms its key with V–I. Allow up to one bar for the
+dominant and one for the minor target. Require the two major tonic arrivals
+within four bars of the dominant entrance and minor resolution respectively.
+These initial limits apply in the tune's own meter. Adjacent segments of one
+sustained chord count together. A gap, a section break across the approach,
+or an unspecified alteration interrupts this reading.
+
+The existing transition model records the exact dominant and resolution
+occurrences and the target degree. Chart and setup use this evidence. The
+new reading adds no scale-compatible lick window. Regression checks cover
+all twelve transpositions, ii/iii/vi targets, split and prolonged chords,
+gaps, section boundaries, and the F-minor counterexample. The Linux sandbox
+passed 1,170 selected unit tests and all 39 key-center browser checks across
+Chromium, Firefox and WebKit. The TypeScript/Svelte check was clean.
+
+Next, compare the last bar of a repeated chorus with its actual final ending.
 
 ## Later milestones
 
@@ -652,7 +677,7 @@ the key labels on practice setup.
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
-| Controlled chromaticism | Implemented for brief applied dominants, borrowed iiø and iv, and passing diminished sevenths | Compare altered dominants at a modulation, chained dominants and further borrowed chords |
+| Controlled chromaticism | Implemented for brief applied dominants, borrowed iiø and iv, and passing diminished sevenths | Incoming 7♯5 at a modulation implemented. Compare cyclic turnarounds, chained dominants and further borrowed chords. |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
 | Analysis explanations | Structured reasons implemented | Key-center evidence, implied destinations, subordinate tonicizations and chart visits remain in the model; compact user-facing inspection and optional overrides remain |
 

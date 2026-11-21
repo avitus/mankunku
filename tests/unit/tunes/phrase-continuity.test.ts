@@ -64,6 +64,50 @@ describe('phrase continuity', () => {
 	it.each(['A7alt', 'Ab7#5', 'Aaug', 'A7b9'])('requires the resolved augmented seventh for the bridge (%s)', chord => {
 		expect(analyze(chart([...closing, chord, ...closing])).majorContinuations).toEqual([]);
 	});
+	const outgoing = ['F#m7', 'B7', 'Emaj7'];
+	const incoming = ['Fm7', 'Bbm7', 'Eb7', 'Abmaj7'];
+	it.each(PITCH_CLASSES)('assigns the augmented dominant to the next cadenced major key, transposed to %s', key => {
+		const tune = transposeTune({ ...chart([...outgoing, 'C7#5', ...incoming]), key: 'Ab' }, key);
+		const result = analyze(tune);
+		expect(result.majorKeyTransitions).toMatchObject([{ to: key, leadInIndices: [3],
+			dominant: { resolutionIndex: 4, targetDegree: 'vi' } }]);
+		expect([...result.compatibleMajorRegions, ...result.majorRegions].filter(r => r.key === key)
+			.every(r => !r.segmentIndices.includes(3))).toBe(true);
+	});
+	it.each([
+		{ key: 'Eb', degree: 'ii', tail: ['Fm7', 'Bb7', 'Ebmaj7'] },
+		{ key: 'Db', degree: 'iii', tail: ['Fm7', 'Ebm7', 'Ab7', 'Dbmaj7'] }
+	])('reads C7♯5 as V/$degree when the cadence establishes $key', ({ key, degree, tail }) => {
+		expect(analyze(chart([...outgoing, 'C7#5', ...tail])).majorKeyTransitions)
+			.toMatchObject([{ from: 'E', to: key, dominant: { targetDegree: degree } }]);
+	});
+	it('treats two contiguous half-bars as one dominant and stops at a gap or a section boundary', () => {
+		const tune = chart([...outgoing, 'C7#5', ...incoming]);
+		const changes = tune.sections[0].harmony;
+		changes.splice(3, 1, harmonicSegmentFromSymbol('C7#5', [3, 1], [1, 2])!,
+			harmonicSegmentFromSymbol('C7#5', [7, 2], [1, 2])!);
+		expect(analyze(tune).majorKeyTransitions).toMatchObject([{ leadInIndices: [3, 4] }]);
+		changes[4].duration = [1, 4];
+		expect(analyze(tune).majorKeyTransitions).toEqual([]);
+		tune.sections = [...chart([...outgoing, 'C7#5']).sections, ...chart(incoming).sections];
+		expect(analyze(tune).majorKeyTransitions).toEqual([]);
+	});
+	it('keeps the minor arrival when the following cadence establishes F minor', () => {
+		const tune = chart([...outgoing, 'C7#5', 'Fm7', 'Gm7b5', 'C7', 'Fm7']);
+		expect(analyze(tune).majorKeyTransitions).toEqual([]);
+		expect(tuneKeyCenters(tune, INSTRUMENTS.concert).markers.some(m =>
+			m.keyCenter?.label === 'F minor' && m.timeRange!.end === 8)).toBe(true);
+	});
+	it.each([
+		[...outgoing, 'C7alt', ...incoming],
+		[...outgoing, 'B7#5', ...incoming],
+		[...outgoing, 'C7#5', 'C7#5', ...incoming],
+		[...outgoing, 'C7#5', 'Fm7', ...incoming],
+		[...outgoing, 'C7#5', 'Fm7', 'Bbm7', 'Abmaj7'],
+		['Emaj7', 'C7#5', ...incoming]
+	])('requires the written resolution and nearby cadences on both sides (%j)', (...symbols) => {
+		expect(analyze(chart(symbols)).majorKeyTransitions).toEqual([]);
+	});
 	it.each([2, 4])('carries A-flat through the descending return with a 1/%i-bar final ii chord', denominator => {
 		const tune = structuredClone(allThings);
 		const ending = tune.sections.at(-1)!.harmony;
@@ -72,9 +116,10 @@ describe('phrase continuity', () => {
 		ending.at(-1)!.startOffset = [35 * denominator + 1, denominator];
 		ending.at(-1)!.duration = [denominator - 1, denominator];
 		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
+		expect(display.markers.find(m => m.keyCenter?.label === 'E major')?.timeRange?.end).toBe(28);
 		expect(display.markers.filter(m => m.timeRange!.start < 29).map(m => m.keyCenter?.label)).toEqual(expect.arrayContaining(['C major', 'Eb major', 'G major', 'E major']));
 
-		expect(display.markers.find(m => m.keyCenter?.label === 'Ab major' && m.timeRange?.start === 29)?.timeRange?.end).toBe(40 + 1 / denominator);
+		expect(display.markers.find(m => m.keyCenter?.label === 'Ab major' && m.timeRange?.start === 28)?.timeRange?.end).toBe(40 + 1 / denominator);
 	});
 	it.each(PITCH_CLASSES)('recognizes both functions in %s away from the signature', key => {
 		const tune = { ...transposeTune(chart([...opening, 'Fm7', 'Em7', 'Ebdim7', ...closing]), key), key: 'B' as const };

@@ -3,6 +3,7 @@ import type { ChordEvidence } from '$lib/music/chord-evidence';
 import { addFractions, compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { pitchClassInterval, transposePitchClass } from '$lib/music/transposition';
 import type { FlattenedTune } from './flatten';
+import { augmentedDominantTarget } from './tonal-centers';
 import type { MajorRegion } from './harmonic-analysis';
 
 export interface MajorContinuation {
@@ -104,9 +105,7 @@ export function majorContinuations(flat: FlattenedTune, order: number[], evidenc
 			} else if (tones === '0,3,6,9' && [1, 11].includes(pitchClassInterval(from.root, chord.root)) &&
 				pitchClassInterval(from.root, chord.root) === pitchClassInterval(chord.root, to.root)) {
 				role = 'passing diminished seventh';
-			} else if (tones === '0,4,8,10' && pitchClassInterval(to.root, chord.root) === 7 &&
-				[2, 4, 9].includes(pitchClassInterval(key, to.root)) &&
-				[3, 7].every(step => to.pitchClasses.includes(transposePitchClass(to.root, step)))) {
+			} else if (augmentedDominantTarget(chord, to, key)) {
 				role = 'applied augmented dominant';
 			} else { supported = false; break; }
 			for (const index of path.slice(first, n)) exceptions.push({ index, role });

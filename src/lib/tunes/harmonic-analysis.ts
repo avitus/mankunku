@@ -7,7 +7,7 @@ import { DOMINANT_QUALITIES, MINOR_TONIC_QUALITIES } from '$lib/data/progression
 import { detectProgressions, type DetectedProgression } from './progression-detector';
 import { borrowedMajorApproaches, majorContinuations, type BorrowedMajorApproach, type MajorContinuation } from './phrase-continuity';
 import type { FlattenedTune } from './flatten';
-import { contextualMajorRegions, majorKeyTransitions, type ContextualMajorRegion, type MajorKeyTransition } from './tonal-centers';
+import { augmentedKeyTransitions, contextualMajorRegions, majorKeyTransitions, type ContextualMajorRegion, type MajorKeyTransition } from './tonal-centers';
 
 interface HarmonicSpan {
 	/** Indices into the supplied flatten, never notation indices guessed from bars. */
@@ -220,5 +220,8 @@ export function analyzeHarmony(
 		contextualMajorRegions: continuations,
 		borrowedMajorApproaches: borrowedMajorApproaches(flat, order, evidence, compatibleMajorRegions, sectionBoundaries),
 		majorContinuations: majorContinuations(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit),
-		majorKeyTransitions: majorKeyTransitions(flat, evidence, compatibleMajorRegions, cornerstones, continuations, beats / unit), issues: [] };
+		majorKeyTransitions: [
+			...majorKeyTransitions(flat, evidence, compatibleMajorRegions, cornerstones, continuations, beats / unit),
+			...augmentedKeyTransitions(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit)
+		], issues: [] };
 }

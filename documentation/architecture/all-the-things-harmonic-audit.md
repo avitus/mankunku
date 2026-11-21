@@ -59,10 +59,21 @@ The G cadences on both sides support hearing E7♯5 as V/ii within the phrase.
 Both chromatic chords retain their written pitches for lick matching. The
 F♯m7–B7–Emaj7 modulation begins at bar 21.
 
+## The return at bar 24
+
+E major ends with Emaj7 in bar 23. The A♭-major span starts on C7♯5 in
+bar 24 (B♭ major on tenor). The immediate resolution is Fm7. B♭m7–E♭7–A♭maj7
+then establishes Fm7 as vi of A♭ and C7♯5 as V/vi. That includes the whole
+approach in the returning key. The A♭ scale alone does not explain the E
+natural in C7♯5, so scale-based practice windows still begin on compatible
+harmony.
+
+For comparison, play the same C7♯5–Fm7 and follow it with Gø7–C7–Fm7.
+The second cadence confirms F minor. It provides no evidence for extending
+A♭ major back over the first C7♯5. The minor cadence keeps its own reading.
+
 ## Next comparison
 
-Bar 24 poses a different question. C7♯5 leads to Fm7 in the returning A♭
-passage, and the preceding cadence is in E. Compare this incoming-key reading
-with a C7♯5–Fm passage that actually establishes F minor before extending
-the display across such a key change. Keep the finite-form turnaround in
-bar 36 as a separate test of whether a resolution is actually played.
+Compare the bar-36 turnaround on a repeated chorus with its final performance.
+Gø7–C7♭9 can lead to Fm7 when another chorus follows. On the last pass the
+analysis needs the ending actually played to justify that resolution.

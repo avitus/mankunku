@@ -130,7 +130,8 @@ test('All the Things You Are shows local centers beyond its key signature', asyn
 		expect(await rail.evaluate(el => (el as HTMLElement).style.width)).toBe('100%');
 	}
 	await expect(chart.locator('[data-bar="18"] [data-key-center="A minor"]')).toHaveCount(0);
-	for (const bar of [34, 35, 36]) {
+	await expect(chart.locator('[data-bar="27"] [data-key-center="Bb major"]')).toHaveCount(0);
+	for (const bar of [28, 29, 34, 35, 36]) {
 		await expect(page.getByTestId('tune-chord-chart').locator(`[data-bar="${bar}"] [data-key-center="Bb major"]`)).toBeVisible();
 	}
 	await page.goto('/tunes/key-center-all-things/practice');
