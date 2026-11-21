@@ -1150,7 +1150,6 @@
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
 	function startBeatTracking() {
-		const ppq = toneModule!.getTransport().PPQ;
 		/** Paint the chart position and phase cue from the active transport clock. */
 		function tick() {
 			if (!isSessionRunning) return;
@@ -1190,7 +1189,7 @@
 				// Listen/play cue. Re-read every frame (so the countdown lands
 				// on the beat) but only committed when a rendered field moves —
 				// a fresh object each frame would re-render the bar at 60fps.
-				const nextCue = phaseCueAt(ticks, phaseTimeline, ppq);
+				const nextCue = phaseCueAt(ticks, phaseTimeline, cycleLayout?.ticksPerBeat ?? 0);
 				if (
 					nextCue.phase !== phaseCue.phase ||
 					nextCue.next !== phaseCue.next ||
