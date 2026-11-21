@@ -4,6 +4,12 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/main/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Quiet-phrase support — 0.19.2, 20 November 2026
+
+The one-attack permission in a deliberately quieter phrase must still produce a playable supporting figure. A retained two-attack sentence used to fail that permission and become silent; its accidental missing attacks could join the planned tail rest into a completely silent four-bar Blues line. `pianoContinuity: 'refit'` fingerprints version 2 and allows the existing seeded gesture-refit fallback in quiet Swing/Straight piano textures. It only applies when the retained gesture does not fit and the bar has a positive attack budget, no coordinated accent and no other response owner. Deliberate motif space and zero-budget formal rests retain their meaning. The `true` option retains exact 0.19.1 replay. No gain, sample, hold length, Organ, Bossa or Ballad behavior changes.
+
+Regression coverage includes 256 full Blues performances across Swing and Straight, two tempos and 64 arcs, an exact seed-10 failed passage, JSON checkpoint replay, and per-bar native piano signal in full browser takes. Whole-tune signal peaks and aggregate coverage are insufficient evidence against a localized silent passage. Human acceptance remains pending.
+
 ## Audible piano support — 0.19.1, 20 November 2026
 
 Listening feedback on 0.19 found the piano still sparse and its cross-bar connection difficult to hear. `pianoContinuity: true` adds an independent fingerprint policy for Swing/Straight piano only. Existing two-attack native figures receive more selection weight, within the same planner permissions, motif development and response ownership. Ordinary supporting hits request longer gates: 0.9 quarter beats for an earlier hit, 2.25 for the final hit, or 3 for a single hit. Every request remains bounded by the next actual attack and written harmonic boundary. Protected arrivals, foreground replies, active-solo restraint and deliberate formal breaths retain their prior rules. Short accents still occur; velocity and sample gain do not change.

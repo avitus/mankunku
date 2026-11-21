@@ -172,7 +172,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		// Choose a complete native cell before realization: either causal
 		// re-entry after accepted silence, or a steady phrase whose retained
 		// gesture no longer fits the current permission.
-		if (!hits.length && budget > 0 && (harmonicSupport || ensemble.piano.presence === 'reentry' || ensemble.piano.texture === 'steady' && reason === 'gesture_does_not_fit') && !ensemble.coordinatedAccent && (harmonicSupport || ensemble.responseOwner === 'nobody')) {
+		// A quiet phrase still owns its permitted supporting attacks. A retained
+		// two-hit sentence must refit its one-hit budget instead of accidentally
+		// extending the planned tail rest into a whole silent phrase.
+		const refitGesture = reason === 'gesture_does_not_fit' && (ensemble.piano.texture === 'steady' || score.pianoContinuityVersion === 2);
+		if (!hits.length && budget > 0 && (harmonicSupport || ensemble.piano.presence === 'reentry' || refitGesture) && !ensemble.coordinatedAccent && (harmonicSupport || ensemble.responseOwner === 'nobody')) {
 			const candidates = keyboardFigures(score).filter(candidate => fits(candidate) && candidate.hits[0].length > 0).map(candidate => {
 				let weight = candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1);
 				if (ensemble.piano.texture === 'steady') {

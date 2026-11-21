@@ -31,12 +31,12 @@ Deterministic statistics over the listening-lab presets. Regenerate with
      8+ █·······················   2.5%
   bass: stepwise  54.7% · downbeat-root  75.0% · 3+-repeat runs 0
   comp hits/bar distribution:
-      0 ███·····················  13.3%
-      1 ████████████············  50.0%
+      0 ██······················  10.0%
+      1 █████████████···········  53.3%
       2 █████████···············  36.7%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  56.8% · rest bars  13.3%
+  comp: off-beat share  56.6% · rest bars  10.0%
   drums hits/bar: hihat 1.60 · hihat-pedal 2.00 · kick 3.22 · ride 3.55 · snare 0.20
   drums: off-beat share  12.6%
 
@@ -69,12 +69,12 @@ Deterministic statistics over the listening-lab presets. Regenerate with
      8+ █·······················   5.0%
   bass: stepwise  60.2% · downbeat-root  68.3% · 3+-repeat runs 1
   comp hits/bar distribution:
-      0 ██······················   7.1%
-      1 ███████·················  27.1%
+      0 █·······················   5.4%
+      1 ███████·················  28.7%
       2 ████████████████········  65.8%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  52.5% · rest bars   7.1%
+  comp: off-beat share  52.6% · rest bars   5.4%
   drums hits/bar: crash 0.02 · crossstick 0.03 · hihat 0.69 · hihat-pedal 2.00 · kick 2.98 · ride 4.47 · ride-bell 0.05 · snare 0.24
   drums: off-beat share  14.1%
 
@@ -88,12 +88,12 @@ Deterministic statistics over the listening-lab presets. Regenerate with
      8+ █·······················   4.3%
   bass: stepwise  58.8% · downbeat-root  68.3% · 3+-repeat runs 2
   comp hits/bar distribution:
-      0 ██······················   8.3%
-      1 ██████··················  23.1%
+      0 ██······················   7.1%
+      1 ██████··················  24.4%
       2 ████████████████········  68.5%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  55.9% · rest bars   8.3%
+  comp: off-beat share  56.3% · rest bars   7.1%
   drums hits/bar: crash 0.03 · crossstick 0.01 · hihat 0.60 · hihat-pedal 2.00 · kick 3.13 · ride 4.73 · ride-bell 0.00 · snare 0.22
   drums: off-beat share  14.9%
 
@@ -107,12 +107,12 @@ Deterministic statistics over the listening-lab presets. Regenerate with
      8+ █·······················   4.6%
   bass: stepwise  58.3% · downbeat-root  67.1% · 3+-repeat runs 4
   comp hits/bar distribution:
-      0 ██······················   7.3%
-      1 █████···················  21.9%
+      0 █·······················   5.4%
+      1 ██████··················  23.8%
       2 █████████████████·······  70.8%
       3 ························   0.0%
      4+ ························   0.0%
-  comp: off-beat share  52.9% · rest bars   7.3%
+  comp: off-beat share  53.0% · rest bars   5.4%
   drums hits/bar: crash 0.02 · crossstick 0.00 · hihat 0.66 · hihat-pedal 2.00 · kick 3.07 · ride 4.02 · ride-bell 0.08 · snare 0.21
   drums: off-beat share   9.8%
 
