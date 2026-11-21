@@ -6,7 +6,7 @@ status, decisions, acceptance cases and remaining limitations as work lands.
 The current increment compares every bar of the production arrangement of
 [All the Things You Are](./all-the-things-harmonic-audit.md) with the key-center
 display. G major now spans chorus bars 14–20, and A♭ major returns at bar 24 and carries
-through the descending line in bars 30–32. Autumn remains a reference for distinguishing
+through the descending line and the final turnaround in bar 36. Autumn remains a reference for distinguishing
 a tonicization from a change of governing key.
 
 ## Purpose
@@ -666,7 +666,33 @@ gaps, section boundaries, and the F-minor counterexample. The Linux sandbox
 passed 1,170 selected unit tests and all 39 key-center browser checks across
 Chromium, Firefox and WebKit. The TypeScript/Svelte check was clean.
 
-Next, compare the last bar of a repeated chorus with its actual final ending.
+### The relative-minor turnaround at the form boundary
+
+In written B♭ tenor pitch, *All the Things You Are* stays in B♭ major
+through all of chorus bar 36. After Cm7–F7–B♭maj7, Aø7–D7♭9 points to
+Gm7 (vi). The governing center covers both chords. The F♯ in D7♭9 still
+matters when matching a lick.
+
+Apply this reading in any key after a V–I cadence. The major tonic can
+continue for up to four bars before iiø/vi–V/vi. Together the two approach
+chords can last up to one bar in the tune's meter. Check their written
+pitches and exact adjacency. The dominant may be a seventh or a seventh
+with a flat ninth. The approach stays within one performed section.
+
+- When the form ends on the dominant, record the target as implied.
+- When vi actually follows, including on a repeat, require a brief minor
+  target (up to one bar) in a compatible passage that cadences back in the
+  same major key within four bars. A subsequent cadence establishing minor
+  keeps its own reading.
+- Preserve every detected cornerstone and its practice reservation. Show its
+  local minor interpretation underneath the governing major reading. The
+  turnaround contributes no extra scale-based lick coverage.
+
+Validated in all twelve keys, with the quarter/three-quarter and half/half
+bar splits, explicit repeats, a finite ending, gaps, and a genuine minor
+cadence. The Linux sandbox passed 1,185 unit tests across 85 files and all
+39 key-center browser checks across Chromium, Firefox and WebKit. On the
+engraved tenor review chart, the B♭ rail ends inside the final double barline.
 
 ## Later milestones
 
@@ -677,7 +703,7 @@ Next, compare the last bar of a repeated chorus with its actual final ending.
 | Phrase-aware ranking | Initial implementation validated | Actual-chord support at strong beats, held notes, immediate stepwise resolutions and endings; listening calibration and richer phrasing remain |
 | Ambiguity and tonic-free regions | Pending | Competing major/modal/relative-minor readings, contextual evidence across boundaries, user correction |
 | Minor regions | Pending | Natural/harmonic/melodic minor and their changing sixth/seventh; avoid treating minor as one fixed collection |
-| Controlled chromaticism | Implemented for brief applied dominants, borrowed iiø and iv, and passing diminished sevenths | Incoming 7♯5 at a modulation implemented. Compare cyclic turnarounds, chained dominants and further borrowed chords. |
+| Controlled chromaticism | Implemented for brief applied dominants, borrowed iiø and iv, and passing diminished sevenths | Incoming 7♯5 at a modulation implemented. Relative-minor turnarounds supported on final and returning passes. Compare chained dominants and further borrowed chords. |
 | Broader cornerstone vocabulary | Pending | Backdoor cadences, substitutions and other evidenced forms; add explicit identities and timing rules |
 | Analysis explanations | Structured reasons implemented | Key-center evidence, implied destinations, subordinate tonicizations and chart visits remain in the model; compact user-facing inspection and optional overrides remain |
 

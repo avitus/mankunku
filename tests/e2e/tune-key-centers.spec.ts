@@ -131,6 +131,11 @@ test('All the Things You Are shows local centers beyond its key signature', asyn
 	}
 	await expect(chart.locator('[data-bar="18"] [data-key-center="A minor"]')).toHaveCount(0);
 	await expect(chart.locator('[data-bar="27"] [data-key-center="Bb major"]')).toHaveCount(0);
+	const finalBar = chart.locator('[data-bar="40"]');
+	const finalCenter = finalBar.locator('[data-key-center="Bb major"]');
+	await expect(finalCenter).toBeVisible();
+	expect(await finalCenter.evaluate(el => (el as HTMLElement).style.width)).toBe('100%');
+	await expect(finalBar.locator('[data-key-center="G minor"]')).toHaveCount(0);
 	for (const bar of [28, 29, 34, 35, 36]) {
 		await expect(page.getByTestId('tune-chord-chart').locator(`[data-bar="${bar}"] [data-key-center="Bb major"]`)).toBeVisible();
 	}
