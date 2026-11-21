@@ -14,27 +14,36 @@ export async function readPrintedContext(
 	onAttempt?: () => void,
 	first = false
 ): Promise<SystemRecognitionResult> {
-	onAttempt?.();
-	const response = await withRecognitionDeadline(signal, 60_000, (budgetSignal) =>
-		client.messages
-			.stream(
-				{
-					model: first ? anthropicSystemModel() : ANTHROPIC_MODEL,
-					max_tokens: first ? 4096 : 1024,
-					system: `Read only the staff HEADER in this crop. Return JSON {"fifths": integer|null, "clef":"treble"|"bass"|"alto"|"tenor"|null, "timeSignature":[numerator,denominator]|null}. Count only key-signature sharps/flats immediately following the clef, never accidentals before melody notes. Omitted key signature is null, NOT zero. Explicit cancellation naturals mean zero. No printed clef/meter means null. Do not transcribe notes or chords.${first ? ' The area above the first staff may contain a printed heading. Also return "heading":{"title":string|null,"composer":string|null,"style":string|null}. Copy only the printed tune title, composer credit and performance indication, including its metronome glyph and exact number if printed. Exclude instrument labels, page numbers, advertising and decorative lettering on the clef. Use null for absent fields.' : ''}`,
-					messages: [
-						{
-							role: 'user',
-							content: [
-								{ type: 'image', source: { type: 'base64', media_type: 'image/png', data } }
-							]
-						}
-					]
-				},
-				{ signal: budgetSignal, timeout: 60_000, maxRetries: 0 }
-			)
-			.finalMessage()
-	);
+	const response = await withRecognitionDeadline(signal, 60_000, async (budgetSignal) => {
+		const read = (model: string) => {
+			onAttempt?.();
+			return client.messages
+				.stream(
+					{
+						model,
+						max_tokens: first ? 4096 : 1024,
+						system: `Read only the staff HEADER in this crop. Return JSON {"fifths": integer|null, "clef":"treble"|"bass"|"alto"|"tenor"|null, "timeSignature":[numerator,denominator]|null}. Count only key-signature sharps/flats immediately following the clef, never accidentals before melody notes. Omitted key signature is null, NOT zero. Explicit cancellation naturals mean zero. No printed clef/meter means null. Do not transcribe notes or chords.${first ? ' The area above the first staff may contain a printed heading. Also return "heading":{"title":string|null,"composer":string|null,"style":string|null}. Copy only the printed tune title, composer credit and performance indication, including its metronome glyph and exact number if printed. Exclude instrument labels, page numbers, advertising and decorative lettering on the clef. Use null for absent fields.' : ''}`,
+						messages: [
+							{
+								role: 'user',
+								content: [
+									{ type: 'image', source: { type: 'base64', media_type: 'image/png', data } }
+								]
+							}
+						]
+					},
+					{ signal: budgetSignal, timeout: 60_000, maxRetries: 0 }
+				)
+				.finalMessage();
+		};
+		const model = first ? anthropicSystemModel() : ANTHROPIC_MODEL;
+		try {
+			return await read(model);
+		} catch (error) {
+			if (model === ANTHROPIC_MODEL || budgetSignal.aborted) throw error;
+			return read(ANTHROPIC_MODEL);
+		}
+	});
 	if (response.stop_reason === 'max_tokens') throw new Error('Header reading was truncated');
 	const text = response.content
 		.filter((b) => b.type === 'text')

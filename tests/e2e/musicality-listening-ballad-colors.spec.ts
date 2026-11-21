@@ -5,9 +5,8 @@ import { WHEN_THE_SAINTS } from '../fixtures/tunes/when-the-saints';
 import { setup, exportTake, assertCommittedPrefix, assertNoMicrophone, soundingBar, sourceStarts, assertDecisionClock } from './fixtures/musicality-listening';
 
 for (const witness of [
-	// Seeds: the first in 0–299 whose take holds each color (11 and 102 of 300 do).
-	{ tempo: 70, seed: 19, sourceBar: 16, replyBar: 17, sourceBeat: 66.5, drum: 'snare', velocity: 46 },
-	{ tempo: 80, seed: 2, sourceBar: 17, replyBar: 18, sourceBeat: 71, drum: 'crossstick', velocity: 42 }
+	{ tempo: 70, seed: 162, sourceBar: 16, replyBar: 17, sourceBeat: 66.5, drum: 'snare', velocity: 46 },
+	{ tempo: 80, seed: 7, sourceBar: 17, replyBar: 18, sourceBeat: 71, drum: 'crossstick', velocity: 42 }
 ]) {
 	test(`Ballad ${witness.tempo} answers its actual ${witness.drum} color with a native late pad and silent review`, async ({ page }) => {
 		test.setTimeout(100_000);

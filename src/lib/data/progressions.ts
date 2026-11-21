@@ -404,13 +404,13 @@ export function applyPickupBarShift(baseAlignment: Fraction, pickupBars: number)
  *  - no sounding note sits exactly on a whole-bar downbeat (can't tell
  *    where the bulk starts; default to no shift)
  */
-export function detectPickupBars(notes: Note[]): number {
+export function detectPickupBars(notes: Note[], meter: Fraction = [4, 4]): number {
 	const sounded = notes.filter((n) => n.pitch !== null);
 	if (sounded.length === 0) return 0;
 	let firstOffset = Infinity;
 	let firstDownbeatBar = Infinity;
 	for (const n of sounded) {
-		const off = n.offset[0] / n.offset[1];
+		const off = (n.offset[0] * meter[1]) / (n.offset[1] * meter[0]);
 		if (off < firstOffset) firstOffset = off;
 		if (off === Math.floor(off) && off < firstDownbeatBar) {
 			firstDownbeatBar = off;
@@ -915,16 +915,17 @@ export function getTransitionCadenceChords(
  * cadence — so the deep-practice turnaround bar, the lead-sheet reading pause
  * (which vamps this bar) and the inter-lick cue can't drift apart. Offsets and
  * durations are whole-note fractions, so one bar of `beatsPerBar` beats spans
- * `[beatsPerBar, 4]`.
+ * `[beatsPerBar, denominator]`.
  */
 export function turnaroundHarmony(
 	progressionType: ChordProgressionType,
 	targetKey: PitchClass,
-	beatsPerBar: number
+	beatsPerBar: number,
+	denominator = 4
 ): HarmonicSegment[] {
 	const minor = progressionMode(progressionType) === 'minor';
 
-	const half: [number, number] = [beatsPerBar, 8];
+	const half: [number, number] = [beatsPerBar, 2 * denominator];
 	const cRooted: HarmonicSegment[] = minor
 		? [
 				{

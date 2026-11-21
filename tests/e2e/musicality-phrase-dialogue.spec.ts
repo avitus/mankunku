@@ -12,8 +12,10 @@ for(const keyboard of ['piano','organ'] as const)test(`0.15 full Blues with ${ke
  await page.goto('/musicality');
  await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
- await page.addInitScript(()=>{const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{if(array instanceof Uint32Array&&array.length===1){array[0]=243;return array;}return random(array);}) as typeof crypto.getRandomValues;});
+ const seed = keyboard === 'piano' ? 15 : 111;
+ await page.addInitScript(seed=>{const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{if(array instanceof Uint32Array&&array.length===1){array[0]=seed;return array;}return random(array);}) as typeof crypto.getRandomValues;}, seed);
  await page.reload();
+ await page.getByTestId('listening-key').selectOption(keyboard === 'piano' ? 'D' : 'Eb');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-style').selectOption('swing');
  await page.getByTestId('listening-tempo').fill('140');
@@ -51,7 +53,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.15 full Blues with ${ke
  await test.info().attach('phrase-dialogue-live-evidence',{body:JSON.stringify(observed,null,2),contentType:'application/json'});
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
  expect(take.playback.musicalityRelease.version).toBe(CURRENT_MUSICALITY_RELEASE.version);
- expect(take.playback.params.performanceEnergySeed).toBe(243);
+ expect(take.playback.params.performanceEnergySeed).toBe(seed);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
  for(const label of ['Carry the bass idea','Fourth-stack color','Snare → kick answer'])expect(observed.labels).toContain(label);

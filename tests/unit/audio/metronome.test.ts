@@ -50,6 +50,7 @@ let noiseCount = 0;
 let membraneCount = 0;
 
 vi.mock('tone', () => ({
+	getTransport: () => ({ PPQ: 192 }),
 	Gain: class {
 		gain: { value: number };
 		connect = vi.fn();
@@ -150,8 +151,14 @@ describe('scheduleMetronome', () => {
 	it('finite bars build beatsPerBar × bars events on the quarter grid, no loop', async () => {
 		await metronome.scheduleMetronome(4, 2);
 		expect(sequences[0].events).toEqual([0, 1, 2, 3, 0, 1, 2, 3]);
-		expect(sequences[0].subdivision).toBe('4n');
+		expect(sequences[0].subdivision).toBe('192i');
 		expect(sequences[0].loop).toBe(false);
+	});
+
+	it.each([1, null])('spaces 2/1 clicks four quarters apart for bars=%s', async (bars) => {
+		await metronome.scheduleMetronome(2, bars, 0, undefined, 1);
+		expect(sequences[0].events).toEqual([0, 1]);
+		expect(sequences[0].subdivision).toBe('768i');
 	});
 
 	it('null bars build one bar of events and loop', async () => {

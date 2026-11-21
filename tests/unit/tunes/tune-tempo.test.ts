@@ -11,6 +11,7 @@ describe('a tune’s saved tempo', () => {
 	it('reads a single explicit quarter-note tempo in the supported range', () => {
 		expect(printedQuarterTempo('MED. SWING ♩ = 144')).toBe(144);
 		expect(printedQuarterTempo('Quarter note = 90')).toBe(90);
+		expect(printedQuarterTempo('Dotted quarter = 90')).toBe(135);
 		for (const style of ['Swing', '3/4', '♪ = 144', '♩ = 120–144', '♩ = 300']) {
 			expect(printedQuarterTempo(style)).toBeUndefined();
 		}

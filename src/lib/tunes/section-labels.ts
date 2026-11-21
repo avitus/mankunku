@@ -21,6 +21,10 @@ export function sectionPlaybackRules(sections: TuneSection[]) {
 			previous = section.label.trim();
 			intro = isIntroLabel(section.label);
 			introOmission = section.omitFromSolos ?? true;
+		} else if (!section.label.trim() && section.omitFromSolos === false && !section.ending) {
+			// The importer explicitly includes the unmarked body after a printed Intro.
+			intro = false;
+			previous = '';
 		}
 		return { omitFromSolos: section.omitFromSolos ?? (intro && introOmission), omitFromOutro: intro };
 	});

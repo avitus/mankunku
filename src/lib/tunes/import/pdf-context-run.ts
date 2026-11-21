@@ -55,7 +55,7 @@ export async function runContextualTranscriptions(
 		async transcribe(index, _attempt, signal) {
 			const result = await options.transcribe(index, contexts[index] ?? { ...context }, signal);
 			if (result) {
-				if (index === 0 && heading) result.heading = heading;
+				if (index === 0 && heading) result.heading = { ...result.heading, ...heading };
 				if (!options.readContext) context = inheritContext(context, printed(result));
 				if (uncertainHeaders[index])
 					result.warnings.push(

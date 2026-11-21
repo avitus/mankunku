@@ -73,6 +73,14 @@ const pitchClasses = (p: Phrase) => p.notes.map((n) => (n.pitch === null ? null 
 const offsets = (p: Phrase) => p.notes.map((n) => n.offset);
 
 describe('placeLickInProgression — a lick as the session plays it', () => {
+	it('places each template bar on the printed 6/8 meter and preserves the authored note lengths', () => {
+		const lick = userLick({ category: 'major-chord', timeSignature: [6, 8] });
+		const placed = placeLickInProgression(lick, 'F', 'ii-V-I-major-long');
+		expect(placed.notes[0].offset).toEqual([3, 2]);
+		expect(placed.notes[0].duration).toEqual([1, 8]);
+		expect(chords(placed.harmony)).toEqual(['Gmin7@0/1x3/4', 'C7@3/4x3/4', 'Fmaj7@3/2x3/2']);
+	});
+
 	it('puts a harmony-less major-chord lick on the I of the long ii-V-I in F, two bars in', () => {
 		const lick = userLick({ category: 'major-chord' });
 		const placed = placeLickInProgression(lick, 'F', 'ii-V-I-major-long');

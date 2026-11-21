@@ -245,8 +245,7 @@ export async function extractPdfSystems(
 					const dark = pageInk(img);
 					for (let b = 0; b < system.barlines.length; b++) {
 						const bracket = readOpenEndingBracket(dark, boundaries[b], boundaries[b + 1], band.top, interline, y0);
-						if (!bracket) continue;
-						(system.openEndingBrackets ??= {})[b] = bracket;
+						if (bracket) (system.openEndingBrackets ??= {})[b] = bracket;
 						if (hasDashedEndingDirection(dark, boundaries[b], boundaries[b + 1], band.top, interline, y0)) {
 							(system.endingDirectionLeaders ??= []).push(b);
 						}

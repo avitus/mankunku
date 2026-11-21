@@ -435,13 +435,16 @@ export function tuneToAbcWithMap(
 	// the flat compact form; hierarchical stacking is applied post-render
 	// (ABC quoted chords cannot carry newlines safely).
 	const chordEvents: { at: number; text: string }[] = [];
+	const sectionPickup: (Fraction | null)[] = sheet.sections.map((_, i) => resolvePickupLength(sheet, i));
+	const sectionPrefix: number[] = sectionPickup.map((L) => (L ? barDuration - fractionToFloat(L) : 0));
 	const directions = new Map<number, string[]>();
 	const continuedDirections = new Set<number>();
 	{
 		let base = 0;
-		for (const sec of sheet.sections) {
+		for (const [index, sec] of sheet.sections.entries()) {
+			const printedFrom = sectionPrefix[index];
 			for (const direction of sec.directions ?? []) {
-				const at = base + fractionToFloat(direction.offset);
+				const at = base + Math.max(printedFrom, fractionToFloat(direction.offset));
 				if (direction.extendsToBarline) continuedDirections.add(at);
 				if (direction.text === 'N.C.') chordEvents.push({ at, text: 'N.C.' });
 				else {
@@ -545,8 +548,6 @@ export function tuneToAbcWithMap(
 	// Pickup (anacrusis) bars: the timeline keeps a full bar, the engraving
 	// starts `prefix` whole notes into it. One resolver for every consumer
 	// (see ./pickup): the explicit field, else the legacy lone '' section.
-	const sectionPickup: (Fraction | null)[] = sheet.sections.map((_, i) => resolvePickupLength(sheet, i));
-	const sectionPrefix: number[] = sectionPickup.map((L) => (L ? barDuration - fractionToFloat(L) : 0));
 	const pickupPrefixByAbsBar = new Map<number, number>();
 	sheet.sections.forEach((_, i) => {
 		if (sectionPickup[i]) pickupPrefixByAbsBar.set(sectionBases[i], sectionPrefix[i]);

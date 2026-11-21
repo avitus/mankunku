@@ -125,7 +125,9 @@ it('rejects a forged future keyboard source even after the outer checksum is rec
 
 it('backs the sentence display with accepted notes and refuses mismatched bass evidence',()=>{
  const score=sentenceScore('swing',3),bars=sentenceTake(score);
- for(const b of bars.filter(b=>b.ensembleDevelopment.musicalSentences?.[0].bass)) {
+ const witnesses = bars.filter(b => b.ensembleDevelopment.musicalSentences?.[0].bass);
+ expect(witnesses.length).toBeGreaterThan(0);
+ for (const b of witnesses) {
   const cards=describeMusicianDecisions({...b,bassEvents:[...b.bassEvents],compEvents:[...b.compEvents],drumEvents:[...b.drumEvents]},{barIndex:b.fromBar,ppq:192,beatsPerBar:4,style:'swing',orchestration:'coordinated'});
   if(b.checkpoint.bass.feel==='four')expect(cards[0].evidence.join()).toContain('Eight-bar sentence');
   expect(cards[0].detail).not.toMatch(/undefined|NaN/);
@@ -137,7 +139,9 @@ it('backs the sentence display with accepted notes and refuses mismatched bass e
 
 it('dense activity yields keyboard motifs and drum commentary while keeping the band present',()=>{
  const score=sentenceScore('swing',7),bars=sentenceTake(score);
- for(const b of bars.filter(b=>b.ensembleDevelopment.musicalSentences?.[0].keyboard)) {
+ const witnesses = bars.filter(b => b.ensembleDevelopment.musicalSentences?.[0].keyboard);
+ expect(witnesses.length).toBeGreaterThan(0);
+ for (const b of witnesses) {
   const dense=advanceRollingBacking(score,b.fromBar?bars[b.fromBar-1].checkpoint:undefined,[{barIndex:b.fromBar,observedAtBar:b.fromBar,source:'scripted',confidence:1,noteDensity:1,restBeats:0}]);
   expect(dense.ensembleDevelopment.pianoMotifs[0].development).toBeUndefined();
   expect(dense.ensembleDevelopment.drumPhrases[0].commentary.hits).toHaveLength(0);

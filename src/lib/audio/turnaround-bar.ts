@@ -59,10 +59,12 @@ export function buildTurnaroundBarEvents(args: {
 	swing: number;
 	ppq: number;
 	beatsPerBar: number;
+	denominator?: number;
 }): TurnaroundEvent[] {
 	const { progressionType, targetKey, backingStyle, tempo, swing, ppq, beatsPerBar } = args;
+	const denominator = args.denominator ?? 4;
 	const style = BACKING_STYLES[backingStyle];
-	const harmony = turnaroundHarmony(progressionType, targetKey, beatsPerBar);
+	const harmony = turnaroundHarmony(progressionType, targetKey, beatsPerBar, denominator);
 
 	const generated = prepareReleasedArrangement(harmony, style, {
 		phraseId: `turnaround:${progressionType}:${targetKey}`,
@@ -70,9 +72,9 @@ export function buildTurnaroundBarEvents(args: {
 		ppq,
 		beatsPerBar,
 		swing: resolveBackingSwing(swing, style, tempo)
-	}, args.backingInstrument ?? 'piano', 4, 0);
+	}, args.backingInstrument ?? 'piano', denominator, 0);
 
-	const barTicks = beatsPerBar * ppq;
+	const barTicks = beatsPerBar * 4 / denominator * ppq;
 	const events: TurnaroundEvent[] = [];
 	const push = (time: string, hit: BackingHit): void => {
 		const tick = parseInt(time, 10);

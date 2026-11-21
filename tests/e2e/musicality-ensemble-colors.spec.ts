@@ -10,13 +10,14 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
  requireRealtimeAudio(page);
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
- await page.addInitScript(()=>{
+ const seed = keyboard === 'piano' ? 5 : 190;
+ await page.addInitScript(seed=>{
   const random=crypto.getRandomValues.bind(crypto);
   crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{
-   if(array instanceof Uint32Array&&array.length===1){array[0]=9;return array;}
+   if(array instanceof Uint32Array&&array.length===1){array[0]=seed;return array;}
    return random(array);
   }) as typeof crypto.getRandomValues;
- });
+ }, seed);
  await page.goto('/musicality');
  await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
@@ -60,7 +61,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
  await test.info().attach('ensemble-colors-live-evidence',{body:JSON.stringify(observed,null,2),contentType:'application/json'});
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
  expect(take.playback.musicalityRelease.version).toBe(CURRENT_MUSICALITY_RELEASE.version);
- expect(take.playback.params.performanceEnergySeed).toBe(9);
+ expect(take.playback.params.performanceEnergySeed).toBe(seed);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
  const generated=take.playback.generated as GeneratedBacking;

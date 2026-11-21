@@ -159,6 +159,8 @@ export async function scheduleMetronome(
 		sequence = null;
 	}
 
+	// Tone's "1n" means a transport measure, including in a multi-whole-note bar.
+	const subdivision = `${Tone.getTransport().PPQ * 4 / denominator}i` as const;
 	const beatsInPattern = beatsPerBar;
 	const pattern = Array.from({ length: beatsInPattern }, (_, i) => i);
 
@@ -182,7 +184,7 @@ export async function scheduleMetronome(
 				}
 			}),
 			allBeats,
-			`${denominator}n`
+			subdivision
 		);
 		sequence.start(startAt);
 		sequence.loop = false;
@@ -203,7 +205,7 @@ export async function scheduleMetronome(
 				}
 			}),
 			pattern,
-			`${denominator}n`
+			subdivision
 		);
 		sequence.start(startAt);
 		sequence.loop = true;

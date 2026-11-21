@@ -236,7 +236,9 @@ export async function assertDecisionClock(page: Page, score?: ListeningSnapshot,
 		expect(position.pianoEvidence.includes('texture: three-note rootless support')).toBe(heardThree);
 		if (score.generated.ensemblePlan?.bars[position.bar]?.piano.rootlessTexture)
 			expect(position.pianoEvidence).toContain('Planned rootless texture:');
-		expect(position.counts).toEqual([score.generated.bassEvents, score.generated.compEvents, score.generated.drumEvents]
-			.map((events) => events.filter(inBar).length));
+		// A chord can contain separate release groups on the same attack.
+		expect(position.counts).toEqual([score.generated.bassEvents.filter(inBar).length,
+			new Set(score.generated.compEvents.filter(inBar).map(event => event.time)).size,
+			score.generated.drumEvents.filter(inBar).length]);
 	}
 }

@@ -1378,6 +1378,14 @@ describe('chord symbols — the glyph pass prints what the ABC spelled (2026-09-
 });
 
 describe('printed scan layout', () => {
+	it('prints a direction from the omitted prefix on the first pickup spacer', () => {
+		const tune = sheet({ sections: [section({ bars: 1, pickupLength: [1, 4],
+			harmony: [], notes: [{ offset: [3, 4], duration: [1, 4], pitch: 60 }],
+			directions: [{ offset: [0, 1], text: 'Solo break' }]
+		})] });
+		expect(tuneToAbc(tune)).toContain('"^Solo break"x2');
+	});
+
 	it('makes room for a dashed instruction without splitting the printed whole rest', () => {
 		const tune = sheet({ sections: [section({
 			bars: 1, notes: [{ pitch: null, offset: [0, 1], duration: [1, 1] }],

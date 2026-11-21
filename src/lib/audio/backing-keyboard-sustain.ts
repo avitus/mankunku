@@ -46,6 +46,7 @@ export function sustainAcrossBar(
 		return start > boundary && start < boundary + 1.6;
 	})) tail = .4;
 	const releaseTick = Math.round((boundary + tail) * score.ppq);
+	if (releaseTick <= boundary * score.ppq) return;
 	const source = score.harmony.find(h => event.absBeat >= fractionToFloat(h.startOffset) * 4 &&
 		event.absBeat < (fractionToFloat(h.startOffset) + fractionToFloat(h.duration)) * 4);
 	if (!source) return;

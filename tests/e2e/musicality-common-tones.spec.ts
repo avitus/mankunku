@@ -1,3 +1,4 @@
+import { observeListeningOutput, expectAudibleListeningOutput } from './fixtures/listening-output';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -16,6 +17,7 @@ function chooseNextArc(seed:number){
 for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','initial']] as const) test(`0.19 full Blues connects changed harmony with ${keyboard}, arc ${choice}`, async ({page}, info) => {
  const seed=choice==='initial'?10:choice;
  requireRealtimeAudio(page); test.setTimeout(340_000);
+ await observeListeningOutput(page);
  await seedOnboardedAnonymous(page);
  if(choice==='initial')await page.addInitScript(chooseNextArc,seed);
  await page.goto('/musicality');
@@ -76,7 +78,7 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
   expect(generated.compEvents.some(e=>Math.floor(e.absBeat/4)===bar)).toBe(true);
   expect(evidence.pianoBars[bar],`restored keyboard signal in performance bar ${bar+1}`).toBeGreaterThan(-46);
  }
- expect(evidence.peaks[3]).toBeLessThan(0);
+ await expectAudibleListeningOutput(page);
  console.log('COMMON_TONE_AUDITION',JSON.stringify({keyboard,evidence,carries:carries.map(e=>({notes:e.notes,bar:Math.floor(e.absBeat/4)+1,beat:e.absBeat%4+1,releaseTick:e.barLineSustain!.releaseTick,duration:e.duration}))}));
  await page.screenshot({path:info.outputPath('common-tone-complete.png'),fullPage:true});
 });

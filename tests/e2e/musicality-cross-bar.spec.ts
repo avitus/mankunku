@@ -1,3 +1,4 @@
+import { observeListeningOutput, expectAudibleListeningOutput } from './fixtures/listening-output';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -7,6 +8,7 @@ import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 
 for (const keyboard of ['piano','organ'] as const) test(`0.18 full Rhythm Changes carries ${keyboard} across bridge bar lines`, async ({page}, info) => {
  requireRealtimeAudio(page); test.setTimeout(340_000);
+ await observeListeningOutput(page);
  await seedOnboardedAnonymous(page); await page.goto('/musicality');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-tune').selectOption('ls-rhythm-changes');
@@ -44,7 +46,7 @@ for (const keyboard of ['piano','organ'] as const) test(`0.18 full Rhythm Change
  expect(carries.length).toBeGreaterThan(0);
  expect(evidence.carry).toBeGreaterThan(0);expect(evidence.breath).toBeGreaterThan(0);
  for(const peak of evidence.peaks)expect(peak).toBeGreaterThan(-46);
- expect(evidence.peaks[3]).toBeLessThan(0);
+ await expectAudibleListeningOutput(page);
  console.log('CROSS_BAR_AUDITION',JSON.stringify({keyboard,evidence,carries:carries.map(e=>({bar:Math.floor(e.absBeat/4)+1,beat:e.absBeat%4+1,releaseTick:e.barLineSustain!.releaseTick,duration:e.duration}))}));
  await page.screenshot({path:info.outputPath('cross-bar-complete.png'),fullPage:true});
 });

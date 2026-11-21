@@ -5,11 +5,9 @@ import { WHEN_THE_SAINTS } from '../fixtures/tunes/when-the-saints';
 import { setup, exportTake, causalProvenance, assertCommittedPrefix, assertNoMicrophone, soundingBar, sourceStarts, assertDecisionClock } from './fixtures/musicality-listening';
 
 for (const style of ['swing', 'straight']) {
-	test(`${style} recalls an actually played piano cell across solo phrases and preserves its review evidence`, async ({ page }) => {
+	test(`${style} displaces the played piano cell within its solo phrase and preserves its review evidence`, async ({ page }) => {
 		test.setTimeout(95_000);
 		await seedTunes(page, [WHEN_THE_SAINTS]);
-		// Saints in C at 120 under seed 1: the first take found in which the released
-		// accompaniment recalls a cell (336 of the 8,064 takes scanned do).
 		await setup(page, 1);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('C');
@@ -20,30 +18,32 @@ for (const style of ['swing', 'straight']) {
 		await expect.poll(() => soundingBar(page), { timeout: 65_000 }).toBe(24);
 		const source = await exportTake(page);
 		const sourceEvents = source.playback.generated!.compEvents.filter(event => Math.floor(event.absBeat / 4) === 24);
-		expect(sourceEvents.map(event => event.absBeat)).toEqual([97.5, 98.5]);
-		expect(source.playback.generated!.ensembleDevelopment!.pianoMotifs!.find(motif => motif.barIndex === 24)?.recall).toBeUndefined();
-		await expect.poll(() => soundingBar(page), { timeout: 14_000 }).toBe(28);
-		await expect(page.getByTestId('musician-piano')).toContainText('Recall the piano cell from bar 25');
+		// Common tones can split one chord onset across two separately gated voices.
+		expect([...new Set(sourceEvents.map(event => event.absBeat))]).toEqual([97.5, 98.5]);
+		const statement = source.playback.generated!.ensembleDevelopment!.pianoMotifs!.find(motif => motif.barIndex === 24)!;
+		expect(statement).toMatchObject({ transform: 'statement', sourceFigureId: 'offbeat-hold' });
+		expect(statement.motifId).toBeTruthy();
+		await expect.poll(() => soundingBar(page), { timeout: 14_000 }).toBe(26);
+		const piano = page.getByTestId('musician-piano');
+		await expect(piano).toContainText('Shift the comping idea');
 		await assertDecisionClock(page, undefined, 120);
-		const recalled = await exportTake(page);
-		assertCommittedPrefix(source.playback, recalled.playback);
-		const generated = recalled.playback.generated!;
-		const trace = generated.ensembleDevelopment!.pianoMotifs!.find(motif => motif.barIndex === 28)!;
-		expect(trace.recall).toMatchObject({ source: { barIndex: 24, phraseStartBar: 24, figureId: 'offbeat-hold', attacks: sourceEvents } });
-		expect(trace.recall!.attacks).toEqual(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 28));
-		expect(trace.recall!.attacks.map(event => event.absBeat)).toEqual([113.5, 114.5]);
-		for (const attack of [...trace.recall!.source.attacks, ...trace.recall!.attacks]) expect(generated.compEvents).toContainEqual(attack);
+		const displaced = await exportTake(page);
+		assertCommittedPrefix(source.playback, displaced.playback);
+		const generated = displaced.playback.generated!;
+		const trace = generated.ensembleDevelopment!.pianoMotifs!.find(motif => motif.barIndex === 26)!;
+		expect(trace).toMatchObject({ motifId: statement.motifId, sourceFigureId: statement.sourceFigureId, transform: 'displace', displacementBeats: -0.5 });
+		expect(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 26).map(event => event.absBeat)).toEqual([105, 106]);
 		await page.getByTestId('listening-stop').click();
 		const stopped = await exportTake(page);
 		const starts = await sourceStarts(page);
 		const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
 		await review.fill('24');
-		await expect(page.getByTestId('musician-piano')).not.toContainText('Recall the piano cell from bar 25');
-		await review.fill('28');
-		await expect(page.getByTestId('musician-piano')).toContainText('Recall the piano cell from bar 25');
+		await expect(piano).toContainText('Development: statement');
+		await review.fill('26');
+		await expect(piano).toContainText('Shift the comping idea');
 		const reviewed = await exportTake(page);
 		expect(reviewed.playback).toEqual(stopped.playback);
-		expect(reviewed.review?.barIndex).toBe(28);
+		expect(reviewed.review?.barIndex).toBe(26);
 		expect(await sourceStarts(page)).toBe(starts);
 		await assertNoMicrophone(page);
 	});

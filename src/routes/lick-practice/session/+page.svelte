@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { quarterBeatsPerBar } from '$lib/tunes/meter';
 	import { precedingCycleRow } from '$lib/ui/key-stack-layout';
 	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
@@ -691,8 +692,7 @@
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
-		const beatsPerBar = superPhrase.timeSignature[0];
-		const ticksPerBar = beatsPerBar * ppq;
+		const ticksPerBar = quarterBeatsPerBar(superPhrase.timeSignature) * ppq;
 		const keyBars = getKeyBars();
 		// Per-lick cycle length in bars — equals the progression's bar count
 		// for licks that fit, longer for licks with extension. Drives demo
@@ -847,13 +847,14 @@
 		const lickEndTick = windows.cycleEndTick;
 
 		// The display reads its position off this same plan every frame.
+		const ticksPerPrintedBeat = transport.PPQ * 4 / (getPhraseFor(lickIdx, 0)?.timeSignature[1] ?? 4);
 		const nextLayout: CyclePositionArgs = {
 			audioStartTick,
 			demoBars,
 			keyBars,
 			ticksPerBar,
-			ticksPerBeat: transport.PPQ,
-			loopBeats: lickBars * Math.round(ticksPerBar / transport.PPQ),
+			ticksPerBeat: ticksPerPrintedBeat,
+			loopBeats: lickBars * ticksPerBar / ticksPerPrintedBeat,
 			windows
 		};
 
@@ -947,10 +948,13 @@
 		// same frame it appears. The pre-computed nextLickStartTick is passed
 		// through so scheduleNextPhrase can land the audio on the correct bar
 		// boundary regardless of when the callback fires.
-		const nextLickStartTick = lickEndTick + INTER_LICK_REST_BARS * ticksPerBar;
+		const nextMeter = getPhraseFor(lickIdx + 1, 0)?.timeSignature;
+		const nextBarTicks = nextMeter ? quarterBeatsPerBar(nextMeter) * transport.PPQ : ticksPerBar;
+		const nextLickStartTick = lickEndTick + SCORE_HOLD_BARS * ticksPerBar +
+			(INTER_LICK_REST_BARS - SCORE_HOLD_BARS) * nextBarTicks;
 
 		const restId = transport.scheduleOnce(() => {
-			handleLickComplete(nextLickStartTick, ticksPerBar);
+			handleLickComplete(nextLickStartTick, nextBarTicks);
 		}, `${lickEndTick + SCORE_HOLD_BARS * ticksPerBar}i`);
 		scheduledEventIds.push(restId);
 	}
@@ -1040,6 +1044,8 @@
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
+		const meter = getCurrentPhrase()?.timeSignature;
+		if (!meter) return;
 		const events = buildTurnaroundBarEvents({
 			progressionType: item.progressionType,
 			targetKey: nextKey,
@@ -1048,7 +1054,8 @@
 			tempo: lickPractice.currentTempo,
 			swing: effectiveSwing,
 			ppq,
-			beatsPerBar: Math.round(ticksPerBar / ppq)
+			beatsPerBar: meter[0],
+			denominator: meter[1]
 		});
 
 		const barStartTick = nextLickStartTick - ticksPerBar;
@@ -1090,7 +1097,7 @@
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
-		const beatsPerBar = Math.round(ticksPerBar / ppq);
+		const beatsPerBar = ticksPerBar / ppq;
 		// startLick has already set the new lick's BPM synchronously, so
 		// beat lengths match the metronome through the cue bar.
 		const beatSec = 60 / lickPractice.currentTempo;
@@ -1101,8 +1108,8 @@
 		);
 		if (voicings.length < 2 || voicings.some(v => v.length === 0)) return;
 
-		const iiBeat = 1;
-		const vBeat = beatsPerBar - 1;
+		const vBeat = Math.max(0, beatsPerBar - 1);
+		const iiBeat = Math.min(1, vBeat);
 		// Degenerate meters (2/4) can't fit two hits — keep just the V.
 		const stabs =
 			vBeat > iiBeat

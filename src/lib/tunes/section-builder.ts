@@ -1,6 +1,7 @@
 import type { Fraction, Note } from '$lib/types/music';
 import type { TuneDirection, TuneSection } from '$lib/types/tune';
 import { addFractions, subtractFractions, compareFractions } from '$lib/music/intervals';
+import { isIntroLabel } from '$lib/tunes/section-labels';
 import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 
 /**
@@ -170,7 +171,12 @@ export function buildSections(
 		if (b.inheritLabel && b.label === null) b.label = builders[i - 1]?.label ?? (unmarkedSections === 'blank' ? '' : 'A');
 	});
 
-	return builders.map((b) => {
+	// When Intro is the last printed mark, a following unmarked repeat is
+	// the body. A repeat before a later mark may belong to the intro itself.
+	const lastMark = builders.findLastIndex(b => Boolean(b.label));
+	const bodyStart = unmarkedSections === 'blank' && lastMark >= 0 && isIntroLabel(builders[lastMark].label!)
+		? builders.findIndex((b, i) => i > lastMark && b.startRepeat && !b.ending) : -1;
+	return builders.map((b, index) => {
 		const inRange = (offset: Fraction): boolean =>
 			compareFractions(offset, b.startOffset) >= 0 && compareFractions(offset, b.endOffset) < 0;
 
@@ -235,6 +241,7 @@ export function buildSections(
 
 		return {
 			label: b.label ?? 'A',
+			...(bodyStart >= 0 && index >= bodyStart ? { omitFromSolos: false } : {}),
 			...(directions.length ? { directions } : {}),
 			bars: b.measureCount,
 			...(b.startRepeat ? { repeatStart: true } : {}),
