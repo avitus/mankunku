@@ -52,17 +52,30 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
   const traces=generated.ensembleDevelopment!.pianoMotifs;
   const source=traces.find(t=>t.barIndex>=start&&t.barIndex<=start+2&&t.transform==='statement')!;
   expect(source).toBeTruthy();
-  expect(traces.find(t=>t.barIndex===start+7)).toMatchObject({motifId:source.motifId,transform:'shorten'});
+  const ending = traces.find(t => t.barIndex === start + 7);
+  if (start === 16) {
+   // Later releases keep the written chord entrance. The first sentence answers
+   // one bar earlier, then its common tones ring into the new harmony.
+   expect(traces.find(t => t.barIndex === start + 6)).toMatchObject({ motifId: source.motifId, transform: 'answer' });
+   expect(ending).toMatchObject({ sentenceSourceBar: source.barIndex, reason: 'common_tone_entry', transform: 'fallback' });
+   const entry = ending!.commonToneEntry!;
+   expect(entry.heldNotes.length).toBeGreaterThan(0);
+   expect(generated.compEvents).toContainEqual(expect.objectContaining({ time: entry.time, notes: entry.notes }));
+  } else {
+   expect(ending).toMatchObject({ motifId: source.motifId, transform: 'shorten' });
+  }
   expect(generated.ensembleDevelopment!.drumPhrases.find(t=>t.barIndex===start+3)).toMatchObject({phraseLength:8,ride:{phase:'variation'}});
   expect(generated.ensembleDevelopment!.drumPhrases.find(t=>t.barIndex===start+7)).toMatchObject({phraseLength:8,ride:{phase:'release'}});
   for(let bar=start+1;bar<start+8;bar++)expect(generated.compEvents.some(e=>Math.floor(e.absBeat/4)===bar)).toBe(true);
  }
- await page.getByTestId('listening-review').fill('21');
+ await page.getByTestId('listening-review').fill('20');
  for(const musician of ['bass','piano','drums']) {
   await expect(page.getByTestId(`musician-${musician}`)).toContainText('Eight-bar sentence');
   await expect(page.getByTestId(`musician-${musician}`)).not.toContainText('undefined');
  }
+ await page.getByTestId('listening-review').fill('21');
  await expect(page.getByTestId('musician-bass')).toContainText('G2');
+ await expect(page.getByTestId('musician-piano')).toContainText('Voice the new chord around held tones');
  await page.screenshot({path:test.info().outputPath('longer-sentences-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});
  await expect(page.getByTestId('listening-release-example')).toBeVisible();
