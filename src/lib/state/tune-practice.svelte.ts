@@ -2,7 +2,7 @@ import { focusPracticePlan } from '$lib/tunes/practice-report';
 import { savedTunePracticePreferences, saveTunePracticePreferences, savedTuneKey, saveTuneKey, savedTunePracticeStyle, saveTunePracticeStyle, type TunePracticePreferences } from '$lib/tunes/preferences';
 import { tuneBackingStyle } from '$lib/tunes/backing-style';
 import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
-import { jamSheets } from '$lib/tunes/jam-sheets';
+import { jamSheets, type JamChart } from '$lib/tunes/jam-sheets';
 import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
@@ -108,6 +108,7 @@ export interface TunePracticeAudioPlan {
 	playedPhrase: Phrase;
 	/** Playback-order flatten with provenance (cursor + window projection). */
 	flat: FlattenedTune;
+	opening?: JamChart;
 	closingSheet: Tune;
 	closingFlat: FlattenedTune;
 	closingStartBar: number | null;
@@ -378,7 +379,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		sheet.key === config.concertKey
 			? sheet
 			: transposeTune(sheet, config.concertKey);
-	const { returning: transposed, closing: closingSheet, soloStartBar } = jamSheets(keyed);
+	const { returning: transposed, closing: closingSheet, soloStartBar, opening } = jamSheets(keyed, config.playHead);
 	const separateClosingChart = closingSheet !== transposed;
 	const closingFlat = clearPickupBarHarmony(closingSheet, flattenTune(closingSheet, { expandRepeats: true }));
 	const closingPickupBars = soloPassPickupBars(closingSheet, closingFlat);
@@ -399,7 +400,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	const choruses = config.choruses;
 	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
 	const pickupBars = Math.max(soloStartBar, soloPassPickupBars(transposed, flat));
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars, closingFlat, closingPickupBars });
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars, openingFlat: opening?.flat, closingFlat, closingPickupBars });
 	const countInBars = countInBarsForTempo(config.tempo);
 	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
@@ -448,7 +449,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	let plan = buildSessionPlan(planDeps);
 	if (!playHead && separateClosingChart) {
 		const closingStart = built.closingStartBar!;
-		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * ppq;
+		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * 4 / transposed.timeSignature[1] * ppq;
 		plan = plan.filter(ip => ip.openTick < closingTick);
 		const lastSolo = buildSessionPlan({ ...planDeps, flat: closingFlat, notationFlat: flattenTune(closingSheet),
 			pickupBars: closingPickupBars, choruses: 1, head: { bars: closingStart, mode: 'shift' },
@@ -460,6 +461,8 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 
 	const playedPhrase: Phrase = {
 		...phrase,
+		...(built.soloBreaks.length > 0 && { writtenHarmonyOnly: true }),
+		soloBreaks: built.soloBreaks,
 		notes: built.notes,
 		harmony: built.harmony,
 		// The band reads the complete emitted session, including its resolved ending.
@@ -472,7 +475,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 
 	const audioPlan: TunePracticeAudioPlan = {
 		sheet: transposed,
-		closingSheet, closingFlat, closingStartBar: built.closingStartBar, separateClosingChart,
+		opening, closingSheet, closingFlat, closingStartBar: built.closingStartBar, separateClosingChart,
 		sessionBarMap: built.sessionBarMap, soloBars: built.soloBars,
 		changesSheet,
 		chartOptions,

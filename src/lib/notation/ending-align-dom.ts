@@ -20,6 +20,7 @@
  *   (`alignSystemLayouts` in abcjs-adapter) or it draws beside the music.
  */
 
+import type { TuneSection } from '$lib/types/tune';
 import {
 	endingAlignTransform,
 	endingAlignMatrix,
@@ -95,15 +96,15 @@ export interface AppliedEndingAlignment {
  * Align every stacked [2] under its preceding [1] inside `container`.
  * Mutates the SVG DOM in place and returns the alignments it applied.
  */
-export function alignStackedEndingsInContainer(container: ParentNode): AppliedEndingAlignment[] {
+export function alignStackedEndingsInContainer(container: ParentNode, leftMargin: readonly boolean[] = []): AppliedEndingAlignment[] {
 	const applied: AppliedEndingAlignment[] = [];
 	for (const svg of container.querySelectorAll('svg')) {
-		applied.push(...alignStackedEndingsInSvg(svg));
+		applied.push(...alignStackedEndingsInSvg(svg, leftMargin));
 	}
 	return applied;
 }
 
-export function alignStackedEndingsInSvg(svg: Element): AppliedEndingAlignment[] {
+export function alignStackedEndingsInSvg(svg: Element, leftMargin: readonly boolean[] = []): AppliedEndingAlignment[] {
 	const applied: AppliedEndingAlignment[] = [];
 	const endings = [...svg.querySelectorAll<SVGGElement>('g.abcjs-ending')];
 	type Labeled = { g: SVGGElement; label: string; x: number; width: number };
@@ -116,10 +117,11 @@ export function alignStackedEndingsInSvg(svg: Element): AppliedEndingAlignment[]
 		labeled.push({ g, label, x: box.x, width: box.width });
 	}
 
+	const secondEndings = labeled.filter(e => e.label === '2');
 	for (let i = 0; i < labeled.length; i++) {
 		if (labeled[i].label !== '1') continue;
 		const second = labeled.slice(i + 1).find((e) => e.label === '2');
-		if (!second) continue;
+		if (!second || leftMargin[secondEndings.indexOf(second)]) continue;
 		const first = labeled[i];
 		const xform = endingAlignTransform(
 			{ x: first.x, width: first.width },
@@ -418,4 +420,87 @@ function clearChordsFromEndingLabel(layer: SVGGElement): void {
 	if (localDx <= 0) return;
 	const t = `translate(${localDx.toFixed(2)},0)`;
 	for (const c of chords) prependTransform(c, t);
+}
+
+
+/** Preserve a measured manuscript volta after any stacked-ending transforms.
+ * The lower end of the opening hook stays on the native engraving's baseline. */
+export function applyPrintedEndingBrackets(container: ParentNode, sections: TuneSection[]): void {
+	const numbered = sections.filter(section => section.ending);
+	if (!numbered.some(section => section.printedEndingBracket)) return;
+	const groups = [...container.querySelectorAll<SVGGElement>('g.abcjs-ending')].filter(group =>
+		/^[12]$/.test((group.querySelector('text')?.textContent ?? '').trim()));
+	if (groups.length !== numbered.length) return;
+	for (const [i, group] of groups.entries()) {
+		const bracket = numbered[i].printedEndingBracket;
+		const label = group.querySelector<SVGTextElement>('text');
+		const path = group.querySelector<SVGPathElement>('path');
+		const staff = group.closest('.abcjs-staff-wrapper')?.querySelector<SVGGElement>('.abcjs-staff');
+		if (!bracket || !path || !staff || label?.textContent?.trim() !== String(numbered[i].ending)) continue;
+		const lines = staff.querySelectorAll<SVGGraphicsElement>('path, line');
+		if (lines.length !== 5) continue;
+		const staffHeight = lines[4].getBBox().y - lines[0].getBBox().y;
+		const spacing = staffHeight * (staff.getScreenCTM()?.d ?? 0) / 4;
+		const transform = path.getScreenCTM();
+		if (!transform || spacing <= 0 || transform.a <= 0 || transform.d <= 0) continue;
+		const box = path.getBBox();
+		const width = Math.min(box.width, bracket.width * spacing / transform.a);
+		const height = bracket.height * spacing / transform.d;
+		const bottom = box.y + box.height;
+		const top = bottom - height;
+		path.setAttribute('d', `M ${box.x} ${bottom} V ${top} h ${width}`);
+		path.setAttribute('fill', 'none');
+		prependTransform(label, `translate(0,${top - box.y})`);
+	}
+}
+
+/** Add the two curved wings to a repeat only when both were visible in the
+ * source. Match printed starts and ends independently to abcjs's dotted bars. */
+export function applyPrintedRepeatWings(container: ParentNode, sections: TuneSection[]): void {
+	if (!sections.some(section => section.repeatWings)) return;
+	type Repeat = { group: SVGGElement; stroke: DOMRect };
+	const starts: Repeat[] = [];
+	const ends: Repeat[] = [];
+	for (const bar of container.querySelectorAll<SVGGElement>('g.abcjs-bar.abcjs-v0')) {
+		const dots = bar.querySelectorAll<SVGPathElement>('path[data-name="dots.dot"]');
+		if (!dots.length) continue;
+		const strokes = [...bar.querySelectorAll<SVGGraphicsElement>('[data-name="bar"]')];
+		const thick = strokes.reduce<DOMRect | undefined>((best, path) => {
+			let box = path.getBBox();
+			// abcjs draws vertical strokes as centered SVG lines in Firefox.
+			// Their geometric boxes have zero width and omit the painted stroke.
+			if (path.localName === 'line') {
+				const width = Number(path.getAttribute('stroke-width'));
+				box = new DOMRect(box.x - width / 2, box.y, width, box.height);
+			}
+			return !best || box.width > best.width ? box : best;
+		}, undefined);
+		if (!thick) continue;
+		const centers = [...dots].map(dot => dot.getBBox().x);
+		if (centers.some(x => x > thick.x + thick.width)) starts.push({ group: bar, stroke: thick });
+		if (centers.some(x => x < thick.x)) ends.push({ group: bar, stroke: thick });
+	}
+	for (const side of [1, -1] as const) {
+		const bars = side === 1 ? starts : ends;
+		const written = sections.filter(section => side === 1 ? section.repeatStart : section.repeatEnd);
+		if (bars.length !== written.length) continue;
+		for (const [i, { group, stroke }] of bars.entries()) {
+			const wings = written[i].repeatWings;
+			if (wings !== 'both' && wings !== (side === 1 ? 'start' : 'end')) continue;
+			const space = stroke.height / 4;
+			const x = side === 1 ? stroke.x : stroke.x + stroke.width;
+			const tip = x + side * 1.7 * space;
+			const base = x + side * (stroke.width + 0.5 * space);
+			const halves = [-1, 1].map(vertical => {
+				const y = vertical === -1 ? stroke.y : stroke.y + stroke.height;
+				return `M${x} ${y} Q${x + side * space} ${y} ${tip} ${y + vertical * 1.8 * space} ` +
+					`Q${tip} ${y + vertical * 0.4 * space} ${base} ${y} Z`;
+			});
+			const ink = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			ink.setAttribute('class', 'tune-repeat-wings');
+			ink.setAttribute('d', halves.join(' '));
+			ink.setAttribute('fill', 'currentColor');
+			group.append(ink);
+		}
+	}
 }

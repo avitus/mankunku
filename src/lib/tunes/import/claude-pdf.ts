@@ -16,6 +16,9 @@ import {
 	MAX_BARS_PER_SECTION,
 	MAX_NOTES_PER_ADOPTED_TUNE
 } from '$lib/tunes/adopted-tune-validator';
+import { printedPickupBeats, toFraction, type BarMelody } from './system-bar-validation';
+export { toFraction } from './system-bar-validation';
+import { printedDirections } from './pdf-directions';
 import { isSupportedMeter } from '$lib/tunes/meter';
 
 /**
@@ -53,17 +56,6 @@ export interface ClaudePdfConversion {
 	sheet: Tune | null;
 	errors: string[];
 	warnings: string[];
-}
-
-/** Convert a float in whole notes to a reduced fraction (denominators to 24ths). */
-/** Rational snap over the duration ladder (triplets included); shared with
- * the route's per-bar rhythm validation. */
-export function toFraction(value: number): Fraction {
-	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
-		const num = Math.round(value * den);
-		if (Math.abs(num / den - value) < 1e-9) return [num, den];
-	}
-	return [Math.round(value * 24), 24];
 }
 
 function isFiniteNumber(v: unknown): v is number {
@@ -183,7 +175,10 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 					startRepeat: rawBar?.startRepeat === true,
 					endRepeat: rawBar?.endRepeat === true,
 					pickup: rawBar?.pickup === true,
-					ending: rawBar?.ending === 1 || rawBar?.ending === 2 ? rawBar.ending : undefined
+					ending: rawBar?.ending === 1 || rawBar?.ending === 2 ? rawBar.ending : undefined,
+					directions: printedDirections(rawBar?.directions)
+						.filter(([beat]) => beat < tsNum)
+						.map(([beat, text]) => ({ offset: toFraction(beat * beatUnit), text }))
 				};
 				structures.push(bar);
 				if (bar.pickup) pickupBars++;
@@ -197,6 +192,12 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 						continue;
 					}
 					const symbol = rawSymbol.replace(/^\s*\(\s*/, '').replace(/\s*\)\s*$/, '');
+					if (/^n\.?c\.?$/i.test(symbol)) {
+						const offset = toFraction(beat * beatUnit);
+						(bar.directions ??= []).push({ offset, text: 'N.C.' });
+						harmonyEvents.push({ offset: toFraction((barBase + beat) * beatUnit), text: 'N.C.' });
+						continue;
+					}
 					if (!parseChordSymbol(symbol)) {
 						warnings.push(`bar ${i + 1}: unparseable chord "${rawSymbol}" — skipped`);
 						continue;
@@ -204,15 +205,33 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 					harmonyEvents.push({ offset: toFraction((barBase + beat) * beatUnit), text: symbol });
 				}
 
+				const beams = new Map<number, 'join' | 'break'>();
+				if (Array.isArray(rawBar?.beams)) {
+					for (const mark of rawBar.beams.slice(0, 128)) {
+						if (Array.isArray(mark) && isFiniteNumber(mark[0]) && (mark[1] === 'join' || mark[1] === 'break')) {
+							beams.set(Math.round(mark[0] * 48), mark[1]);
+						}
+					}
+				}
+				const printedAccidentals = new Set(
+					(Array.isArray(rawBar?.printedAccidentals) ? rawBar.printedAccidentals.slice(0, 128) : [])
+						.filter(isFiniteNumber).map(beat => Math.round(beat * 48))
+				);
+				const pickupMelody: BarMelody = [];
 				for (const m of Array.isArray(rawBar?.melody) ? (rawBar.melody as unknown[]) : []) {
 					if (!Array.isArray(m)) {
 						warnings.push(`bar ${i + 1}: malformed melody entry skipped`);
 						continue;
 					}
-					const [beat, durationBeats, pitch, tied] = m as unknown[];
+					const [beat, durationBeats, pitch, tied, articulation] = m as unknown[];
 					// The prompts have the model tile each bar with notes AND
 					// rests; rests carry no event (gap-filled at render) and
 					// must not be flagged as unreadable pitches.
+					if (bar.pickup && isFiniteNumber(beat) && isFiniteNumber(durationBeats) && typeof pitch === 'string' && durationBeats > 0) {
+						// Some full-page readers pad the unprinted lead-in from zero.
+						// Keep rests inside the printed pickup, where their offset is positive.
+						if (beat !== 0 || pitch.trim().toLowerCase() !== 'rest') pickupMelody.push([beat, durationBeats, pitch]);
+					}
 					if (typeof pitch === 'string' && pitch.trim().toLowerCase() === 'rest') continue;
 					if (
 						!isFiniteNumber(beat) ||
@@ -245,7 +264,13 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 						duration: toFraction(durationBeats * beatUnit),
 						offset: toFraction((barBase + beat) * beatUnit)
 					};
+					const beam = beams.get(Math.round(beat * 48));
+					if (beam && durationBeats <= tsDen / 8) note.beamFromPrevious = beam;
 					if (tied === true) note.tied = true;
+					if (articulation === 'staccato') note.articulation = 'staccato';
+					if (printedAccidentals.has(Math.round(beat * 48))) note.showAccidental = true;
+					if (/[b♭]/.test(pitch)) note.spelling = 'flat';
+					if (/[#♯]/.test(pitch)) note.spelling = 'sharp';
 					noteEvents.push(note);
 					totalNotes++;
 				}
@@ -253,7 +278,7 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 				// measured it (`pickupBeats`, the OMR bridge), else the bar minus
 				// its first pitched beat — the model reports notes at their real
 				// late beats. A chords-only pickup keeps no length.
-				const exactBeats = rawBar?.pickupBeats;
+				const exactBeats = rawBar?.pickupBeats ?? (bar.pickup ? printedPickupBeats(pickupMelody, tsNum) : undefined);
 				if (bar.pickup && isFiniteNumber(exactBeats) && exactBeats > 0 && exactBeats < tsNum) {
 					bar.pickupLength = toFraction(exactBeats * beatUnit);
 				} else if (bar.pickup) {
@@ -296,7 +321,7 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 		harmonyEvents.sort((a, b) => a.offset[0] / a.offset[1] - b.offset[0] / b.offset[1]);
 		sections = buildSections(structures, noteEvents, harmonyEvents, (msg) => {
 			if (!warnings.includes(msg)) warnings.push(msg);
-		});
+		}, 'blank');
 		if (sections.length > MAX_SECTIONS_PER_ADOPTED_TUNE) {
 			return { sheet: null, errors: [`too many sections (${sections.length})`], warnings };
 		}

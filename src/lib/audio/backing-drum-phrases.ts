@@ -78,6 +78,7 @@ export interface DrumPhraseInput {
 
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
+ readonly longerSentences?: true;
 	readonly phraseCushioning?: true;
 	readonly phraseExpression?: true;
 	readonly trioConversation?: true;
@@ -324,7 +325,7 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	if (arrival) reason = 'arrival_reserved';
 	else if (allowance === 0) reason = 'ensemble_silence';
 	else if (ensemble.responseOwner === 'piano' || ensemble.responseOwner === 'bass') reason = 'response_reserved';
-	else if (ensemble.drums.allowFill) {
+	else if (ensemble.drums.allowFill && (!input.longerSentences || length <= 4 || position === length - 1 || info.isChorusFinalBar || info.isSectionFinalBar || ensemble.setupFor)) {
 		const fill = fillBar({ ...ctx, isSectionFirstBar: false, isSectionFinalBar: true, isChorusFinalBar: false },
 			createRng(seedFrom(input.phraseId, input.tempo, 'drum-fill', bar))).hits;
 		if (fill.length > 0 && fits(fill, allowance, extent, acceptsCommentary)) {
@@ -339,11 +340,11 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 		if (motif) {
 			const age = bar - motif.startBar;
 			if (age === 0) { transform = motif.firstTransform; chosen = motif.hits; }
-			else if (age === 1 && motif.gapAfterStatement) reason = 'motif_gap';
 			else if (age === state.end - motif.startBar - 1) {
 				transform = 'orchestrate';
 				chosen = motif.hits.map((hit, index) => ({ ...hit, drum: motif.orchestration[index % motif.orchestration.length] }));
-			} else if (age === 2 || state.end - motif.startBar === 3) {
+			} else if ((age === 1 || input.longerSentences && age === 5) && motif.gapAfterStatement) reason = 'motif_gap';
+			else if (age === 2 || input.longerSentences && age === 6 || state.end - motif.startBar === 3) {
 				transform = 'displace'; shift = motif.shift;
 				chosen = motif.hits.map((hit) => ({ ...hit, beatOffset: hit.beatOffset + shift }));
 			} else { transform = 'repeat'; chosen = motif.hits; }
@@ -413,13 +414,14 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 	}
 	if (!barNumber(input.barIndex) || !barNumber(input.phraseStartBar) || !barNumber(input.phraseEndBarExclusive) ||
 		input.phraseStartBar > input.barIndex || input.barIndex >= input.phraseEndBarExclusive ||
-		input.phraseEndBarExclusive - input.phraseStartBar > 4 ||
+		input.phraseEndBarExclusive - input.phraseStartBar > (input.longerSentences ? 8 : 4) ||
 		!Number.isFinite(input.harmonyEndBeat) || input.harmonyEndBeat < 0 ||
 		(input.phraseEndBarExclusive - input.phraseStartBar > 1 && input.phraseEndBarExclusive * 4 > input.harmonyEndBeat)) {
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
-	if ((input.phraseColorSeed !== undefined && (!Number.isInteger(input.phraseColorSeed) || input.phraseColorSeed < 0 || input.phraseColorSeed > 0xffffffff)) ||
+	if ((input.longerSentences !== undefined && input.longerSentences !== true) ||
+  (input.phraseColorSeed !== undefined && (!Number.isInteger(input.phraseColorSeed) || input.phraseColorSeed < 0 || input.phraseColorSeed > 0xffffffff)) ||
 		(input.phraseColors !== undefined && input.phraseColors !== true) ||
 		(input.trioConversation !== undefined && input.trioConversation !== true) ||
 		(input.bassEvents !== undefined && (!Array.isArray(input.bassEvents) || input.bassEvents.length > 32 ||
@@ -445,7 +447,7 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Invalid static drum peak boundary');
 	}
 	if (!ensemble || ensemble.barIndex !== input.barIndex || !barNumber(ensemble.phraseStartBar) ||
-		ensemble.phraseStartBar > input.phraseStartBar || !Number.isFinite(input.info.intensity) ||
+		(input.longerSentences ? ensemble.phraseStartBar < input.phraseStartBar || ensemble.phraseStartBar >= input.phraseEndBarExclusive : ensemble.phraseStartBar > input.phraseStartBar) || !Number.isFinite(input.info.intensity) ||
 		input.info.intensity < 0 || input.info.intensity > 1 ||
 		!Number.isInteger(ensemble.drums.maxCommentaryHits) || ensemble.drums.maxCommentaryHits < 0 || ensemble.drums.maxCommentaryHits > 3 ||
 		!Number.isFinite(ensemble.drums.commentaryScale) || ensemble.drums.commentaryScale < 0 ||
@@ -463,7 +465,7 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 	}
 	const state = memory.phrase;
 	if (!state || (state.hatTexture !== undefined && (state.hatTexture !== true || !input.phraseColors ||
-  state.end-state.start<2 || input.style==='ballad' || input.style==='bossa-nova')) || !barNumber(state.start) || !barNumber(state.end) || state.end <= state.start || state.end - state.start > 4 ||
+  state.end-state.start<2 || input.style==='ballad' || input.style==='bossa-nova')) || !barNumber(state.start) || !barNumber(state.end) || state.end <= state.start || state.end - state.start > (input.longerSentences ? 8 : 4) ||
 		state.start >= memory.nextBar || state.end < memory.nextBar ||
 		!['standard', 'quarters-only', 'skip-plus', 'broken'].includes(state.mode) ||
 		(state.rideVoice !== undefined && !['ride', 'ride-bell'].includes(state.rideVoice)) ||
@@ -476,7 +478,7 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		(memory.previousCompIsDrumReply !== undefined && (memory.previousCompIsDrumReply !== true ||
 			!input.info.ensemble?.performanceEnergy || input.style === 'ballad' || input.style === 'bossa-nova' ||
 			memory.previousCompOnsets.length !== 1 || memory.previousCompOnsets[0] < 1 || memory.previousCompOnsets[0] >= 3.5 || !Number.isInteger(memory.previousCompOnsets[0] * 2) || memory.previousCompIsSharedArrival)) ||
-		!barNumber(memory.ensemblePhraseStartBar) || memory.ensemblePhraseStartBar > state.start ||
+		!barNumber(memory.ensemblePhraseStartBar) || (input.longerSentences ? memory.ensemblePhraseStartBar < state.start || memory.ensemblePhraseStartBar >= state.end : memory.ensemblePhraseStartBar > state.start) ||
 		![memory.sectionIndex, memory.chorusIndex].every((value) => value === null || barNumber(value))) {
 		throw new Error('Invalid drum phrase checkpoint');
 	}
@@ -487,7 +489,7 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		}
 		if (input.phraseStartBar !== state.start || input.phraseEndBarExclusive !== state.end ||
 			memory.sectionIndex !== (input.info.sectionIndex ?? null) || memory.chorusIndex !== (input.info.chorusIndex ?? null) ||
-			memory.ensemblePhraseStartBar !== ensemble.phraseStartBar) {
+			(!input.longerSentences && memory.ensemblePhraseStartBar !== ensemble.phraseStartBar)) {
 			throw new Error('A reserved drum phrase cannot change its static boundaries');
 		}
 	} else if (input.phraseStartBar !== input.barIndex) {

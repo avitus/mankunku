@@ -13,6 +13,77 @@ export interface MajorContinuation {
 	exceptions: { index: number; role: 'borrowed iv' | 'passing diminished seventh' | 'applied augmented dominant' }[];
 }
 
+export interface MajorTurnaround {
+	key: PitchClass;
+	/** The iiø–V/vi itself; scale-based lick eligibility is still chord-specific. */
+	segmentIndices: number[];
+	/** Empty when the chart ends on V/vi. Never invent a sounded vi. */
+	resolutionIndices: number[];
+}
+
+/** A cadenced I can retain its center over a short turnaround toward its relative minor. */
+export function majorTurnarounds(flat: FlattenedTune, order: number[], evidence: (ChordEvidence | null)[],
+	regions: MajorRegion[], boundaries: number[], barLength: number, formEnd: Fraction, cyclic: boolean): MajorTurnaround[] {
+	const found: MajorTurnaround[] = [];
+	const position = new Map(order.map((index, n) => [index, n]));
+	const harmony = flat.harmony;
+	const endOf = (i: number) => addFractions(harmony[i].startOffset, harmony[i].duration);
+	const offset = (i: number) => fractionToFloat(harmony[i].startOffset);
+	const cadenced = regions.filter(r => r.evidence.cadences.length);
+	for (const region of cadenced) {
+		const key = region.key;
+		const tonic = region.evidence.cadences.at(-1)![1];
+		const tail = region.segmentIndices.slice(region.segmentIndices.indexOf(tonic));
+		const change = tail.findIndex(i => evidence[i]!.root !== key);
+		if (change < 0 || !tail.slice(0, change).every(i => evidence[i]!.majorTonic)) continue;
+		const approach = tail.slice(change);
+		const iiRoot = transposePitchClass(key, 11);
+		const iiTones = [0, 3, 6, 10].map(step => transposePitchClass(iiRoot, step));
+		if (offset(approach[0]) - offset(tonic) > 4 * barLength || !approach.every(i => {
+			const chord = evidence[i]!;
+			return chord.root === iiRoot && chord.pitchClasses.length === 4 && iiTones.every(p => chord.pitchClasses.includes(p));
+		})) continue;
+
+		const dominantRoot = transposePitchClass(key, 4);
+		const core = [0, 4, 7, 10].map(step => transposePitchClass(dominantRoot, step));
+		const flatNine = transposePitchClass(dominantRoot, 1);
+		const segments = [...approach];
+		let cursor = position.get(approach.at(-1)!)! + 1;
+		for (; cursor < order.length; cursor++) {
+			const index = order[cursor], chord = evidence[index];
+			if (chord?.root !== dominantRoot || !core.every(p => chord.pitchClasses.includes(p)) ||
+				!chord.pitchClasses.every(p => core.includes(p) || p === flatNine) ||
+				compareFractions(endOf(segments.at(-1)!), harmony[index].startOffset) !== 0) break;
+			segments.push(index);
+		}
+		if (segments.length === approach.length) continue;
+		const end = endOf(segments.at(-1)!);
+		if (fractionToFloat(end) - offset(approach[0]) > barLength ||
+			boundaries.some(b => b > offset(approach[0]) && b < fractionToFloat(end))) continue;
+
+		const endsForm = compareFractions(end, formEnd) === 0;
+		const wraps = endsForm && cyclic && compareFractions(harmony[order[0]].startOffset, [0, 1]) === 0;
+		const next = wraps ? order[0] : order[cursor];
+		const resolutionIndices: number[] = [];
+		if (next !== undefined) {
+			const target = evidence[next];
+			if (compareFractions(harmony[next].startOffset, wraps ? [0, 1] : end) !== 0 ||
+				target?.root !== transposePitchClass(key, 9) ||
+				![3, 7].every(step => target.pitchClasses.includes(transposePitchClass(target.root, step)))) continue;
+			const returning = cadenced.find(r => r.key === key && r.segmentIndices[0] === next &&
+				offset(r.evidence.cadences[0][1]) - offset(next) <= 4 * barLength);
+			if (!returning) continue;
+			for (const i of returning.segmentIndices) {
+				if (evidence[i]!.root !== target.root) break;
+				resolutionIndices.push(i);
+			}
+			if (fractionToFloat(endOf(resolutionIndices.at(-1)!)) - offset(next) > barLength) continue;
+		} else if (!endsForm) continue;
+		found.push({ key, segmentIndices: segments, resolutionIndices });
+	}
+	return found;
+}
+
 export interface BorrowedMajorApproach {
 	key: PitchClass;
 	/** The borrowed iiø and V, excluding the major tonic that confirms them. */

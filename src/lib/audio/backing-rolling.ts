@@ -1,3 +1,6 @@
+import { sustainAcrossBar, commonToneAtBoundary } from './backing-keyboard-sustain';
+import { keyboardFigures } from './backing-keyboard-vocabulary';
+import { musicalSentence } from './backing-sentences';
 import { liftFootHat } from './backing-inner-motion';
 import { snareKickDialogue } from './backing-phrase-dialogue';
 import { crossStickUnderChord } from './backing-ensemble-colors';
@@ -33,6 +36,12 @@ import { captureDrumStatement, planDrumPianoFeedback, validateDrumPianoFeedback,
 import { pianoPhraseRecallEnabled, validatePianoPhraseRecall } from './backing-piano-motif-memory';
 
 export interface RollingBackingOptions {
+ /** 0.19.1: more sustained ordinary Swing/Straight piano support. */
+ readonly pianoContinuity?: true | 'refit';
+ /** 0.18: bounded same-harmony gate and a supported next-bar breath. */
+ readonly keyboardSustain?: true | 'common-tones' | 'harmonic-support';
+	/** Normal playback owns a finite timeline; lab capture limits do not apply. */
+	readonly preparedPlayback?: true;
 	/** Explicit finite repetitions of the source form; never an open-ended loop. */
 	readonly loopCount?: number;
 	/** Listening release opt-in; generic rolling and the advanced lab keep their prior policy. */
@@ -55,6 +64,7 @@ export interface RollingBackingOptions {
 	readonly phraseColors?: true;
 	readonly phraseDialogue?: true;
  readonly innerMotion?: true;
+ readonly longerSentences?: true;
 	readonly ensembleColors?: true;
 	/** Listening 0.8 policies; omission preserves earlier event streams. */
 	readonly bassDelayedRoot?: true;
@@ -80,6 +90,7 @@ export interface RollingBarIdentity {
 }
 
 export interface RollingBackingDefinition {
+ readonly pianoContinuityVersion?: 1 | 2;
 	/** Missing on legacy Swing checkpoints. */
 	readonly style?: BackingStyle;
 	readonly version: 1;
@@ -103,6 +114,9 @@ export interface RollingBackingDefinition {
 	readonly phraseColorsVersion?: 1;
 	readonly phraseDialogueVersion?: 1;
  readonly innerMotionVersion?: 1;
+ readonly longerSentencesVersion?: 1;
+ readonly keyboardSustainVersion?: 1 | 2;
+ readonly harmonicSupportVersion?: 1;
 	readonly ensembleColorsVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
 	readonly drumPhraseCushioningVersion?: 1;
@@ -177,7 +191,7 @@ const ownedCheckpoints = new WeakMap<RollingBackingCheckpoint, RollingBackingDef
 export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDefinition, params: BackingGenerationParams,
 	options: RollingBackingOptions = {}): RollingBackingDefinition {
 	if (!style.coordinatedStyle || params.beatsPerBar !== 4 || !params.ensemble) throw new Error('Rolling backing requires a supported coordinated style in 4/4');
-	if (!Number.isFinite(params.tempo) || params.tempo < 30 || params.tempo > 320 || !Number.isSafeInteger(params.ppq) || params.ppq <= 0 || !Number.isFinite(params.swing) || params.swing < 0.5 || params.swing > 0.8) throw new Error('Invalid rolling backing tempo, PPQ or swing');
+	if (!Number.isFinite(params.tempo) || params.tempo <= 0 || (!options.preparedPlayback && (params.tempo < 30 || params.tempo > 320)) || !Number.isSafeInteger(params.ppq) || params.ppq <= 0 || !Number.isFinite(params.swing) || params.swing < 0.5 || params.swing > 0.8) throw new Error('Invalid rolling backing tempo, PPQ or swing');
 	if (style.swingModel === 'fixed') params = { ...params, swing: style.defaultSwing };
 	const loopCount = options.loopCount ?? 1;
 	if (!Number.isInteger(loopCount) || loopCount < 1 || loopCount > MAX_ADAPTIVE_LOOPS) throw new Error(`Rolling loop count must be 1–${MAX_ADAPTIVE_LOOPS}`);
@@ -186,13 +200,13 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	for (const segment of copied) {
 		const start = fractionToFloat(segment.startOffset) * 4;
 		const length = fractionToFloat(segment.duration) * 4;
-		if (start !== end || !Number.isInteger(length) || length <= 0) throw new Error('Rolling harmony must cover complete contiguous quarter beats');
-		end += length;
+		if (!Number.isFinite(start) || (options.preparedPlayback ? Math.abs(start - end) > 1e-8 : start !== end) || !Number.isFinite(length) || (!options.preparedPlayback && !Number.isInteger(length)) || length <= 0) throw new Error('Rolling harmony must cover complete contiguous quarter beats');
+		end = start + length;
 	}
 	const sourceBars = end / 4;
-	if (!Number.isInteger(sourceBars) || sourceBars < 1 || sourceBars > 128) throw new Error('Rolling source requires 1–128 complete bars');
+	if (!Number.isInteger(sourceBars) || sourceBars < 1 || (!options.preparedPlayback && sourceBars > 128)) throw new Error('Rolling source requires 1–128 complete bars');
 	const totalBars = sourceBars * loopCount;
-	if (totalBars > MAX_ADAPTIVE_BARS) throw new Error(`Rolling performance exceeds the ${MAX_ADAPTIVE_BARS}-bar limit`);
+	if (!options.preparedPlayback && totalBars > MAX_ADAPTIVE_BARS) throw new Error(`Rolling performance exceeds the ${MAX_ADAPTIVE_BARS}-bar limit`);
 	let form: PerformanceForm = params.performanceForm ? JSON.parse(JSON.stringify(params.performanceForm)) : buildPerformanceForm({ totalBars: sourceBars,
 		sectionMap: params.sectionMap ?? [], choruses: [{ role: 'solo', startBar: 0, endBarExclusive: sourceBars }] });
 	if (form.totalBars !== sourceBars) throw new Error('Rolling performance form must match complete harmony');
@@ -241,6 +255,12 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+  ...(options.keyboardSustain === 'harmonic-support' && keyboardPhrasing &&
+   (style.coordinatedStyle === 'ballad' || (keyboardPhrasing.instrument === 'organ' && style.compPlanning))
+   ? { harmonicSupportVersion: 1 as const } : {}),
+  ...(keyboardPhrasing?.instrument === 'piano' && options.pianoContinuity && ['swing','straight'].includes(style.coordinatedStyle!) ? { pianoContinuityVersion: options.pianoContinuity === 'refit' ? 2 as const : 1 as const } : {}),
+  ...(keyboardPhrasing && options.keyboardVariety === 'developed' && options.longerSentences === true ? { longerSentencesVersion: 1 as const } : {}),
+  ...(keyboardPhrasing && options.keyboardSustain ? { keyboardSustainVersion: options.keyboardSustain === true ? 1 as const : 2 as const } : {}),
   ...(keyboardPhrasing && options.innerMotion === true ? { innerMotionVersion: 1 as const } : {}),
         ...(keyboardPhrasing && options.phraseDialogue === true ? { phraseDialogueVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.ensembleColors === true ? { ensembleColorsVersion: 1 as const } : {}),
@@ -309,14 +329,19 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 	if (identity !== checkpointId(contents)) invalid();
 	const presence = checkpoint.pianoPresence;
 	if (score.pianoPresenceVersion ? !presence || presence.version !== 1 || !Number.isInteger(presence.silentBars) || presence.silentBars < 0 || presence.silentBars > checkpoint.nextBar ||
-		(presence.lastSoundingEndTick !== null && (!Number.isFinite(presence.lastSoundingEndTick) || presence.lastSoundingEndTick <= 0 || presence.lastSoundingEndTick > checkpoint.nextBar * 4 * score.ppq + 0.00001)) : presence !== undefined) invalid();
+		(presence.lastSoundingEndTick !== null && (!Number.isFinite(presence.lastSoundingEndTick) || presence.lastSoundingEndTick <= 0 || presence.lastSoundingEndTick > (checkpoint.nextBar * 4 + (score.keyboardSustainVersion ? 1 : 0)) * score.ppq + 0.00001)) : presence !== undefined) invalid();
 	if (presence) {
 		const sounded = checkpoint.drums.previousCompOnsets.length > 0;
 		const soundingBar = checkpoint.nextBar - presence.silentBars - 1;
 		if (Object.keys(presence).sort().join(',') !== 'lastSoundingEndTick,silentBars,version' || sounded !== (presence.silentBars === 0) ||
 			(presence.lastSoundingEndTick === null ? presence.silentBars !== checkpoint.nextBar :
-				presence.lastSoundingEndTick <= soundingBar * 4 * score.ppq || presence.lastSoundingEndTick > (soundingBar + 1) * 4 * score.ppq + .00001)) invalid();
+				presence.lastSoundingEndTick <= soundingBar * 4 * score.ppq || presence.lastSoundingEndTick > ((soundingBar + 1) * 4 + (score.keyboardSustainVersion ? 1 : 0)) * score.ppq + .00001)) invalid();
 	}
+	const carry = checkpoint.piano.crossBarReleaseTick;
+	if (carry !== undefined && (!score.keyboardSustainVersion || !Number.isSafeInteger(carry) || carry <= checkpoint.nextBar * 4 * score.ppq || carry > (checkpoint.nextBar * 4 + 1) * score.ppq || checkpoint.nextBar >= score.totalBars || Math.abs(carry - (presence?.lastSoundingEndTick ?? -1)) > .00001)) invalid();
+	if (presence?.lastSoundingEndTick && presence.lastSoundingEndTick > checkpoint.nextBar * 4 * score.ppq + .00001 && carry === undefined) invalid();
+	const common = checkpoint.piano.commonToneNotes;
+	if (common !== undefined && (score.keyboardSustainVersion !== 2 || carry === undefined || !Array.isArray(common) || common.length < 1 || common.length > 2 || new Set(common).size !== common.length || common.some(n => !Number.isInteger(n) || n < 0 || n > 127 || !checkpoint.piano.lastVoicing.includes(n) || !commonToneAtBoundary(score,checkpoint.nextBar,n)))) invalid();
 	const numeric = (value: unknown): boolean => value === null || typeof value === 'number' && Number.isFinite(value);
 	if (![checkpoint.bass.previousMidi, checkpoint.bass.previousPreviousMidi, checkpoint.bass.segmentAnchor, checkpoint.bass.nextTarget].every((value) =>
 		value === null || Number.isInteger(value) && value >= 28 && value <= 55) || ![-1, 0, 1].includes(checkpoint.bass.direction)) invalid();
@@ -356,6 +381,16 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		const lastBar = score.bars[contour!.lastBarIndex];
 		if (lastBar.chorusIndex !== contour!.chorusIndex || contour!.lastBarIndex - lastBar.phrase4.barIndex !== contour!.phraseStartBar) invalid();
 	} else if (contour !== undefined) invalid();
+ if (score.longerSentencesVersion && checkpoint.piano.motif) {
+  const motif = checkpoint.piano.motif, lastBar = checkpoint.nextBar - 1;
+  const sentence = ['swing','straight'].includes(score.style ?? 'swing') ? musicalSentence(score, lastBar) : undefined;
+  const start = sentence?.startBar ?? lastBar - score.bars[lastBar].phrase4.barIndex;
+  if (motif.startBar !== start || typeof motif.repeat !== 'boolean' || !Number.isFinite(motif.shift) ||
+   motif.sourceId !== null && !keyboardFigures(score).some(f => f.id === motif.sourceId)) invalid();
+  if (motif.sourceBar !== undefined && (!sentence || motif.sourceId === null || !Number.isInteger(motif.sourceBar) ||
+   motif.sourceBar < start || motif.sourceBar > start + 2 || motif.sourceBar > lastBar)) invalid();
+  if (sentence && motif.sourceId !== null && motif.sourceBar === undefined) invalid();
+ }
  const opening=checkpoint.bass.openingMotif;
  const openingPolicy=!!score.phraseDialogueVersion && ['swing','straight'].includes(score.style??'swing');
  if(opening!==undefined&&!openingPolicy || openingPolicy&&checkpoint.nextBar<score.totalBars&&opening===undefined)invalid();
@@ -405,6 +440,15 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	let window = planEnsembleWindow({ phraseId: definition.phraseId, tempo: definition.tempo, bars: definition.bars,
 		startBar: bar, endBarExclusive: bar + 1, memory: checkpoint?.ensemble, ...(definition.pianoPresenceVersion ? { pianoSilentBars: checkpoint?.pianoPresence?.silentBars ?? 0 } : {}),
 		soloFeatures: latest ? [{ ...latest, barIndex: bar }] : [] });
+ // A committed partial sustain needs a fresh harmonic entrance, even when
+ // optional comping would otherwise leave space. Preserve foreground ownership.
+ if (checkpoint?.piano.commonToneNotes) {
+  const planned=window.plan.bars[0];
+  const piano={...planned.piano,maxAttacks:Math.max(1,planned.piano.maxAttacks) as 1|2,
+   densityScale:Math.max(.5,planned.piano.densityScale),harmonicSupport:planned.piano.harmonicSupport ?? 'under_response' as const,
+   role:planned.piano.role==='leave_space'?'support' as const:planned.piano.role,silenceReason:undefined};
+  window={...window,plan:{...window.plan,bars:[{...planned,piano}],trace:window.plan.trace.map(t=>({...t,reasons:[...t.reasons,'common-tone harmonic entrance']}))}};
+ }
 	const ensemble = window.plan.bars[0];
 	const info = { ...definition.bars[bar], ensemble, intensity: ensemble.energy };
 	const phraseEnd = ensemble.phraseStartBar + definition.bars[bar].phrase4!.lengthBars;
@@ -417,7 +461,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const feedback = ensemble.performanceEnergy ? planDrumPianoFeedback({ phraseId: definition.phraseId,
 		tempo: definition.tempo, barIndex: bar, info, previous: checkpoint?.feedback }) : undefined;
 	// Keep shared intentions intact. The piano receives the optional breath;
-	// only an accepted reply can reserve local drummer commentary space below.
+	// an accepted reply or supported keyboard breath reserves local commentary space below.
 	const pianoInfo = feedback?.action === 'yield'
 		? { ...info, ensemble: { ...ensemble, piano: { ...ensemble.piano, maxAttacks: feedback.effectiveMaxAttacks, ...(ensemble.piano.harmonicSupport ? { harmonicSupport: 'under_drums' as const, rootlessTexture: { request: 'two' as const, reason: 'under_response' as const } } : {}) } } } : info;
 	const answerPolicy = !!feedback && (!definition.style || definition.style === 'swing' || definition.style === 'straight');
@@ -431,14 +475,17 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		peakEnd = bar + 1;
 		while (peakEnd < phraseEnd && definition.bars[peakEnd].performanceEnergy?.phase === 'solo_peak') peakEnd++;
 	}
-	const realizeDrums = (pianoResult: typeof piano) => {
+	const sentence = musicalSentence(definition, bar);
+ const drumSentence = sentence && ['swing','straight'].includes(definition.style ?? 'swing') ? sentence : undefined;
+ const realizeDrums = (pianoResult: typeof piano) => {
 	 const planned = planDrumPhraseBar({
+  ...(definition.longerSentencesVersion ? { longerSentences: true as const } : {}),
 		...(definition.phraseColorsVersion ? { phraseColors: true as const, phraseColorSeed: definition.bars[bar].pianoPresenceSeed ?? 0 } : {}),
 		...(definition.phraseExpressionVersion ? { phraseExpression: true as const } : {}),
 		...(definition.trioConversationVersion ? { trioConversation: true as const, bassEvents: bass.events } : {}),
 		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
 		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
-		barIndex: bar, info: pianoResult.answer ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: ensemble.phraseStartBar, phraseEndBarExclusive: phraseEnd, harmonyEndBeat: definition.totalBars * 4,
+		barIndex: bar, info: pianoResult.answer || pianoResult.trace.carriedReleaseTick !== undefined || (pianoResult.trace.commonToneEntry && ensemble.responseOwner === 'nobody') ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: drumSentence?.startBar ?? ensemble.phraseStartBar, phraseEndBarExclusive: drumSentence?.endBarExclusive ?? phraseEnd, harmonyEndBeat: definition.totalBars * 4,
 		...(peakEnd !== undefined ? { peakEndBarExclusive: peakEnd } : {}),
 		compOnsets: pianoResult.events.map((event) => event.absBeat - bar * 4), bassOnsets: bass.events.map((event) => event.absBeat - bar * 4),
 		acceptsOnset: (absBeat, hit) => (hit.role === 'accent' && absBeat === bar * 4 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.drum)) < endTick
@@ -544,6 +591,16 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		}
 	}
 	const terminalAccepted = terminalDecision?.status === 'accepted';
+ const sustained = !terminalAccepted && piano.trace.reason !== 'drum_reply' && piano.trace.reason !== 'native_drum_reply' ? sustainAcrossBar(definition,bar,pianoInfo,piano.events,checkpoint?.piano.crossBarReleaseTick) : undefined;
+ if (sustained) {
+  const held=sustained.at(-1)!;
+  piano = {...piano, events:[...piano.events.slice(0,-1),...sustained],
+   memory:{...piano.memory,crossBarReleaseTick:held.barLineSustain!.releaseTick,...(held.barLineSustain!.version===2?{commonToneNotes:[...held.notes]}:{})},
+   voicingTrace:piano.voicingTrace?.flatMap(v=>v.time!==held.time?[v]:sustained.map(event=>({...v,notes:[...event.notes],decision:{...v.decision,
+    ...(sustained.length > 1 && (definition.harmonicSupportVersion || definition.pianoContinuityVersion === 2) ? {rootlessTexture: undefined} : {}),
+    ...(v.decision.keyboardArticulation?{keyboardArticulation:{...v.decision.keyboardArticulation,durationSeconds:event.duration,durationBeats:event.duration*definition.tempo/60}}:{})}}))) };
+ }
+
 	const contents: Omit<RollingBackingCheckpoint, 'checkpointId'> = { version: 1, sessionId: definition.sessionId, fingerprint: definition.fingerprint,
 		nextBar: bar + 1, ...(definition.pianoPresenceVersion ? { pianoPresence: { version: 1 as const, silentBars: piano.events.length ? 0 : (checkpoint?.pianoPresence?.silentBars ?? 0) + 1,
 			lastSoundingEndTick: piano.events.length ? Math.max(...piano.events.map(event => parseInt(event.time, 10) + event.duration * definition.tempo / 60 * definition.ppq)) : checkpoint?.pianoPresence?.lastSoundingEndTick ?? null } } : {}), ...(nativeBalladReplyEnabled(definition) ? { nativeBalladReply: advanceNativeBalladReplyMemory(definition, bar,
@@ -558,7 +615,17 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		previousCheckpointId: checkpoint?.checkpointId ?? null,
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
-		ensembleDevelopment: { version: 1, ...(nativeReply ? { nativeBalladReplies: [nativeReply] } : {}), ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
+		ensembleDevelopment: { version: 1,
+   ...(sentence && !terminalAccepted ? { musicalSentences: [{ ...sentence, barIndex: bar,
+    ...(drumSentence && bass.events.length && !bass.memory.pendingLaunch && !checkpoint?.bass.pendingLaunch && !bass.delayedRootTrace && !ensemble.coordinatedAccent && !ensemble.setupFor ? { bass: {
+     registerTargetMidi: (preparedBassScores.get(definition) ?? prepareRollingBass(definition))!.centers[bar],
+     attacks: bass.events.map(({time,midi})=>({time,midi})) } } : {}),
+    ...(piano.trace.motifId && piano.trace.sourceFigureId && piano.trace.phraseStartBar === sentence.startBar && piano.events.length ? { keyboard: {
+     motifId: piano.trace.motifId, sourceFigureId: piano.trace.sourceFigureId,
+     attacks: piano.events.map(({time,notes})=>({time,notes:[...notes]})) } } : {}),
+    ...(!drumSentence && piano.voicingTrace?.some(v => v.decision.keyboardLine?.status === 'connected' && v.decision.keyboardLine.contour !== 'settle') ? { keyboardLine: piano.voicingTrace.filter(v => v.decision.keyboardLine?.status === 'connected' && v.decision.keyboardLine.contour !== 'settle').map(v => ({ time:v.time, notes:[...v.notes], targetMidi:v.decision.keyboardLine!.targetMidi })) } : {}),
+    ...(drumSentence && drums.bar.phraseLength === 8 && drumEvents.length ? { drums: { attacks: drumEvents.map(({time,drum,velocity})=>({time,drum,velocity})) } } : {})
+   }] } : {}), ...(nativeReply ? { nativeBalladReplies: [nativeReply] } : {}), ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
 			...(feedback && !terminalAccepted ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
 			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),

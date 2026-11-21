@@ -1,7 +1,9 @@
+import { extendHarmonyTail } from '$lib/data/progressions';
+import { quarterBeatsPerBar } from '$lib/tunes/meter';
 import { createDrumMixer } from './drum-mixer';
 import { BACKING_INPUT_REFERENCE, SAMPLE_OPTIONS, SOUNDFONT_OPTIONS } from './mixer-policy';
 import { getMixerLevels, setMixerLevels, subscribeMixer } from './mixer';
-import { prepareReleasedArrangement } from './backing-arrangement';
+import { preparePhraseArrangement } from './written-harmony';
 import { backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
@@ -27,7 +29,6 @@ import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
 import {
-	generateBackingCached,
 	resolveBackingSwing,
 	type BassEvent,
 	type CompEvent,
@@ -55,7 +56,6 @@ import {
 	type BackingMixLevels,
 	type DrumFamily
 } from './backing-mix';
-import { extendHarmonyTail } from '$lib/data/progressions';
 import { createBackingSampleLoader } from './backing-sample-loader';
 import { backingKeyboardTrim } from './backing-keyboard-level';
 import { loadBackingBass } from './backing-bass-instrument';
@@ -784,10 +784,10 @@ function extendHarmonyToCoverMelody(
 	const melodyDuration = getMelodyDurationBeats(notes);
 	if (melodyDuration <= harmonyDuration) return harmony;
 
-	return extendHarmonyTail(
-		harmony,
-		Math.ceil((melodyDuration - harmonyDuration) / beatsPerBar)
-	);
+	if (beatsPerBar === 4) return extendHarmonyTail(harmony, Math.ceil((melodyDuration - harmonyDuration) / beatsPerBar));
+	const last = harmony[harmony.length - 1];
+	const extraBeats = Math.ceil((melodyDuration - harmonyDuration) / beatsPerBar) * beatsPerBar;
+	return [...harmony.slice(0, -1), { ...last, duration: [fractionToFloat(last.duration) * 4 + extraBeats, 4] }];
 }
 
 // ── Log capture ──────────────────────────────────────────────
@@ -1157,39 +1157,18 @@ function playDrum(time: number, event: DrumEvent): void {
 /** The harmony a phrase's backing follows and the bass, comp and drum events over it. */
 function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 	const beatsPerBar = phrase.timeSignature[0];
-	const baseHarmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
-	// Every backing length is derived from the harmony, so it has to reach the
-	// end of the melody or the phrase's last bar plays dry.
-	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
+	const quartersPerBar = quarterBeatsPerBar(phrase.timeSignature);
+	const harmony = phrase.writtenHarmonyOnly ? phrase.harmony : extendHarmonyToCoverMelody(
+		phrase.harmony.length ? phrase.harmony : inferTonicChord(phrase), phrase.notes, quartersPerBar
+	);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
-	const orchestration = options.backingOrchestration ?? 'coordinated';
-	if (orchestration === 'coordinated' && !options.backingSoloFeatures?.length) {
-		const generated = prepareReleasedArrangement(harmony, style, {
-			phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
-			sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm
-		}, options.backingInstrument ?? currentInstrumentType ?? 'piano', phrase.timeSignature[1], options.backingPerformanceSeed ?? 0);
-		if (generated) return { harmony, generated };
-	}
-	// Cached: lick-practice loops and per-key restarts reschedule the same
-	// (phrase, tempo, style) many times — the LRU returns the identical
-	// events without re-running the planners.
-	return {
-		harmony,
-		generated: generateBackingCached(harmony, style, {
-			phraseId: phrase.id,
-			tempo: options.tempo,
-			ppq,
-			beatsPerBar,
-			swing,
-			sectionMap: phrase.sectionMap,
-			// Form coordinates are bars; the legacy generator counts numerator beats.
-			// Do not misapply bar metadata in denominator-based meters until that path is migrated.
-			performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
-			ensemble: orchestration === 'coordinated' && !!options.backingSoloFeatures?.length && phrase.timeSignature[1] === 4
-				? { soloFeatures: options.backingSoloFeatures } : undefined
-		})
-	};
+	const generated = preparePhraseArrangement(phrase, harmony, style, {
+		phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
+		sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm,
+		ensemble: { soloFeatures: options.backingSoloFeatures }
+	}, options.backingInstrument ?? currentInstrumentType ?? 'piano', options.backingPerformanceSeed ?? 0, options.swing);
+	return { harmony, generated };
 }
 
 /**
@@ -1256,7 +1235,7 @@ export async function scheduleBackingTrack(
 	if (!isStillCurrent()) return;
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
-	const beatsPerBar = phrase.timeSignature[0];
+	const beatsPerBar = quarterBeatsPerBar(phrase.timeSignature);
 
 	// Load the kit BEFORE touching any state. This is the last await in the
 	// function, so every bailout happens while nothing has been disposed and
@@ -1280,7 +1259,11 @@ export async function scheduleBackingTrack(
 	}
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
-	const harmonyTicks = loopTicks ?? Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
+	// A written solo break is part of the form even when no chord sounds in it.
+	const loopBeats = phrase.writtenHarmonyOnly
+		? Math.max(harmonyDurationBeats, phrase.difficulty.lengthBars * beatsPerBar)
+		: Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar;
+	const harmonyTicks = loopTicks ?? Math.round(loopBeats * ppq);
 
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);
@@ -1363,7 +1346,7 @@ export async function startBackingTrack(
 	const Tone = await getTone();
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
-	const beatsPerBar = phrase.timeSignature[0];
+	const beatsPerBar = quarterBeatsPerBar(phrase.timeSignature);
 	const barTicks = beatsPerBar * ppq;
 
 	await loadBackingInstruments(options.backingInstrument, options.backingStyle);

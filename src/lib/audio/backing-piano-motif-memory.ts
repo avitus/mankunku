@@ -13,7 +13,7 @@ export interface PianoPhraseRecallMemory {
 }
 export const emptyPianoPhraseRecall = (): PianoPhraseRecallMemory => ({ version: 1, source: null, recalledAt: null });
 export const pianoPhraseRecallEnabled = (score: RollingBackingDefinition): boolean =>
-	!!score.bars[0]?.performanceEnergy && (!score.style || score.style === 'swing' || score.style === 'straight');
+	!score.longerSentencesVersion && !!score.bars[0]?.performanceEnergy && (!score.style || score.style === 'swing' || score.style === 'straight');
 
 const supportedEvidence = (evidence: SoloEvidence) => evidence !== 'active' && evidence !== 'resting';
 function eligible(info: BarInfo, evidence: SoloEvidence): boolean {

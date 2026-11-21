@@ -24,7 +24,7 @@ the changes column. A slash between chord names divides a bar.
 | 25–29 | Fm7, B♭m7, E♭7, A♭maj7, D♭maj7 | A♭ major returns, ending this phrase on IV | A♭ major throughout |
 | 30–32 | D♭m7, Cm7, B°7 | A♭ major continues. IV becomes borrowed iv, iii follows, then the bass descends C–B–B♭ into ii. | Three-bar gap between two A♭ spans |
 | 33–35 | B♭m7, E♭7, A♭maj7 | ii–V–I confirms A♭ | A♭ major throughout |
-| 36 | Gø7 / C7♭9 | Turnaround toward Fm7 on a repeat. Gø7 also fits the outgoing A♭ collection. | A♭ on beat 1, then no center on the finite form |
+| 36 | Gø7 / C7♭9 | A♭ major throughout. Gø7–C7♭9 points to vi, sounded on a return or implied at the end. | A♭ on beat 1, then no center on the finite form |
 
 ## First change
 
@@ -72,8 +72,11 @@ For comparison, play the same C7♯5–Fm7 and follow it with Gø7–C7–Fm7.
 The second cadence confirms F minor. It provides no evidence for extending
 A♭ major back over the first C7♯5. The minor cadence keeps its own reading.
 
-## Next comparison
+## Bar 36 in written B♭ tenor pitch
 
-Compare the bar-36 turnaround on a repeated chorus with its final performance.
-Gø7–C7♭9 can lead to Fm7 when another chorus follows. On the last pass the
-analysis needs the ending actually played to justify that resolution.
+The B♭-major rail reaches the final barline. Aø7 occupies beat 1 and D7♭9
+takes beats 2–4 in the production arrangement. Both belong to a turnaround
+toward Gm7, vi of B♭. A returning chorus can supply that Gm7 and confirm B♭
+again through Cm7–F7–B♭maj7. On the last pass the chart can imply Gm7
+without adding a chord after the barline. The half-bar split in the import
+has the same governing center.

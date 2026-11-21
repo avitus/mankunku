@@ -164,7 +164,7 @@ describe('playPhrase with a looping form', () => {
 			loop: { startBar: 1, endBar: 3, shouldContinue: () => true }
 		});
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
-		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, null, 0, expect.any(Function));
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, null, 0, expect.any(Function), 4);
 		await stopPlayback();
 		await playing;
 	});

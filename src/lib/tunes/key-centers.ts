@@ -124,6 +124,10 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 		const roles = [...new Set(passage.exceptions.map(e => e.role))].join(' and ');
 		add(passage.key, 'major', passage.segmentIndices, `Cadences on both sides support this center through the ${roles}.`);
 	}
+	for (const turnaround of analysis.majorTurnarounds) {
+		const resolution = turnaround.resolutionIndices.length ? 'resolves to vi before the home cadence' : 'implies vi at the end of the form';
+		add(turnaround.key, 'major', turnaround.segmentIndices, `The iiø–V/vi turnaround ${resolution}.`);
+	}
 	for (const approach of analysis.borrowedMajorApproaches) {
 		add(approach.key, 'major', approach.segmentIndices, 'Borrowed iiø–V resolves directly to the major tonic.');
 	}
@@ -158,7 +162,11 @@ export function tuneKeyCenters(tune: Tune, instrument: InstrumentConfig, options
 			let resolution = '';
 			if (minorArrival) resolution = ' The following tonic confirms a minor arrival.';
 			if (borrowedApproach) resolution = ' The following tonic confirms a major arrival.';
-			const parentKey = context?.key ?? transition?.to ?? (minorArrival || borrowedApproach ? key : undefined);
+			const turnaround = detection.type === 'ii-V-I-minor' && analysis.majorTurnarounds.find(t =>
+				t.segmentIndices[0] === detection.segmentIndices[0] &&
+				detection.segmentIndices.every(i => t.segmentIndices.includes(i) || t.resolutionIndices.includes(i)));
+			if (turnaround) resolution = ' The minor approach functions as a turnaround to vi of the governing major key.';
+			const parentKey = context?.key ?? transition?.to ?? (turnaround ? turnaround.key : undefined) ?? (minorArrival || borrowedApproach ? key : undefined);
 			add(detection.localKey, detection.type === 'blues' ? 'blues' : progressionMode(detection.type), detection.segmentIndices,
 				`${PROGRESSION_TEMPLATES[detection.type].shortName}: ${hasTonic ? 'local progression center with a tonic chord' : 'implied progression center; the tonic is not present in this span'}. Cornerstone priority is retained for practice.` + explanation + resolution, parentKey);
 		}

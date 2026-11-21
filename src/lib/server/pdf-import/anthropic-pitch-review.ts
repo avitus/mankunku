@@ -1,6 +1,6 @@
+import { anthropicSystemModel } from './anthropic-score-model';
 /** Read staff coordinates from an isolated measure; spelling is resolved by music rules. */
 import type Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_TUNE_MODEL } from '$lib/server/anthropic';
 import type { Clef, RecognizedBar } from '$lib/tunes/import/pdf-recognition';
 import { resolveStaffEvents, type StaffEvent } from '$lib/tunes/import/staff-pitch';
 import { barTilingIssues, isRestPitch } from '$lib/tunes/import/system-bar-validation';
@@ -34,7 +34,7 @@ export async function reviewPitchBar(
 		client.messages
 			.stream(
 				{
-					model: ANTHROPIC_TUNE_MODEL,
+					model: anthropicSystemModel(),
 					thinking: { type: 'adaptive' },
 					output_config: { effort: 'high' },
 					max_tokens: 8192,
@@ -105,8 +105,14 @@ export async function reviewPitchBar(
 			tied: entry[4] === true
 		};
 	});
-	return {
-		...input.original,
-		melody: resolveStaffEvents(events, input.clef, input.fifths, input.tiedFrom)
-	};
+	const melody = resolveStaffEvents(events, input.clef, input.fifths, input.tiedFrom);
+	for (const note of melody) {
+		// A staff-position reread cannot overrule an articulation on the same printed event.
+		if (!isRestPitch(note[2]) && input.original.melody.some(original =>
+			original[0] === note[0] && original[1] === note[1] && original[4] === 'staccato')) {
+			note[3] = note[3] === true;
+			note[4] = 'staccato';
+		}
+	}
+	return { ...input.original, melody };
 }

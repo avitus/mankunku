@@ -1,3 +1,4 @@
+import { prepareReleasedArrangement } from './backing-arrangement';
 /**
  * One bar of rhythm-section turnaround (ii-V into a target key) as plain,
  * schedulable data — the glue between deep-practice cycles.
@@ -12,17 +13,18 @@
  * callbacks whose handlers trigger instruments near-now (the proven
  * `playTransitionChords` pattern — see `playBackingHitsNow`).
  *
- * Pure and seeded: realization goes through `generateBacking`, so the same
+ * Pure and seeded: realization goes through Musicality, so the same
  * inputs always produce the same bar (the seed varies with the target key,
  * so different keys get different figures).
  */
 
 import type { PitchClass, HarmonicSegment } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
-import type { BackingStyle } from '$lib/types/instruments';
-import { turnaroundHarmony } from '$lib/data/progressions';
+import type { BackingStyle, BackingInstrument } from '$lib/types/instruments';
+import { getTransitionCadenceChords, turnaroundHarmony } from '$lib/data/progressions';
+import { shellVoicing, voiceLead } from './voicings';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
-import { generateBacking, resolveBackingSwing } from './backing-generation';
+import { resolveBackingSwing } from './backing-generation';
 
 /**
  * The bar's harmony lives with the progression templates
@@ -30,6 +32,19 @@ import { generateBacking, resolveBackingSwing } from './backing-generation';
  * bar inside a super phrase without the state layer importing audio code.
  */
 export { turnaroundHarmony };
+
+/** Place the ii on the second printed beat and the V on the final printed beat. */
+export function transitionCueStabs(type: ChordProgressionType, key: PitchClass,
+ [beatsPerBar, denominator]: readonly [number, number], ppq: number, tempo: number) {
+ const [ii, dominant] = voiceLead(getTransitionCadenceChords(type, key), shellVoicing, 54);
+ if (!ii?.length || !dominant?.length) return [];
+ const beatTicks = ppq * 4 / denominator;
+ const beatSeconds = 60 / tempo * 4 / denominator;
+ const lastBeat = beatsPerBar - 1;
+ const landing = { tickOffset: lastBeat * beatTicks, notes: dominant, duration: beatSeconds * 0.9 };
+ if (lastBeat <= 1) return [landing];
+ return [{ tickOffset: beatTicks, notes: ii, duration: (lastBeat - 1) * beatSeconds * 0.9 }, landing];
+}
 
 /** One instrument trigger, mirroring the backing Parts' callback payloads. */
 export type BackingHit =
@@ -53,24 +68,27 @@ export function buildTurnaroundBarEvents(args: {
 	progressionType: ChordProgressionType;
 	targetKey: PitchClass;
 	backingStyle: BackingStyle;
+	backingInstrument?: BackingInstrument;
 	tempo: number;
 	swing: number;
 	ppq: number;
 	beatsPerBar: number;
+	denominator?: number;
 }): TurnaroundEvent[] {
 	const { progressionType, targetKey, backingStyle, tempo, swing, ppq, beatsPerBar } = args;
+	const denominator = args.denominator ?? 4;
 	const style = BACKING_STYLES[backingStyle];
-	const harmony = turnaroundHarmony(progressionType, targetKey, beatsPerBar);
+	const harmony = turnaroundHarmony(progressionType, targetKey, beatsPerBar, denominator);
 
-	const generated = generateBacking(harmony, style, {
+	const generated = prepareReleasedArrangement(harmony, style, {
 		phraseId: `turnaround:${progressionType}:${targetKey}`,
 		tempo,
 		ppq,
 		beatsPerBar,
 		swing: resolveBackingSwing(swing, style, tempo)
-	});
+	}, args.backingInstrument ?? 'piano', denominator, 0);
 
-	const barTicks = beatsPerBar * ppq;
+	const barTicks = beatsPerBar * 4 / denominator * ppq;
 	const events: TurnaroundEvent[] = [];
 	const push = (time: string, hit: BackingHit): void => {
 		const tick = parseInt(time, 10);

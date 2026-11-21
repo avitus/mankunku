@@ -70,7 +70,7 @@ registerHooks({
 	/** Resolve app aliases and extensionless TS imports in the isolated evaluator. */
 	resolve(specifier, context, next) {
 		if (specifier === '$app/env/private')
-			return { url: 'data:text/javascript,export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;', shortCircuit: true };
+			return { url: 'data:text/javascript,export const { ANTHROPIC_API_KEY, PDF_IMPORT_SYSTEM_MODEL } = process.env;', shortCircuit: true };
 		let candidate;
 		if (specifier.startsWith('$lib/')) candidate = path.join(repo, 'src/lib', specifier.slice(5));
 		else if (specifier.startsWith('.') && context.parentURL?.startsWith('file:'))

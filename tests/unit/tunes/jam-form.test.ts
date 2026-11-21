@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Tune } from '$lib/types/tune';
 import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
 import { flattenTune } from '$lib/tunes/flatten';
-import { jamSheets } from '$lib/tunes/jam-sheets';
+import { jamChartAt, jamSheets } from '$lib/tunes/jam-sheets';
 import { buildJamForm } from '$lib/tunes/jam-form';
 import { tuneChordBars } from '$lib/tunes/chord-bars';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -128,6 +128,49 @@ describe('a finite jazz jam', () => {
 			expect(flattenTune(sheet).harmony).toEqual(flattenTune(authored).harmony);
 		}
 		expect(blues.sections).toHaveLength(3);
+	});
+	it('plays the complete repeated head into a solo break, then closes on the shared Fine', () => {
+		const source: Tune = { ...tune, sections: [
+			{ label: '', bars: 1, pickupLength: [1, 8], notes: [{ pitch: 55, offset: [7, 8], duration: [1, 8] }], harmony: [] },
+			{ ...tune.sections[0], repeatStart: true,
+				notes: [...tune.sections[0].notes, { pitch: 65, offset: [15, 8], duration: [1, 8] }],
+				directions: [{ offset: [15, 8], text: 'Fine' }] },
+			{ label: '', bars: 1, ending: 1, repeatEnd: true,
+				notes: [{ pitch: 62, offset: [0, 1], duration: [1, 4] }], harmony: [] },
+			{ label: '', bars: 1, ending: 2, notes: [], harmony: [], directions: [{ offset: [0, 1], text: 'Solo break' }] }
+		] };
+		const jam = buildJamForm(source, 2);
+		expect([jam.headBars, jam.soloBars, jam.outroStartBar, jam.phraseBars]).toEqual([7, 3, 13, 15]);
+		expect(jam.notes.map(note => note.pitch)).toEqual([55, 60, 65, 62, 60, 65, 60, 65]);
+		expect(jam.sessionBarMap).toEqual([0, 1, 2, 3, 4, 5, 6, 1, 2, 3, 1, 2, 3, 0, 1]);
+		for (const [bar, printed] of [[0, 0], [3, 3], [4, 1], [6, 4], [7, 1], [13, 0], [14, 1]]) {
+			const chart = jamChartAt(jam, bar, jam.headBars);
+			expect(notationBarForPlaybackBar(chart.flat.sectionMap, chart.sheet.sections, jam.sessionBarMap![bar])).toBe(printed);
+		}
+		expect(jam.phrase.soloBreaks).toEqual([6]);
+		expect(jam.opening?.sheet).toBe(source);
+		expect(jam.closingSheet.sections.flatMap(section => section.directions ?? []).map(d => d.text)).toEqual(['Fine']);
+		const solos = buildJamForm(source, 2, false);
+		expect(solos.opening).toBeUndefined();
+		expect(solos.phrase.soloBreaks).toEqual([5]);
+		expect(solos.headBars).toBe(0);
+		expect(solos.notes).toHaveLength(0);
+	});
+	it('moves the chosen ending’s printed directions with its music', () => {
+		const source: Tune = { ...tune, sections: [
+			{ ...tune.sections[0], repeatStart: true, directions: [{ offset: [7, 4], text: 'Fine' }] },
+			{ label: '', bars: 1, ending: 1, repeatEnd: true, notes: [], harmony: [],
+				directions: [{ offset: [0, 1], text: 'N.C.' }] },
+			{ label: '', bars: 1, ending: 2, notes: [], harmony: [],
+				directions: [{ offset: [0, 1], text: 'Solo break' }] }
+		] };
+		const { returning, closing } = jamSheets(source);
+		for (const [chart, cue] of [[returning, 'N.C.'], [closing, 'Solo break']] as const) {
+			expect(chart.sections[0].directions).toEqual([
+				{ offset: [7, 4], text: 'Fine' }, { offset: [2, 1], text: cue }
+			]);
+		}
+		expect(source.sections[0].directions).toHaveLength(1);
 	});
 	it('splits sustained harmony into actual chord bars', () => {
 		const bars = tuneChordBars(tune)[0].bars;

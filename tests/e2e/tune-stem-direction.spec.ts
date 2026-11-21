@@ -140,3 +140,21 @@ test('melody stems follow the single-voice direction rules despite the chord voi
 			.join(', ')}`
 	).toEqual([]);
 });
+
+test('a melody tie curves away from its stems on a chord chart', async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [{ ...STEM_TUNE, sections: [{
+		...STEM_TUNE.sections[0], bars: 1,
+		notes: [48, 48, 69, 69].map((pitch, i) => ({ pitch, offset: [i, 4], duration: [1, 4], tied: i % 2 === 0 }))
+	}] }]);
+	await page.goto('/tunes/e2e-stem-direction-tune');
+	const ties = page.locator('path.abcjs-tie');
+	await expect(ties).toHaveCount(2);
+	const position = await ties.evaluateAll(elements => elements.map((tie, i) => {
+		const head = tie.closest('.abcjs-staff-wrapper')!.querySelector(`.abcjs-note.abcjs-n${i * 2} .abcjs-notehead`)!.getBoundingClientRect();
+		const curve = tie.getBoundingClientRect();
+		return curve.top >= head.top + head.height / 2 ? 'below'
+			: curve.bottom <= head.top + head.height / 2 ? 'above' : 'overlaps head';
+	}));
+	expect(position).toEqual(['below', 'above']);
+});

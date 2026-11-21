@@ -181,9 +181,9 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  expect(signal.meters[3].peak, 'actual post-compressor Master output is silent').toBeGreaterThan(.005);
  expect(signal.meters[3].peak, 'default +6 dB Master output clips').toBeLessThan(1);
  await expect(page.getByTestId('listening-mixer')).not.toContainText('Signal observed');
- // Reuse the loaded bank after coordinated teardown and isolate bass in the
- // Original renderer. A cold-session success must not hide a disconnected reuse.
- await page.getByTestId('listening-mode').getByRole('button', { name: 'Original', exact: true }).click();
+ // Reuse the loaded bank after a completed take and isolate bass in the
+ // released renderer. A cold-session success must not hide a disconnected reuse.
+ await page.getByTestId('listening-new-arc').click();
  await expect(page.getByRole('meter', { name: 'Bass audio signal' })).toHaveAttribute('aria-valuenow', '-60');
  await page.getByRole('slider', { name: keyboard === 'organ' ? 'Organ volume' : 'Piano volume' }).fill('0');
  await page.getByRole('slider', { name: 'Drums volume' }).fill('0');

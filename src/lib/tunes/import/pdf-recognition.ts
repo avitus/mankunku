@@ -13,6 +13,9 @@ export interface RecognizedBar {
 	ending: number | null;
 	pickup: boolean;
 	pickupBeats?: number;
+	/** Beats with an accidental actually printed beside a melody note. */
+	printedAccidentals?: number[];
+	directions?: Array<[number, 'Fine' | 'Solo break']>;
 	melody: BarMelody;
 }
 export interface NoteheadEvidence {
@@ -39,7 +42,14 @@ export interface SystemRecognitionInput {
 	/** OMR already supplied melody; read only the missing harmony. */
 	harmonyOnly?: boolean;
 }
+export interface PrintedHeading {
+	title?: string;
+	composer?: string;
+	style?: string;
+}
+
 export interface SystemRecognitionResult {
+	heading?: PrintedHeading;
 	keySignature: { fifths: number } | null;
 	clef?: Clef | null;
 	timeSignature: [number, number] | null;

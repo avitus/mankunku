@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import SectionLabelOverlay from './SectionLabelOverlay.svelte';
+	import { drawDirectionLines } from '$lib/notation/direction-lines-dom';
+	import { orientMelodyTies } from '$lib/notation/melody-ties-dom';
 	import { sectionLabels } from '$lib/tunes/section-labels';
 	import type { LabelBarTarget } from '$lib/notation/section-label-target';
 	import { abcjsLoader, joinAbcjsLoad, type AbcjsModule } from '$lib/notation/abcjs-loader';
@@ -19,6 +21,8 @@
 	import type { GapAnchor } from '$lib/music/tune-notation';
 	import {
 		alignStackedEndingsInContainer,
+		applyPrintedEndingBrackets,
+		applyPrintedRepeatWings,
 		type AppliedEndingAlignment
 	} from '$lib/notation/ending-align-dom';
 	import {
@@ -438,6 +442,7 @@
 		// H is spacer-only now (no visible rests) — no rest-shift needed.
 		// Order: stack chords → drop/nudge → seat rehearsal marks → align
 		// stacked [2] under [1] (no pad bars in the ABC).
+		if (tune) orientMelodyTies(containerEl);
 		structureChordSymbols(containerEl);
 		dropChordSymbols(containerEl);
 		nudgeChordSymbols(containerEl);
@@ -447,7 +452,14 @@
 		// DOM geometry, no ABC-side hints. The transforms it applied feed the
 		// zone builder: zones come from abcjs's pre-alignment layout and must
 		// follow the moved glyphs, or bands and hit rects draw beside the music.
-		const endingAlignments = alignStackedEndingsInContainer(containerEl);
+		const leftMargin = tune?.sections.filter(section => section.ending === 2)
+			.map(section => section.endingAtLeftMargin === true);
+		const endingAlignments = alignStackedEndingsInContainer(containerEl, leftMargin);
+		if (tune) {
+			applyPrintedEndingBrackets(containerEl, tune.sections);
+			applyPrintedRepeatWings(containerEl, tune.sections);
+			drawDirectionLines(containerEl, tune);
+		}
 		drawGlissandi(vo, noteAnchors);
 		applySelectionHighlight(vo, noteAnchors, selectedIndex, selectedEndIndex);
 		if (compactStaff) {

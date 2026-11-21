@@ -110,6 +110,8 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ /** Committed cross-bar gate; omitted by every historical policy. */
+ readonly barLineSustain?: { readonly version: 1 | 2; readonly releaseTick: number; readonly instrument: 'piano' | 'organ'; readonly originalDuration: number };
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
@@ -153,6 +155,7 @@ export interface GeneratedBacking {
 }
 
 export interface EnsembleDevelopment {
+ readonly musicalSentences?: readonly import('./backing-sentences').MusicalSentenceDecision[];
 	readonly version: 1;
 	readonly terminalArrangements?: readonly TerminalArrangementDecision[];
 	readonly pianoMotifs: readonly CompMotifDecision[];

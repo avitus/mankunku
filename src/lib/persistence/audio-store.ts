@@ -105,6 +105,10 @@ export interface RecordingMetadata {
 	 */
 	transportSeconds?: number;
 	metronomeEnabled?: boolean;
+	/** Written click unit; absent on legacy quarter-note captures. */
+	metronomeDenominator?: number;
+	/** Transport seconds at a known click downbeat after a meter or tempo change. */
+	metronomeGridOriginSeconds?: number;
 	/**
 	 * Recording-relative backing-track transient onsets (bass + comp +
 	 * drums), captured from the live schedule so a /diagnostics replay uses

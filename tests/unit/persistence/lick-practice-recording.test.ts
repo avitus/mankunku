@@ -171,7 +171,7 @@ describe('saveLickPracticeRecording', () => {
 		await saveLickPracticeRecording({
 			sessionId: 'lp-session-schedule',
 			blob: makeBlob(),
-			phrase: makePhrase(),
+			phrase: makePhrase({timeSignature:[6,8]}),
 			tempo: 120,
 			swing: 0,
 			score: makeScore(),
@@ -185,6 +185,7 @@ describe('saveLickPracticeRecording', () => {
 		const full = await getRecordingFull('lp-session-schedule');
 		expect(full!.metadata!.transportSeconds).toBeCloseTo(9.142857, 6);
 		expect(full!.metadata!.metronomeEnabled).toBe(true);
+		expect(full!.metadata!.metronomeDenominator).toBe(8);
 	});
 
 	it('accepts null score for failed/empty windows without throwing', async () => {

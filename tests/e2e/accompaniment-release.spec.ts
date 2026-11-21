@@ -12,6 +12,7 @@ test('settings omits the retired arrangement selector for returning devices', as
   await page.setViewportSize({ width, height: 900 });
   await expect(rhythm).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Accompaniment arrangement' })).toHaveCount(0);
+  await expect(page.getByText('Musicality supports', { exact: false })).toHaveCount(0);
   await expect(rhythm).not.toContainText('other passages use Original');
   await expect(rhythm.getByRole('radiogroup', { name: 'Backing instrument' })).toBeVisible();
   await rhythm.scrollIntoViewIfNeeded();

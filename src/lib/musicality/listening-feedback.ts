@@ -26,6 +26,7 @@ export interface ListeningFeedback {
 	readonly musicalityRelease?: Readonly<MusicalityRelease>;
 	readonly tune: { readonly id: string; readonly title: string };
 	readonly settings: {
+		/** Original remains an archive value only; new playback always uses Musicality. */
 		readonly style: BackingStyle; readonly mode: 'original' | 'coordinated'; readonly tempo: number; readonly key: PitchClass; readonly soloChoruses: number;
 		/** Absent together on early v1 summaries; never reconstruct missing historic settings. */
 		readonly performanceEnergySeed?: number;
@@ -110,7 +111,7 @@ export function createListeningFeedback(input: ListeningFeedbackInput, options: 
 		...(playback.musicalityRelease !== undefined ? { musicalityRelease: { ...playback.musicalityRelease } } : {}),
 		...(playback.monitoring ? { monitoring: { adjusted: playback.monitoring.adjusted, mix: Object.fromEntries(mixKeys.map(key => [key, playback.monitoring!.mix[key]])) as unknown as BackingMixLevels } } : {}),
 		tune: { id: session.tune.id, title: session.tune.title },
-		settings: { ...(params.performanceEnergySeed === undefined ? {} : { performanceEnergySeed: params.performanceEnergySeed }), style: params.style, mode: params.orchestration ?? 'original', tempo: params.tempo, key: params.phrase.key, soloChoruses: session.soloChoruses,
+		settings: { ...(params.performanceEnergySeed === undefined ? {} : { performanceEnergySeed: params.performanceEnergySeed }), style: params.style, mode: params.orchestration ?? 'coordinated', tempo: params.tempo, key: params.phrase.key, soloChoruses: session.soloChoruses,
 			phraseId: params.phrase.id, swing: params.swing, volume: params.volume, ending: params.ending ?? 'continue', instrument: params.instrument,
 			mix: Object.fromEntries(mixKeys.map(key => [key, params.mix[key]])) as unknown as BackingMixLevels },
 		completion: complete ? 'complete' : 'partial', reachedBars: extent.barCount, totalBars: session.bars.length,

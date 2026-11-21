@@ -19,6 +19,34 @@ const endings: Tune = {
 	]
 };
 
+test('a saved PDF opens with both written endings visible on the tune desk', async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [{ ...endings, source: 'imported-pdf', sections: endings.sections.map(section =>
+		({ ...section, ...(section.ending && { printedEndingBracket: { width: 8, height: 5 } }),
+			...(section.repeatStart && { repeatWings: 'start' as const }), ...(section.repeatEnd && { repeatWings: 'end' as const }) })) }]);
+	await page.goto('/tunes/jam-endings');
+	const chart = page.locator('.abcjs-container');
+	await expect(chart).toContainText('A7');
+	await expect(chart).toContainText('GΔ7');
+	await expect(chart.locator('.tune-repeat-wings')).toHaveCount(2);
+	const brackets = chart.locator('.abcjs-ending path');
+	await expect(brackets).toHaveCount(2);
+	for (const path of await brackets.all()) {
+		await expect(path).toHaveAttribute('d', / V [-.\d]+ h [\d.]+$/);
+		// An open bracket only changes the ink. Both cues and endings still belong to the score.
+		const height = await path.evaluate(el => {
+			const line = el as SVGPathElement;
+			const rules = line.closest('.abcjs-staff-wrapper')!.querySelectorAll<SVGGraphicsElement>('.abcjs-staff > :is(path, line)');
+			const spacing = (rules[4].getBBox().y - rules[0].getBBox().y) * rules[0].getScreenCTM()!.d / 4;
+			return line.getBBox().height * line.getScreenCTM()!.d / spacing;
+		});
+		expect(height).toBeCloseTo(5, 1);
+	}
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(chart.locator('.abcjs-ending')).toHaveCount(2);
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
 for (const practice of [false, true]) {
 	for (const head of [true, false]) {
 		test(`${practice ? 'lick practice' : 'tune desk'} resolves endings with ${head ? 'head and outro' : 'solos only'}`, async ({ page, browserName }, info) => {

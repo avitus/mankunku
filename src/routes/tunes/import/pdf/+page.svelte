@@ -18,7 +18,8 @@
 	import { saveTunePdf } from '$lib/persistence/tune-pdf-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import PdfImportDesk from '$lib/components/tunes/PdfImportDesk.svelte';
-	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
+	import { extractPdfSystems, type ExtractedSystem, type PdfSystemExtraction } from '$lib/tunes/import/pdf-system-extract';
+	import { retainPrintedLayout, retainWholePdfBeams } from '$lib/tunes/import/pdf-layout';
 	import { assembleClaudeDoc, importReviewNotes } from '$lib/tunes/import/pdf-system-assemble';
 	import { setImportReview } from '$lib/state/tune-entry.svelte';
 	import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
@@ -31,6 +32,7 @@
 	} from '$lib/tunes/import/omr-transcription';
 	import {
 		defaultSourceTransposition,
+		sourcePitchFromFilename,
 		writtenSheetToConcert,
 		type SourceTransposition
 	} from '$lib/tunes/source-transposition';
@@ -63,7 +65,8 @@
 	let systemStates = $state<SystemProgress[]>([]);
 	/** Server-reported time-in-flight per line, from its heartbeats. */
 	let systemElapsed = $state<number[]>([]);
-	let wholePdfElapsedMs = $state(0);
+	let wholePdfAvailable = false;
+	let wholePdfReason = $state('');
 	let startedAt = $state(0);
 	let elapsedMs = $state(0);
 	let elapsedTimer: ReturnType<typeof setInterval> | undefined;
@@ -117,6 +120,8 @@
 	// Printed charts are usually parts for the user's own horn — default the
 	// source pitch to their instrument (set on mount, after settings hydrate).
 	let source = $state<SourceTransposition>('C');
+	let sourceChosen = $state(false);
+	let sourceHint = $state('');
 	/**
 	 * Declared before upload, so every line can be prompted at once. Reading
 	 * it off a transcription of line 1 used to serialise the whole import
@@ -130,7 +135,9 @@
 			// A stalled probe would leave `configured` null and the file input
 			// disabled forever — bound it; the catch routes a timeout to false.
 			const res = await fetch('/api/tune-parse', { signal: AbortSignal.timeout(10_000) });
-			configured = res.ok ? Boolean((await res.json()).configured) : false;
+			const capabilities = res.ok ? await res.json() : {};
+			configured = Boolean(capabilities.configured);
+			wholePdfAvailable = Boolean(capabilities.wholePdf ?? capabilities.configured);
 		} catch {
 			configured = false;
 		}
@@ -228,7 +235,7 @@
 	 * of every single system falls back to whole-PDF extraction.
 	 */
 	async function importViaSystems(
-		buffer: ArrayBuffer,
+		extraction: PdfSystemExtraction | null,
 		filename: string,
 		signal: AbortSignal
 	): Promise<{
@@ -237,17 +244,11 @@
 		suspectBars: number[];
 		sourceBarImages?: string[];
 	} | null> {
-		phase = 'reading';
-		const extraction = await extractPdfSystems(
-			buffer,
-			(page, total) => {
-				pageProgress = { page, total };
-			},
-			meter
-		);
-		if (!extraction) return null;
+		if (!extraction?.systems.length) {
+			wholePdfReason = 'The staff lines and barlines could not be identified reliably.';
+			return null;
+		}
 		const { systems } = extraction;
-		if (systems.length === 0) return null;
 
 		phase = 'context';
 		systemElapsed = new Array(systems.length).fill(0);
@@ -323,6 +324,7 @@
 					fused.warnings.join(' ') ||
 						'The OMR transcription did not supply usable melody and the PDF reader is not configured.'
 				);
+			wholePdfReason = 'The line reader returned no usable measures.';
 			return null;
 		}
 
@@ -390,17 +392,23 @@
 				harmony: responses[i]?.harmony,
 				model: {
 					fifths: responses[i]?.keySignature?.fifths ?? null,
+					clef: responses[i]?.clef,
 					bars: responses[i]?.bars ?? []
 				}
 			})),
 			{
-				title: extraction.title ?? filename.replace(/\.pdf$/i, ''),
-				composer: extraction.composer,
+				title: extraction.title ?? responses[0]?.heading?.title ?? omrDoc?.title ?? filename.replace(/\.pdf$/i, ''),
+				composer: extraction.composer ?? responses[0]?.heading?.composer ?? omrDoc?.composer,
+				style: responses[0]?.heading?.style,
 				timeSignature: meter
 			}
 		);
 		const converted = claudeJsonToTune(doc);
-		if (!converted.sheet) return null;
+		if (!converted.sheet) {
+			wholePdfReason = 'The measures could not be assembled into a draft.';
+			return null;
+		}
+		retainPrintedLayout(converted.sheet.sections, systems.map(system => system.geometry), converted.sheet.timeSignature);
 		converted.sheet.id = generateSheetId();
 		return {
 			sheet: converted.sheet,
@@ -465,6 +473,8 @@
 		if (uploading) return;
 		errorMessage = null;
 		selectedFile = null;
+		sourceHint = '';
+		if (!sourceChosen) source = defaultSourceTransposition(getInstrument());
 		if (!file) return;
 		if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
 			errorMessage = 'Choose a PDF file.';
@@ -475,6 +485,11 @@
 			return;
 		}
 		selectedFile = file;
+		const part = sourcePitchFromFilename(file.name);
+		if (part && !sourceChosen) {
+			source = part;
+			sourceHint = 'Source pitch from filename.';
+		}
 	}
 
 	/**
@@ -493,7 +508,7 @@
 		errorMessage = null;
 		systemStates = [];
 		systemElapsed = [];
-		wholePdfElapsedMs = 0;
+		wholePdfReason = '';
 
 		uploading = true;
 		cancelController = new AbortController();
@@ -513,8 +528,11 @@
 				sourceBarImages?: string[];
 			} | null = null;
 			let systemsFailure: string | null = null;
+			let extraction: PdfSystemExtraction | null = null;
 			try {
-				imported = await importViaSystems(buffer, file.name, signal);
+				phase = 'reading';
+				extraction = await extractPdfSystems(buffer, (page, total) => { pageProgress = { page, total }; }, meter);
+				imported = await importViaSystems(extraction, file.name, signal);
 			} catch (err) {
 				if (signal.aborted) throw err;
 				systemsFailure = err instanceof Error ? err.message : String(err);
@@ -532,6 +550,11 @@
 				return;
 			}
 			if (!imported) {
+				if (!wholePdfAvailable) {
+					errorMessage = [wholePdfReason || systemsFailure, 'A whole-page reader is unavailable for this import.']
+						.filter(Boolean).join(' ');
+					return;
+				}
 				phase = 'whole-pdf';
 				const res = await fetch('/api/tune-parse', {
 					method: 'POST',
@@ -549,10 +572,7 @@
 				try {
 					imported = await readNdjsonResult<{ sheet: Tune; warnings: string[] }>(res, {
 						inactivityMs: SYSTEM_SILENCE_MS,
-						signal,
-						onProgress: (p) => {
-							if (typeof p.elapsedMs === 'number') wholePdfElapsedMs = p.elapsedMs;
-						}
+						signal
 					});
 				} catch (err) {
 					errorMessage = [systemsFailure, err instanceof Error ? err.message : String(err)]
@@ -562,6 +582,15 @@
 				}
 			}
 			const { sheet, warnings } = imported;
+			// A line reader can fail after the scan already yielded reliable barlines.
+			// Keep the measured engraving and review crops for a matching full-page draft.
+			if (extraction && !imported.sourceBarImages) {
+				const count = sheet.sections.reduce((n, section) => n + section.bars, 0);
+				const crops = extraction.systems.flatMap(system => system.sourceBarImages ?? []);
+				retainPrintedLayout(sheet.sections, extraction.systems.map(system => system.geometry), sheet.timeSignature);
+				retainWholePdfBeams(sheet, extraction.systems);
+				if (crops.length === count) imported.sourceBarImages = crops;
+			}
 			// The whole-PDF fallback reads the meter off the document itself
 			// rather than being told — so the declaration gets the same
 			// cross-check the per-line path applies, and never disagrees with
@@ -632,7 +661,8 @@
 	{omrLoading}
 	onfile={chooseFile}
 	onprepare={prepareDraft}
-	onsource={(value) => (source = value)}
+	{sourceHint}
+	onsource={(value) => { sourceChosen = true; sourceHint = ''; source = value; }}
 	onmeter={(value) => (meter = value)}
 	onomr={handleOmrFile}
 	onclearomr={() => { omrDoc = null; omrFileName = null; omrError = null; }}
@@ -657,9 +687,7 @@
 						{:else if phase === 'assembling'}
 							Assembling the chart
 						{:else if phase === 'whole-pdf'}
-							Reading the whole chart in one pass — the line-by-line pass didn't work here{wholePdfElapsedMs
-								? ` (${formatDuration(wholePdfElapsedMs)})`
-								: ''}
+							{wholePdfReason} Reading the full PDF.
 						{:else}
 							Starting
 						{/if}

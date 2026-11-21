@@ -137,7 +137,7 @@ function phraseSection(phrase: Phrase, startBar: number, endBar: number): Phrase
 	}
 	const formLength = subtractFractions(end, start);
 	const last = harmony[harmony.length - 1];
-	if (last) last.duration = subtractFractions(formLength, last.startOffset);
+	if (last && !phrase.writtenHarmonyOnly) last.duration = subtractFractions(formLength, last.startOffset);
 
 	const map = phrase.sectionMap ?? [];
 	const sectionMap = map
@@ -158,6 +158,8 @@ function phraseSection(phrase: Phrase, startBar: number, endBar: number): Phrase
 	return {
 		...phrase,
 		id: `${phrase.id}:form-${region.startBar}-${region.endBar}`,
+		...(phrase.soloBreaks && { soloBreaks: phrase.soloBreaks.filter(bar => bar >= startBar && bar < endBar).map(bar => bar - startBar) }),
+		difficulty: { ...phrase.difficulty, lengthBars: endBar - startBar },
 		notes,
 		harmony,
 		sectionMap,

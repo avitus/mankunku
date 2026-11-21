@@ -44,6 +44,7 @@
 	import { createSoloListener, type SoloListener } from '$lib/audio/solo-listener';
 	import type { SoloObservationWindow } from '$lib/audio/solo-observer';
 
+	import { releasedBackingOptions } from '$lib/audio/backing-release';
 	import { createRollingBacking, advanceRollingBacking, type RollingBackingDefinition } from '$lib/audio/backing-rolling';
 	import { MAX_ADAPTIVE_BARS, MAX_ADAPTIVE_LOOPS } from '$lib/audio/backing-performance-limits';
 	import { createRollingSession, type RollingSession, type RollingSessionSnapshot } from '$lib/audio/backing-rolling-session';
@@ -82,7 +83,7 @@
 	const VOICE_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters — 100% is the ear-tuned baseline' },
 		{ key: 'ride', label: 'Ride', hint: 'Spang-a-lang voice (3 velocity layers)' },
-		{ key: 'hihat', label: 'Hi-hat', hint: 'Stick-hat voice and original-mode backbeat' },
+		{ key: 'hihat', label: 'Hi-hat', hint: 'Stick hi-hat voice' },
 		{ key: 'snare', label: 'Snare', hint: 'Commentary and section setups (3 layers)' },
 		{ key: 'crash', label: 'Crash', hint: 'Section-boundary punctuation (vocabulary increment)' },
 		{ key: 'crossstick', label: 'Cross-stick', hint: 'Bossa clave / sparse color (vocabulary increment)' },
@@ -94,7 +95,7 @@
 	let volume = $state(settings.backingTrackVolume);
 	let tempo = $state(140);
 	let style = $state<BackingStyle>(settings.backingStyle);
-	let orchestration = $state<'original' | 'coordinated'>('coordinated');
+	const orchestration = 'coordinated' as const;
 	let soloScenario = $state<LabSoloScenario>('unavailable');
 	let instrument = $state<BackingInstrument>(settings.backingInstrument);
 	let presetId = $state(BACKING_LAB_PRESETS[0].id);
@@ -164,11 +165,12 @@
 			toneModule = await import('tone');
 			if (id !== playRequest) return;
 			let startAudioTime = Infinity;
+			// Fixed playback uses performance seed zero. Both paths encode the lab variation in phrase.id.
 			const definition = adapt ? createRollingBacking(phrase.harmony, BACKING_STYLES[style], {
 				phraseId: phrase.id, tempo, ppq: toneModule.getTransport().PPQ, beatsPerBar: 4,
 				swing: resolveBackingSwing(settings.swing, BACKING_STYLES[style], tempo),
 				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
-			}, { loopCount }) : null;
+			}, { ...releasedBackingOptions(instrument, 0), loopCount }) : null;
 			if (adapt) recordedDefinition = definition;
 			if (observe) {
 				const totalBars = definition?.totalBars ?? preset.bars;
@@ -245,7 +247,6 @@
 					backingInstrument: instrument,
 					backingTrackVolume: volume,
 					backingStyle: style,
-					backingOrchestration: orchestration,
 					backingSoloFeatures: soloFeatures
 				},
 				0,
@@ -563,14 +564,7 @@
 				</select>
 			</label>
 
-			<label class="text-sm">
-				<span class="block text-[var(--color-text-secondary)] mb-1">Ensemble</span>
-				<select bind:value={orchestration} onchange={onRenderParamsChanged} data-testid="lab-orchestration"
-					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5">
-					<option value="coordinated">Coordinated · preview</option>
-					<option value="original">Original</option>
-				</select>
-			</label>
+
 
 			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Soloist scenario</span>
@@ -616,10 +610,8 @@
 				Recorded microphone observations drive this coordinated replay. It generates a new comparison from the captured evidence.
 			{:else if listening}
 				The band plays its fixed plan while the microphone measures completed bars. Replay becomes available after the take.
-			{:else if orchestration === 'coordinated'}
-				Coordinated 4/4 is a listening preview for all four styles. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
 			{:else}
-				Original accompaniment. Choose Coordinated to preview shared musical decisions in this style.
+				Coordinated 4/4 is a listening preview for all four styles. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
 			{/if}
 		</p>
 		<div class="flex flex-wrap items-end gap-4">

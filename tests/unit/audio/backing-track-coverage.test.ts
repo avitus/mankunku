@@ -1,3 +1,4 @@
+import { prepareReleasedArrangement } from '$lib/audio/backing-arrangement';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
@@ -281,6 +282,97 @@ describe('backing track covers the full phrase', () => {
 		expect(rideBeats(drums!.events).size).toBe(bars * lick!.timeSignature[0]);
 	});
 
+	it('keeps the piano and bass silent through written no-chord beats, including their releases', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const phrase: Phrase = {
+			...PHRASE, writtenHarmonyOnly: true,
+			harmony: [
+				{ ...HARMONY_2_BARS[0], duration: [7, 8] },
+				{ ...HARMONY_2_BARS[1], startOffset: [2, 1], duration: [1, 2] }
+			]
+		};
+		const generated = await mod.scheduleBackingTrack(phrase, OPTIONS, PPQ * BEATS_PER_BAR);
+		const pitched = [...generated!.bassEvents, ...generated!.compEvents];
+		expect(pitched.length).toBeGreaterThan(0);
+		for (const hit of pitched) {
+			const start = parseInt(hit.time, 10) / PPQ;
+			const end = start + hit.duration * OPTIONS.tempo / 60;
+			expect((start >= 0 && end <= 3.5 + 1e-8) || (start >= 8 && end <= 10 + 1e-8)).toBe(true);
+		}
+	});
+
+	it('leaves the marked solo break to the soloist and comes back in on the next bar', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const phrase: Phrase = { ...PHRASE, writtenHarmonyOnly: true, soloBreaks: [1], harmony: [
+			{ ...HARMONY_2_BARS[0], duration: [3, 1] }
+		] };
+		const band = (await mod.scheduleBackingTrack(phrase, OPTIONS, PPQ * BEATS_PER_BAR))!;
+		for (const hit of [...band.bassEvents, ...band.compEvents, ...band.drumEvents]) {
+			const start = parseInt(hit.time, 10) / PPQ;
+			expect(start < 4 || start >= 8).toBe(true);
+			if ('duration' in hit && start < 4) expect(start + hit.duration * OPTIONS.tempo / 60).toBeLessThanOrEqual(4 + 1e-8);
+		}
+		expect(band.drumEvents.some(hit => hit.absBeat === 8)).toBe(true);
+		expect(band.bassEvents.some(hit => hit.absBeat === 8)).toBe(true);
+	});
+
+	it('uses the same written rests and return downbeat when the performance is exported', async () => {
+		const { generateForBounce, BOUNCE_PPQ } = await import('$lib/audio/backing-bounce');
+		const { DEFAULT_BACKING_MIX } = await import('$lib/audio/backing-mix');
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const phrase: Phrase = {
+			...PHRASE, writtenHarmonyOnly: true, soloBreaks: [1],
+			harmony: [
+				{ ...HARMONY_2_BARS[0], startOffset: [1, 8], duration: [7, 8] },
+				{ ...HARMONY_2_BARS[1], startOffset: [2, 1], duration: [1, 1] }
+			]
+		};
+		const live = await mod.scheduleBackingTrack(phrase, OPTIONS, 0);
+		const bounce = generateForBounce({
+			phrase, tempo: OPTIONS.tempo, swing: OPTIONS.swing, style: 'swing',
+			instrument: 'piano', volume: 0.6, mix: DEFAULT_BACKING_MIX
+		});
+		for (const band of [live!, bounce]) {
+			expect([...band.bassEvents, ...band.compEvents, ...band.drumEvents].some(
+				event => event.absBeat >= 4 && event.absBeat < 8)).toBe(false);
+			expect(band.bassEvents.some(event => event.absBeat === 8)).toBe(true);
+		}
+		// Tone and the WAV bounce can use different ticks per quarter.
+		expect(bounce.bassEvents.find(event => event.absBeat === 8)?.time).toBe(`${8 * BOUNCE_PPQ}i`);
+	});
+
+	it('plays a short written Fine chord with the final swung melody attack on the out-head', async () => {
+		const { generateForBounce, BOUNCE_PPQ } = await import('$lib/audio/backing-bounce');
+		const { DEFAULT_BACKING_MIX } = await import('$lib/audio/backing-mix');
+		const phrase: Phrase = {
+			...PHRASE, difficulty: { ...PHRASE.difficulty, lengthBars: 1 },
+			notes: [{ pitch: 53, offset: [7, 8], duration: [1, 8] }],
+			harmony: [
+				{ ...HARMONY_2_BARS[0], startOffset: [0, 1], duration: [7, 8] },
+				{ chord: { root: 'F', quality: 'maj6' }, scaleId: 'major.ionian', symbol: 'F',
+					writtenFine: true, startOffset: [7, 8], duration: [1, 8] }
+			]
+		};
+		const band = generateForBounce({ phrase, tempo: 144, swing: .62, style: 'swing',
+			instrument: 'piano', volume: .6, mix: DEFAULT_BACKING_MIX });
+		const time = `${Math.round(3.62 * BOUNCE_PPQ)}i`;
+		expect(band.bassEvents.at(-1)).toMatchObject({ time, absBeat: 3.5, midi: 41 });
+		expect(band.compEvents.at(-1)).toMatchObject({ time, absBeat: 3.5, notes: [53, 57, 60] });
+		expect(band.drumEvents.every(hit => parseInt(hit.time, 10) <= parseInt(time, 10))).toBe(true);
+	});
+
+	it('leaves a written unaccompanied melody free of an inferred tonic', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const result = await mod.scheduleBackingTrack({ ...PHRASE, timeSignature: [6, 8], writtenHarmonyOnly: true, harmony: [] }, OPTIONS, 0, true);
+		expect(result?.bassEvents).toEqual([]);
+		expect(result?.compEvents).toEqual([]);
+		expect(mod.getActiveSchedule()?.loopSeconds).toBe(3 * 3 * 60 / OPTIONS.tempo);
+	});
+
 	it('leaves a phrase whose harmony already covers the melody unchanged', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
@@ -364,9 +456,9 @@ describe('coordinated backing schedule evidence', () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
 		const scheduled = await mod.scheduleBackingTrack(phrase, {
-			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+			...OPTIONS, backingSoloFeatures: features
 		}, tickOffset, true);
-		const generated = generateBacking(phrase.harmony, style, { ...params, ensemble: { soloFeatures: features } });
+		const generated = prepareReleasedArrangement(phrase.harmony, style, { ...params, ensemble: { soloFeatures: features } }, 'piano', 4, 0);
 		expect(scheduled).toEqual(generated);
 		const parts = recorded.filter((part) => part.kind === 'part');
 		expect(parts[0].events).toEqual(scheduled!.bassEvents);
@@ -402,43 +494,31 @@ describe('coordinated backing schedule evidence', () => {
 		expect(parts.every((part) => part.disposed)).toBe(true);
 	});
 
-	it('resets coordinated evidence when rescheduled with explicit Original mode, ignoring solo fixtures', async () => {
+	it('replaces the previous Musicality schedule when rescheduled', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
 		await mod.scheduleBackingTrack(phrase, {
-			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+			...OPTIONS, backingSoloFeatures: features
 		}, tickOffset, true);
 		const previous = [...recorded];
 		const previousSchedule = mod.getActiveSchedule();
-		await mod.scheduleBackingTrack(phrase, { ...OPTIONS, backingOrchestration: 'original', backingSoloFeatures: features }, tickOffset, false);
-		const generated = generateBacking(phrase.harmony, style, params);
+		await mod.scheduleBackingTrack(phrase, { ...OPTIONS }, tickOffset, false);
+		const generated = prepareReleasedArrangement(phrase.harmony, style, params, 'piano', 4, 0);
 		expect(recorded.slice(previous.length).map((part) => part.events)).toEqual([
 			generated.bassEvents, generated.compEvents, generated.drumEvents
 		]);
 		expect(previous.every((part) => part.disposed)).toBe(true);
 		expect(mod.getActiveSchedule()).not.toBe(previousSchedule);
 		expect(mod.getActiveSchedule()!.loopSeconds).toBeNull();
-		expect(generated.ensemblePlan).toBeUndefined();
+		expect(generated.ensemblePlan).toBeDefined();
 	});
 
-	it('falls back to original generation without quarter-note form metadata in denominator-based meters', async () => {
-		const mod = await import('$lib/audio/backing-track');
-		await mod.loadBackingInstruments('piano');
-		const performanceForm = buildPerformanceForm({
-			totalBars: preset.bars, sectionMap: phrase.sectionMap ?? [],
-			choruses: [{ role: 'head', startBar: 0, endBarExclusive: preset.bars }]
-		});
-		const eighthMeter: Phrase = { ...phrase, timeSignature: [4, 8], performanceForm };
-		await mod.scheduleBackingTrack(eighthMeter, {
-			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
-		}, tickOffset, false);
-		const expected = generateBacking(phrase.harmony, style, { ...params, performanceForm: undefined });
-		const misapplied = generateBacking(phrase.harmony, style, { ...params, performanceForm });
-		expect(expected).not.toEqual(misapplied);
-		expect(recorded.map((part) => part.events)).toEqual([
-			expected.bassEvents, expected.compEvents, expected.drumEvents
-		]);
-	});
+	it('rejects inconsistent form lengths before scheduling backing', async () => {
+  const mod = await import('$lib/audio/backing-track');
+  await mod.loadBackingInstruments('piano');
+  await expect(mod.scheduleBackingTrack({ ...phrase, timeSignature: [4,8] }, OPTIONS, 0, false)).rejects.toThrow('Performance form must match backing length');
+  expect(recorded).toHaveLength(0);
+ });
 });
 
 describe('playBackingHitsNow', () => {
@@ -637,8 +717,7 @@ describe('tune backing output level', () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it('normal playback ignores the retired saved Original choice while explicit lab overrides still work', async () => {
- vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'backing-arrangement-v1' ? 'original' : null });
+it('normal playback installs the released full-tune attacks despite an obsolete stored preference', async () => {
  const { buildListeningTuneSession } = await import('$lib/musicality/listening-tunes');
  const { MANKUNKU_BLUES } = await import('$lib/data/tunes');
  const { prepareReleasedArrangement } = await import('$lib/audio/backing-arrangement');
@@ -648,13 +727,13 @@ it('normal playback ignores the retired saved Original choice while explicit lab
  const expected=prepareReleasedArrangement(phrase.harmony,BACKING_STYLES.swing,{
   phraseId:phrase.id,tempo:140,swing:.62,ppq:PPQ,beatsPerBar:4,sectionMap:phrase.sectionMap,performanceForm:phrase.performanceForm
  },'piano',4,256)!;
+ vi.stubGlobal('localStorage', { getItem: () => 'original' });
  const start=recorded.length;
  const generated=await mod.scheduleBackingTrack(phrase,options,2*PPQ,false);
  expect(generated).toEqual(expected);
  expect(recorded.slice(start).map(p=>p.events)).toEqual([expected.bassEvents,expected.compEvents,expected.drumEvents]);
  expect(recorded.slice(start).every(p=>p.startedAt===`${2*PPQ}i`)).toBe(true);
- const original=await mod.scheduleBackingTrack(phrase,{...options,backingOrchestration:'original'},2*PPQ,false);
- expect(original?.compEvents).not.toEqual(expected.compEvents);
+ vi.unstubAllGlobals();
  expect(mod.getActiveSchedule()?.notes.length).toBeGreaterThan(0);
  mod.disposeBackingTrack();
 });

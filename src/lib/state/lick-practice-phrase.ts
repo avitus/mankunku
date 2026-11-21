@@ -36,6 +36,7 @@ import {
 	addFractions,
 	compareFractions,
 	fractionToFloat,
+	reduceFraction,
 	subtractFractions
 } from '$lib/music/intervals';
 
@@ -66,7 +67,7 @@ export function alignedLickOffset(
 	enableSubstitutions = false
 ): Fraction {
 	const base = resolveLickAlignmentOffset(progressionType, lick.category, enableSubstitutions);
-	const pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes);
+	const pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes, lick.timeSignature);
 	return applyPickupBarShift(base, pickupBars);
 }
 
@@ -87,6 +88,11 @@ export function lickBarsInProgression(
 	return Math.max(template.bars, alignmentBars + lick.difficulty.lengthBars);
 }
 
+/** Templates express offsets in 4/4 bars, while phrase offsets are whole notes. */
+function templateBarsToWholeNotes(bars: Fraction, meter: Fraction): Fraction {
+	return reduceFraction(bars[0] * meter[0], bars[1] * meter[1]);
+}
+
 /**
  * The progression's chords in `key`, the final chord sustained through any
  * bars the lick needs past the cycle.
@@ -100,7 +106,13 @@ export function progressionHarmonyForLick(
 	const template = PROGRESSION_TEMPLATES[progressionType];
 	const lickBars = lickBarsInProgression(lick, progressionType, enableSubstitutions);
 	const extended = extendHarmonyTail(template.harmony, lickBars - template.bars);
-	return transposeProgression(extended, key);
+	const harmony = transposeProgression(extended, key);
+	if (lick.timeSignature[0] === lick.timeSignature[1]) return harmony;
+	return harmony.map(segment => ({
+		...segment,
+		startOffset: templateBarsToWholeNotes(segment.startOffset, lick.timeSignature),
+		duration: templateBarsToWholeNotes(segment.duration, lick.timeSignature)
+	}));
 }
 
 /**
@@ -122,7 +134,7 @@ export function placeLickInProgression(
 	// - `bodyAlignment` (un-shifted) is what `resolveTransposeTarget` reads to
 	//   pick the lick's body chord — the shifted one would transpose the lick
 	//   to the pickup chord (G7) instead of its target (Cmaj7).
-	const alignmentOffset = alignedLickOffset(lick, progressionType, enableSubstitutions);
+	const alignmentOffset = templateBarsToWholeNotes(alignedLickOffset(lick, progressionType, enableSubstitutions), lick.timeSignature);
 	const bodyAlignment = resolveLickAlignmentOffset(progressionType, lick.category, enableSubstitutions);
 	const transposeTarget = resolveTransposeTarget(
 		key,

@@ -42,14 +42,14 @@ vi.mock('$lib/audio/backing-track', async () => {
 	};
 });
 
-const input = (orchestration: 'original' | 'coordinated' = 'coordinated'): BounceParams => ({
+const input = (orchestration: 'coordinated' = 'coordinated'): BounceParams => ({
 	phrase: structuredClone(BACKING_LAB_PRESETS[0].phrase), style: 'swing', tempo: 140, swing: .67,
 	instrument: 'piano', volume: .37, mix: { ...DEFAULT_BACKING_MIX }, orchestration
 });
 const players: ReturnType<typeof createListeningPlayer>[] = [];
 const player = () => { const value = createListeningPlayer({ onChange: () => {} }); players.push(value); return value; };
 
-it.each(['original', 'coordinated'] as const)('observes and releases only its owned %s audio taps', async mode => {
+it.each(['coordinated'] as const)('observes and releases only its owned %s audio taps', async mode => {
  const backing = await import('$lib/audio/backing-track');
  const value = { bass: { peak: .02, peakSoFar: .03 }, comp: null, drums: { peak: .1, peakSoFar: .2 } };
  const monitor = { read: vi.fn(() => value), dispose: vi.fn() };
@@ -127,14 +127,7 @@ describe('browser listening runtime routing and ownership', () => {
   expect(take.snapshot().status).toBe('playing');
   expect(create.mock.calls.at(-1)?.[2]).not.toHaveProperty('terminalArrangement');
  });
- it('does not forward a stale terminal choice to Original scheduling', async () => {
-  const backing = await import('$lib/audio/backing-track');
-  const take = player(); await take.start({ ...input('original'), ending: 'hold-release' } as BounceParams);
-  expect(take.snapshot().status).toBe('playing');
-  expect(backing.scheduleBackingTrack).toHaveBeenCalledOnce();
-  expect(vi.mocked(backing.scheduleBackingTrack).mock.calls[0][1]).not.toHaveProperty('terminalArrangement');
-  expect(vi.mocked(backing.scheduleBackingTrack).mock.calls[0][1]).not.toHaveProperty('ending');
- });
+
 	it('uses causal committed prefixes without microphone access and completes only after every dispatch and the tail', async () => {
 		const backing = await import('$lib/audio/backing-track'); const take = player(); await take.start(input());
 		expect(take.snapshot()).toMatchObject({ status: 'playing', barIndex: null, provenance: { engine: 'causal-rolling', committedBars: 2 } });
@@ -154,13 +147,6 @@ describe('browser listening runtime routing and ownership', () => {
 		advance(150);
 		expect(take.snapshot()).toMatchObject({ status: 'completed', provenance: { engine: 'causal-rolling', sessionStatus: 'complete' } });
 		expect(take.snapshot().provenance?.committedBars).toBe(take.snapshot().provenance?.totalBars);
-	});
-	it('keeps Original on its existing fixed scheduling path', async () => {
-		const backing = await import('$lib/audio/backing-track'); const take = player(); await take.start(input('original'));
-		expect(backing.scheduleBackingTrack).toHaveBeenCalledOnce();
-		expect(backing.createRollingBackingPlayback).not.toHaveBeenCalled();
-		expect(take.snapshot().provenance?.engine).toBe('fixed');
-		expect(host.getUserMedia).not.toHaveBeenCalled();
 	});
 	it('stops its owned transport after cancellation invalidates the request', async () => {
 		const take = player(); await take.start(input()); host.transport.stop.mockClear();
@@ -210,17 +196,15 @@ it('forwards the captured energy seed only into coordinated rolling generation',
  const take = player(); await take.start({ ...input(), performanceEnergySeed: 42 });
  expect(create.mock.calls.at(-1)?.[3]).toMatchObject({ performanceEnergySeed: 42, returningMelodySpace: true, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: 'piano', bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true });
  expect(take.snapshot().params!.performanceEnergySeed).toBe(42);
- take.stop(); create.mockClear(); await take.start({ ...input('original'), performanceEnergySeed: 42 });
- expect(create).not.toHaveBeenCalled();
+
 });
 
-it.each(['original', 'coordinated'] as const)('%s stops and reports a suspended native clock instead of hanging in Playing', async mode => {
+it.each(['coordinated'] as const)('%s stops and reports a suspended native clock instead of hanging in Playing', async mode => {
  const take = player(); await take.start(input(mode)); advance(400);
  expect(take.snapshot().status).toBe('playing');
  host.context.state = 'suspended'; vi.advanceTimersByTime(100);
- expect(take.snapshot()).toMatchObject({ status: 'error', error: mode === 'original' ? 'Audio context is suspended. Start a new take.' : 'Audio scheduling stopped: audio_clock' });
+ expect(take.snapshot()).toMatchObject({ status: 'error', error: 'Audio scheduling stopped: audio_clock' });
  expect(host.transport.stop).toHaveBeenCalled();
  expect(host.callbacks.size).toBe(0);
- if (mode === 'original') expect(host.schedule).toBeNull();
- else expect(host.playbacks.at(-1)!.stop).toHaveBeenCalled();
+ expect(host.playbacks.at(-1)!.stop).toHaveBeenCalled();
 });

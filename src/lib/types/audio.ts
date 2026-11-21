@@ -43,8 +43,6 @@ export interface PlaybackOptions {
 	backingTrackVolume?: number;
 	/** Backing track musical style */
 	backingStyle?: BackingStyle;
-	/** Explicit arrangement override; omitted uses the device preference (Musicality by default). */
-	backingOrchestration?: 'original' | 'coordinated';
 	/** Reproducible variation for this playback session. */
 	backingPerformanceSeed?: number;
 	/** Captured/scripted lab observations for fixed playback; rolling playback owns its live observation windows. */

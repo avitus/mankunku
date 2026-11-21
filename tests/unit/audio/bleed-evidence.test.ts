@@ -71,3 +71,15 @@ describe('resolveBleedEvidence', () => {
 		expect(onsets).toBeUndefined();
 	});
 });
+
+it('uses the written click unit in compound meter without changing quarter-note BPM',()=>{
+ const eighths=resolveBleedEvidence({schedule:null,recordingTransportSeconds:0,tempo:120,recordingDuration:1.5,backingTrackEnabled:false,metronomeEnabled:true,metronomeDenominator:8});
+ expect(eighths).toEqual([-.25,0,.25,.5,.75,1,1.25,1.5]);
+ expect(resolveBleedEvidence({...base,backingTrackEnabled:true,metronomeEnabled:true,metronomeDenominator:8})).toEqual(resolveBleedEvidence({...base,backingTrackEnabled:true,metronomeEnabled:true}));
+});
+
+it('anchors the click grid to the scheduled downbeat after a mixed-meter handoff', () => {
+ const onsets = resolveBleedEvidence({ ...base, schedule: null, backingTrackEnabled: false, metronomeEnabled: true,
+  tempo: 120, metronomeDenominator: 4, metronomeGridOriginSeconds: 3.25, recordingTransportSeconds: 3.375, recordingDuration: 1 });
+ expect(onsets).toEqual([-.125, .375, .875]);
+});

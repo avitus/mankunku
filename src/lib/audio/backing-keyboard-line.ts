@@ -25,6 +25,9 @@ export interface KeyboardLineInput {
  readonly phase: PerformanceEnergy['phase'];
  /** Accepted chord index inside this bar: later attacks sustain the current top-note aim. */
  readonly attackIndex: number;
+ /** Eight-bar direction; accepted prior chord remains the only pitch anchor. */
+ readonly sentenceStep?: number;
+ readonly sentenceContour?: 'arch' | 'fall' | 'lift';
  readonly previous?: CoordinatedVoicingMemory;
 }
 const swing = [
@@ -48,7 +51,8 @@ export function planKeyboardLine(input: KeyboardLineInput): Readonly<KeyboardLin
  if (!['swing','straight','bossa-nova','ballad'].includes(input.style) || !Number.isInteger(input.barIndex) ||
   !Number.isInteger(input.phraseStartBar) || input.phraseStartBar < 0 || input.barIndex < input.phraseStartBar ||
   !Number.isInteger(input.attackIndex) || input.attackIndex < 0 || !Number.isInteger(input.seed) || input.seed < 0 || input.seed > 0xffffffff ||
-  !Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Invalid keyboard line context');
+  !Number.isFinite(input.tempo) || input.tempo <= 0 ||
+  input.sentenceStep !== undefined && (!Number.isInteger(input.sentenceStep) || Math.abs(input.sentenceStep) > 2 || !['arch','fall','lift'].includes(input.sentenceContour ?? ''))) throw new Error('Invalid keyboard line context');
  const anchorMidi = input.previous?.notes.at(-1);
  if (anchorMidi === undefined) return;
  if (!Number.isInteger(anchorMidi) || anchorMidi < 48 || anchorMidi > 84) throw new Error('Invalid previous keyboard line anchor');
@@ -57,8 +61,8 @@ export function planKeyboardLine(input: KeyboardLineInput): Readonly<KeyboardLin
  const settling = ['head_return','solo_release','ending'].includes(input.phase);
  const pattern = input.style === 'ballad' ? rng.pick(ballad) : input.style === 'bossa-nova' ? rng.pick(bossa) : rng.pick(swing);
  const settleSteps = input.style === 'ballad' ? [0,0,-1,0] : input.style === 'bossa-nova' ? [0,0,0,-1] : [0,-1,0,-2];
- const stepSemitones = input.attackIndex > 0 ? 0 : settling ? settleSteps[position] : pattern.steps[position];
- return Object.freeze({ style: input.style, contour: settling ? 'settle' : pattern.contour,
+ const stepSemitones = input.attackIndex > 0 ? 0 : settling ? settleSteps[position] : input.sentenceStep ?? pattern.steps[position];
+ return Object.freeze({ style: input.style, contour: settling ? 'settle' : input.sentenceContour ?? pattern.contour,
   anchorMidi, stepSemitones, targetMidi: Math.max(48,Math.min(84,anchorMidi+stepSemitones)),
   maxGuideDetour: 2, maxMovementDetour: 4, maxTopLeap: input.style === 'ballad' ? 3 : input.style === 'bossa-nova' ? 4 : 5 });
 }

@@ -22,6 +22,7 @@
 		{ id: '2/4', label: '2/4', value: [2, 4] },
 		{ id: '6/8', label: '6/8', value: [6, 8] },
 		{ id: '5/4', label: '5/4', value: [5, 4] },
+		{ id: '7/4', label: '7/4', value: [7, 4] },
 		{ id: '12/8', label: '12/8', value: [12, 8] }
 	];
 

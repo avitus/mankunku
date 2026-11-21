@@ -170,14 +170,14 @@ describe('explicit terminal arrangement evidence', () => {
  });
 });
 describe('musician decisions from the actual score', () => {
-	it('counts actual onset ticks in the sounding bar without inventing decisions for original mode', () => {
+	it('counts actual onset ticks in the sounding bar without inventing unplanned decisions', () => {
 		const generated: GeneratedBacking = { bassEvents: [
 			{ time: '767i', absBeat: 4, midi: 48, duration: 0.4, velocity: 70 },
 			{ time: '768i', absBeat: 4, midi: 50, duration: 0.4, velocity: 70 }
 		], compEvents: [], drumEvents: [] };
 		const cards = describeMusicianDecisions(generated, { ...context, orchestration: 'original' });
 		expect(cards.map((c) => c.eventCount)).toEqual([1, 0, 0]);
-		expect(cards.every((c) => c.role === 'Original pattern')).toBe(true);
+		expect(cards.every((c) => c.role === 'Accompaniment')).toBe(true);
 		expect(cards[0].action).toBe('Carry the bass line');
 		expect(cards[1].action).toBe('No new chord attack');
 		expect(cards[1].detail).toContain('sustain');
@@ -190,7 +190,8 @@ describe('musician decisions from the actual score', () => {
 		for (let barIndex = 0; barIndex < 4; barIndex++) {
 			const cards = describeMusicianDecisions(generated, { ...context, style, barIndex });
 			for (const [i, events] of [generated.bassEvents, generated.compEvents, generated.drumEvents].entries()) {
-				expect(cards[i].eventCount).toBe(events.filter((e) => parseInt(e.time) >= barIndex * 768 && parseInt(e.time) < (barIndex + 1) * 768).length);
+				const inBar=events.filter((e) => parseInt(e.time) >= barIndex * 768 && parseInt(e.time) < (barIndex + 1) * 768);
+				expect(cards[i].eventCount).toBe(i===1 ? new Set(inBar.map(e=>e.time)).size : inBar.length);
 			}
 			if (style === 'bossa-nova') expect(cards[2].detail).toContain('bossa');
 		}

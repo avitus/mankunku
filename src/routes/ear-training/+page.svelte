@@ -687,6 +687,7 @@
 			metronomeEnabled: settings.metronomeEnabled,
 			recordingTransportSeconds: transportSeconds,
 			tempo: session.tempo,
+			metronomeDenominator: session.phrase.timeSignature[1],
 			recordingDuration
 		});
 		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
@@ -800,6 +801,7 @@
 						bleedFilterLog: provisionalBleedLog,
 						transportSeconds: transportForRescore,
 						metronomeEnabled: metronomeEnabledForRescore,
+						metronomeDenominator: phraseForRescore.timeSignature[1],
 						captureTiming,
 						scoringAudio: scoringBlob ? 'microphone' as const : 'unavailable' as const,
 						scoreSource: 'live' as const
@@ -957,6 +959,8 @@
 			metronomeEnabled,
 			recordingTransportSeconds: trimmedTransportSeconds,
 			tempo,
+			metronomeGridOriginSeconds: baseMetadata?.metronomeGridOriginSeconds,
+			metronomeDenominator: baseMetadata ? baseMetadata.metronomeDenominator ?? 4 : phrase.timeSignature[1],
 			recordingDuration: replay.duration
 		});
 		const articulationOnsets = findReArticulations(replay.readings, baseOnsets, bleedOnsets);

@@ -57,8 +57,8 @@ const options: PlaybackOptions = {
 };
 
 /** Compare a retry's band against the same vamp left running without a handoff. */
-async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled', arrangement: 'original' | 'coordinated' = 'coordinated') {
-	const sessionOptions = { ...options, backingOrchestration: arrangement };
+async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled', arrangement: 'coordinated' = 'coordinated') {
+	const sessionOptions = { ...options };
 	const nextOptions = { ...sessionOptions, backingPerformanceSeed: undefined };
 	const h = await createHeadlessTransport({ sampleRate: 48000, bpm: 120, startQuantum: 1 });
 	h.Tone.setContext(h.context);
@@ -107,7 +107,7 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled', 
 }
 
 describe('ear-training backing continuity', () => {
-	it.each(['original', 'coordinated'] as const)('%s keeps every attack and the session seed through successive retry downbeats', async arrangement => {
+	it.each(['coordinated'] as const)('%s keeps every attack and the session seed through successive retry downbeats', async arrangement => {
 		const uninterrupted = await runSession('none', arrangement);
 		const retry = await runSession('retry', arrangement);
 		expect(uninterrupted.band.length).toBeGreaterThan(30);

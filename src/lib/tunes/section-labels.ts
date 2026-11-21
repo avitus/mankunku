@@ -21,6 +21,10 @@ export function sectionPlaybackRules(sections: TuneSection[]) {
 			previous = section.label.trim();
 			intro = isIntroLabel(section.label);
 			introOmission = section.omitFromSolos ?? true;
+		} else if (!section.label.trim() && section.omitFromSolos === false && !section.ending) {
+			// The importer explicitly includes the unmarked body after a printed Intro.
+			intro = false;
+			previous = '';
 		}
 		return { omitFromSolos: section.omitFromSolos ?? (intro && introOmission), omitFromOutro: intro };
 	});
@@ -61,6 +65,11 @@ function split(section: TuneSection, bars: number, meter: Tune['timeSignature'])
 	const at = multiplyFraction(meter, bars);
 	const left: TuneSection = { ...section, bars, repeatEnd: undefined, notes: [], harmony: [] };
 	const right: TuneSection = { ...section, label: '', labelExplicit: undefined, bars: section.bars - bars, repeatStart: undefined, pickupLength: undefined, notes: [], harmony: [] };
+	if (section.directions) {
+		left.directions = section.directions.filter(d => compareFractions(d.offset, at) < 0);
+		right.directions = section.directions.filter(d => compareFractions(d.offset, at) >= 0)
+			.map(d => ({ ...d, offset: subtractFractions(d.offset, at) }));
+	}
 	for (const note of section.notes) {
 		const end = addFractions(note.offset, note.duration);
 		if (compareFractions(note.offset, at) >= 0) right.notes.push({ ...note, offset: subtractFractions(note.offset, at) });
@@ -92,6 +101,8 @@ function joinUnmarked(sections: TuneSection[], meter: Tune['timeSignature']): Tu
 			const shift = multiplyFraction(meter, prev.bars);
 			prev.notes.push(...section.notes.map(n => ({ ...n, offset: addFractions(shift, n.offset) })));
 			prev.harmony.push(...section.harmony.map(h => ({ ...h, startOffset: addFractions(shift, h.startOffset) })));
+			if (section.directions?.length) prev.directions = [...(prev.directions ?? []),
+				...section.directions.map(d => ({ ...d, offset: addFractions(shift, d.offset) }))];
 			prev.bars += section.bars;
 			prev.repeatEnd = section.repeatEnd;
 		} else result.push({ ...section, notes: [...section.notes], harmony: [...section.harmony] });

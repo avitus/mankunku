@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
 import { readHarmony } from '$lib/server/pdf-import/anthropic-harmony';
-vi.mock('$lib/server/anthropic', () => ({ ANTHROPIC_MODEL: 'test' }));
+vi.mock('$lib/server/anthropic', () => ({ ANTHROPIC_MODEL: 'test', ANTHROPIC_TUNE_MODEL: 'test-tune' }));
 
 const reply = (bars: unknown) => ({ content: [{ type: 'text', text: JSON.stringify({ bars }) }] });
 function clientFor(work: () => Promise<unknown>) {

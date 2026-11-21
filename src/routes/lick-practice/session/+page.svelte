@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { quarterBeatsPerBar } from '$lib/tunes/meter';
 	import { precedingCycleRow } from '$lib/ui/key-stack-layout';
 	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
@@ -49,11 +50,9 @@
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import {
 		getActiveSubstitution,
-		getTransitionCadenceChords,
 		PROGRESSION_TEMPLATES,
 		progressionMode
 	} from '$lib/data/progressions';
-	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import {
 		resolveNextCycleStart,
 		planCycleWindows,
@@ -71,7 +70,7 @@
 		type PhaseCue,
 		type PhaseSegment
 	} from '$lib/state/lick-practice-phase';
-	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
+	import { buildTurnaroundBarEvents, transitionCueStabs, type BackingHit } from '$lib/audio/turnaround-bar';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type {
 		PlannedKey,
@@ -322,6 +321,7 @@
 		phrase: Phrase;
 		schedule: BackingTrackSchedule | null;
 		recordingTransportSeconds: number;
+		metronomeGridOriginSeconds?: number;
 		micStartTime: number;
 		readingsStartCount: number;
 		/** Same as `readingsStartCount`, for the detector's weak-reading stream. */
@@ -691,8 +691,7 @@
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
-		const beatsPerBar = superPhrase.timeSignature[0];
-		const ticksPerBar = beatsPerBar * ppq;
+		const ticksPerBar = quarterBeatsPerBar(superPhrase.timeSignature) * ppq;
 		const keyBars = getKeyBars();
 		// Per-lick cycle length in bars — equals the progression's bar count
 		// for licks that fit, longer for licks with extension. Drives demo
@@ -847,13 +846,14 @@
 		const lickEndTick = windows.cycleEndTick;
 
 		// The display reads its position off this same plan every frame.
+		const ticksPerPrintedBeat = transport.PPQ * 4 / (getPhraseFor(lickIdx, 0)?.timeSignature[1] ?? 4);
 		const nextLayout: CyclePositionArgs = {
 			audioStartTick,
 			demoBars,
 			keyBars,
 			ticksPerBar,
-			ticksPerBeat: transport.PPQ,
-			loopBeats: lickBars * Math.round(ticksPerBar / transport.PPQ),
+			ticksPerBeat: ticksPerPrintedBeat,
+			loopBeats: lickBars * ticksPerBar / ticksPerPrintedBeat,
 			windows
 		};
 
@@ -947,10 +947,13 @@
 		// same frame it appears. The pre-computed nextLickStartTick is passed
 		// through so scheduleNextPhrase can land the audio on the correct bar
 		// boundary regardless of when the callback fires.
-		const nextLickStartTick = lickEndTick + INTER_LICK_REST_BARS * ticksPerBar;
+		const nextMeter = getPhraseFor(lickIdx + 1, 0)?.timeSignature;
+		const nextBarTicks = nextMeter ? quarterBeatsPerBar(nextMeter) * transport.PPQ : ticksPerBar;
+		const nextLickStartTick = lickEndTick + SCORE_HOLD_BARS * ticksPerBar +
+			(INTER_LICK_REST_BARS - SCORE_HOLD_BARS) * nextBarTicks;
 
 		const restId = transport.scheduleOnce(() => {
-			handleLickComplete(nextLickStartTick, ticksPerBar);
+			handleLickComplete(nextLickStartTick, nextBarTicks);
 		}, `${lickEndTick + SCORE_HOLD_BARS * ticksPerBar}i`);
 		scheduledEventIds.push(restId);
 	}
@@ -1040,14 +1043,18 @@
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
+		const meter = getCurrentPhrase()?.timeSignature;
+		if (!meter) return;
 		const events = buildTurnaroundBarEvents({
 			progressionType: item.progressionType,
 			targetKey: nextKey,
 			backingStyle: lickPractice.config.backingStyle ?? 'swing',
+			backingInstrument: settings.backingInstrument,
 			tempo: lickPractice.currentTempo,
 			swing: effectiveSwing,
 			ppq,
-			beatsPerBar: Math.round(ticksPerBar / ppq)
+			beatsPerBar: meter[0],
+			denominator: meter[1]
 		});
 
 		const barStartTick = nextLickStartTick - ticksPerBar;
@@ -1088,36 +1095,16 @@
 		if (!item || !nextKey) return;
 
 		const transport = toneModule.getTransport();
-		const ppq = transport.PPQ;
-		const beatsPerBar = Math.round(ticksPerBar / ppq);
-		// startLick has already set the new lick's BPM synchronously, so
-		// beat lengths match the metronome through the cue bar.
-		const beatSec = 60 / lickPractice.currentTempo;
-		const voicings = voiceLead(
-			getTransitionCadenceChords(item.progressionType, nextKey),
-			shellVoicing,
-			54
-		);
-		if (voicings.length < 2 || voicings.some(v => v.length === 0)) return;
-
-		const iiBeat = 1;
-		const vBeat = beatsPerBar - 1;
-		// Degenerate meters (2/4) can't fit two hits — keep just the V.
-		const stabs =
-			vBeat > iiBeat
-				? [
-						{ beat: iiBeat, notes: voicings[0], duration: (vBeat - iiBeat) * beatSec * 0.9 },
-						{ beat: vBeat, notes: voicings[1], duration: beatSec * 0.9 }
-					]
-				: [{ beat: iiBeat, notes: voicings[1], duration: beatSec * 0.9 }];
-
+		const meter = plannedKeysForLick[0]?.phrase.timeSignature ?? getCurrentPhrase()?.timeSignature;
+		if (!meter) return;
+		const stabs = transitionCueStabs(item.progressionType, nextKey, meter, transport.PPQ, lickPractice.currentTempo);
 		const cueBarStartTick = nextLickStartTick - ticksPerBar;
 		for (const stab of stabs) {
 			const id = transport.scheduleOnce((time: number) => {
 				backingTrack?.playTransitionChords([
 					{ notes: stab.notes, time, duration: stab.duration }
 				]);
-			}, `${cueBarStartTick + stab.beat * ppq}i`);
+			}, `${cueBarStartTick + stab.tickOffset}i`);
 			scheduledEventIds.push(id);
 		}
 	}
@@ -1141,7 +1128,6 @@
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
 	function startBeatTracking() {
-		const ppq = toneModule!.getTransport().PPQ;
 		/** Paint the chart position and phase cue from the active transport clock. */
 		function tick() {
 			if (!isSessionRunning) return;
@@ -1181,7 +1167,7 @@
 				// Listen/play cue. Re-read every frame (so the countdown lands
 				// on the beat) but only committed when a rendered field moves —
 				// a fresh object each frame would re-render the bar at 60fps.
-				const nextCue = phaseCueAt(ticks, phaseTimeline, ppq);
+				const nextCue = phaseCueAt(ticks, phaseTimeline, cycleLayout?.ticksPerBeat ?? 0);
 				if (
 					nextCue.phase !== phaseCue.phase ||
 					nextCue.next !== phaseCue.next ||
@@ -1241,7 +1227,7 @@
 		keyIdx: number,
 		finalPass: boolean,
 		passes: number,
-		_transportTime: number
+		transportTime: number
 	) {
 		if (!playback || !backingTrack || !pitchDetector) return;
 
@@ -1275,6 +1261,9 @@
 			phrase,
 			schedule: schedule ?? null,
 			recordingTransportSeconds: transportSecondsAtOpen,
+			// Each recording window opens on a scheduled downbeat. A preceding meter
+			// or tempo change can place that beat off the original transport grid.
+			metronomeGridOriginSeconds: playback.getTransportClockAt(transportTime)?.secondsAtContextTime,
 			micStartTime: micCapture?.context.currentTime ?? 0,
 			readingsStartCount: readings.length,
 			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
@@ -1366,6 +1355,8 @@
 			metronomeEnabled: settings.metronomeEnabled,
 			recordingTransportSeconds: window.recordingTransportSeconds,
 			tempo: lickPractice.currentTempo,
+			metronomeDenominator: window.phrase.timeSignature[1],
+			metronomeGridOriginSeconds: window.metronomeGridOriginSeconds,
 			recordingDuration
 		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
@@ -1556,6 +1547,7 @@
 						bleedFilterLog: bleedLogForSave,
 						transportSeconds: windowForSave.recordingTransportSeconds,
 						metronomeEnabled: metronomeForSave,
+						metronomeGridOriginSeconds: windowForSave.metronomeGridOriginSeconds,
 						backingBleedOnsets: backingOnsetsForSave,
 						captureTiming: captureTimingForSave,
 						supabase: supabaseForSave ?? undefined,

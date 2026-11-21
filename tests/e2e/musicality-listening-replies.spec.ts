@@ -64,10 +64,7 @@ for (const style of ['swing', 'straight'] as const) {
 	test(`${style} shows one accepted piano reply and the drummer's commentary space`, async ({ page }) => {
 		test.setTimeout(50_000);
 		await seedTunes(page, [WHEN_THE_SAINTS]);
-		// Saints in G under seed 6: the first take found in which the released
-		// accompaniment still answers a drum phrase with a single chord (8 of the
-		// 8,064 takes scanned over keys, tempos and seeds 0–23 hold an answer).
-		await setup(page, 6);
+		await setup(page, 14);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('G');
 		await page.getByTestId('listening-style').selectOption(style);
@@ -87,7 +84,7 @@ for (const style of ['swing', 'straight'] as const) {
 		for (const hit of answer.source.hits) expect(generated.drumEvents).toContainEqual(hit);
 		expect(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 17)).toEqual([answer.attack]);
 		expect(answer.attack.absBeat).toBe(69.5);
-		expect(answer.attack.velocity).toBe(59);
+		expect(answer.attack.velocity).toBe(58);
 		expect(answer.attack.duration).toBeCloseTo(0.3);
 		expect(generated.drumEvents.filter(event => Math.floor(event.absBeat / 4) === 17 && event.role === 'commentary')).toEqual([]);
 		await page.getByTestId('listening-stop').click();

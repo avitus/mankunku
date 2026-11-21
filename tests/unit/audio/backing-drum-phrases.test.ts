@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planDrumPhrases, freezeDrumPhraseTrace, type DrumPhraseDecision } from '$lib/audio/backing-drum-phrases';
+import { planDrumPhrases, planDrumPhraseBar, freezeDrumPhraseTrace, type DrumPhraseMemory, type DrumPhraseDecision } from '$lib/audio/backing-drum-phrases';
 import { planEnsemble } from '$lib/audio/ensemble-plan';
 import { buildBarInfos, generateDrums, type BarInfo } from '$lib/audio/backing-generation';
 import { BACKING_STYLES, type DrumHitSpec } from '$lib/audio/backing-styles';
@@ -24,6 +24,29 @@ function sourceOf(trace: readonly DrumPhraseDecision[], entry: DrumPhraseDecisio
 }
 
 describe('coordinated drum phrase planning', () => {
+	it('closes a delayed eight-bar commentary statement instead of resting on its final bar', () => {
+		let witnesses = 0;
+		for (let seed = 0; seed < 24; seed++) {
+			let memory: DrumPhraseMemory | undefined;
+			const bars = fixture(8);
+			const trace: DrumPhraseDecision[] = [];
+			for (let barIndex = 0; barIndex < 8; barIndex++) {
+				const info: BarInfo = { ...bars[barIndex], ensemble: { ...bars[barIndex].ensemble!,
+					drums: { ...bars[barIndex].ensemble!.drums, maxCommentaryHits: barIndex < 2 ? 0 : 3 } } };
+				const next = planDrumPhraseBar({ phraseId: `delayed-sentence-${seed}`, tempo: 140,
+					beatsPerBar: 4, longerSentences: true, barIndex, info,
+					phraseStartBar: 0, phraseEndBarExclusive: 8, harmonyEndBeat: 32 }, memory);
+				trace.push(next.bar); memory = next.memory;
+			}
+			if (memory?.phrase.motif?.startBar !== 2 || !memory.phrase.motif.gapAfterStatement) continue;
+			witnesses++;
+			expect(trace[3].commentary.reason).toBe('motif_gap');
+			expect(trace[7].commentary.transform).toBe('orchestrate');
+			expect(trace[7].commentary.hits.map(hit => hit.beatOffset)).toEqual(trace[2].commentary.hits.map(hit => hit.beatOffset));
+		}
+		expect(witnesses).toBeGreaterThan(0);
+	});
+
 	it('keeps a recognizable ride cell through a phrase and preserves quarter time and the foot', () => {
 		const plan = planDrumPhrases({ phraseId: 'drum-phrases', tempo: 140, beatsPerBar: 4, bars: fixture() });
 		expect(plan.bars).toHaveLength(32);

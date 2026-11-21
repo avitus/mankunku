@@ -103,6 +103,9 @@ export interface DiagnosticsExport {
 		swing: number | null;
 		backingTrackUsed: boolean;
 		metronomeEnabled: boolean | null;
+		metronomeDenominator?: number;
+		/** Transport seconds at a known click downbeat after a meter or tempo change. */
+		metronomeGridOriginSeconds?: number;
 		transportSeconds: number | null;
 		backingBleedOnsets: number[] | null;
 	};
@@ -187,7 +190,9 @@ export async function replayRecording(
 			? getMetronomeBleedOnsets(
 					full.metadata.transportSeconds + trimmed.offset,
 					full.metadata.tempo,
-					duration
+					duration,
+					full.metadata.metronomeDenominator,
+					full.metadata.metronomeGridOriginSeconds
 				)
 			: undefined);
 	const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
@@ -246,6 +251,8 @@ export function buildDiagnosticsPayload(
 			// these investigations turn on whether a candidate onset sits under
 			// a click. Null on pre-2026-08-01 captures.
 			metronomeEnabled: md?.metronomeEnabled ?? null,
+			...(md?.metronomeGridOriginSeconds != null ? { metronomeGridOriginSeconds: md.metronomeGridOriginSeconds } : {}),
+			...(md?.metronomeDenominator ? { metronomeDenominator: md.metronomeDenominator } : {}),
 			// Replay frame, matching `detection` below — the stored metadata
 			// value describes the blob's first sample, so the lead-in this
 			// replay discarded (if any) is added back on. Consumers hand this

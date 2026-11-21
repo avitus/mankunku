@@ -65,7 +65,8 @@ import type {
 	FocusRampSummary
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
-import { addFractions } from '$lib/music/intervals';
+import { addFractions, multiplyFraction } from '$lib/music/intervals';
+import { quarterBeatsPerBar } from '$lib/tunes/meter';
 import {
 	planLickKeys,
 	planUnlockedKeys,
@@ -601,7 +602,7 @@ function timingSpecForItem(item: LickPracticePlanItem): LickTimingSpec | null {
 			mode: lickPractice.config.practiceMode,
 			...leadSheetExtras(item.phraseId, lickUnlockRamp(lick, getInstrument()), item.keys)
 		}),
-		beatsPerBar: lick.timeSignature[0],
+		beatsPerBar: quarterBeatsPerBar(lick.timeSignature),
 		tempo: resolveLickTempo(lickPractice.progress, item.phraseId)
 	};
 }
@@ -678,7 +679,7 @@ export function computeSessionPlan(): LickPracticePlanItem[] {
 				mode: lickPractice.config.practiceMode,
 				...leadSheetExtras(lick.id, ramp, keys)
 			}),
-			beatsPerBar: lick.timeSignature[0],
+			beatsPerBar: quarterBeatsPerBar(lick.timeSignature),
 			tempo
 		});
 		// A lick that alone outruns the budget still gets planned when it would
@@ -812,7 +813,7 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 				mode: lickPractice.config.practiceMode,
 				...leadSheetExtras(lick.id, ramp, keys)
 			}),
-			beatsPerBar: lick.timeSignature[0],
+			beatsPerBar: quarterBeatsPerBar(lick.timeSignature),
 			tempo
 		});
 		// A lick that alone outruns the budget still gets planned when it would
@@ -1785,11 +1786,10 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// its call — are laid out once per pass, behind its reading pause when it
 	// has one. `getKeyPasses`/`getKeyPauses` are the same sources the session
 	// page schedules the recording windows from. Bar offsets are whole-note
-	// fractions: `barCursor` bars of `beatsPerBar` beats = [bars × beats, 4].
+	// fractions, with one full printed measure per bar.
 	const passes = getKeyPasses(lickIdx);
 	const pauses = getKeyPauses(lickIdx);
-	const beatsPerBar = baseLick.timeSignature[0];
-	const barsToWhole = (bars: number): Fraction => [bars * beatsPerBar, 4];
+	const barsToWhole = (bars: number): Fraction => multiplyFraction(baseLick.timeSignature, bars);
 	// Bars laid out so far — the demo, then each key's pause and passes.
 	let barCursor = demoBars;
 	for (let i = 0; i < item.keys.length; i++) {
@@ -1804,7 +1804,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		// ii-V into this key) once per pause bar — "vamp till ready" — so the
 		// player hears where the sheet they are now reading resolves to.
 		for (let bar = 0; bar < (pauses[i] ?? 0); bar++, barCursor++) {
-			for (const seg of turnaroundHarmony(progressionType, key, beatsPerBar)) {
+			for (const seg of turnaroundHarmony(progressionType, key, ...baseLick.timeSignature)) {
 				superHarmony.push({
 					...seg,
 					startOffset: addFractions(seg.startOffset, barsToWhole(barCursor))

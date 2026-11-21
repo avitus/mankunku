@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { prepareReleasedArrangement } from '$lib/audio/backing-arrangement';
+import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { buildPerformanceForm } from '$lib/audio/performance-form';
 import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 
@@ -124,6 +127,7 @@ const phrase: Phrase = {
 const pickupPhrase: Phrase = {
 	...phrase,
 	id: 'pickup-song',
+	performanceForm: buildPerformanceForm({totalBars:3,sectionMap:[],choruses:[{role:'head',startBar:0,endBarExclusive:3}]}),
 	notes: [
 		{ pitch: 64, offset: [3, 4], duration: [1, 4] },
 		{ pitch: 60, offset: [1, 1], duration: [2, 1] }
@@ -189,6 +193,19 @@ describe('playPhrase drum count-in', () => {
 		await playing;
 	});
 
+	it('aligns a 6/8 count-in, band entrance and end on the quarter-note clock', async () => {
+		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
+		const { scheduleBackingTrack } = await import('$lib/audio/backing-track');
+		const compound: Phrase = { ...phrase, timeSignature: [6, 8], notes: [], harmony: [{...phrase.harmony[0], duration: [12, 8]}] };
+		const playing = playPhrase(compound, options, false, { countIn: { bars: 1, drums: true } });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		expect(mocks.transport.timeSignature).toBe(3);
+		expect(vi.mocked(scheduleBackingTrack).mock.calls[0][2]).toBe(3 * PPQ);
+		expect(countInEvents(3 * PPQ).map(e => e.tick)).toEqual([0,96,192,288,384,480]);
+		expect(mocks.onces.some(o => o.at === `${(3 + 6 + 1) * PPQ}i`)).toBe(true);
+		await stopPlayback(); await playing;
+	});
+
 	it('drops the click\'s count-in bar when the drummer counts and the band plays', async () => {
 		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
 		const playing = playPhrase(phrase, options, false, { countIn: { bars: 1, drums: true } });
@@ -204,7 +221,7 @@ describe('playPhrase drum count-in', () => {
 			countIn: { bars: 2, drums: false }
 		});
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
-		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2 + 2, 0, expect.any(Function));
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2 + 2, 0, expect.any(Function), 4);
 		expect(countInEvents(2 * BAR)).toEqual([]);
 		await stopPlayback();
 		await playing;
@@ -214,7 +231,7 @@ describe('playPhrase drum count-in', () => {
 		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
 		const playing = playPhrase(phrase, options, false, { countIn: { bars: 2, drums: false } });
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
-		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function));
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function), 4);
 		await stopPlayback();
 		await playing;
 	});
@@ -239,7 +256,7 @@ describe('playPhrase drum count-in', () => {
 		mocks.kitLoaded.value = false;
 		const playing = playPhrase(phrase, options, false, { countIn: { bars: 2, drums: true } });
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
-		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function));
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function), 4);
 		expect(countInEvents(2 * BAR)).toEqual([]);
 		await stopPlayback();
 		await playing;
@@ -266,9 +283,13 @@ describe('playPhrase drum count-in', () => {
 		const { scheduleBackingTrack } = await import('$lib/audio/backing-track');
 		const playing = playPhrase(pickupPhrase, options, false, { countIn: { bars: 1, drums: true, pickup: true } });
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
-		// The pickup bar stays the phrase's bar 0: only the count runs on.
-		expect(vi.mocked(scheduleBackingTrack).mock.calls[0][2]).toBe(BAR);
+		// Melody keeps its pickup; the band's rebased score starts after it.
+		expect(vi.mocked(scheduleBackingTrack).mock.calls[0][2]).toBe(2 * BAR);
 		expect(countInEvents(2 * BAR).map((e) => e.tick / PPQ)).toEqual([0, 2, 4, 5, 6, 7]);
+		const backing = vi.mocked(scheduleBackingTrack).mock.calls[0][0];
+		expect(backing.harmony[0].startOffset).toEqual([0,1]);
+		expect(backing.performanceForm?.totalBars).toBe(2);
+		expect(() => prepareReleasedArrangement(backing.harmony, BACKING_STYLES.swing, {phraseId:backing.id,tempo:180,ppq:PPQ,beatsPerBar:4,swing:.62,performanceForm:backing.performanceForm}, 'piano',4,0)).not.toThrow();
 		await stopPlayback();
 		await playing;
 	});
@@ -286,7 +307,7 @@ describe('playPhrase drum count-in', () => {
 		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
 		const playing = playPhrase(pickupPhrase, options, false, { countIn: { bars: 1, drums: false, pickup: true } });
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
-		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function));
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function), 4);
 		await stopPlayback();
 		await playing;
 	});

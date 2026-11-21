@@ -198,7 +198,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		if (!current()) return null;
 		const transport = Tone.getTransport();
 		const previousMix = backing.getBackingMix();
-		if (params.orchestration === 'coordinated') {
+		{
 			const [{ createRollingBacking, advanceRollingBacking }, { createRollingSession }, { aggregateRollingBacking },
 				{ BACKING_STYLES }, { resolveBackingSwing }] = await Promise.all([
 				import('$lib/audio/backing-rolling'), import('$lib/audio/backing-rolling-session'), import('$lib/audio/backing-rolling-take'),
@@ -261,24 +261,6 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 				stop() { const owned = playback.ownsOutput(); signal?.dispose(); clearPump(); session.stop(); if (owned) { transport.stop(); backing.setBackingMix(previousMix, { persist: false }); } }
 			};
 		}
-		transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
-		const generated = await backing.scheduleBackingTrack(params.phrase, {
-			tempo: params.tempo, swing: params.swing, countInBeats: 0, metronomeEnabled: false,
-			metronomeVolume: 0, backingTrackEnabled: true, backingInstrument: params.instrument,
-			backingTrackVolume: params.volume, backingStyle: params.style,
-			backingOrchestration: params.orchestration, backingSoloFeatures: params.soloFeatures
-		}, 0, false, current);
-		if (!generated) return null;
-		const schedule = backing.getActiveSchedule();
-		const ownsParts = () => backing.getActiveSchedule() === schedule;
-		const startAudioTime = Tone.now() + 0.05;
-		const signal = backing.createBackingSignalMonitor();
-		return { generated, ppq: transport.PPQ, startAudioTime, audioNow() { if (context.state !== 'running') throw new Error('Audio context is suspended. Start a new take.'); return context.currentTime; },
-			readOutputSignal() { return current() && ownsParts() ? signal?.read() ?? null : null; },
-			start() { if (!current() || !ownsParts()) throw new Error('This listening take no longer owns the audio output.'); backing.setBackingMix(params.mix, { persist: false }); transport.start(startAudioTime); },
-			setMix(mix) { if (!current() || !ownsParts()) return false; backing.setBackingMix(mix, { persist: false }); return true; },
-			stop() { signal?.dispose(); if (ownsParts()) { transport.stop(); backing.disposeBackingParts(); backing.setBackingMix(previousMix, { persist: false }); } }
-		};
 	},
 	poll(callback) { const timer = setInterval(callback, 40); return () => clearInterval(timer); }
 };

@@ -43,11 +43,11 @@ export function countInBarsForTempo(tempo: number): 1 | 2 {
 }
 
 /**
- * The count-off's hits for `bars` bars of `beatsPerBar` quarter notes (the
- * engine's bar). Every bar before the last sounds the half-bar pulse; the
+ * The count-off's hits for `bars` bars of `beatsPerBar` denominator units (the printed
+ * bar). Every bar before the last sounds the half-bar pulse; the
  * last bar sounds every beat.
  */
-export function drumCountInHits(bars: number, beatsPerBar: number, ppq: number): DrumCountInHit[] {
+export function drumCountInHits(bars: number, beatsPerBar: number, ppq: number, denominator = 4): DrumCountInHit[] {
 	const hits: DrumCountInHit[] = [];
 	const pulse = beatsPerBar % 2 === 0 ? beatsPerBar / 2 : beatsPerBar;
 	for (let bar = 0; bar < bars; bar++) {
@@ -55,7 +55,7 @@ export function drumCountInHits(bars: number, beatsPerBar: number, ppq: number):
 		const step = last ? 1 : pulse;
 		for (let beat = 0; beat < beatsPerBar; beat += step) {
 			hits.push({
-				tick: (bar * beatsPerBar + beat) * ppq,
+				tick: Math.round((bar * beatsPerBar + beat) * 4 / denominator * ppq),
 				drum: COUNT_IN_VOICE,
 				velocity: last ? QUARTER_VELOCITY : PULSE_VELOCITY
 			});

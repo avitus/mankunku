@@ -40,6 +40,7 @@ export interface SaveLickPracticeRecordingInput {
 	transportSeconds: number;
 	/** Whether the metronome was audible during this window. */
 	metronomeEnabled: boolean;
+	metronomeGridOriginSeconds?: number;
 	/** Recording-relative backing transient onsets (see RecordingMetadata). */
 	backingBleedOnsets?: number[];
 	/** Clock evidence for the window's recording (see RecordingMetadata). */
@@ -71,6 +72,8 @@ export async function saveLickPracticeRecording(
 		bleedFilterLog: input.bleedFilterLog,
 		transportSeconds: input.transportSeconds,
 		metronomeEnabled: input.metronomeEnabled,
+		metronomeDenominator: input.phrase.timeSignature[1],
+		metronomeGridOriginSeconds: input.metronomeGridOriginSeconds,
 		backingBleedOnsets: input.backingBleedOnsets,
 		captureTiming: input.captureTiming
 	};

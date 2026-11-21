@@ -199,11 +199,12 @@ export async function saveTunePdf(
 	blob: Blob,
 	options: SaveTunePdfOptions = {}
 ): Promise<void> {
+	const uid = options.userId ?? getActiveUid();
 	try {
 		// Read the bytes before the transaction opens: an await on anything but
 		// an IndexedDB request would let the transaction auto-commit under us.
 		const record = await toRecord(tuneId, blob, Date.now());
-		const db = await openDb();
+		const db = await openDb(uid);
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
 			const store = tx.objectStore(STORE_NAME);
@@ -249,8 +250,9 @@ export async function getTunePdf(
 	supabase?: SupabaseClient<Database>,
 	userId?: string
 ): Promise<Blob | null> {
+	const uid = userId ?? getActiveUid();
 	try {
-		const db = await openDb();
+		const db = await openDb(uid);
 		try {
 			const tx = db.transaction(STORE_NAME, 'readonly');
 			const record = await idbReq<StoredPdfRecord | undefined>(tx.objectStore(STORE_NAME).get(tuneId));
@@ -273,7 +275,7 @@ export async function getTunePdf(
 			return null;
 		}
 		// Re-cache locally so subsequent reads are offline-capable.
-		await saveTunePdf(tuneId, data);
+		await saveTunePdf(tuneId, data, { userId: uid });
 		return data;
 	} catch (error) {
 		console.warn('Failed to download tune PDF from cloud:', error);

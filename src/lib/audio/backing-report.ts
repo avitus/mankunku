@@ -1,3 +1,4 @@
+import { prepareReleasedArrangement } from './backing-arrangement';
 /**
  * Deterministic backing-generation statistics report.
  *
@@ -15,7 +16,6 @@
 
 import { BACKING_STYLES } from './backing-styles';
 import {
-	generateBacking,
 	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
@@ -107,14 +107,14 @@ function collect(preset: BackingLabPreset, tempo: number, seeds: number[]): Pres
 
 	for (const seed of seeds) {
 		const phrase = labPhraseWithSeed(preset, seed);
-		const generated: GeneratedBacking = generateBacking(phrase.harmony, style, {
+		const generated: GeneratedBacking = prepareReleasedArrangement(phrase.harmony, style, {
 			phraseId: phrase.id,
 			tempo,
 			ppq: REPORT_PPQ,
 			beatsPerBar,
 			swing,
 			sectionMap: phrase.sectionMap
-		});
+		}, 'piano', phrase.timeSignature[1], seed);
 
 		// Bass: quarters only (ghosts/pickups decorate, they aren't the line).
 		const quarters = generated.bassEvents
@@ -143,9 +143,9 @@ function collect(preset: BackingLabPreset, tempo: number, seeds: number[]): Pres
 			}
 		}
 
-		// Comp: hits per bar + placement.
+		// Comp: attacks per bar + placement. Split sustain gates share one onset.
 		const compBarCounts = new Array<number>(totalBars).fill(0);
-		for (const e of generated.compEvents) {
+		for (const e of new Map(generated.compEvents.map(event => [event.time, event])).values()) {
 			const barIdx = Math.floor(e.absBeat / beatsPerBar);
 			if (barIdx < totalBars) compBarCounts[barIdx]++;
 			if (e.absBeat % 1 !== 0) stats.compOffbeatHits++;

@@ -121,6 +121,8 @@ export interface PianoMotifRecallSource {
 	readonly attacks: readonly PianoMotifAttack[];
 }
 export interface CompMotifDecision {
+ /** Actual first statement of the longer sentence; may follow a protected arrival. */
+ readonly sentenceSourceBar?: number;
 	readonly version: 1;
 	readonly barIndex: number;
 	readonly phraseStartBar: number;
@@ -135,7 +137,10 @@ export interface CompMotifDecision {
 	readonly hits: readonly Readonly<CompFigureHit>[];
 	/** Accepted first statement of a one-use adjacent-phrase recall. */
 	readonly recall?: { readonly source: PianoMotifRecallSource; readonly attacks: readonly PianoMotifAttack[] };
-	readonly reason?: 'harmonic_support' | 'gesture_refit' | 'phrase_reentry' | 'native_pattern' | 'native_drum_reply' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
+	/** Incoming committed harmony finishes before this bar's actual keyboard attacks. */
+	readonly carriedReleaseTick?: number;
+ readonly commonToneEntry?: { readonly releaseTick: number; readonly heldNotes: readonly number[]; readonly time: string; readonly notes: readonly number[] };
+	readonly reason?: 'common_tone_entry' | 'cross_bar_breath' | 'harmonic_support' | 'gesture_refit' | 'phrase_reentry' | 'native_pattern' | 'native_drum_reply' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
 }
 
 export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {

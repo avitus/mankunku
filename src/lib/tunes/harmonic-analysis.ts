@@ -5,7 +5,7 @@ import { chordEvidence } from '$lib/music/chord-evidence';
 import { pitchClassInterval, transposePitchClass } from '$lib/music/transposition';
 import { DOMINANT_QUALITIES, MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { detectProgressions, type DetectedProgression } from './progression-detector';
-import { borrowedMajorApproaches, majorContinuations, type BorrowedMajorApproach, type MajorContinuation } from './phrase-continuity';
+import { borrowedMajorApproaches, majorContinuations, majorTurnarounds, type MajorTurnaround, type BorrowedMajorApproach, type MajorContinuation } from './phrase-continuity';
 import type { FlattenedTune } from './flatten';
 import { augmentedKeyTransitions, contextualMajorRegions, majorKeyTransitions, type ContextualMajorRegion, type MajorKeyTransition } from './tonal-centers';
 
@@ -45,6 +45,7 @@ export interface HarmonicAnalysis {
 	contextualMajorRegions: ContextualMajorRegion[];
 	majorKeyTransitions: MajorKeyTransition[];
 	majorContinuations: MajorContinuation[];
+	majorTurnarounds: MajorTurnaround[];
 	borrowedMajorApproaches: BorrowedMajorApproach[];
 	/** Practice candidates after cornerstone reservation; competing keys can overlap. */
 	majorRegions: MajorRegion[];
@@ -137,7 +138,7 @@ export function analyzeHarmony(
 	options: { cyclic?: boolean; reservationScope?: 'cyclic' | 'form' } = {}
 ): HarmonicAnalysis {
 	const empty: HarmonicAnalysis = {
-		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorKeyTransitions: [], majorContinuations: [], borrowedMajorApproaches: [], majorRegions: [], issues: []
+		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorKeyTransitions: [], majorContinuations: [], majorTurnarounds: [], borrowedMajorApproaches: [], majorRegions: [], issues: []
 	};
 	const [beats, unit] = tune.timeSignature;
 	if (!Number.isSafeInteger(beats) || beats <= 0 || !Number.isSafeInteger(unit) || unit <= 0 ||
@@ -219,6 +220,7 @@ export function analyzeHarmony(
 		compatibleMajorRegions, majorRegions,
 		contextualMajorRegions: continuations,
 		borrowedMajorApproaches: borrowedMajorApproaches(flat, order, evidence, compatibleMajorRegions, sectionBoundaries),
+		majorTurnarounds: majorTurnarounds(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit, formEnd, cyclic),
 		majorContinuations: majorContinuations(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit),
 		majorKeyTransitions: [
 			...majorKeyTransitions(flat, evidence, compatibleMajorRegions, cornerstones, continuations, beats / unit),

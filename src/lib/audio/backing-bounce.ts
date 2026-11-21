@@ -1,7 +1,8 @@
 import { createOutputProtection } from './output-protection';
 import { createDrumMixer } from './drum-mixer';
 import { BACKING_INPUT_REFERENCE, SAMPLE_OPTIONS, SOUNDFONT_OPTIONS } from './mixer-policy';
-import { prepareReleasedArrangement } from './backing-arrangement';
+import { preparePhraseArrangement } from './written-harmony';
+import { quarterBeatsPerBar } from '$lib/tunes/meter';
 import { connectBackingOutput } from './backing-output';
 /**
  * Offline WAV bounce of the backing engine for the listening lab.
@@ -26,7 +27,6 @@ import { createBackingSampleLoader } from './backing-sample-loader';
 import { backingKeyboardTrim } from './backing-keyboard-level';
 import { loadBackingBass } from './backing-bass-instrument';
 import {
-	generateBacking,
 	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
@@ -70,7 +70,7 @@ export function eventTicksToSeconds(time: string, ppq: number, tempo: number): n
 
 /** Total harmony extent in quarter-note beats. */
 export function harmonyDurationBeats(phrase: Phrase): number {
-	let maxEnd = 0;
+	let maxEnd = phrase.writtenHarmonyOnly ? phrase.difficulty.lengthBars * quarterBeatsPerBar(phrase.timeSignature) : 0;
 	for (const seg of phrase.harmony) {
 		maxEnd = Math.max(maxEnd, (fractionToFloat(seg.startOffset) + fractionToFloat(seg.duration)) * 4);
 	}
@@ -88,8 +88,8 @@ export interface BounceParams {
 	instrument: BackingInstrument;
 	volume: number;
 	mix: BackingMixLevels;
-	/** Same generation policy as live playback; original is an A/B reference. */
-	orchestration?: 'original' | 'coordinated';
+	/** Musicality provenance for exported takes. */
+	orchestration?: 'coordinated';
 	/** Explicit finite ending; omitted/continue retains the current accompaniment. */
 	ending?: 'continue' | 'hold-release';
 	/** Scripted observation trace for the lab, shared with live preview generation. */
@@ -105,7 +105,7 @@ export interface BounceResult {
 
 /** Validate declared listening intent before an audio graph or ordinary score is prepared. */
 export function resolveListeningTerminalArrangement(params: BounceParams): TerminalArrangementInput | undefined {
-	if (params.ending !== 'hold-release' || params.orchestration !== 'coordinated' || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(params.style)) return undefined;
+	if (params.ending !== 'hold-release' || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(params.style)) return undefined;
 	const phrase = params.phrase;
 	const terminalArrangement: TerminalArrangementInput = { ending: 'hold-release', melody: phrase.notes };
 	const assessment = assessTerminalArrangement(phrase.harmony, BACKING_STYLES[params.style], {
@@ -131,7 +131,7 @@ export function bounceFilename(phraseId: string, style: BackingStyle, tempo: num
  */
 export function generateForBounce(params: BounceParams): GeneratedBacking {
 	const { phrase, tempo } = params;
-	if (phrase.harmony.length === 0) {
+	if (phrase.harmony.length === 0 && !phrase.writtenHarmonyOnly) {
 		throw new Error(`Lab phrase ${phrase.id} has no harmony to bounce`);
 	}
 	const style = BACKING_STYLES[params.style];
@@ -145,16 +145,10 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		sectionMap: phrase.sectionMap,
 		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
 		...(terminalArrangement ? { terminalArrangement } : {}),
-		ensemble: params.orchestration === 'coordinated' && phrase.timeSignature[1] === 4
+		ensemble: phrase.timeSignature[1] === 4
 			? { soloFeatures: params.soloFeatures } : undefined
 	};
-	if (params.orchestration === 'coordinated' && !params.soloFeatures?.length && !terminalArrangement) {
-		const released = prepareReleasedArrangement(phrase.harmony, style, generation, params.instrument, phrase.timeSignature[1], params.performanceEnergySeed ?? 0);
-		if (released) return released;
-		// The normal transport also falls back to Original for unsupported score shapes.
-		return generateBacking(phrase.harmony, style, { ...generation, ensemble: undefined });
-	}
-	return generateBacking(phrase.harmony, style, generation);
+	return preparePhraseArrangement(phrase, phrase.harmony, style, generation, params.instrument, params.performanceEnergySeed ?? 0, params.swing);
 }
 
 export interface RenderOpts {

@@ -17,3 +17,12 @@ export function cleanTuneTempos(value: unknown): Record<string, number> {
 export function savedTuneTempo(tempos: Record<string, number>, tuneId: string): number | undefined {
 	return Object.hasOwn(tempos, tuneId) ? tempos[tuneId] : undefined;
 }
+
+/** Read an explicit quarter-note metronome mark in a score's performance text. */
+export function printedQuarterTempo(style: string | undefined): number | undefined {
+	if (!style) return undefined;
+	const match = /(?:\b(dotted[\s-]+)?quarter(?:[ -]note)?|♩|𝅘𝅥)\s*=\s*(\d{2,3})(?![\d.]|\s*[-–—]\s*\d)/iu.exec(style);
+	if (!match) return undefined;
+	const bpm = Number(match[2]) * (match[1] ? 1.5 : 1);
+	return bpm >= 40 && bpm <= 240 ? bpm : undefined;
+}

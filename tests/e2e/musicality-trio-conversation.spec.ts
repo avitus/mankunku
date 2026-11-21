@@ -12,7 +12,7 @@ test('0.12 gestures retained in current full Blues sounds all three gestures and
  await page.addInitScript(()=>{
   const random=crypto.getRandomValues.bind(crypto);
   crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{
-   if(array instanceof Uint32Array&&array.length===1){array[0]=7;return array;}
+   if(array instanceof Uint32Array&&array.length===1){array[0]=34;return array;}
    return random(array);
   }) as typeof crypto.getRandomValues;
  });

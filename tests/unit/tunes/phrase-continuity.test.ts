@@ -119,7 +119,58 @@ describe('phrase continuity', () => {
 		expect(display.markers.find(m => m.keyCenter?.label === 'E major')?.timeRange?.end).toBe(28);
 		expect(display.markers.filter(m => m.timeRange!.start < 29).map(m => m.keyCenter?.label)).toEqual(expect.arrayContaining(['C major', 'Eb major', 'G major', 'E major']));
 
-		expect(display.markers.find(m => m.keyCenter?.label === 'Ab major' && m.timeRange?.start === 28)?.timeRange?.end).toBe(40 + 1 / denominator);
+		expect(display.markers.find(m => m.keyCenter?.label === 'Ab major' && m.timeRange?.start === 28)?.timeRange?.end).toBe(41);
+		expect(analyzeHarmony(flattenTune(tune), tune).majorTurnarounds).toMatchObject([{ key: 'Ab', resolutionIndices: [] }]);
+	});
+	// The vi at the top also lets the cyclic analysis hear a real resolution.
+	function turnaround(dominant = 'E7b9', tail: string[] = []) {
+		const tune = chart(['Am7', ...closing]);
+		const part = tune.sections[0];
+		part.harmony.push(harmonicSegmentFromSymbol('Bm7b5', [4, 1], [1, 4])!,
+			harmonicSegmentFromSymbol(dominant, [17, 4], [3, 4])!,
+			...tail.map((symbol, n) => harmonicSegmentFromSymbol(symbol, [5 + n, 1], [1, 1])!));
+		part.bars = 5 + tail.length;
+		return tune;
+	}
+	it.each(PITCH_CLASSES)('carries the cadenced center in %s through the terminal iiø–V/vi', key => {
+		const tune = { ...transposeTune(turnaround(), key), key: 'B' as const };
+		const analysis = analyze(tune);
+		expect(analysis.majorTurnarounds).toEqual([{ key, segmentIndices: [4, 5], resolutionIndices: [] }]);
+		expect(analyzeHarmony(flattenTune(tune), tune).majorTurnarounds)
+			.toEqual([{ key, segmentIndices: [4, 5], resolutionIndices: [0] }]);
+		expect([...analysis.majorRegions, ...analysis.compatibleMajorRegions].filter(r => r.key === key)
+			.every(r => !r.segmentIndices.includes(5))).toBe(true);
+	});
+	it('accepts a played vi returning to the parent cadence and declines an established minor destination', () => {
+		expect(analyze(turnaround('E7', ['Am7', ...closing])).majorTurnarounds)
+			.toMatchObject([{ key: 'C', resolutionIndices: [6] }]);
+		expect(analyze(turnaround('E7b9', ['Am7', 'Bm7b5', 'E7', 'Am7'])).majorTurnarounds).toEqual([]);
+	});
+	it('preserves both visits of a repeated chorus and the short cornerstone reservation', () => {
+		const tune = turnaround();
+		const part = tune.sections[0];
+		part.repeatStart = part.repeatEnd = true;
+		part.harmony[4].duration = [1, 2];
+		part.harmony[5].startOffset = [9, 2];
+		part.harmony[5].duration = [1, 2];
+		const result = analyzeHarmony(flattenTune(tune, { expandRepeats: true }), tune, { cyclic: false });
+		expect(result.majorTurnarounds.map(t => t.resolutionIndices)).toEqual([[6], []]);
+		expect(result.reservedSegmentIndices).toEqual(expect.arrayContaining([4, 5, 10, 11]));
+		const display = tuneKeyCenters(tune, INSTRUMENTS.concert);
+		expect(display.markers.filter(m => m.keyCenter?.label === 'C major').map(m => m.timeRange))
+			.toEqual([{ start: 0, end: 5 }]);
+		expect(display.markers.some(m => m.keyCenter?.label === 'A minor')).toBe(false);
+		expect(display.readings.some(r => r.mode === 'minor' && r.contextKey === 'C')).toBe(true);
+	});
+	it('requires a complete written approach, a recent home cadence and contiguous beats', () => {
+		for (const defect of ['unknown', 'gap', 'no cadence', 'trailing silence', 'wrong root']) {
+			const tune = turnaround(defect === 'unknown' ? 'E7alt' : defect === 'wrong root' ? 'Eb7' : 'E7b9');
+			const part = tune.sections[0];
+			if (defect === 'gap') part.harmony[4].duration = [1, 8];
+			if (defect === 'no cadence') part.harmony.splice(2, 1);
+			if (defect === 'trailing silence') part.bars++;
+			expect(analyze(tune).majorTurnarounds).toEqual([]);
+		}
 	});
 	it.each(PITCH_CLASSES)('recognizes both functions in %s away from the signature', key => {
 		const tune = { ...transposeTune(chart([...opening, 'Fm7', 'Em7', 'Ebdim7', ...closing]), key), key: 'B' as const };

@@ -173,6 +173,21 @@ test.beforeEach(async ({ page }) => {
 	await stubParseRoute(page);
 });
 
+test('a part designation sets the source pitch and respects an explicit choice', async ({ page }) => {
+	await page.goto('/tunes/import/pdf');
+	const pitch = page.getByLabel('Chart written for');
+	const file = page.getByLabel('Tune PDF');
+	await expect(pitch).toHaveValue('Bb');
+	const part = { name: 'Study (E♭).pdf', mimeType: 'application/pdf', buffer: readFileSync('tests/fixtures/leadsheets/blank-page.pdf') };
+	await file.setInputFiles(part);
+	await expect(pitch).toHaveValue('Eb');
+	await page.getByRole('button', { name: 'Remove PDF' }).click();
+	await expect(pitch).toHaveValue('Bb');
+	await pitch.selectOption('C');
+	await file.setInputFiles(part);
+	await expect(pitch).toHaveValue('C');
+});
+
 test('a PDF chart lands in the editor for review and saves from there', async ({ page }) => {
 	await page.goto('/tunes/import/pdf');
 
@@ -242,6 +257,14 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 		});
 	});
 	expect(pdfIds).toContain(sheets[0].id);
+	await page.getByRole('button', { name: 'Edit tune', exact: true }).click();
+	await page.getByText('Original PDF', { exact: true }).click();
+	const original = page.getByRole('link', { name: 'Download original PDF' });
+	await expect(original).toBeVisible();
+	const bytes = await original.evaluate(async link =>
+		[...new Uint8Array(await (await fetch((link as HTMLAnchorElement).href)).arrayBuffer())]
+	);
+	expect(Buffer.from(bytes).equals(readFileSync('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf'))).toBe(true);
 });
 
 test('the declared time signature goes out with every line, including the context pass', async ({
@@ -364,6 +387,36 @@ test('the import reports which line it is on, and can be cancelled', async ({ pa
 	await expect(page.getByRole('button', { name: 'Prepare draft', exact: true })).toBeEnabled();
 	await expect(page.getByLabel('Chart written for')).toBeEnabled();
 });
+
+for (const wholePdf of [true, false]) {
+	test(`an unreadable staff layout explains the ${wholePdf ? 'whole-page retry' : 'missing whole-page reader'}`, async ({ page }) => {
+		const response = Promise.withResolvers<void>();
+		let requests = 0;
+		await page.route('**/api/tune-parse', async route => {
+			if (route.request().method() === 'GET') {
+				return route.fulfill({ json: { configured: true, wholePdf } });
+			}
+			requests++;
+			expect(route.request().postDataJSON().pdf).toBeTruthy();
+			await response.promise;
+			return route.fulfill({ contentType: 'application/x-ndjson', body: ndjson({
+				type: 'result', ...JSON.parse(ROUTE_RESPONSE)
+			}) });
+		});
+		await page.goto('/tunes/import/pdf');
+		await page.getByLabel('Tune PDF').setInputFiles('tests/fixtures/leadsheets/blank-page.pdf');
+		await page.getByRole('button', { name: 'Prepare draft' }).click();
+		try {
+			await expect(page.getByText(/The staff lines and barlines could not be identified reliably/)).toBeVisible();
+			if (wholePdf) await expect(page.getByTestId('import-progress').getByRole('status')).toContainText('Reading the full PDF.');
+			else await expect(page.getByText(/A whole-page reader is unavailable/)).toBeVisible();
+		} finally {
+			response.resolve();
+		}
+		if (wholePdf) await expect(page).toHaveURL(/\/tunes\/editor$/);
+		expect(requests).toBe(Number(wholePdf));
+	});
+}
 
 test('staged PDFs can be removed and reselected; invalid files do not start recognition', async ({ page }) => {
 	await page.goto('/tunes/import/pdf');

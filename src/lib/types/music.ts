@@ -64,6 +64,10 @@ export interface Note {
 	scaleDegree?: string;
 	/** Override enharmonic spelling for notation display */
 	spelling?: 'sharp' | 'flat';
+	/** Print the accidental even when the key and earlier notes already imply it. */
+	showAccidental?: boolean;
+	/** Primary beam connection from the preceding short note, when read from printed music. */
+	beamFromPrevious?: 'join' | 'break';
 	/** Glissando/portamento INTO the next melody note (imported charts). */
 	gliss?: boolean;
 	/** True if this note is tied to the next note. Renders as an ABC tie (`-`)
@@ -72,6 +76,8 @@ export interface Note {
 }
 
 export interface HarmonicSegment {
+	/** This chord begins at a printed Fine, as projected onto the tune playback timeline. */
+	writtenFine?: true;
 	chord: {
 		root: PitchClass;
 		quality: ChordQuality;
@@ -141,6 +147,10 @@ export interface Phrase {
 	 * unset.
 	 */
 	sectionMap?: { sourceSection: number; barOffset: number }[];
+	/** The source marks N.C. or a solo break. Leave its unharmonized beats free of pitched backing. */
+	writtenHarmonyOnly?: boolean;
+	/** Printed solo-break starts, in fractional bars. The band resumes at the following barline. */
+	soloBreaks?: number[];
 	/** Explicit performed passes and section occurrences on this phrase's timeline. */
 	performanceForm?: import('./performance-form').PerformanceForm;
 }

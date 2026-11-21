@@ -1,3 +1,4 @@
+import { musicalSentence, sentenceKeyboardTransform, sentenceOffset } from './backing-sentences';
 import { applyKeyboardDecorations } from './backing-keyboard-decorations';
 /** Stateful one-bar piano realization. Multi-bar source cells are proposals, not future budgets. */
 import type { RollingBackingDefinition } from './backing-rolling';
@@ -11,7 +12,7 @@ import { BACKING_STYLES } from './backing-styles';
 import { createRng, seedFrom } from './generation-rng';
 import { fractionToFloat } from '$lib/music/intervals';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
-import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
+import { pitchClassToNumber, rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
 import { preparePianoContour, commitPianoContour, type PianoContourMemory } from './backing-piano-contour';
 import { proposePianoAnswer, type PianoAnswerMemory } from './backing-piano-answer';
 import { planKeyboardLine } from './backing-keyboard-line';
@@ -23,8 +24,12 @@ import type { SoloEvidence } from './ensemble-plan';
 import { pianoPhraseRecallEnabled, retainPianoPhraseRecall, capturePianoMotifSource, proposePianoMotifRecall, type PianoPhraseRecallMemory } from './backing-piano-motif-memory';
 
 export interface RollingPianoMemory {
+ /** Immutable gate inherited from the preceding bar, consumed once. */
+ readonly crossBarReleaseTick?: number;
+ /** Already sounding shared pitches, consumed on the next chord entry. */
+ readonly commonToneNotes?: readonly number[];
 	readonly recentFigures: readonly string[];
-	readonly motif: { readonly startBar: number; readonly sourceId: string | null; readonly shift: number; readonly repeat: boolean } | null;
+	readonly motif: { readonly startBar: number; readonly sourceBar?: number; readonly sourceId: string | null; readonly shift: number; readonly repeat: boolean } | null;
 	readonly segmentIndex: number | null;
 	readonly segmentVoicing: readonly number[];
 	readonly lastVoicing: readonly number[];
@@ -89,7 +94,9 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	const contourContext = coordinatedVoicing ? { barIndex: bar, phraseStartBar: ensemble.phraseStartBar, chorusIndex: ensemble.performanceEnergy!.chorusIndex, phase: ensemble.performanceEnergy!.phase } : undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 	const form = score.bars[bar];
-	const phraseStart = ensemble.phraseStartBar;
+	const sentence = musicalSentence(score, bar);
+ const rhythmicSentence = sentence && style.compPlanning ? sentence : undefined;
+ const phraseStart = rhythmicSentence?.startBar ?? ensemble.phraseStartBar;
 	const budget = ensemble.piano.maxAttacks;
 	const harmonicSupport = ensemble.piano.harmonicSupport !== undefined;
 	const backgroundHarmony = harmonicSupport && ensemble.piano.harmonicSupport !== 'ordinary';
@@ -112,12 +119,12 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	let guideTones = false;
 	let realized: CompHitSpec[];
 	if (style.compPlanning) {
-		if (!motif || motif.startBar !== phraseStart) {
+		if (!motif || motif.startBar !== phraseStart || rhythmicSentence && !motif.sourceId && bar <= phraseStart + 2) {
 			const rng = createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif', phraseStart));
 			const candidates = keyboardFigures(score).filter((figure) => fits(figure) && figure.hits[0].length > 0 && !figure.tags.includes('pad') && shiftsFor(figure).length > 0);
-			const selected = !backgroundHarmony && form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(0.55) && candidates.length > 0;
+			const selected = !backgroundHarmony && form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(rhythmicSentence ? .9 : .55) && candidates.length > 0;
 			const source = selected ? rng.weighted(candidates.map((figure) => ({ value: figure, weight: figure.weight * (score.keyboardVarietyVersion && memory.recentFigures.includes(figure.repeatKey ?? figure.id) ? .25 : 1) }))) : undefined;
-			motif = { startBar: phraseStart, sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
+			motif = { startBar: phraseStart, ...(rhythmicSentence && source ? { sourceBar: bar } : {}), sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
 				repeat: createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif-development', phraseStart)).chance(ensemble.piano.texture === 'steady' ? .7 : .35) };
 		}
 		if (motifOverride) motif = motifOverride;
@@ -130,7 +137,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			shift = position >= 2 ? motif.shift : 0;
 			if (score.keyboardVarietyVersion === 2) {
 				development = keyboardDevelopment(score.phraseId, score.tempo, phraseStart, score.bars[phraseStart].pianoPresenceSeed ?? 0);
-				transform = KEYBOARD_DEVELOPMENTS[development][position];
+				transform = rhythmicSentence ? (bar === motif.sourceBar ? 'statement' : sentenceKeyboardTransform(score, rhythmicSentence, bar)) : KEYBOARD_DEVELOPMENTS[development][position];
 				shift = transform === 'displace' ? motif.shift : 0;
 				if (transform === 'answer') {
 					figure = keyboardAnswerFigure(keyboardFigures(score), figure, score.phraseId, score.tempo, phraseStart);
@@ -142,6 +149,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			if (development) hits = articulateKeyboardDevelopment(hits, transform, development);
 			if (transform === 'space') reason = 'motif_gap';
 			const withheld = budget === 0 || ensemble.coordinatedAccent ? 'ensemble_silence'
+    : rhythmicSentence && ['active_soloist','dense_soloist'].includes(ensemble.piano.rootlessTexture?.reason ?? '') ? 'response_reserved'
 				: ensemble.responseOwner !== 'nobody' ? 'response_reserved'
 					: hits.length > budget || !cellFits(hits) ? 'gesture_does_not_fit' : undefined;
 			if (withheld) { hits = []; transform = 'space'; shift = 0; reason = withheld; development = undefined; answerFigureId = undefined; }
@@ -164,7 +172,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		// Choose a complete native cell before realization: either causal
 		// re-entry after accepted silence, or a steady phrase whose retained
 		// gesture no longer fits the current permission.
-		if (!hits.length && budget > 0 && (harmonicSupport || ensemble.piano.presence === 'reentry' || ensemble.piano.texture === 'steady' && reason === 'gesture_does_not_fit') && !ensemble.coordinatedAccent && (harmonicSupport || ensemble.responseOwner === 'nobody')) {
+		// A quiet phrase still owns its permitted supporting attacks. A retained
+		// two-hit sentence must refit its one-hit budget instead of accidentally
+		// extending the planned tail rest into a whole silent phrase.
+		const refitGesture = reason === 'gesture_does_not_fit' && (ensemble.piano.texture === 'steady' || score.pianoContinuityVersion === 2 || score.harmonicSupportVersion === 1);
+		if (!hits.length && budget > 0 && (harmonicSupport || ensemble.piano.presence === 'reentry' || refitGesture) && !ensemble.coordinatedAccent && (harmonicSupport || ensemble.responseOwner === 'nobody')) {
 			const candidates = keyboardFigures(score).filter(candidate => fits(candidate) && candidate.hits[0].length > 0).map(candidate => {
 				let weight = candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1);
 				if (ensemble.piano.texture === 'steady') {
@@ -198,7 +210,25 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	} else {
 		motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
-			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), clavePhase: clavePhaseFor(score.phraseId, score.tempo) });
+			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), clavePhase: clavePhaseFor(score.phraseId, score.tempo),
+			supportQuietPad: !!score.harmonicSupportVersion && ensemble.piano.texture === 'sparse' && budget > 0 && ensemble.responseOwner === 'nobody' });
+		// When a whole pad would release at a new chord on beat three, use the
+		// native half-pad rhythm to give that harmony its own quiet entrance.
+		if (score.harmonicSupportVersion && score.style === 'ballad' && budget >= 2 &&
+			ensemble.piano.harmonicSupport === 'ordinary' && ensemble.responseOwner === 'nobody' &&
+			!ensemble.setupFor && !ensemble.coordinatedAccent && !ensemble.terminalArrangement &&
+			!memory.crossBarReleaseTick && !['active_soloist', 'dense_soloist'].includes(ensemble.piano.rootlessTexture?.reason ?? '') &&
+			realized.length === 1 && realized[0].beatOffset === 0 && realized[0].durationBeats === 3.6) {
+			const midBar = score.harmony.findIndex(segment => fractionToFloat(segment.startOffset) * 4 === bar * 4 + 2);
+			if (midBar > 0) {
+				const before = score.harmony[midBar - 1].chord;
+				const after = score.harmony[midBar].chord;
+				if (before.root !== after.root || before.quality !== after.quality) {
+					const pad = realized[0];
+					realized = [{ ...pad, durationBeats: 1.8 }, { beatOffset: 2, durationBeats: 1.7, velocity: pad.velocity - 3 }];
+				}
+			}
+		}
 		hits = realized.map((hit) => ({ b: hit.beatOffset, d: hit.durationBeats }));
 		if (budget === 0) { transform = 'space'; reason = 'ensemble_silence'; }
 		else reason = 'native_pattern';
@@ -214,7 +244,31 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		realized = [{ ...realized[0], beatOffset: 2, durationBeats: 1.8, velocity: realized[0].velocity - 2 }];
 		hits = [{ b: 2, d: 1.8 }]; reason = 'native_drum_reply';
 	}
-	let proposal = !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
+ // A preceding committed gate owns the first fraction of this bar. Re-enter
+ // after it, retaining an attack rather than replacing support with silence.
+ const carry = score.keyboardSustainVersion ? memory.crossBarReleaseTick : undefined;
+ const commonTones = score.keyboardSustainVersion === 2 ? memory.commonToneNotes : undefined;
+ const canBreathe = !commonTones && !!carry && !arrival && !ensemble.coordinatedAccent && !nativeLatePad && !ensemble.setupFor && !ensemble.terminalArrangement && ensemble.responseOwner === 'nobody';
+ if (canBreathe && carry && realized.length) {
+  const first = Math.ceil(((carry / score.ppq - bar * 4) + .04) * 2) / 2;
+  if (realized.some(hit=>hit.beatOffset < first)) {
+   const early = realized.filter(hit=>hit.beatOffset < first).at(-1)!;
+   realized = [{...early,beatOffset:first},...realized.filter(hit=>hit.beatOffset >= first+.08)];
+   hits=realized.map(hit=>({b:hit.beatOffset,d:hit.durationBeats}));
+   development=undefined;answerFigureId=undefined;transform='fallback';shift=0;reason='cross_bar_breath';
+   if(motif.sourceBar===bar)motif={startBar:phraseStart,sourceId:null,shift:0,repeat:false};
+  }
+ }
+ // A partial held chord never postpones the new harmony. Keep subsequent native
+ // hits, but bring the first supported attack to the bar entrance.
+ if (commonTones) {
+  if (!realized.length) realized=[{beatOffset:0,durationBeats:score.style==='ballad'?2:1,velocity:48}];
+  realized = [{...realized[0],beatOffset:0},...realized.slice(1)];
+  hits=realized.map(hit=>({b:hit.beatOffset,d:hit.durationBeats}));
+  development=undefined;answerFigureId=undefined;transform='fallback';shift=0;reason='common_tone_entry';
+  if(motif.sourceBar===bar)motif={startBar:phraseStart,sourceId:null,shift:0,repeat:false};
+ }
+	let proposal = !commonTones && reason !== 'cross_bar_breath' && !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
 		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
 	let segmentIndex = memory.segmentIndex;
@@ -250,13 +304,18 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const harmonyEnd = (fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4 * score.ppq;
 		const releaseLimit = phrasing ? Math.min(nextLimit, harmonyEnd) : nextLimit;
 		const availableBeats = (releaseLimit - tick) / score.ppq;
+		// Supporting chords need time to sound, with a longer final answer.
+		// Protected jabs/replies retain their articulation; actual attack and
+		// harmony bounds still own every release.
+		const supportedDuration = score.pianoContinuityVersion && harmonicSupport && !protectedGesture
+			? Math.max(hit.durationBeats, realized.length === 1 ? 3 : hit === realized.at(-1) ? 2.25 : .9) : hit.durationBeats;
 		const articulation = phrasing && availableBeats > 0 ? articulateKeyboardHit({ style: score.style ?? 'swing', instrument: phrasing.instrument,
-			durationBeats: hit.durationBeats, velocity: hit.velocity, availableBeats }) : undefined;
+			durationBeats: supportedDuration, velocity: hit.velocity, availableBeats }) : undefined;
 		const duration = articulation ? articulation.durationBeats * 60 / score.tempo
 			: Math.min(hit.durationBeats * 60 / score.tempo, (releaseLimit - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
 		const contour = contourEnabled ? preparePianoContour(contourContext!, contourMemory) : undefined;
-		const family = backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias });
+		const family = (commonTones && events.length === 0) || backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias });
 		const textureInput: Parameters<typeof planKeyboardTexture>[0] = { quality: chord.quality, family, phraseId: score.phraseId, tempo: score.tempo,
 			phraseStartBar: phraseStart, seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, answering: transform === 'answer',
 			allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' as const };
@@ -271,7 +330,8 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' }) : undefined);
 		const keyboardLine = phrasing && !guideTones ? planKeyboardLine({ style: score.style ?? 'swing', phraseId: score.phraseId, tempo: score.tempo,
 			seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, barIndex: bar, phraseStartBar: phraseStart,
-			phase: ensemble.performanceEnergy!.phase, attackIndex: events.length, previous: voicingMemory }) : undefined;
+			phase: ensemble.performanceEnergy!.phase, attackIndex: events.length, previous: voicingMemory,
+    ...(sentence ? { sentenceStep: bar === sentence.startBar ? 0 : Math.sign(sentenceOffset(sentence, bar) - sentenceOffset(sentence, bar - 1)) * (score.style === 'ballad' ? ((bar - sentence.startBar) % 2 ? 0 : 1) : score.style === 'bossa-nova' ? 1 : 2), sentenceContour: sentence.shape === 'arch' ? 'arch' as const : sentence.shape === 'fall-return' ? 'fall' as const : 'lift' as const } : {}) }) : undefined;
 		// Native rhythm, selected families and strict motion bounds already make
 		// this a rare opportunity. Only the first accepted chord may propose it.
 		const contraryMotion = score.keyboardContraryMotionVersion === 1 && phrasing && !guideTones && events.length === 0;
@@ -326,18 +386,41 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		lastVoicing = notes;
 	}
  // Keep admitted rhythm/voicing selection separate from ordered color policies.
- ({ lastSuspensionBar, lastVoicing, segmentVoicing, voicingMemory, contourMemory } = applyKeyboardDecorations({
+ if (!commonTones) ({ lastSuspensionBar, lastVoicing, segmentVoicing, voicingMemory, contourMemory } = applyKeyboardDecorations({
   score, bar, info, phraseStart, barEnd, backgroundHarmony, arrival: !!arrival,
   proposal: !!proposal, nativeLatePad, guideTones: !!guideTones, contourEnabled,
   memory, bassEvents, lastVoicingPredecessor
  }, { events, voicingTrace, lastSuspensionBar, lastVoicing, segmentVoicing, voicingMemory, contourMemory }));
-	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
+ // Voice leading and contour remember the complete selected voicing. The
+ // preceding bar still sounds the shared pitches at this attack, even though
+ // its gate owns them. Keep that harmonic anchor through their release.
+ // The attack trace below records only the notes this event retriggers.
+ if (commonTones && carry) for (const event of events) {
+  if (parseInt(event.time,10) >= carry) continue;
+  event.notes = event.notes.filter(n => !commonTones.includes(n));
+  if (!event.notes.length) {
+   const chord=score.harmony.find(h=>fractionToFloat(h.startOffset)*4<=event.absBeat && (fractionToFloat(h.startOffset)+fractionToFloat(h.duration))*4>event.absBeat)!.chord;
+   const root=pitchClassToNumber(chord.root);
+   event.notes=[60+root];
+   while(commonTones.includes(event.notes[0]))event.notes[0]-=12;
+  }
+  const index=voicingTrace.findIndex(v=>v.time===event.time);
+  if (index >= 0) {
+   const trace = voicingTrace[index];
+   const filtered = event.notes.length !== trace.notes.length || event.notes.some((note, i) => note !== trace.notes[i]);
+   const currentPolicy = score.harmonicSupportVersion || score.pianoContinuityVersion === 2;
+   voicingTrace[index] = Object.freeze({ ...trace, notes: [...event.notes],
+    ...(currentPolicy && filtered ? { decision: { ...trace.decision, rootlessTexture: undefined } } : {}) });
+  }
+ }
+	if (rhythmicSentence && bar === motif.sourceBar && (transform !== 'statement' || reason || !events.length || hits.length !== events.length || hits.some((hit,i) => events[i].absBeat !== bar * 4 + hit.b))) motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };
+ const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
 	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; development = undefined; answerFigureId = undefined; }
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(score.keyboardSuspensionsVersion && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: answer || arrival ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(commonTones && carry && events.length ? {commonToneEntry:{releaseTick:carry,heldNotes:[...commonTones],time:events[0].time,notes:[...events[0].notes]}} : {}), ...(canBreathe && carry && !answer && events.length && events.every(e=>parseInt(e.time,10)>=carry) ? {carriedReleaseTick:carry} : {}), ...(rhythmicSentence && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: !commonTones && reason !== 'cross_bar_breath' && reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: commonTones || answer || arrival || reason === 'cross_bar_breath' ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

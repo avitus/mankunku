@@ -1,3 +1,4 @@
+import { anthropicSystemModel } from './anthropic-score-model';
 import { withRecognitionDeadline } from './request-budget';
 import { parseRecognitionJson } from './recognition-json';
 /** Anthropic adapter for the provider-neutral system recognition contract. */
@@ -6,10 +7,9 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import {
 	getAnthropicClient,
 	ANTHROPIC_MODEL,
-	ANTHROPIC_TUNE_MODEL,
 	ANTHROPIC_TUNE_MAX_TOKENS
 } from '$lib/server/anthropic';
-import { isRestPitch } from '$lib/tunes/import/system-bar-validation';
+import { isRestPitch, printedPickupBeats } from '$lib/tunes/import/system-bar-validation';
 import type {
 	SystemRecognitionInput,
 	SystemRecognitionResult,
@@ -60,7 +60,9 @@ Return ONLY a JSON object — no prose, no markdown fences — with this exact s
       "endRepeat": boolean,     // :| printed at the END of this bar
       "ending": 1 | 2 | null,   // this bar lies UNDER a printed 1st/2nd volta bracket
       "pickup": boolean,        // partial pickup bar (fewer beats printed than the meter)
-      "melody": [ [beat, durationBeats, "pitch"], ... ]  // notes AND rests in reading order; a rest uses pitch "rest"; append true as a 4th element when a note TIES into the next
+      "directions": [ [beat, "Fine" | "Solo break"], ... ],
+      "printedAccidentals": [beat, ...],
+      "melody": [ [beat, durationBeats, "pitch", tied?, articulation?], ... ]  // fourth member true for an outgoing tie, fifth "staccato" for a dot above/below the head
     }
   ]
 }
@@ -74,7 +76,9 @@ Rules:
   the first part carrying the tie flag.
 - A pickup bar's notes sit at their real beats near the END of the bar (a one-beat pickup in 4/4
   starts at beat 3).
-- IGNORE chord symbols, lyrics, colored highlighting, and text — melody notes and structural
+- In printedAccidentals:[beat,...], locate explicit accidental signs immediately beside notes, including courtesy naturals. Exclude implied signs, key signatures and chord symbols.
+- Copy printed Fine and Solo break cues into an optional directions array of [beat,"Fine"|"Solo break"]. For staccato dots directly above or below a head, use [beat,duration,pitch,false,"staccato"]. An augmentation dot to the right changes duration instead.
+- IGNORE chord symbols, lyrics, colored highlighting, and other text — melody notes and structural
   markings only.
 - melody lists notes AND rests in reading order (pitch "rest" for rests). Each bar's notes and
   rests must tile the meter EXACTLY — this is mechanically checked. A pickup bar may omit its
@@ -132,7 +136,7 @@ async function transcribeSystem({
 								// Fable thinks adaptively; high effort buys transcription
 								// accuracy, and the 32k ceiling keeps dense-system JSON
 								// clear of truncation under the thinking tokens.
-								...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
+								...(model === anthropicSystemModel() ? FABLE_THINKING : {}),
 								system: SYSTEM_MODE_PROMPT,
 								messages: [
 									{
@@ -206,7 +210,7 @@ async function transcribeSystem({
 	// their exact rhythm deltas fed back (the Audiveris rhythm-QA loop),
 	// and the answer is merged PER BAR so a clean first-attempt bar can
 	// never regress.
-	let model = ANTHROPIC_TUNE_MODEL;
+	let model = anthropicSystemModel();
 	let first = await ask(null, model);
 	if (!first && model !== ANTHROPIC_MODEL) {
 		model = ANTHROPIC_MODEL;
@@ -411,6 +415,7 @@ async function transcribeSystem({
 	// Rests were only needed for validation — the importer works with notes.
 	const stripped = bars.map((bar) => ({
 		...bar,
+		...(bar.pickup ? { pickupBeats: printedPickupBeats(bar.melody, beats) } : {}),
 		melody: bar.melody.filter((note) => !isRestPitch(note[2]))
 	}));
 	return {
@@ -428,7 +433,7 @@ async function transcribeSystem({
 /** Composition root: callers can replace this factory without changing import assembly. */
 export function createAnthropicSystemRecognizer(providedClient?: Anthropic): SystemRecognizer {
 	return {
-		id: `anthropic:${ANTHROPIC_TUNE_MODEL}`,
+		id: `anthropic:${anthropicSystemModel()}`,
 		async recognize(system, signal, onAttempt) {
 			const client = providedClient ?? getAnthropicClient();
 			if (!client) throw error(503, 'PDF import is not configured.');
@@ -443,7 +448,7 @@ export function createAnthropicSystemRecognizer(providedClient?: Anthropic): Sys
 				}
 			};
 			const data = system.image.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
-			if (system.contextOnly) return readPrintedContext(client, data, signal, onAttempt);
+			if (system.contextOnly) return readPrintedContext(client, data, signal, onAttempt, system.first);
 			const melodyWork = system.harmonyOnly
 				? Promise.resolve<SystemRecognitionResult>({
 						keySignature: null,
