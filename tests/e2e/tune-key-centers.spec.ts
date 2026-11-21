@@ -118,11 +118,27 @@ test('freestyle keeps key centers without adding insertion windows', async ({ pa
 
 test('All the Things You Are shows local centers beyond its key signature', async ({ page }) => {
 	const allThings = JSON.parse(readFileSync('tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json', 'utf8'));
-	await seedTunes(page, [{ ...allThings, id: 'key-center-all-things', source: 'user', tags: [] }]);
+	// Use the chord chart to check each bar of the descending return in tenor pitch.
+	await seedTunes(page, [{ ...allThings, id: 'key-center-all-things', source: 'user', tags: [],
+		sections: allThings.sections.map((part: object) => ({ ...part, notes: [] })) }]);
+	await page.goto('/tunes/key-center-all-things');
+	const chart = page.getByTestId('tune-chord-chart');
+	// Five introduction measures precede the chorus. Concert G reads A on tenor.
+	for (let bar = 18; bar < 25; bar++) {
+		const rail = chart.locator(`[data-bar="${bar}"] [data-key-center="A major"]`);
+		await expect(rail).toBeVisible();
+		expect(await rail.evaluate(el => (el as HTMLElement).style.width)).toBe('100%');
+	}
+	await expect(chart.locator('[data-bar="18"] [data-key-center="A minor"]')).toHaveCount(0);
+	await expect(chart.locator('[data-bar="27"] [data-key-center="Bb major"]')).toHaveCount(0);
+	for (const bar of [28, 29, 34, 35, 36]) {
+		await expect(page.getByTestId('tune-chord-chart').locator(`[data-bar="${bar}"] [data-key-center="Bb major"]`)).toBeVisible();
+	}
 	await page.goto('/tunes/key-center-all-things/practice');
 	await expect(page.getByRole('list', { name: 'Key center legend' })).toBeVisible();
 	await expect.poll(() => page.getByRole('list', { name: 'Key center legend' }).locator('li').count()).toBeGreaterThan(3);
-	await expect(page.locator('svg [data-key-center]').first()).toBeVisible();
+	await expect(page.locator('svg [data-key-center="A major"]').first()).toBeVisible();
+	await expect(page.locator('svg [data-key-center="A minor"]')).toHaveCount(0);
 });
 
 test('the displayed closing ending supplies its own center', async ({ page }) => {

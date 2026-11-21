@@ -32,10 +32,64 @@ function supportedDominant(chord: ChordEvidence | null, scale: Set<PitchClass>):
 export interface MajorKeyTransition {
 	from: PitchClass;
 	to: PitchClass;
-	arrival: Cornerstone;
+	/** Present when the transition also splits a reserved minor-arrival cornerstone. */
+	arrival?: Cornerstone;
 	/** From the dominant up to the start of the incoming compatible region. */
 	leadInIndices: number[];
 	dominant: SecondaryDominant;
+}
+
+/** A fully spelled augmented dominant resolving to a minor degree of a major key. */
+export function augmentedDominantTarget(chord: ChordEvidence, target: ChordEvidence, key: PitchClass) {
+	const degree = TARGETS[pitchClassInterval(key, target.root)];
+	if ((degree !== 'ii' && degree !== 'iii' && degree !== 'vi') || pitchClassInterval(target.root, chord.root) !== 7 ||
+		![3, 7].every(step => target.pitchClasses.includes(transposePitchClass(target.root, step)))) return;
+	if (chord.pitchClasses.length === 4 &&
+		[0, 4, 8, 10].every(step => chord.pitchClasses.includes(transposePitchClass(chord.root, step)))) return degree;
+}
+
+/** A brief V/ii, V/iii or V/vi can introduce a new key after a different cadenced tonic. */
+export function augmentedKeyTransitions(flat: FlattenedTune, order: number[], evidence: (ChordEvidence | null)[],
+	regions: MajorRegion[], boundaries: number[], barLength: number): MajorKeyTransition[] {
+	const transitions: MajorKeyTransition[] = [];
+	const position = new Map(order.map((index, n) => [index, n]));
+	const offset = (i: number) => fractionToFloat(flat.harmony[i].startOffset);
+	const contiguous = (left: number, right: number) => compareFractions(
+		addFractions(flat.harmony[left].startOffset, flat.harmony[left].duration), flat.harmony[right].startOffset) === 0;
+	const cadenced = regions.filter(r => r.evidence.cadences.length);
+	for (const incoming of cadenced) {
+		const resolutionIndex = incoming.segmentIndices[0];
+		const target = evidence[resolutionIndex]!;
+		const end = position.get(resolutionIndex)!;
+		if (end < 2 || offset(incoming.evidence.cadences[0][1]) - offset(resolutionIndex) > 4 * barLength) continue;
+		let start = end - 1;
+		const dominant = evidence[order[start]];
+		if (!dominant || !contiguous(order[start], resolutionIndex)) continue;
+		const targetDegree = augmentedDominantTarget(dominant, target, incoming.key);
+		if (!targetDegree) continue;
+		const departure = incoming.segmentIndices.find(i => evidence[i]!.root !== target.root);
+		if (departure === undefined || offset(departure) - offset(resolutionIndex) > barLength) continue;
+		// Count all contiguous pieces of the same sounding dominant before testing its duration.
+		while (start > 0) {
+			const previous = evidence[order[start - 1]];
+			if (previous?.root !== dominant.root || previous.pitchClasses.join() !== dominant.pitchClasses.join() ||
+				!contiguous(order[start - 1], order[start])) break;
+			start--;
+		}
+		if (start === 0 || !contiguous(order[start - 1], order[start])) continue;
+		const entrance = offset(order[start]);
+		const before = order[start - 1];
+		if (offset(resolutionIndex) - entrance > barLength ||
+			boundaries.some(b => b > offset(before) && b <= offset(resolutionIndex))) continue;
+		const outgoing = cadenced.find(r => r.key !== incoming.key && r.segmentIndices.at(-1) === before &&
+			r.evidence.tonicSegmentIndices.includes(before) && entrance - offset(r.evidence.cadences.at(-1)![1]) <= 4 * barLength);
+		if (!outgoing) continue;
+		const leadInIndices = order.slice(start, end);
+		transitions.push({ from: outgoing.key, to: incoming.key, leadInIndices, dominant: {
+			segmentIndices: leadInIndices, resolutionIndex, targetKey: target.root, targetDegree
+		} });
+	}
+	return transitions;
 }
 
 /**

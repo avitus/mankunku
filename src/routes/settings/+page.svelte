@@ -16,7 +16,6 @@
 	} from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { onMount } from 'svelte';
-	import { readProfile } from '$lib/audio/room-profile';
 	import { roomPreference, setRoomCorrection } from '$lib/audio/room-scoring-state.svelte';
 	import { getUnlockContext } from '$lib/state/progress.svelte';
 	import {
@@ -61,19 +60,19 @@
 		return () => calibration?.abort();
 	});
 
-	function cancelCalibration(): void {
+	function cancelCalibration(message = ''): void {
 		calibration?.abort();
 		calibration = undefined;
 		calibrating = false;
-		roomMessage = '';
+		roomMessage = message;
 	}
 
-	async function calibrateSpeakers(force: boolean): Promise<void> {
-		if (calibrating || (!force && readProfile())) return;
+	async function calibrateSpeakers(): Promise<void> {
+		if (calibrating || !roomCorrection) return;
 		const controller = new AbortController();
 		calibration = controller;
 		calibrating = true;
-		roomMessage = 'Allow microphone access and stay quiet for the six-second speaker check.';
+		roomMessage = 'Allow microphone access and stay quiet during the sound check.';
 		let mic: import('$lib/audio/capture').MicCapture | undefined;
 		try {
 			const [{ openMicrophone }, { calibrateRoom }] = await Promise.all([
@@ -81,11 +80,10 @@
 			]);
 			controller.signal.throwIfAborted();
 			mic = await openMicrophone(controller.signal);
-			const result = await calibrateRoom(mic, { force, signal: controller.signal });
+			const result = await calibrateRoom(mic, { mode: 'sound-check', signal: controller.signal });
 			if (controller.signal.aborted) return;
 			switch (result) {
-				case 'saved':
-				case 'matched': roomMessage = 'Speaker calibration saved on this device.'; break;
+				case 'saved': roomMessage = 'Speaker calibration saved on this device.'; break;
 				case 'rejected': roomMessage = 'No reliable speaker return. Practice will use the original microphone.'; break;
 				case 'unsaved': roomMessage = 'Calibration passed, but could not be saved on this device.'; break;
 				default: roomMessage = 'Calibration unavailable. You can retry here.';
@@ -579,13 +577,12 @@
 							<RockerSwitch
 								label="Backing"
 								ariaLabel="Backing track"
-								helpText="On first use, allow microphone access and stay quiet during a six-second speaker check."
+								helpText="Play the rhythm section during practice."
 								checked={settings.backingTrackEnabled}
 								onChange={(v) => {
 									settings.backingTrackEnabled = v;
 									saveSettings(supabase);
-									if (v && explicitRoomPreference !== false) void calibrateSpeakers(false);
-									else cancelCalibration();
+									if (!v) cancelCalibration();
 								}}
 							/>
 							<Knob
@@ -623,16 +620,21 @@
 				</div>
 				<div class="settings-room">
 					<RockerSwitch label="Speaker bleed reduction" checked={roomCorrection}
-						helpText="Backing enables this by default. Your browser saves the speaker calibration and verifies it during Listen before cleaning the scoring microphone."
+						helpText="Use a saved speaker calibration to reduce backing spill in the scoring microphone."
 						onChange={(v) => {
 							explicitRoomPreference = v;
 							setRoomCorrection(v);
-							if (v && settings.backingTrackEnabled) void calibrateSpeakers(false);
-							else cancelCalibration();
+							if (!v) cancelCalibration();
 						}} />
-					<button type="button" class="text-sm underline disabled:opacity-50" disabled={calibrating || !roomCorrection}
-						onclick={() => void calibrateSpeakers(true)}>Recalibrate speakers</button>
-					<p role="status" class="studio-caption">{roomMessage || 'Calibrate once when you enable backing. Recalibrate if you move your mic or speakers.'}</p>
+					<div class="settings-room-check">
+						<p id="speaker-check-description">The sound check plays six seconds of hiss through your speakers. Set Master to a comfortable level and keep your instrument quiet.</p>
+						<button type="button" class="studio-action disabled:opacity-50" disabled={!roomCorrection}
+							aria-describedby="speaker-check-description"
+							onclick={() => calibrating ? cancelCalibration('Sound check stopped.') : calibrateSpeakers()}>
+							{calibrating ? 'Stop sound check' : 'Start speaker sound check'}
+						</button>
+						<p role="status" class="studio-caption">{roomMessage}</p>
+					</div>
 				</div>
 				<p class="studio-caption settings-footnote">
 					Tempo also sets library playback and the starting pace for tune practice. Backing applies to lick and tune practice; each lick keeps its own tempo.
@@ -1056,19 +1058,22 @@
 	}
 	.settings-room {
 		display: grid;
-		grid-template-columns: auto auto minmax(0, 1fr);
+		grid-template-columns: auto minmax(0, 1fr);
 		align-items: center;
 		gap: 20px;
 		border-top: 1px solid var(--studio-border);
 		margin-top: 20px;
 	}
-	.settings-room p {
-		min-height: 3lh;
-		align-content: center;
+	.settings-room-check {
+		display: grid;
+		justify-items: start;
+		gap: 8px;
+		padding-top: 16px;
 	}
+	.settings-room-check [role='status']:empty { margin: 0; }
 	@media (max-width: 600px) {
-		.settings-room { grid-template-columns: 1fr 1fr; gap: 8px; }
-		.settings-room p { grid-column: 1 / -1; }
+		.settings-room { grid-template-columns: 1fr; }
+		.settings-room-check { padding-top: 0; }
 	}
 	.settings-footnote {
 

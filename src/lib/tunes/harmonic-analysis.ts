@@ -5,8 +5,9 @@ import { chordEvidence } from '$lib/music/chord-evidence';
 import { pitchClassInterval, transposePitchClass } from '$lib/music/transposition';
 import { DOMINANT_QUALITIES, MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { detectProgressions, type DetectedProgression } from './progression-detector';
+import { borrowedMajorApproaches, majorContinuations, type BorrowedMajorApproach, type MajorContinuation } from './phrase-continuity';
 import type { FlattenedTune } from './flatten';
-import { contextualMajorRegions, majorKeyTransitions, type ContextualMajorRegion, type MajorKeyTransition } from './tonal-centers';
+import { augmentedKeyTransitions, contextualMajorRegions, majorKeyTransitions, type ContextualMajorRegion, type MajorKeyTransition } from './tonal-centers';
 
 interface HarmonicSpan {
 	/** Indices into the supplied flatten, never notation indices guessed from bars. */
@@ -43,6 +44,8 @@ export interface HarmonicAnalysis {
 	/** Governing centers with explained chromatic events; NEVER scale-based practice candidates. */
 	contextualMajorRegions: ContextualMajorRegion[];
 	majorKeyTransitions: MajorKeyTransition[];
+	majorContinuations: MajorContinuation[];
+	borrowedMajorApproaches: BorrowedMajorApproach[];
 	/** Practice candidates after cornerstone reservation; competing keys can overlap. */
 	majorRegions: MajorRegion[];
 	issues: ('invalid-timeline')[];
@@ -134,7 +137,7 @@ export function analyzeHarmony(
 	options: { cyclic?: boolean; reservationScope?: 'cyclic' | 'form' } = {}
 ): HarmonicAnalysis {
 	const empty: HarmonicAnalysis = {
-		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorKeyTransitions: [], majorRegions: [], issues: []
+		progressions: [], cornerstones: [], reservedSegmentIndices: [], compatibleMajorRegions: [], contextualMajorRegions: [], majorKeyTransitions: [], majorContinuations: [], borrowedMajorApproaches: [], majorRegions: [], issues: []
 	};
 	const [beats, unit] = tune.timeSignature;
 	if (!Number.isSafeInteger(beats) || beats <= 0 || !Number.isSafeInteger(unit) || unit <= 0 ||
@@ -215,5 +218,10 @@ export function analyzeHarmony(
 	return { progressions, cornerstones, reservedSegmentIndices: order.filter((index) => reserved.has(index)),
 		compatibleMajorRegions, majorRegions,
 		contextualMajorRegions: continuations,
-		majorKeyTransitions: majorKeyTransitions(flat, evidence, compatibleMajorRegions, cornerstones, continuations, beats / unit), issues: [] };
+		borrowedMajorApproaches: borrowedMajorApproaches(flat, order, evidence, compatibleMajorRegions, sectionBoundaries),
+		majorContinuations: majorContinuations(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit),
+		majorKeyTransitions: [
+			...majorKeyTransitions(flat, evidence, compatibleMajorRegions, cornerstones, continuations, beats / unit),
+			...augmentedKeyTransitions(flat, order, evidence, compatibleMajorRegions, sectionBoundaries, beats / unit)
+		], issues: [] };
 }
