@@ -508,7 +508,7 @@
 				return false;
 			}
 			micCapture = capture;
-			await captureModule.preparePracticeRoom(capture);
+			await captureModule.preparePracticeRoom(capture, settings.backingTrackEnabled);
 			if (!setupIsCurrent(generation)) return false;
 			await prepareScoringCapture(micCapture.context).catch(error => {
 				console.warn('Microphone scoring capture unavailable, using live detection:', error);

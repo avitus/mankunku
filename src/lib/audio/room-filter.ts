@@ -16,6 +16,7 @@ export interface RoomFilter {
 
 /** Alignment and level fitted in Listen, with independent validation of the predicted reduction. */
 export interface RoomTimingCheck {
+	transientReduction: number;
 	offset: number;
 	gain: number;
 	reduction: number;
@@ -225,6 +226,7 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 		calibrationPower += echo * echo;
 	}
 	const gain = Math.max(0.6, Math.min(1.6, calibrationDot / (calibrationPower + 1e-15)));
+	let transientBefore = 0, transientAfter = 0;
 	let before = 0,
 		error = 0,
 		estimated = 0,
@@ -236,10 +238,17 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 		error += (observed - echo) ** 2;
 		estimated += echo * echo;
 		dot += echo * observed;
+		// Emphasize changes between adjacent samples. A loud, repeating bass note can
+		// cancel at the wrong delay while the rest of the backing gets louder.
+		const change = observed - samples.mic[i - 1];
+		const echoChange = echo - gain * predicted[i - offset - 1];
+		transientBefore += change * change;
+		transientAfter += (change - echoChange) ** 2;
 	}
 	const reduction = 10 * Math.log10((before + 1e-15) / (error + 1e-15));
 	const validationGain = dot / (estimated + 1e-15);
 	return {
+		transientReduction: 10 * Math.log10((transientBefore + 1e-15) / (transientAfter + 1e-15)),
 		offset,
 		gain,
 		reduction,

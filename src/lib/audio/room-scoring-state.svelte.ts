@@ -1,20 +1,21 @@
 const key = 'mankunku.speaker-room-correction.v1';
 let temporaryPreference: boolean | undefined;
 export const roomStatus = $state({ text: '' });
-/** Read the preference for this browser and its audio setup. */
-export function roomCorrectionEnabled(): boolean {
+/** Explicit browser preference. Backing enables correction by default. */
+export function roomPreference(): boolean | undefined {
 	if (temporaryPreference !== undefined) return temporaryPreference;
 	try {
-		return localStorage.getItem(key) === 'on';
-	} catch {
-		return false;
-	}
+		const stored = localStorage.getItem(key);
+		return stored === null ? undefined : stored === 'on';
+	} catch { return undefined; }
+}
+export function roomCorrectionEnabled(backing = false): boolean {
+	return roomPreference() ?? backing;
 }
 /** When storage is restricted, keep the switch usable for this page session. */
 export function setRoomCorrection(enabled: boolean): void {
 	try {
-		if (enabled) localStorage.setItem(key, 'on');
-		else localStorage.removeItem(key);
+		localStorage.setItem(key, enabled ? 'on' : 'off');
 		temporaryPreference = undefined;
 	} catch {
 		temporaryPreference = enabled;
