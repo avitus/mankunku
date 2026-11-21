@@ -40,7 +40,6 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
  expect(observed.sentences.sort()).toEqual(['bass','drums','piano']);
  for(const peak of observed.peaks)expect(peak).toBeGreaterThan(-46);
- await expectAudibleListeningOutput(page);
  expect(take.playback.musicalityRelease.version).toBe(CURRENT_MUSICALITY_RELEASE.version);
  expect(take.playback.params.performanceEnergySeed).toBe(3);
  expect(take.playback.provenance.committedBars).toBe(52);
@@ -48,6 +47,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
  expect(take.playback.provenance.renderTimings).toHaveLength(52);
  expectEveryBarCommittedWithLead(take.playback, 52);
  const generated=take.playback.generated as GeneratedBacking;
+ await expectAudibleListeningOutput(page, generated);
  for(const start of [16,28]) {
   const traces=generated.ensembleDevelopment!.pianoMotifs;
   const source=traces.find(t=>t.barIndex>=start&&t.barIndex<=start+2&&t.transform==='statement')!;

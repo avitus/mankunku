@@ -23,7 +23,7 @@ import type { BackingInstrument } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMelodyGain, setMasterVolume } from './audio-context';
-import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
+import { scheduleMetronome, continueMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
 import {
 	loadBackingInstruments,
 	startBackingTrack,
@@ -1090,7 +1090,7 @@ export async function scheduleNextPhrase(
 		onStopCallback = null;
 	}
 
-	// Dispose previous phrase part (metronome sequence is untouched)
+	// Dispose the previous phrase part. The click keeps playing through the handoff.
 	if (currentPart) {
 		currentPart.dispose();
 		currentPart = null;
@@ -1114,6 +1114,8 @@ export async function scheduleNextPhrase(
 			nextBarTicks += ticksPerBar;
 		}
 	}
+
+	if (options.metronomeEnabled) continueMetronome(phrase.timeSignature, nextBarTicks);
 
 	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {

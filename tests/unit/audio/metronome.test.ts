@@ -16,6 +16,7 @@ interface FakeSequence {
 	events: number[];
 	subdivision: string;
 	startedAt: Array<string | number>;
+	stoppedAt: Array<string | number>;
 	loop: boolean;
 	disposed: boolean;
 }
@@ -50,7 +51,7 @@ let noiseCount = 0;
 let membraneCount = 0;
 
 vi.mock('tone', () => ({
-	getTransport: () => ({ PPQ: 192 }),
+	getTransport: () => ({ PPQ: 192, ticks: 0 }),
 	Gain: class {
 		gain: { value: number };
 		connect = vi.fn();
@@ -81,6 +82,7 @@ vi.mock('tone', () => ({
 				events,
 				subdivision,
 				startedAt: [],
+				stoppedAt: [],
 				// Tone.js Sequence defaults to loop = true, so the SUT's explicit
 				// `loop = false` lines are load-bearing — a mock defaulting to
 				// false would let their deletion pass silently.
@@ -92,6 +94,7 @@ vi.mock('tone', () => ({
 				start: (at: string | number) => {
 					seq.startedAt.push(at);
 				},
+				stop: (at: string | number) => { seq.stoppedAt.push(at); },
 				get loop() {
 					return seq.loop;
 				},
@@ -126,6 +129,23 @@ beforeEach(async () => {
 });
 
 describe('scheduleMetronome', () => {
+	it('switches an open-ended click on the requested downbeat and keeps same-meter continuations running', async () => {
+		await metronome.scheduleMetronome(4, null);
+		metronome.continueMetronome([4, 4], 768);
+		expect(sequences).toHaveLength(1);
+		metronome.continueMetronome([6, 8], 1536);
+		expect(sequences[0].stoppedAt).toEqual(['1536i']);
+		expect(sequences[0].disposed).toBe(false);
+		expect(sequences[1]).toMatchObject({ startedAt: ['1536i'], subdivision: '96i', events: [0, 1, 2, 3, 4, 5], loop: true });
+		metronome.continueMetronome([6, 8], 2112);
+		expect(sequences).toHaveLength(2);
+		metronome.disposeMetronome();
+		expect(sequences.every(s => s.disposed)).toBe(true);
+		await metronome.scheduleMetronome(4, 1);
+		metronome.continueMetronome([6, 8], 768);
+		expect(sequences).toHaveLength(3);
+	});
+
 	it('passes startAt through to Sequence.start verbatim — tick notation stays ticks', async () => {
 		// Record-a-lick passes `${8 * PPQ}i` because bar notation ('2m') would
 		// resolve through the sticky global Transport.timeSignature. The wrapper

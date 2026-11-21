@@ -816,7 +816,8 @@ export function getMetronomeBleedOnsets(
 	recordingTransportSeconds: number,
 	tempo: number,
 	recordingDuration: number,
-	denominator = 4
+	denominator = 4,
+	gridOriginSeconds = 0
 ): number[] {
 	if (!Number.isFinite(tempo) || tempo <= 0 || recordingDuration <= 0 || ![1,2,4,8,16,32,64].includes(denominator)) return [];
 	const beatDuration = 60 / tempo * 4 / denominator;
@@ -824,7 +825,7 @@ export function getMetronomeBleedOnsets(
 	const scanStartTransport = recordingTransportSeconds - PRE_RECORDING_LOOKBACK;
 	const scanEndTransport = recordingTransportSeconds + recordingDuration;
 	const out: number[] = [];
-	let beat = Math.ceil(scanStartTransport / beatDuration) * beatDuration;
+	let beat = gridOriginSeconds + Math.ceil((scanStartTransport - gridOriginSeconds) / beatDuration) * beatDuration;
 	while (beat <= scanEndTransport) {
 		out.push(beat - recordingTransportSeconds);
 		beat += beatDuration;

@@ -405,10 +405,12 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
    while(commonTones.includes(event.notes[0]))event.notes[0]-=12;
   }
   const index=voicingTrace.findIndex(v=>v.time===event.time);
-  if (index >= 0 && event.notes.join(',') !== voicingTrace[index].notes.join(',')) {
+  if (index >= 0) {
    const trace = voicingTrace[index];
-   const { rootlessTexture: _wholeVoicingTexture, ...decision } = trace.decision;
-   voicingTrace[index] = Object.freeze({ ...trace, decision, notes: [...event.notes] });
+   const filtered = event.notes.length !== trace.notes.length || event.notes.some((note, i) => note !== trace.notes[i]);
+   const currentPolicy = score.harmonicSupportVersion || score.pianoContinuityVersion === 2;
+   voicingTrace[index] = Object.freeze({ ...trace, notes: [...event.notes],
+    ...(currentPolicy && filtered ? { decision: { ...trace.decision, rootlessTexture: undefined } } : {}) });
   }
  }
 	if (rhythmicSentence && bar === motif.sourceBar && (transform !== 'statement' || reason || !events.length || hits.length !== events.length || hits.some((hit,i) => events[i].absBeat !== bar * 4 + hit.b))) motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };

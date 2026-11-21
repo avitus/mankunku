@@ -323,6 +323,7 @@
 		phrase: Phrase;
 		schedule: BackingTrackSchedule | null;
 		recordingTransportSeconds: number;
+		metronomeGridOriginSeconds?: number;
 		micStartTime: number;
 		readingsStartCount: number;
 		/** Same as `readingsStartCount`, for the detector's weak-reading stream. */
@@ -1249,7 +1250,7 @@
 		keyIdx: number,
 		finalPass: boolean,
 		passes: number,
-		_transportTime: number
+		transportTime: number
 	) {
 		if (!playback || !backingTrack || !pitchDetector) return;
 
@@ -1283,6 +1284,9 @@
 			phrase,
 			schedule: schedule ?? null,
 			recordingTransportSeconds: transportSecondsAtOpen,
+			// Each recording window opens on a scheduled downbeat. A preceding meter
+			// or tempo change can place that beat off the original transport grid.
+			metronomeGridOriginSeconds: playback.getTransportClockAt(transportTime)?.secondsAtContextTime,
 			micStartTime: micCapture?.context.currentTime ?? 0,
 			readingsStartCount: readings.length,
 			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
@@ -1375,6 +1379,7 @@
 			recordingTransportSeconds: window.recordingTransportSeconds,
 			tempo: lickPractice.currentTempo,
 			metronomeDenominator: window.phrase.timeSignature[1],
+			metronomeGridOriginSeconds: window.metronomeGridOriginSeconds,
 			recordingDuration
 		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
@@ -1565,6 +1570,7 @@
 						bleedFilterLog: bleedLogForSave,
 						transportSeconds: windowForSave.recordingTransportSeconds,
 						metronomeEnabled: metronomeForSave,
+						metronomeGridOriginSeconds: windowForSave.metronomeGridOriginSeconds,
 						backingBleedOnsets: backingOnsetsForSave,
 						captureTiming: captureTimingForSave,
 						supabase: supabaseForSave ?? undefined,

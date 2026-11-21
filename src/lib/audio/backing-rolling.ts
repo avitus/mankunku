@@ -597,7 +597,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
   piano = {...piano, events:[...piano.events.slice(0,-1),...sustained],
    memory:{...piano.memory,crossBarReleaseTick:held.barLineSustain!.releaseTick,...(held.barLineSustain!.version===2?{commonToneNotes:[...held.notes]}:{})},
    voicingTrace:piano.voicingTrace?.flatMap(v=>v.time!==held.time?[v]:sustained.map(event=>({...v,notes:[...event.notes],decision:{...v.decision,
-    ...(sustained.length > 1 ? {rootlessTexture: undefined} : {}),
+    ...(sustained.length > 1 && (definition.harmonicSupportVersion || definition.pianoContinuityVersion === 2) ? {rootlessTexture: undefined} : {}),
     ...(v.decision.keyboardArticulation?{keyboardArticulation:{...v.decision.keyboardArticulation,durationSeconds:event.duration,durationBeats:event.duration*definition.tempo/60}}:{})}}))) };
  }
 

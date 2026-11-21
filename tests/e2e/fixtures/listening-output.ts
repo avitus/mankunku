@@ -1,3 +1,4 @@
+import type { GeneratedBacking } from '../../../src/lib/audio/backing-generation';
 import type { Page } from '@playwright/test';
 import { expect } from './test';
 import { OUTPUT_CEILING } from '../../../src/lib/audio/mixer-policy';
@@ -5,7 +6,7 @@ import { OUTPUT_CEILING } from '../../../src/lib/audio/mixer-policy';
 /** Measure both channels after the listening Master. The desk's Backing meter precedes protection. */
 export async function observeListeningOutput(page: Page) {
  await page.addInitScript(ceiling => {
-  const state = { peak: 0 };
+  const state = { peak: 0, barPeaks: [] as number[] };
   Object.assign(window, { __listeningOutput: state });
   const connect = WaveShaperNode.prototype.connect;
   Object.defineProperty(WaveShaperNode.prototype, 'connect', {
@@ -23,7 +24,15 @@ export async function observeListeningOutput(page: Page) {
       const data = new Float32Array(meter.fftSize);
       setInterval(() => {
        meter.getFloatTimeDomainData(data);
-       for (const sample of data) state.peak = Math.max(state.peak, Math.abs(sample));
+       let peak = 0;
+       for (const sample of data) peak = Math.max(peak, Math.abs(sample));
+       state.peak = Math.max(state.peak, peak);
+       const position = document.querySelector('[data-testid="listening-position"]');
+       const index = position?.getAttribute('data-bar-index');
+       if (index && position?.querySelector('[data-testid="listening-status"]')?.textContent === 'Playing') {
+        const bar = Number(index);
+        state.barPeaks[bar] = Math.max(state.barPeaks[bar] ?? 0, peak);
+       }
       }, 75);
      }
     }
@@ -33,8 +42,13 @@ export async function observeListeningOutput(page: Page) {
  }, OUTPUT_CEILING);
 }
 
-export async function expectAudibleListeningOutput(page: Page) {
- const peak = await page.evaluate(() => (window as unknown as { __listeningOutput: { peak: number } }).__listeningOutput.peak);
- expect(peak).toBeGreaterThan(.001);
+export async function expectAudibleListeningOutput(page: Page, generated: GeneratedBacking) {
+ const { peak, barPeaks } = await page.evaluate(() =>
+  (window as unknown as { __listeningOutput: { peak: number; barPeaks: number[] } }).__listeningOutput);
  expect(peak).toBeLessThanOrEqual(OUTPUT_CEILING + 1e-6);
+ // Only bars with scheduled attacks require sound. Entirely resting bars may be silent.
+ const soundingBars = new Set([...generated.bassEvents, ...generated.compEvents, ...generated.drumEvents]
+  .map(event => Math.floor(event.absBeat / 4)));
+ expect(soundingBars.size).toBeGreaterThan(0);
+ for (const bar of soundingBars) expect(barPeaks[bar] ?? 0, `Master output in bar ${bar + 1}`).toBeGreaterThan(.001);
 }

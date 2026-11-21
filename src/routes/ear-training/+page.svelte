@@ -959,6 +959,7 @@
 			metronomeEnabled,
 			recordingTransportSeconds: trimmedTransportSeconds,
 			tempo,
+			metronomeGridOriginSeconds: baseMetadata?.metronomeGridOriginSeconds,
 			metronomeDenominator: baseMetadata ? baseMetadata.metronomeDenominator ?? 4 : phrase.timeSignature[1],
 			recordingDuration: replay.duration
 		});
