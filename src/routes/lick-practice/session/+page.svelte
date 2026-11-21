@@ -50,11 +50,9 @@
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import {
 		getActiveSubstitution,
-		getTransitionCadenceChords,
 		PROGRESSION_TEMPLATES,
 		progressionMode
 	} from '$lib/data/progressions';
-	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import {
 		resolveNextCycleStart,
 		planCycleWindows,
@@ -72,7 +70,7 @@
 		type PhaseCue,
 		type PhaseSegment
 	} from '$lib/state/lick-practice-phase';
-	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
+	import { buildTurnaroundBarEvents, transitionCueStabs, type BackingHit } from '$lib/audio/turnaround-bar';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type {
 		PlannedKey,
@@ -1097,36 +1095,16 @@
 		if (!item || !nextKey) return;
 
 		const transport = toneModule.getTransport();
-		const ppq = transport.PPQ;
-		const beatsPerBar = ticksPerBar / ppq;
-		// startLick has already set the new lick's BPM synchronously, so
-		// beat lengths match the metronome through the cue bar.
-		const beatSec = 60 / lickPractice.currentTempo;
-		const voicings = voiceLead(
-			getTransitionCadenceChords(item.progressionType, nextKey),
-			shellVoicing,
-			54
-		);
-		if (voicings.length < 2 || voicings.some(v => v.length === 0)) return;
-
-		const vBeat = Math.max(0, beatsPerBar - 1);
-		const iiBeat = Math.min(1, vBeat);
-		// Degenerate meters (2/4) can't fit two hits — keep just the V.
-		const stabs =
-			vBeat > iiBeat
-				? [
-						{ beat: iiBeat, notes: voicings[0], duration: (vBeat - iiBeat) * beatSec * 0.9 },
-						{ beat: vBeat, notes: voicings[1], duration: beatSec * 0.9 }
-					]
-				: [{ beat: iiBeat, notes: voicings[1], duration: beatSec * 0.9 }];
-
+		const meter = plannedKeysForLick[0]?.phrase.timeSignature ?? getCurrentPhrase()?.timeSignature;
+		if (!meter) return;
+		const stabs = transitionCueStabs(item.progressionType, nextKey, meter, transport.PPQ, lickPractice.currentTempo);
 		const cueBarStartTick = nextLickStartTick - ticksPerBar;
 		for (const stab of stabs) {
 			const id = transport.scheduleOnce((time: number) => {
 				backingTrack?.playTransitionChords([
 					{ notes: stab.notes, time, duration: stab.duration }
 				]);
-			}, `${cueBarStartTick + stab.beat * ppq}i`);
+			}, `${cueBarStartTick + stab.tickOffset}i`);
 			scheduledEventIds.push(id);
 		}
 	}

@@ -21,7 +21,8 @@ import { prepareReleasedArrangement } from './backing-arrangement';
 import type { PitchClass, HarmonicSegment } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { BackingStyle, BackingInstrument } from '$lib/types/instruments';
-import { turnaroundHarmony } from '$lib/data/progressions';
+import { getTransitionCadenceChords, turnaroundHarmony } from '$lib/data/progressions';
+import { shellVoicing, voiceLead } from './voicings';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
 import { resolveBackingSwing } from './backing-generation';
 
@@ -31,6 +32,19 @@ import { resolveBackingSwing } from './backing-generation';
  * bar inside a super phrase without the state layer importing audio code.
  */
 export { turnaroundHarmony };
+
+/** Place the ii on the second printed beat and the V on the final printed beat. */
+export function transitionCueStabs(type: ChordProgressionType, key: PitchClass,
+ [beatsPerBar, denominator]: readonly [number, number], ppq: number, tempo: number) {
+ const [ii, dominant] = voiceLead(getTransitionCadenceChords(type, key), shellVoicing, 54);
+ if (!ii?.length || !dominant?.length) return [];
+ const beatTicks = ppq * 4 / denominator;
+ const beatSeconds = 60 / tempo * 4 / denominator;
+ const lastBeat = beatsPerBar - 1;
+ const landing = { tickOffset: lastBeat * beatTicks, notes: dominant, duration: beatSeconds * 0.9 };
+ if (lastBeat <= 1) return [landing];
+ return [{ tickOffset: beatTicks, notes: ii, duration: (lastBeat - 1) * beatSeconds * 0.9 }, landing];
+}
 
 /** One instrument trigger, mirroring the backing Parts' callback payloads. */
 export type BackingHit =
