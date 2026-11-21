@@ -60,6 +60,8 @@ export type DrumVoice =
  * undefined and patterns fall back to position-free choices.
  */
 export interface GenerationContext {
+	/** Keep the permitted Ballad pad before a sparse phrase resolves into rest. */
+	supportQuietPad?: boolean;
 	/** Shared role assignment, present only for coordinated 4/4. */
 	ensemble?: import('./ensemble-plan').EnsembleBarPlan;
 	/** Whole coordinated drummer bar, already admitted against roles and kit limbs. */
@@ -505,7 +507,7 @@ const ballad: StyleDefinition = {
 			{ value: 'pad-whole', weight: 3 },
 			{ value: 'pads-halves', weight: ctx.ensemble && ctx.ensemble.piano.maxAttacks < 2 ? 0 : 2 },
 			{ value: 'late-pad', weight: anchor ? 0 : 1 },
-			{ value: 'rest', weight: anchor || ctx.ensemble?.piano.harmonicSupport || ctx.ensemble?.piano.presence === 'reentry' ? 0 : ctx.ensemble?.piano.texture === 'steady' ? .2 : 1.2 }
+			{ value: 'rest', weight: anchor || ctx.supportQuietPad || ctx.ensemble?.piano.harmonicSupport || ctx.ensemble?.piano.presence === 'reentry' ? 0 : ctx.ensemble?.piano.texture === 'steady' ? .2 : 1.2 }
 		]);
 		const vel = (): number => rng.int(42, 54) + Math.round(lerp(-2, 4, ctx.intensity));
 		const hits: CompHitSpec[] = [];

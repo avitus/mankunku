@@ -4,6 +4,10 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/main/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Keyboard support through quiet phrases and half-bar changes — 0.20.0
+
+The released 4/4 policy uses the existing permission to play one chord when a retained two-attack figure exceeds a Swing or Straight organ bar's budget. Ballad keyboards keep a native pad when a quiet phrase gives the keyboard room to play before its planned rest. A Ballad whole-bar pad with room for two attacks can become a pair of native half pads when the written root or chord quality changes on beat three. The softer second attack states that harmony. Carry entries, foreground responses, accents, setups and terminal arrangements keep priority. The versioned rolling definition allows replay with the previous common-tone policy.
+
 ## Quiet-phrase support — 0.19.2, 20 November 2026
 
 The one-attack permission in a deliberately quieter phrase must still produce a playable supporting figure. A retained two-attack sentence used to fail that permission and become silent; its accidental missing attacks could join the planned tail rest into a completely silent four-bar Blues line. `pianoContinuity: 'refit'` fingerprints version 2 and allows the existing seeded gesture-refit fallback in quiet Swing/Straight piano textures. It only applies when the retained gesture does not fit and the bar has a positive attack budget, no coordinated accent and no other response owner. Deliberate motif space and zero-budget formal rests retain their meaning. The `true` option retains exact 0.19.1 replay. No gain, sample, hold length, Organ, Bossa or Ballad behavior changes.

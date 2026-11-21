@@ -175,7 +175,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		// A quiet phrase still owns its permitted supporting attacks. A retained
 		// two-hit sentence must refit its one-hit budget instead of accidentally
 		// extending the planned tail rest into a whole silent phrase.
-		const refitGesture = reason === 'gesture_does_not_fit' && (ensemble.piano.texture === 'steady' || score.pianoContinuityVersion === 2);
+		const refitGesture = reason === 'gesture_does_not_fit' && (ensemble.piano.texture === 'steady' || score.pianoContinuityVersion === 2 || score.harmonicSupportVersion === 1);
 		if (!hits.length && budget > 0 && (harmonicSupport || ensemble.piano.presence === 'reentry' || refitGesture) && !ensemble.coordinatedAccent && (harmonicSupport || ensemble.responseOwner === 'nobody')) {
 			const candidates = keyboardFigures(score).filter(candidate => fits(candidate) && candidate.hits[0].length > 0).map(candidate => {
 				let weight = candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1);
@@ -210,7 +210,25 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	} else {
 		motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
-			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), clavePhase: clavePhaseFor(score.phraseId, score.tempo) });
+			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), clavePhase: clavePhaseFor(score.phraseId, score.tempo),
+			supportQuietPad: !!score.harmonicSupportVersion && ensemble.piano.texture === 'sparse' && budget > 0 && ensemble.responseOwner === 'nobody' });
+		// When a whole pad would release at a new chord on beat three, use the
+		// native half-pad rhythm to give that harmony its own quiet entrance.
+		if (score.harmonicSupportVersion && score.style === 'ballad' && budget >= 2 &&
+			ensemble.piano.harmonicSupport === 'ordinary' && ensemble.responseOwner === 'nobody' &&
+			!ensemble.setupFor && !ensemble.coordinatedAccent && !ensemble.terminalArrangement &&
+			!memory.crossBarReleaseTick && !['active_soloist', 'dense_soloist'].includes(ensemble.piano.rootlessTexture?.reason ?? '') &&
+			realized.length === 1 && realized[0].beatOffset === 0 && realized[0].durationBeats === 3.6) {
+			const midBar = score.harmony.findIndex(segment => fractionToFloat(segment.startOffset) * 4 === bar * 4 + 2);
+			if (midBar > 0) {
+				const before = score.harmony[midBar - 1].chord;
+				const after = score.harmony[midBar].chord;
+				if (before.root !== after.root || before.quality !== after.quality) {
+					const pad = realized[0];
+					realized = [{ ...pad, durationBeats: 1.8 }, { beatOffset: 2, durationBeats: 1.7, velocity: pad.velocity - 3 }];
+				}
+			}
+		}
 		hits = realized.map((hit) => ({ b: hit.beatOffset, d: hit.durationBeats }));
 		if (budget === 0) { transform = 'space'; reason = 'ensemble_silence'; }
 		else reason = 'native_pattern';
