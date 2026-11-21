@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanTuneTempos, clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
+import { cleanTuneTempos, clampTuneTempo, printedQuarterTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 
 describe('a tune’s saved tempo', () => {
 	it('clamps to the desk’s 40–240 BPM range and rounds', () => {
@@ -7,6 +7,13 @@ describe('a tune’s saved tempo', () => {
 		expect(clampTuneTempo(300)).toBe(240);
 		expect(clampTuneTempo(132.6)).toBe(133);
 		expect(clampTuneTempo(Number.NaN)).toBe(100);
+	});
+	it('reads a single explicit quarter-note tempo in the supported range', () => {
+		expect(printedQuarterTempo('MED. SWING ♩ = 144')).toBe(144);
+		expect(printedQuarterTempo('Quarter note = 90')).toBe(90);
+		for (const style of ['Swing', '3/4', '♪ = 144', '♩ = 120–144', '♩ = 300']) {
+			expect(printedQuarterTempo(style)).toBeUndefined();
+		}
 	});
 	it('discards corrupt values and inherited keys at the persistence boundary', () => {
 		expect(cleanTuneTempos({ song: 180, slow: 20, broken: 'fast', nan: Number.NaN })).toEqual({ song: 180, slow: 40 });

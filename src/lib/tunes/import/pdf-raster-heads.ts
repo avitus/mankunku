@@ -27,7 +27,7 @@ export function pageInk(page: PageImage): InkReader {
  */
 export function rasterHeadCandidates(
 	page: PageImage,
-	system: SystemGeometry,
+	system: Pick<SystemGeometry, 'band' | 'interline'>,
 	x0: number,
 	x1: number
 ): RasterHead[] {

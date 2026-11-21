@@ -29,6 +29,9 @@ export function tuneToPhraseWithFlat(
 			key: sheet.key,
 			notes: flat.notes,
 			harmony: flat.harmony,
+			...(flat.soloBreaks && { soloBreaks: flat.soloBreaks }),
+			...(sheet.sections.some(section => section.directions?.some(d => d.text === 'N.C.' || d.text === 'Solo break'))
+				? { writtenHarmonyOnly: true } : {}),
 			difficulty,
 			category: 'user',
 			tags: sheet.tags,

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { recordRecentTune } from '$lib/persistence/recent-tunes';
 	import { firstBarNumber, isInPickupLeadIn } from '$lib/music/pickup';
-	import { jamSheets } from '$lib/tunes/jam-sheets';
+	import { jamChartAt, jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
@@ -20,7 +20,7 @@
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
-	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
+	import { printedQuarterTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 		import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
@@ -208,8 +208,9 @@
 	const previewSheet = $derived.by(() => {
 		if (!baseSheet || tunePractice.phase !== 'setup') return null;
 		const keyed = baseSheet.key === tunePractice.config.concertKey ? baseSheet : transposeTune(baseSheet, tunePractice.config.concertKey);
-		const sheets = jamSheets(keyed);
+		const sheets = jamSheets(keyed, tunePractice.config.playHead);
 		const hasHead = tunePractice.config.playHead && keyed.sections.some(section => section.notes.some(note => note.pitch !== null));
+		if (hasHead && sheets.opening) return sheets.opening.sheet;
 		return !hasHead && tunePractice.config.choruses === 1 ? sheets.closing : sheets.returning;
 	});
 	const previewMarkers = $derived<RangeMarker[]>(
@@ -223,12 +224,11 @@
 	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness));
 
 	const closingChart = $derived(audioPlan?.closingStartBar != null && Math.max(0, playheadBarF) >= audioPlan.closingStartBar);
-	const chartSheet = $derived(audioPlan ? closingChart ? audioPlan.closingSheet : audioPlan.sheet : null);
-	const chartFlat = $derived(audioPlan ? closingChart ? audioPlan.closingFlat : audioPlan.flat : null);
+	const chartSheet = $derived(audioPlan ? jamChartAt(audioPlan, playheadBarF, audioPlan.leadBars).sheet : null);
 	const displayedSheet = $derived.by(() => {
 		if (!audioPlan) return null;
 		if (closingChart) return audioPlan.closingSheet;
-		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) return audioPlan.sheet;
+		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) return audioPlan.opening?.sheet ?? audioPlan.sheet;
 		return audioPlan.changesSheet;
 	});
 
@@ -324,9 +324,7 @@
 	function chartBarAt(sessionBar: number): number | null {
 		if (!audioPlan || sessionBar >= audioPlan.playedPhrase.difficulty.lengthBars) return null;
 		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
-		const closing = audioPlan.closingStartBar !== null && sessionBar >= audioPlan.closingStartBar;
-		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
-		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
+		const { flat, sheet } = jamChartAt(audioPlan, sessionBar, audioPlan.leadBars);
 		const source = playbackBarForSessionBar(sessionBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
 		return notationBarForPlaybackBar(flat.sectionMap, sheet.sections, source);
 	}
@@ -435,7 +433,7 @@
 	// hydrate after mount.
 	$effect(() => {
 		if (!baseSheet || tunePractice.phase !== 'setup' || tempoChosenFor === baseSheet.id) return;
-		const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
+		const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id) ?? printedQuarterTempo(baseSheet.style);
 		tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
 	});
 
@@ -899,9 +897,7 @@
 		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
 		const formBar =
 			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
-		const closing = audioPlan.closingStartBar !== null && playBar >= audioPlan.closingStartBar;
-		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
-		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
+		const { flat, sheet } = jamChartAt(audioPlan, playBar, audioPlan.leadBars);
 		const chartBar = notationBarForPlaybackBar(
 			flat.sectionMap,
 			sheet.sections,

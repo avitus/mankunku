@@ -27,14 +27,17 @@ export async function runContextualTranscriptions(
 	});
 	const contexts: RecognitionContext[] = [];
 	const uncertainHeaders: boolean[] = [];
+	let heading: SystemRecognitionResult['heading'];
 	if (options.readContext) {
 		const headers = await runSystemTranscriptions({
 			...options,
-			attempts: 1,
+			// A failed opening header loses the key, meter and printed credits.
+			attempts: options.attempts ?? 2,
 			concurrency: options.concurrency ?? 4,
 			transcribe: (index, _attempt, signal) => options.readContext!(index, signal)
 		});
 		if (headers.aborted) return headers;
+		heading = headers.results[0]?.heading;
 		let uncertain = false;
 		for (const result of headers.results) {
 			if (!result) uncertain = true;
@@ -52,6 +55,7 @@ export async function runContextualTranscriptions(
 		async transcribe(index, _attempt, signal) {
 			const result = await options.transcribe(index, contexts[index] ?? { ...context }, signal);
 			if (result) {
+				if (index === 0 && heading) result.heading = heading;
 				if (!options.readContext) context = inheritContext(context, printed(result));
 				if (uncertainHeaders[index])
 					result.warnings.push(

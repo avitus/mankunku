@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { observeChartWidth } from '$lib/notation/observe-chart-width';
 	import { printedBarCount, firstBarNumber } from '$lib/music/pickup';
 	import { savedTuneKey, saveTuneKey, savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
 	import { recordRecentTune } from '$lib/persistence/recent-tunes';
@@ -143,7 +144,7 @@
 	const player = new TunePlayer({
 		tuneId: () => baseSheet?.id,
 		save: (tuneId, tempo) => saveTuneTempo(tuneId, tempo, supabase ?? undefined)
-	});
+	}, () => baseSheet?.style);
 	// A new playback also counts when another tab has opened a different tune.
 	$effect(() => {
 		if (player.playing && baseId) recordRecentTune(baseId);
@@ -159,12 +160,16 @@
 		settingsDialog?.showModal();
 	}
 	const backingStyle = $derived(baseSheet ? tuneBackingStyle(baseSheet, isOwnSheet ? {} : settings.tuneBackingStyles) : 'swing');
-	const jamCharts = $derived(sheet ? jamSheets(sheet) : null);
+	const jamCharts = $derived(sheet ? jamSheets(sheet, player.playHead) : null);
 	const hasMelody = $derived(sheet?.sections.some(section => section.notes.some(note => note.pitch !== null)) ?? false);
 	const solosOnly = $derived(!player.playHead || !hasMelody);
 	const showChordChart = $derived(solosOnly || (player.playing && player.showSoloChart));
 	const closingPreview = $derived(player.soloChoruses === 1 && solosOnly);
-	const displayedSheet = $derived(player.closing || closingPreview ? jamCharts?.closing : jamCharts?.returning);
+	const playingSheet = $derived(player.closing || closingPreview ? jamCharts?.closing
+		: player.phase === 'head' && !player.showSoloChart && jamCharts?.opening ? jamCharts.opening.sheet : jamCharts?.returning);
+	// The saved PDF opens as printed, including both voltas. During a session
+	// the chart follows the ending chosen for the current chorus.
+	const displayedSheet = $derived(sheet?.source === 'imported-pdf' && !player.playing && !solosOnly ? sheet : playingSheet);
 	const openingBarNumber = $derived(displayedSheet ? firstBarNumber(displayedSheet) : 1);
 	const totalBars = $derived(displayedSheet ? printedBarCount(displayedSheet) : 0);
 	let showKeyCenters = $state(true);
@@ -293,7 +298,7 @@
 						<div class="td-chart-tools"><button aria-pressed={showKeyCenters} onclick={() => showKeyCenters = saveTuneDisplay('key-centers', !showKeyCenters)}><i class="td-color-dot" aria-hidden="true"></i><span>Show Key Centers</span><i class="td-switch" class:active={showKeyCenters} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => setFocus(!tuneDeskView.focus)}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
 					</div>
 					{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
-					<div class="td-score-well" bind:clientWidth={chartWidth}>{#if showChordChart}<TuneChordChart keyCenterLaneCount={keyCenters?.laneCount ?? 0} highlightCurrentBeat={false} tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />{:else}<NotationDisplay staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} playheadStyle="wash-subtle" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />{/if}</div>
+					<div class="td-score-well" use:observeChartWidth={(width) => { chartWidth = width; }}>{#if showChordChart}<TuneChordChart keyCenterLaneCount={keyCenters?.laneCount ?? 0} highlightCurrentBeat={false} tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />{:else}<NotationDisplay staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} playheadStyle="wash-subtle" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />{/if}</div>
 					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + openingBarNumber}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>

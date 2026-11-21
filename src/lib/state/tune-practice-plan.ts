@@ -2,7 +2,7 @@ import type { Fraction, HarmonicSegment, Mode, Note, PhraseCategory, PitchClass 
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { Grade, Score } from '$lib/types/scoring';
 import type { FlattenedTune } from '$lib/tunes/flatten';
-import { sessionWithSoloOmissions, soloPlaybackFlat } from '$lib/tunes/solo-form';
+import { sessionFromPasses, soloPlaybackFlat } from '$lib/tunes/solo-form';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { SHAPE_PRIORITY, type DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
@@ -837,6 +837,8 @@ export function buildSessionPhrase(args: {
 	pickupBars?: number;
 	/** Append the melody on the way out. */
 	playOutro?: boolean;
+	/** A written opening repeat that leads into a solo break. */
+	openingFlat?: FlattenedTune;
 	/** The resolved way-out form. Without a head, the last solo takes this ending. */
 	closingFlat?: FlattenedTune;
 	closingPickupBars?: number;
@@ -846,6 +848,7 @@ export function buildSessionPhrase(args: {
 	noteSourceIndices: number[];
 	closingStartBar: number | null;
 	performanceForm: PerformanceForm;
+	soloBreaks: number[];
 	sessionBarMap?: number[];
 	soloBars?: number;
 } {
@@ -858,10 +861,10 @@ export function buildSessionPhrase(args: {
 	const closingFlat = args.closingFlat ?? args.flat;
 	const soloStart = passStart + (args.pickupBars ?? 0);
 	const outroSourceStartBar = args.closingFlat ? (args.closingPickupBars ?? 0) : soloStart;
-	if (hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, soloStart) ||
+	if ((args.playHead && args.openingFlat) || hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, soloStart) ||
 		hasOmissionsAfter(closingFlat, args.playHead && args.playOutro ? closingFlat.omittedOutroSections : closingFlat.omittedSoloSections, outroSourceStartBar)) {
 		const count = normalizeChoruses(args.choruses);
-		return sessionWithSoloOmissions({ ...args, headBars, soloStart, closingStart: outroSourceStartBar, choruses: count });
+		return sessionFromPasses({ ...args, headBars, soloStart, closingStart: outroSourceStartBar, choruses: count });
 	}
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
@@ -927,7 +930,15 @@ export function buildSessionPhrase(args: {
 	if (outroStartBar !== null && phraseBars > outroStartBar) {
 		choruses.push({ role: 'head', startBar: outroStartBar, endBarExclusive: phraseBars });
 	}
-	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar, closingStartBar, phraseBars,
+	const soloBreaks = choruses.flatMap(chorus => {
+		const closing = chorus.startBar === closingStartBar;
+		const source = closing ? closingFlat : args.flat;
+		const from = closing ? outroSourceStartBar : chorus.role === 'head' ? 0 : soloStart;
+		const length = chorus.endBarExclusive - chorus.startBar;
+		return (source.soloBreaks ?? []).filter(start => start >= from && start < from + length)
+			.map(start => chorus.startBar + start - from);
+	});
+	return { ...built, sectionMap, noteSourceIndices, soloBreaks, outroStartBar, outroSourceStartBar, closingStartBar, phraseBars,
 		performanceForm: buildPerformanceForm({ totalBars: phraseBars, sectionMap, choruses }) };
 }
 

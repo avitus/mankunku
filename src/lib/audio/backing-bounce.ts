@@ -1,7 +1,8 @@
 import { createOutputProtection } from './output-protection';
 import { createDrumMixer } from './drum-mixer';
 import { BACKING_INPUT_REFERENCE, SAMPLE_OPTIONS, SOUNDFONT_OPTIONS } from './mixer-policy';
-import { prepareReleasedArrangement } from './backing-arrangement';
+import { preparePhraseArrangement } from './written-harmony';
+import { quarterBeatsPerBar } from '$lib/tunes/meter';
 import { connectBackingOutput } from './backing-output';
 /**
  * Offline WAV bounce of the backing engine for the listening lab.
@@ -69,7 +70,7 @@ export function eventTicksToSeconds(time: string, ppq: number, tempo: number): n
 
 /** Total harmony extent in quarter-note beats. */
 export function harmonyDurationBeats(phrase: Phrase): number {
-	let maxEnd = 0;
+	let maxEnd = phrase.writtenHarmonyOnly ? phrase.difficulty.lengthBars * quarterBeatsPerBar(phrase.timeSignature) : 0;
 	for (const seg of phrase.harmony) {
 		maxEnd = Math.max(maxEnd, (fractionToFloat(seg.startOffset) + fractionToFloat(seg.duration)) * 4);
 	}
@@ -130,7 +131,7 @@ export function bounceFilename(phraseId: string, style: BackingStyle, tempo: num
  */
 export function generateForBounce(params: BounceParams): GeneratedBacking {
 	const { phrase, tempo } = params;
-	if (phrase.harmony.length === 0) {
+	if (phrase.harmony.length === 0 && !phrase.writtenHarmonyOnly) {
 		throw new Error(`Lab phrase ${phrase.id} has no harmony to bounce`);
 	}
 	const style = BACKING_STYLES[params.style];
@@ -147,7 +148,7 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		ensemble: phrase.timeSignature[1] === 4
 			? { soloFeatures: params.soloFeatures } : undefined
 	};
-	return prepareReleasedArrangement(phrase.harmony, style, generation, params.instrument, phrase.timeSignature[1], params.performanceEnergySeed ?? 0);
+	return preparePhraseArrangement(phrase, phrase.harmony, style, generation, params.instrument, params.performanceEnergySeed ?? 0, params.swing);
 }
 
 export interface RenderOpts {

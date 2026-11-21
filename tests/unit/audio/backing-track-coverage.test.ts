@@ -282,6 +282,97 @@ describe('backing track covers the full phrase', () => {
 		expect(rideBeats(drums!.events).size).toBe(bars * lick!.timeSignature[0]);
 	});
 
+	it('keeps the piano and bass silent through written no-chord beats, including their releases', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const phrase: Phrase = {
+			...PHRASE, writtenHarmonyOnly: true,
+			harmony: [
+				{ ...HARMONY_2_BARS[0], duration: [7, 8] },
+				{ ...HARMONY_2_BARS[1], startOffset: [2, 1], duration: [1, 2] }
+			]
+		};
+		const generated = await mod.scheduleBackingTrack(phrase, OPTIONS, PPQ * BEATS_PER_BAR);
+		const pitched = [...generated!.bassEvents, ...generated!.compEvents];
+		expect(pitched.length).toBeGreaterThan(0);
+		for (const hit of pitched) {
+			const start = parseInt(hit.time, 10) / PPQ;
+			const end = start + hit.duration * OPTIONS.tempo / 60;
+			expect((start >= 0 && end <= 3.5 + 1e-8) || (start >= 8 && end <= 10 + 1e-8)).toBe(true);
+		}
+	});
+
+	it('leaves the marked solo break to the soloist and comes back in on the next bar', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const phrase: Phrase = { ...PHRASE, writtenHarmonyOnly: true, soloBreaks: [1], harmony: [
+			{ ...HARMONY_2_BARS[0], duration: [3, 1] }
+		] };
+		const band = (await mod.scheduleBackingTrack(phrase, OPTIONS, PPQ * BEATS_PER_BAR))!;
+		for (const hit of [...band.bassEvents, ...band.compEvents, ...band.drumEvents]) {
+			const start = parseInt(hit.time, 10) / PPQ;
+			expect(start < 4 || start >= 8).toBe(true);
+			if ('duration' in hit && start < 4) expect(start + hit.duration * OPTIONS.tempo / 60).toBeLessThanOrEqual(4 + 1e-8);
+		}
+		expect(band.drumEvents.some(hit => hit.absBeat === 8)).toBe(true);
+		expect(band.bassEvents.some(hit => hit.absBeat === 8)).toBe(true);
+	});
+
+	it('uses the same written rests and return downbeat when the performance is exported', async () => {
+		const { generateForBounce, BOUNCE_PPQ } = await import('$lib/audio/backing-bounce');
+		const { DEFAULT_BACKING_MIX } = await import('$lib/audio/backing-mix');
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const phrase: Phrase = {
+			...PHRASE, writtenHarmonyOnly: true, soloBreaks: [1],
+			harmony: [
+				{ ...HARMONY_2_BARS[0], startOffset: [1, 8], duration: [7, 8] },
+				{ ...HARMONY_2_BARS[1], startOffset: [2, 1], duration: [1, 1] }
+			]
+		};
+		const live = await mod.scheduleBackingTrack(phrase, OPTIONS, 0);
+		const bounce = generateForBounce({
+			phrase, tempo: OPTIONS.tempo, swing: OPTIONS.swing, style: 'swing',
+			instrument: 'piano', volume: 0.6, mix: DEFAULT_BACKING_MIX
+		});
+		for (const band of [live!, bounce]) {
+			expect([...band.bassEvents, ...band.compEvents, ...band.drumEvents].some(
+				event => event.absBeat >= 4 && event.absBeat < 8)).toBe(false);
+			expect(band.bassEvents.some(event => event.absBeat === 8)).toBe(true);
+		}
+		// Tone and the WAV bounce can use different ticks per quarter.
+		expect(bounce.bassEvents.find(event => event.absBeat === 8)?.time).toBe(`${8 * BOUNCE_PPQ}i`);
+	});
+
+	it('plays a short written Fine chord with the final swung melody attack on the out-head', async () => {
+		const { generateForBounce, BOUNCE_PPQ } = await import('$lib/audio/backing-bounce');
+		const { DEFAULT_BACKING_MIX } = await import('$lib/audio/backing-mix');
+		const phrase: Phrase = {
+			...PHRASE, difficulty: { ...PHRASE.difficulty, lengthBars: 1 },
+			notes: [{ pitch: 53, offset: [7, 8], duration: [1, 8] }],
+			harmony: [
+				{ ...HARMONY_2_BARS[0], startOffset: [0, 1], duration: [7, 8] },
+				{ chord: { root: 'F', quality: 'maj6' }, scaleId: 'major.ionian', symbol: 'F',
+					writtenFine: true, startOffset: [7, 8], duration: [1, 8] }
+			]
+		};
+		const band = generateForBounce({ phrase, tempo: 144, swing: .62, style: 'swing',
+			instrument: 'piano', volume: .6, mix: DEFAULT_BACKING_MIX });
+		const time = `${Math.round(3.62 * BOUNCE_PPQ)}i`;
+		expect(band.bassEvents.at(-1)).toMatchObject({ time, absBeat: 3.5, midi: 41 });
+		expect(band.compEvents.at(-1)).toMatchObject({ time, absBeat: 3.5, notes: [53, 57, 60] });
+		expect(band.drumEvents.every(hit => parseInt(hit.time, 10) <= parseInt(time, 10))).toBe(true);
+	});
+
+	it('leaves a written unaccompanied melody free of an inferred tonic', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const result = await mod.scheduleBackingTrack({ ...PHRASE, timeSignature: [6, 8], writtenHarmonyOnly: true, harmony: [] }, OPTIONS, 0, true);
+		expect(result?.bassEvents).toEqual([]);
+		expect(result?.compEvents).toEqual([]);
+		expect(mod.getActiveSchedule()?.loopSeconds).toBe(3 * 3 * 60 / OPTIONS.tempo);
+	});
+
 	it('leaves a phrase whose harmony already covers the melody unchanged', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');

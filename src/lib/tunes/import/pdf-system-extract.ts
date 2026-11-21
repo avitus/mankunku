@@ -1,3 +1,7 @@
+import { hasDashedEndingDirection, readOpenEndingBracket } from './pdf-ending-brackets';
+import { pageInk } from './pdf-raster-heads';
+import { readRasterBeams } from './pdf-raster-beams';
+import { straightenScan } from './pdf-scan-layout';
 import { canvasToPng, releaseCanvas } from './pdf-canvas';
 import { appendPitchPanels, measureSourceLeft } from './pdf-review-image';
 /**
@@ -126,9 +130,8 @@ export async function extractPdfSystems(
 			if (!ctx) return null;
 			await pg.render({ canvas, canvasContext: ctx, viewport: vp }).promise;
 
-			const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-			const pageSystems = analyzePageGeometry(img);
-			if (!pageSystems.length) return null;
+			let img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+			let pageSystems = analyzePageGeometry(img);
 
 			const text = await pg.getTextContent();
 			const items: PageTextItem[] = text.items.map((raw) => {
@@ -175,7 +178,17 @@ export async function extractPdfSystems(
 					pageSystems[i] = refineGlyphLayout(pageSystems[i], notationItems, vectorPaths);
 			for (let i = 0; i < pageSystems.length; i++)
 				pageSystems[i] = supplementGlyphLayout(pageSystems[i], notationItems, vectorPaths);
-			if (layoutIssues(pageSystems).length) return null;
+			if (!pageSystems.length || layoutIssues(pageSystems).length) {
+				// Only raster pages can be straightened without also transforming
+				// coordinates from embedded text or vector notation.
+				if (items.length || notationItems.length || vectorPaths.length) return null;
+				const pixels = straightenScan(img);
+				if (!pixels) return null;
+				img = new ImageData(pixels, img.width, img.height);
+				pageSystems = analyzePageGeometry(img, 0.3, true);
+				if (!pageSystems.length || layoutIssues(pageSystems).length) return null;
+				ctx.putImageData(img, 0, 0);
+			}
 			const texts = extractSystemTexts(normalizeLegacyText(items, fontNames), pageSystems);
 			for (let i = 0; i < pageSystems.length; i++) {
 				const form = readGlyphForm(pageSystems[i], notationItems, texts[i], vectorPaths);
@@ -202,9 +215,22 @@ export async function extractPdfSystems(
 				if (!cropCtx) return null;
 				cropCtx.drawImage(canvas, 0, y0, canvas.width, y1 - y0, 0, 0, canvas.width, y1 - y0);
 				const header = document.createElement('canvas');
-				header.width = Math.min(crop.width, Math.ceil(pageSystems[i].barlines[0]));
-				header.height = crop.height;
-				header.getContext('2d')?.drawImage(crop, 0, 0);
+				const headerWidth = Math.min(crop.width, Math.ceil(pageSystems[i].barlines[0]));
+				// Image-only PDFs have no title or composer in the text layer.
+				// Include the page heading in the existing first clef/key request.
+				if (p === 1 && i === 0 && items.length === 0 && y0 > 0) {
+					header.width = canvas.width;
+					header.height = y1;
+					const h = header.getContext('2d')!;
+					h.fillStyle = 'white';
+					h.fillRect(0, 0, header.width, header.height);
+					h.drawImage(canvas, 0, 0, canvas.width, y0, 0, 0, canvas.width, y0);
+					h.drawImage(crop, 0, 0, headerWidth, crop.height, 0, y0, headerWidth, crop.height);
+				} else {
+					header.width = headerWidth;
+					header.height = crop.height;
+					header.getContext('2d')?.drawImage(crop, 0, 0);
+				}
 				const image = canvasToPng(crop);
 				const headerImage = canvasToPng(header);
 				const boundaries = systemBarBoundaries(pageSystems[i]);
@@ -213,6 +239,19 @@ export async function extractPdfSystems(
 				const barBottom = Math.min(canvas.height, Math.ceil(band.bottom + 3 * interline));
 				const sourceBarImages: string[] = [];
 				const detected = detectNoteEvents(img, pageSystems[i]);
+				if (!notationItems.length && !vectorPaths.length) {
+					const system = pageSystems[i];
+					readRasterBeams(detected, img, system);
+					const dark = pageInk(img);
+					for (let b = 0; b < system.barlines.length; b++) {
+						const bracket = readOpenEndingBracket(dark, boundaries[b], boundaries[b + 1], band.top, interline, y0);
+						if (!bracket) continue;
+						(system.openEndingBrackets ??= {})[b] = bracket;
+						if (hasDashedEndingDirection(dark, boundaries[b], boundaries[b + 1], band.top, interline, y0)) {
+							(system.endingDirectionLeaders ??= []).push(b);
+						}
+					}
+				}
 				const barImages = pageSystems[i].barlines.map((right, b) => {
 					const left = measureSourceLeft(boundaries[b], b, interline);
 					const measure = document.createElement('canvas');

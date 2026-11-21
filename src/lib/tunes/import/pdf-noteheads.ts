@@ -35,6 +35,8 @@ export type NoteEventDetector = (
 ) => NoteEvent[];
 
 export interface NoteEvent {
+	/** Primary beam observed between this head and the previous head in the same printed bar. */
+	beamFromPrevious?: 'join' | 'break';
 	/** Notehead center x. */
 	x: number;
 	/**
@@ -74,7 +76,21 @@ export function detectNoteEvents(
 	for (const head of candidates) {
 		const stem = attachedStem(head, dark, il);
 		if (stem !== null) {
-			if (system.barlines.some((b) => Math.abs(stem - b) <= 0.3 * il)) continue;
+			if (system.barlines.some((b) => {
+				const distance = Math.abs(stem - b);
+				if (distance <= 0.3 * il) return true;
+				if (distance > 1.25 * il) return false;
+				// A double or winged repeat has two full-height strokes.
+				// The geometry stores a single x for that boundary.
+				const top = Math.ceil(system.band.top), bottom = Math.floor(system.band.bottom);
+				const radius = Math.max(1, Math.round(0.08 * il));
+				for (let x = stem - radius; x <= stem + radius; x++) {
+					let ink = 0;
+					for (let y = top; y <= bottom; y++) ink += Number(dark(x, y));
+					if (ink >= 0.95 * (bottom - top + 1)) return true;
+				}
+				return false;
+			})) continue;
 			const competing = events.findIndex(
 				(e) => e.kind === 'stemmed' && Math.abs(e.anchorX - stem) < 0.3 * il
 			);
@@ -110,7 +126,16 @@ export function detectNoteEvents(
 			});
 		}
 	}
-	return events.sort((a, b) => a.x - b.x).map(({ score: _score, ...event }) => event);
+	// An eighth-note flag can enclose a small oval against the staff. A
+	// stemless whole note cannot sit on the shaft of a neighboring note.
+	const stems = events.filter(event => event.kind === 'stemmed');
+	return events.filter(event => {
+		if (event.kind === 'stemmed') return true;
+		const y = system.band.bottom - event.position * il / 2;
+		return !stems.some(stem => Math.abs(stem.anchorX - event.x) < 0.85 * il &&
+			stem.position !== event.position &&
+			[0, -1, 1].some(dx => dark(stem.anchorX + dx, y - 0.2 * il) && dark(stem.anchorX + dx, y + 0.2 * il)));
+	}).sort((a, b) => a.x - b.x).map(({ score: _score, ...event }) => event);
 }
 
 /** Group events into bars by the system's barlines (bar i ends at

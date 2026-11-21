@@ -4,12 +4,13 @@ import { settings } from './settings.svelte';
 import { melodySwingForStyle } from '$lib/audio/backing-styles';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { playbackBarForSessionBar, notationBarForPlaybackBar } from './tune-practice-plan';
-import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
+import { clampTuneTempo, printedQuarterTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 import { formLoopRegion } from '$lib/tunes/form-loop';
 import { anticipatoryFollowPosition } from '$lib/notation/follow-scroll';
 import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import { isInPickupLeadIn } from '$lib/music/pickup';
+import { jamChartAt } from '$lib/tunes/jam-sheets';
 import { buildJamForm } from '$lib/tunes/jam-form';
 import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
 import { savedTunePracticePreferences, saveTunePracticePreferences } from '$lib/tunes/preferences';
@@ -69,13 +70,16 @@ export class TunePlayer {
 	private ticker: ReturnType<typeof setInterval> | undefined;
 
 	/** Without a store (the editor preview) a tempo change lasts only as long as the player. */
-	constructor(private readonly tempoStore?: TuneTempoStore) {}
+	constructor(
+		private readonly tempoStore?: TuneTempoStore,
+		private readonly scoreStyle?: () => string | undefined
+	) {}
 
 	/** The preview tempo while one is set, else this tune's saved tempo, else the default. */
 	get tempo(): number {
 		const id = this.tempoStore?.tuneId();
 		const saved = id === undefined ? undefined : savedTuneTempo(settings.tuneTempos, id);
-		return this.previewTempo ?? saved ?? settings.defaultTempo;
+		return this.previewTempo ?? saved ?? printedQuarterTempo(this.scoreStyle?.()) ?? settings.defaultTempo;
 	}
 	get busy(): boolean { return this.playing || this.starting; }
 
@@ -178,15 +182,12 @@ export class TunePlayer {
 							this.soloChorus = this.phase === 'solo' ? Math.min(soloChoruses!, 1 + Math.floor((bar - jam.headBars) / Math.max(1, jam.soloBars ?? (flat.totalBars - jam.practiceStartBar)))) : 0;
 							if (this.phase === 'solo') this.cursorIndex = null;
 						}
-						const chartFlat = jam && this.closing ? jam.closingFlat : flat;
-						const chartSheet = jam ? (this.closing ? jam.closingSheet : jam.sheet) : tune;
+						const { flat: chartFlat, sheet: chartSheet } = jam ? jamChartAt(jam, bar, jam.headBars) : { flat, sheet: tune };
 						const chartBar = notationBarForPlaybackBar(chartFlat.sectionMap, chartSheet.sections, sourceBar);
 						this.chartBar = chartBar !== null && isInPickupLeadIn(chartSheet, chartBar) ? null : chartBar;
 						const chartBarAt = (position: number): number | null => {
 							if (jam && position >= jam.phraseBars) return null;
-							const closing = jam && jam.closingStartBar !== null && position >= jam.closingStartBar;
-							const targetFlat = closing ? jam.closingFlat : flat;
-							const targetSheet = jam ? (closing ? jam.closingSheet : jam.sheet) : tune;
+							const { flat: targetFlat, sheet: targetSheet } = jam ? jamChartAt(jam, position, jam.headBars) : { flat, sheet: tune };
 							const source = jam
 								? playbackBarForSessionBar(position, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.closingStartBar, jam.outroSourceStartBar, jam.sessionBarMap)
 								: loopPlaybackBar(position, region, returns + (this.loop ? 1 : 0));

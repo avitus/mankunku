@@ -111,6 +111,23 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		if (!Number.isInteger(sec.bars) || (sec.bars as number) < 1 || (sec.bars as number) > MAX_BARS_PER_SECTION) {
 			errors.push(`section ${s}: invalid bar count`);
 		}
+		if (sec.repeatWings !== undefined && sec.repeatWings !== 'start' && sec.repeatWings !== 'end' && sec.repeatWings !== 'both') {
+			errors.push(`section ${s}: invalid printed repeat wings`);
+		}
+		if (sec.printedEndingBracket !== undefined) {
+			const bracket = sec.printedEndingBracket as Record<string, unknown> | null;
+			if (!bracket || typeof bracket.width !== 'number' || !(bracket.width >= 3 && bracket.width <= 14) ||
+				typeof bracket.height !== 'number' || !(bracket.height >= 1.5 && bracket.height <= 8)) {
+				errors.push(`section ${s}: invalid printed ending bracket`);
+			}
+		}
+		if (sec.endingAtLeftMargin !== undefined && typeof sec.endingAtLeftMargin !== 'boolean') {
+			errors.push(`section ${s}: invalid ending placement`);
+		}
+		if (sec.printedBarsPerLine !== undefined && (typeof sec.printedBarsPerLine !== 'number' ||
+			!Number.isInteger(sec.printedBarsPerLine) || sec.printedBarsPerLine < 2 || sec.printedBarsPerLine > 8)) {
+			errors.push(`section ${s}: invalid printed system width`);
+		}
 		if (sec.omitFromSolos !== undefined && typeof sec.omitFromSolos !== 'boolean') errors.push(`section ${s}: invalid solo omission`);
 		if (sec.labelExplicit !== undefined && typeof sec.labelExplicit !== 'boolean') errors.push(`section ${s}: invalid explicit label`);
 		if (sec.ending !== undefined && sec.ending !== 1 && sec.ending !== 2) {
@@ -126,6 +143,16 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 			if (!isFraction(L, false) || L[0] / L[1] >= bar) {
 				errors.push(`section ${s}: invalid pickup length`);
 			}
+		}
+
+		if (sec.directions !== undefined) {
+			const limit = isFraction(sheet.timeSignature, false)
+				? Number(sec.bars) * sheet.timeSignature[0] / sheet.timeSignature[1] : 0;
+			if (!Array.isArray(sec.directions) || sec.directions.length > Number(sec.bars) * 16 ||
+				!sec.directions.every(d => d && ['N.C.', 'Solo break', 'Fine'].includes(d.text) &&
+					(d.extendsToBarline === undefined || typeof d.extendsToBarline === 'boolean') &&
+					isFraction(d.offset, true) && d.offset[0] / d.offset[1] < limit))
+				errors.push(`section ${s}: invalid printed directions`);
 		}
 
 		const notes = sec.notes;

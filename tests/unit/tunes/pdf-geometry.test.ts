@@ -1,3 +1,5 @@
+import { printedSystemWidth } from '$lib/tunes/import/pdf-layout';
+import { straightenScan } from '$lib/tunes/import/pdf-scan-layout';
 import { describe, it, expect } from 'vitest';
 import {
 	findStaffBands,
@@ -109,6 +111,21 @@ describe('findBarlines', () => {
 		for (const dx of [-5, -4, -3, 3, 4, 5]) placed[150 + dx] = NOTEHEAD;
 		const xs = findBarlines(cols(240, placed), IL);
 		expect(xs).toEqual([10, 100, 200]);
+	});
+
+	it('recovers the fuzzy edges of a thick manuscript rule while rejecting an attached notehead', () => {
+		const placed: Record<number, ColumnProfile> = {};
+		for (const left of [99, 199]) {
+			for (let x = left - 5; x <= left + 14; x++) {
+				placed[x] = { ...BAR, spans: false, offLine: 55 };
+			}
+			for (let x = left; x < left + 10; x++) placed[x] = BAR;
+		}
+		// The second full-height stroke carries a head beyond its right edge.
+		for (let x = 215; x <= 220; x++) placed[x] = { ...NOTEHEAD, offLine: 18 };
+		const columns = cols(300, placed);
+		expect(findBarlines(columns, 20)).toEqual([]);
+		expect(findBarlines(columns, 20, 0.85, true)).toEqual([104]);
 	});
 
 	it('rejects a stem running a full interline up to a beam above the staff', () => {
@@ -338,6 +355,25 @@ describe('analyzePageGeometry', () => {
 		};
 	}
 
+	it('recovers tilted manuscript bars beside a paper edge and trims only unused trailing staves', () => {
+		const { page, hline, vline } = makePage(1000, 520);
+		vline(8, 0, 519);
+		for (const top of [75, 225, 375]) {
+			for (let x = 50; x <= 950; x++) {
+				const y = top + Math.round((x - 500) * 0.018);
+				for (let line = 0; line < 5; line++) hline(y + line * 16, x, x);
+				if (top === 75 && [50, 400, 700, 950].includes(x)) vline(x, y, y + 64);
+			}
+		}
+		// A written rest on the second staff needs recognition even though
+		// no barline could be found. Only the third staff is safely blank.
+		for (let y = 248; y < 255; y++) hline(y, 480, 494);
+		const pixels = straightenScan(page);
+		expect(pixels).not.toBeNull();
+		const systems = analyzePageGeometry({ ...page, data: pixels! }, 0.3, true);
+		expect(systems.map((s) => s.barlines)).toEqual([[400, 700, 950], []]);
+	});
+
 	it('does not count the left staff border as an empty pickup bar', () => {
 		const { page, hline, vline } = makePage(700, 300);
 		for (const y of [80, 100, 120, 140, 160]) hline(y, 40, 660);
@@ -410,5 +446,15 @@ describe('analyzePageGeometry', () => {
 		const systems = analyzePageGeometry(page);
 		expect(systems).toHaveLength(1);
 		expect(systems[0].barlines).toEqual([150, 260, 360]);
+	});
+});
+
+describe('printed lead-sheet layout', () => {
+	it('reuses consistent widths, allowing an opening pickup and a short closing staff', () => {
+		expect(printedSystemWidth([4, 3, 3, 3, 1], true)).toBe(3);
+		expect(printedSystemWidth([4, 4, 2], false)).toBe(4);
+		expect(printedSystemWidth([3, 4, 2], false)).toBeUndefined();
+		expect(printedSystemWidth([3, 3, 4], false)).toBeUndefined();
+		expect(printedSystemWidth([3, 1], false)).toBeUndefined();
 	});
 });

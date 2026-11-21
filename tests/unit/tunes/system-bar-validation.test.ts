@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	barTilingIssues,
 	isRestPitch,
+	printedPickupBeats,
 	type BarMelody
 } from '$lib/tunes/import/system-bar-validation';
 
@@ -71,5 +72,18 @@ describe('barTilingIssues', () => {
 
 	it('flags an empty bar (a printed whole rest must be reported)', () => {
 		expect(barTilingIssues(bar([]), 4, 4).join(' ')).toContain('bar 5');
+	});
+});
+
+describe('printedPickupBeats', () => {
+	it('counts the printed rest before the first sounded note and snaps triplets', () => {
+		expect(printedPickupBeats([[3, 0.5, 'rest'], [3.5, 0.5, 'G4']], 4)).toBe(1);
+		expect(printedPickupBeats([[3.667, 0.333, 'G4']], 4)).toBeCloseTo(1 / 3);
+	});
+
+	it('leaves full measures, missing rests and incomplete readings alone', () => {
+		expect(printedPickupBeats([[0, 4, 'C4']], 4)).toBeUndefined();
+		expect(printedPickupBeats([[2, 0.5, 'rest'], [3.5, 0.5, 'C4']], 4)).toBeUndefined();
+		expect(printedPickupBeats([], 4)).toBeUndefined();
 	});
 });

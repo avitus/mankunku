@@ -79,3 +79,30 @@ export function createRepeatDotReader(
 	};
 	return dotsOnSide;
 }
+
+/** Look for matching extensions bending outward above and below a dotted
+ * repeat. A nearby vertical stem cannot bend progressively away at both ends. */
+export function hasRepeatWings(
+	dark: (x: number, y: number) => boolean, boundary: number, side: -1 | 1, band: StaffBand, gap: number
+): boolean {
+	function wing(edge: number, outward: number): boolean {
+		let first: number | undefined;
+		let previous = 0;
+		for (const height of [0.18, 0.4, 0.7, 1, 1.35]) {
+			const y = Math.round(edge + outward * gap * height);
+			let nearest: number | undefined;
+			for (let d = -Math.round(0.3 * gap); d < gap * 2.3; d++) {
+				if (!dark(boundary + side * d, y)) continue;
+				const start = d;
+				while (d < gap * 2.3 && dark(boundary + side * (d + 1), y)) d++;
+				const center = (start + d) / 2;
+				if (nearest === undefined || Math.abs(center - previous) < Math.abs(nearest - previous)) nearest = center;
+			}
+			if (nearest === undefined || nearest < previous - gap * 0.2 || Math.abs(nearest - previous) > gap) return false;
+			first ??= nearest;
+			previous = nearest;
+		}
+		return first !== undefined && previous > gap && previous - first > gap * 0.45;
+	}
+	return wing(band.top, -1) && wing(band.bottom, 1);
+}

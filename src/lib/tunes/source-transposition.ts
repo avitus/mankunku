@@ -21,6 +21,20 @@ export const SOURCE_TRANSPOSITIONS: { id: SourceTransposition; label: string }[]
 	{ id: 'Eb', label: 'E♭ — Alto Sax' }
 ];
 
+/** A part designation in parentheses, brackets or after a separator is a
+ * source-pitch hint. A key mentioned in the tune's title is not a designation. */
+export function sourcePitchFromFilename(filename: string): SourceTransposition | undefined {
+	const name = filename.replace(/\.pdf$/i, '').replace(/♭/g, 'b').trim();
+	const bracket = /(?:\(([^()]*)\)|\[([^\]]*)\])$/u.exec(name);
+	const parts = name.split(/\s[-–—]\s/u);
+	const label = (bracket?.[1] ?? bracket?.[2] ?? (parts.length > 1 ? parts.at(-1) : ''))?.trim();
+	if (!label) return undefined;
+	if (/^(?:bb|b[- ]flat)(?:\s+(?:inst\.?|instruments?|part))?$/i.test(label)) return 'Bb';
+	if (/^(?:eb|e[- ]flat)(?:\s+(?:inst\.?|instruments?|part))?$/i.test(label)) return 'Eb';
+	if (/^(?:c(?:\s+(?:instruments?|part))?|concert(?:\s+pitch)?)$/i.test(label)) return 'C';
+	return undefined;
+}
+
 /** Written key's pitch-class offset above concert for each family. */
 const WRITTEN_PC_OFFSET: Record<SourceTransposition, number> = { C: 0, Bb: 2, Eb: 9 };
 

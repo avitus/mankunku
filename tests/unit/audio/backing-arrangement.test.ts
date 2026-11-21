@@ -66,6 +66,19 @@ describe('normal playback uses the released musical vocabulary', () => {
    expect(result.compEvents.every(e => Number.isFinite(e.duration) && e.duration > 0)).toBe(true);
   }
  });
+ it('keeps valid walking pitches when the final change arrives on the and of four', () => {
+  const segment = phrase.harmony[0];
+  const harmony: typeof phrase.harmony = [
+   { ...segment, startOffset: [0, 1], duration: [7, 8] },
+   { ...phrase.harmony[1], startOffset: [7, 8], duration: [1, 8] },
+   { ...segment, startOffset: [1, 1], duration: [3, 1] }
+  ];
+  const p = { ...params('swing'), performanceForm: undefined, sectionMap: undefined };
+  const take = prepareReleasedArrangement(harmony, BACKING_STYLES.swing, p, 'piano', 4, 1);
+  expect(take.bassEvents.some(event => event.absBeat === 3)).toBe(true);
+  expect(take.bassEvents.every(event => Number.isInteger(event.midi))).toBe(true);
+ });
+
  it('ends partial final bars without a stale carried-release claim',()=>{
   for(const beats of [4.25,8.25,12.25,20.25])for(const seed of [3,7,256]){
    const p={...params('ballad'),performanceForm:undefined,sectionMap:undefined};

@@ -1,0 +1,64 @@
+{
+  "description": "Two small monochrome fragments with thick manuscript staff lines and repeat strokes.",
+  "samples": [
+    {
+      "width": 280,
+      "height": 218,
+      "geometry": {
+        "band": {
+          "top": 72,
+          "bottom": 162,
+          "lines": [
+            72,
+            95,
+            117,
+            140,
+            162
+          ]
+        },
+        "interline": 22.5,
+        "barlines": [
+          57,
+          279
+        ],
+        "firstBarLeft": 0,
+        "repeatDots": []
+      },
+      "mask": "eNrt3dmO3DoMRVHy/386aGRAV1q2SJEaaO/zcIEEVx5WSbZMuSoihBBCCCGEEEIIIYQQQgghhBBCCCGEkGZUMWigfAUHXBwsuOACCy64LGXBBReGES4MI1wYRrgwjHB5LgsubRZc6C50F1xgWcmCCywOFlxaKLjks0Ran/eBaJZLqPlpPVU1tbuMtj9sBGsiy2NctJW3u+hF3u2iE1iqu+hd3usyjaWcizriO0DD5ozPY47ddj5PJU0fEMi0zjWpe91UKr7+Y2ga3GlSlWRsrwvqoLsrHPNUgvXh3fOXeSyhSqie6ZJyYBHgI12SDizS8050kRkuiktGmRiXMi4yycW1MVxeP45cW8PlUBdZOI4cm3vV9cWxvbe5KNcX+awQ+2De4CK4XJybHybR5eMoosWobwWHv02S6n9/RtZl059/COzUfkyEkJylNd/VoLfA0V0ncVXYB9YIm9ecWO3c4JBxP/KXew+f70rOfdq/PoBLLZcfx5WxBuSAqeKSswb0OJestTEzTAmXvLWxp7hososZpoKLbnOR17gILh0XrewiuPTvR5LhIo9zEVz+P6fUdwcf5JLz3FjJRfe56MEu3beex7d3ef4Wl8xvKF+U3RqHM/B9krxS51UNcqCo+lGuZJ2EkNnfErFcegw3pMH1ADXVCpo76l6bP1dSvl34euddZf5iutm8cF6HS77LOqql6wFBl5XFTcd6wNhXH/Jccr4VlfJ8FCnAPNllrAN3pg9mlrGS+aku3WnV7dYsM63tLgMd2DDdvHttRUu4qNtFIy73bTe7yLiL7fmk9/cnu+iIi7pcLI2PG0c6sG6vARdL05UsNhfJZLl/zeEUFzG5GN73Vmd38busfcfB6CKS7DLSdnB5b9p119Bj1HVuavyho5xP3oZgub40juz+OO11RN9CgPEB7Pb/TXoZfHHtlfozqbZe8LBjEvPlIWV92rYE4biw3d6lh87n7vcBf9SDI++oXMxfJAzTvSemfsxXR1fARWxPRokT26SBJJkuc9suddFDXOS5LrPbFnWZ3nabS+RGHZspWBuXc4nMoHJ7wj6XjF+SGmm81iX+qYcOwdvyaJdQ9TUmerhL6N2U0VuQqd1ulw3BJQDzWhfFRQyrLikXr2il619NfWy3kZUd6y+EmN+eeFPtlvI1yaq4TxxMt4PWUFsZ3+Pvy5p5E+4p6IRFhk33pNxTqM9yt9yT/tNbxWRmncGzYWZtWorDzBuptWWmbV6kssy8zYtUlpm3eSmU6WtRVWGm/mvrpWFiReN96KWDCy7ApMPAcVFkIrg4YMAAxgWDBS4eGChwwQUXYHA5AgYJXBhIdBhccMEFl3IwQOCCCy64LIWBAReHCwptGBCaLhgQQgghhKzKL3NHLV4=",
+      "expectedPositions": [
+        [],
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    {
+      "width": 200,
+      "height": 218,
+      "geometry": {
+        "band": {
+          "top": 72,
+          "bottom": 162,
+          "lines": [
+            72,
+            95,
+            117,
+            140,
+            162
+          ]
+        },
+        "interline": 22.5,
+        "barlines": [
+          100
+        ],
+        "firstBarLeft": 0,
+        "repeatDots": []
+      },
+      "mask": "eNrt21GugjAQQNGZ/W9aPwwqQsRaStuc+/GSlxDLiQWhYsQ55b0Yv8wpIDmXI2dxJEdXjPR2gHDMenyYVxwcHC54OXb2cw7H1z1s7jh6CbFs9NPmVzj2Rs69+nasx84sgTQ/8X7dvyJHzuHILhxx9BA5slVnHwzFb9uwd4BjO2ISxh5k7NWF0dcZ0v2HG8IerqK9HxwczrscdR0xhSNiCkdwdAWJOSAhSZIkSZKkbquzCvXxZfTnKvb7OI+N/hlDqlMsT08+/zaYbs9J/TK7I9eDxw8vV//kcMWwHBwcHBwcHBwcHL04goNjiOOj7o1qiyWYKLrvlf6a1XWOtNOO88dLL/9uDey8y8HBweE6kYPDcc7BweFzcO71ktXutxhU1ksaHmilQ7yPFef+jtfnBwcHBwcHBwcHBwcHx0nrPhkRtUxn/aij3ZMyadGn42WT9ss0W49SlU8R5ysODg4ODg4ODg4OjuAwr9qtwFwzqjTe0zhVFgRDkiRJkiRJkiRJkiRJkiRJm90A23IcoQ==",
+      "expectedPositions": [
+        []
+      ]
+    }
+  ]
+}

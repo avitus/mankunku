@@ -291,7 +291,10 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 		const isChange = segment.start === absBeat;
 		let scalarChanged = false;
 		if (index !== segmentIndex) {
-			segmentAnchor = pendingLaunch?.notes.find((note) => note.absBeat === absBeat)?.midi ?? nextTarget ?? targetAt(index, previousMidi);
+			// A chord shorter than one walking pulse can fall entirely between sampled beats.
+			// Only reuse a planned target when it belongs to the segment we actually reached.
+			const target = segmentIndex !== null && index === segmentIndex + 1 ? nextTarget : null;
+			segmentAnchor = pendingLaunch?.notes.find((note) => note.absBeat === absBeat)?.midi ?? target ?? targetAt(index, previousMidi);
 			segmentIndex = index;
 			nextTarget = index + 1 < segments.length ? targetAt(index + 1, segmentAnchor) : null;
 			approach = createRng(seedFrom(score.phraseId, score.tempo, 'bass-appr', index)).weighted<BassApproachDevice>([
@@ -334,8 +337,10 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 		} else if (nextTarget !== null && absBeat >= segment.start + segment.length - (['enclosure', 'double-chromatic'].includes(approach) && segment.length >= 4 ? 2 : 1)) {
 			const pitches = bassApproachPitches(approach, nextTarget, segment.scalePcs,
 				createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-approach', index)));
-			const remaining = segment.start + segment.length - absBeat;
-			midi = pitches[Math.max(0, pitches.length - remaining)];
+			// The approach is a sequence of walking pulses. An eighth-note
+			// chord change still leaves one pulse on this side of its boundary.
+			const remainingPulses = Math.max(1, Math.ceil(segment.start + segment.length - absBeat - 1e-8));
+			midi = pitches[Math.max(0, pitches.length - remainingPulses)];
 			while (midi < 28) midi += 12;
 			while (midi > 55) midi -= 12;
 		} else {

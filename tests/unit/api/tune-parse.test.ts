@@ -622,6 +622,7 @@ describe('GET /api/tune-parse', () => {
 		const res = await GET({} as Parameters<RequestHandler>[0]);
 		const payload = await res.json();
 		expect(payload.configured).toBe(true);
+		expect(payload.wholePdf).toBe(true);
 		expect(payload.model).toBe('claude-test-model');
 	});
 });

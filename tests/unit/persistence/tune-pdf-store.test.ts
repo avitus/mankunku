@@ -264,14 +264,17 @@ describe('cloud upload/download', () => {
 	});
 
 	it('falls back to cloud download when missing locally, then caches it', async () => {
+		await clearAllTunePdfs('user-9');
 		const cloudBlob = makePdfBlob(512);
 		const { client } = makeSupabaseStorageMock(cloudBlob);
 		const restored = await getTunePdf('sheet-3-cccc', client, 'user-9');
 		expect(restored).not.toBeNull();
 		expect(restored!.size).toBe(512);
-		// Second read hits the local cache (no client passed).
-		const cached = await getTunePdf('sheet-3-cccc');
+		// The original stays in the requesting user's cache, even if a
+		// different account is active by the time the download completes.
+		const cached = await getTunePdf('sheet-3-cccc', undefined, 'user-9');
 		expect(cached?.size).toBe(512);
+		expect(await getTunePdf('sheet-3-cccc')).toBeNull();
 	});
 
 	it('requests cloud removal on delete', async () => {

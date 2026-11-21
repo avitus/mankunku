@@ -39,7 +39,7 @@ export const ANTHROPIC_MODEL = 'claude-opus-4-8';
  * rate on Opus 4.8 — so this rides the most capable tier independently of
  * the (cost-sensitive, high-volume) docs chat above.
  */
-export const ANTHROPIC_TUNE_MODEL = 'claude-fable-5';
+export const ANTHROPIC_TUNE_MODEL = 'claude-fable-5-2';
 
 /** Cap on output tokens per chat response — keeps costs predictable. */
 export const ANTHROPIC_MAX_TOKENS = 1024;

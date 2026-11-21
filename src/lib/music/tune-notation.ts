@@ -240,7 +240,10 @@ export function tuneToAbcWithMap(
 	gapAnchors: GapAnchor[];
 } {
 	const defaultLength = options.defaultLength ?? [1, 8];
-	const barsPerLine = options.barsPerLine ?? suggestBarsPerLine(sheet);
+	const availableBars = options.barsPerLine ?? suggestBarsPerLine(sheet);
+	const printedWidth = sheet.sections[0]?.printedBarsPerLine;
+	const barsPerLine = printedWidth && printedWidth >= 2 && Number.isInteger(printedWidth)
+		? Math.min(availableBars, printedWidth) : availableBars;
 
 	const displayKey = instrument ? concertKeyToWritten(sheet.key, instrument) : sheet.key;
 	const mode: Mode = options.mode ?? 'major';
@@ -377,7 +380,7 @@ export function tuneToAbcWithMap(
 				explicit: note.spelling
 			})
 		);
-		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
+		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState, note.showAccidental);
 		const art = noteArticulationPrefix(note);
 		const tieSuffix = note.tied ? '-' : '';
 		return `${art}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
@@ -432,9 +435,20 @@ export function tuneToAbcWithMap(
 	// the flat compact form; hierarchical stacking is applied post-render
 	// (ABC quoted chords cannot carry newlines safely).
 	const chordEvents: { at: number; text: string }[] = [];
+	const directions = new Map<number, string[]>();
+	const continuedDirections = new Set<number>();
 	{
 		let base = 0;
 		for (const sec of sheet.sections) {
+			for (const direction of sec.directions ?? []) {
+				const at = base + fractionToFloat(direction.offset);
+				if (direction.extendsToBarline) continuedDirections.add(at);
+				if (direction.text === 'N.C.') chordEvents.push({ at, text: 'N.C.' });
+				else {
+					const annotation = direction.text === 'Fine' ? '"_Fine"' : '"^Solo break"';
+					directions.set(at, [...(directions.get(at) ?? []), annotation]);
+				}
+			}
 			for (const h of sec.harmony) {
 				const at = base + fractionToFloat(h.startOffset);
 				const text = chordDisplayText(h, instrument, displayKey, mode);
@@ -469,6 +483,7 @@ export function tuneToAbcWithMap(
 		// mid-bar chords still land on their beat via the event cuts.
 		const cuts = new Set<number>([start, be]);
 		for (const c of chordEvents) if (c.at > start + 1e-9 && c.at < be - 1e-9) cuts.add(c.at);
+		for (const at of directions.keys()) if (at > start && at < be) cuts.add(at);
 		const points = [...cuts].sort((a, b) => a - b);
 		const segs: { chord: string | null; from: number; to: number }[] = [];
 		for (let i = 0; i + 1 < points.length; i++) {
@@ -484,7 +499,7 @@ export function tuneToAbcWithMap(
 			}
 			const prev = segs[segs.length - 1];
 			// Merge consecutive chordless spacers (no event on either side).
-			if (prev && chord === null && prev.chord === null) {
+			if (prev && chord === null && prev.chord === null && !directions.has(s0)) {
 				prev.to = s1;
 			} else {
 				segs.push({ chord, from: s0, to: s1 });
@@ -493,10 +508,18 @@ export function tuneToAbcWithMap(
 		// A "beat" is a denominator-note; beat = whole-notes-into-bar × den.
 		const beatsPerWhole = sheet.timeSignature[1];
 		return {
-			tokens: segs.map(
-				(sg) =>
-					`${sg.chord ? `"${escapeChordAnnotation(sg.chord)}"` : ''}x${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`
-			),
+			tokens: segs.map((sg) => {
+				const prefix = (directions.get(sg.from) ?? []).join('') +
+					(sg.chord ? `"${escapeChordAnnotation(sg.chord)}"` : '');
+				const beats = (sg.to - sg.from) * beatsPerWhole;
+				// A whole-rest system otherwise collapses to the width of the
+				// instruction, leaving almost no room for its printed dashed line.
+				if (continuedDirections.has(sg.from) && Number.isInteger(beats) && beats > 1) {
+					const beat = 'x' + durationToAbc([1, beatsPerWhole], defaultLength);
+					return prefix + Array(beats).fill(beat).join(' ');
+				}
+				return prefix + 'x' + durationToAbc(approxToFraction(sg.to - sg.from), defaultLength);
+			}),
 			slots: segs.map((sg) => ({
 				beat: Math.round((sg.from - barStartAbs) * beatsPerWhole * 1e6) / 1e6,
 				chord: sg.chord
@@ -606,6 +629,7 @@ export function tuneToAbcWithMap(
 			endingState,
 			barsPerLine
 		);
+		if (sec.ending === 2 && sec.endingAtLeftMargin) placement.alignUnderFirstEnding = false;
 		lineColumn = placement.startColumn;
 
 		if (placement.startsNewLine) {
@@ -648,7 +672,7 @@ export function tuneToAbcWithMap(
 		// it under [1]'s, where the bar the ending replaces begins. Without it
 		// the ending's first bar ran from the key signature. A repeat sign
 		// already is that barline (|:|[2 printed two).
-		else if (placement.alignUnderFirstEnding) tokens.push('|');
+		else if (placement.alignUnderFirstEnding || (sec.ending === 2 && sec.endingAtLeftMargin)) tokens.push('|');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
 		// The section body always opens at bar 0 (section-local offsets start
 		// at 0); the span begins after the |: / | / [n decorations above.
@@ -754,7 +778,8 @@ export function tuneToAbcWithMap(
 					const groupDur = getBeamGroupDuration(sheet.timeSignature, minDur);
 					const group = Math.floor(posInBar / groupDur + 1e-9);
 					const prevGroup = Math.floor(prevPosInBar / groupDur + 1e-9);
-					if (group !== prevGroup) tokens.push(' ');
+					const beam = el.note.beamFromPrevious;
+					if (beam === 'break' || (beam !== 'join' && group !== prevGroup)) tokens.push(' ');
 				}
 			}
 
@@ -775,7 +800,10 @@ export function tuneToAbcWithMap(
 				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9 &&
 					Math.floor(off2 / barDuration + 1e-9) === bar) {
 					tokens.push('(3');
-					for (let j = 0; j < 3; j++) emitElement(elements[i + j], tripBase, barState);
+					for (let j = 0; j < 3; j++) {
+						if (j > 0 && elements[i + j].note.beamFromPrevious === 'break') tokens.push(' ');
+						emitElement(elements[i + j], tripBase, barState);
+					}
 					prevBar = Math.floor(off2 / barDuration + 1e-9);
 					prevPosInBar = off2 - prevBar * barDuration;
 					prevDuration = elements[i + 2].note.duration;

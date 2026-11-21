@@ -300,6 +300,18 @@ describe('assembleClaudeDoc', () => {
 		expect(doc.systems[0].bars[0].pickup).toBe(true);
 	});
 
+	it.each([
+		{ melody: [[3.5, 0.5, 'D4']], expected: 0.5 },
+		{ melody: [[2.5, 0.5, 'rest'], [3, 1, 'F4']], expected: 1.5 }
+	])('measures the pickup from the first printed event, including rests', ({ melody, expected }) => {
+		const doc = assembleClaudeDoc([{
+			geometry: geometry([400, 700]),
+			texts: { chords: [], marks: [], endings: [], barNumber: null },
+			model: { fifths: 0, bars: [bar(melody as ModelBar['melody'], { pickup: true }), bar()] }
+		}], meta) as { systems: Array<{ bars: Array<{ pickupBeats?: number }> }> };
+		expect(doc.systems[0].bars[0].pickupBeats).toBe(expected);
+	});
+
 	it('passes an exact pickup length through from the model bar', () => {
 		const systems: AssembleSystemInput[] = [
 			{
