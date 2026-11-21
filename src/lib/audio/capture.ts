@@ -92,12 +92,12 @@ export function stopMicCapture(): void {
 	capture = null;
 }
 
-/** Only scored practice opts into calibration. Other microphone users keep the raw graph. */
+/** Attach a matching saved profile for scored practice. */
 export async function preparePracticeRoom(current: MicCapture, backing = false): Promise<void> {
 	if (!roomCorrectionEnabled(backing)) return;
 	try {
 		const { calibrateRoom } = await import('./room-calibration');
-		if (capture === current) await calibrateRoom(current);
+		if (capture === current) await calibrateRoom(current, { mode: 'practice' });
 	} catch (error) {
 		console.warn('Speaker calibration unavailable', error);
 		if (capture === current) roomStatus.text = 'Room check unavailable · scoring the original microphone';
