@@ -41,6 +41,8 @@ export interface InstrumentVoice {
 	samples?: SampleMap;
 	/** smplr GM SoundFont name — the fallback when `samples` is absent or fails to load. */
 	soundfont: string;
+	/** Sustain boundaries for the encoded MIDI.js recordings, in 44.1 kHz frames. */
+	soundfontLoopUrl?: string;
 	/**
 	 * Lowpass ceiling on the instrument bus, Hz. Tames the harsh top of the
 	 * recordings without dulling the horn: a higher-pitched horn needs a higher
@@ -87,6 +89,8 @@ export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
 	},
 	trumpet: {
 		soundfont: 'trumpet',
+		// The upstream C4 loop repeats 147 frames and turns the held C into a 300 Hz buzz.
+		soundfontLoopUrl: '/samples/musyngkite-trumpet-loops.json',
 		warmthCutoffHz: 6000,
 		// Trumpet vibrato is narrower than a sax's.
 		vibrato: { ...HELD_NOTE_VIBRATO, rateHz: 4.8, depthCents: 6 }

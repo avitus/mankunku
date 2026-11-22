@@ -373,9 +373,11 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 	const { Soundfont } = await import('smplr');
 	if (loadId !== currentLoadId) return;
 
+	const voice = instrumentVoice(instrumentId);
 	const newInstrument = new Soundfont(audioCtx, {
 		...SOUNDFONT_OPTIONS,
-		instrument: instrumentVoice(instrumentId).soundfont,
+		instrument: voice.soundfont,
+		loopDataUrl: voice.soundfontLoopUrl,
 		kit: 'MusyngKite',
 		loadLoopData: true,
 		destination: getMelodyGain()

@@ -13,7 +13,7 @@ At 110 BPM and swing 0.62 the four segments were Blue Note Climb, Blues Call dow
 | tenor-sax | +0.00 | +0.00 | 0.00 |
 | alto-sax | +2.53 | +0.03 | 0.47 |
 | soprano-sax | +6.27 | -0.04 | 1.22 |
-| trumpet | +4.03 | +0.03 | 0.91 |
+| trumpet | +4.03 | +0.10 | 1.10 |
 | piano | +13.37 | -0.04 | 1.94 |
 | bass | +15.94 | +0.00 | 2.18 |
 | guitar | +9.25 | +0.04 | 1.34 |
@@ -30,3 +30,11 @@ At 110 BPM and swing 0.62 the four segments were Blue Note Climb, Blues Call dow
 ## Register check
 
 BB King Bend was also rendered in its original register and transposed by −12, −5 and +4 semitones. Compare only transpositions within the selected instrument's playable range. In the original register the largest deviation was vibraphone at +2.52 LU. In the higher register it reached +4.18 LU. Across the four calibration calls the largest individual difference was the softer bass call at −2.18 LU. These measurements describe phrase loudness. Peaks and individual note levels vary with attack, sustain, velocity layer and pitch.
+
+## Trumpet sustain
+
+In Blue Note Climb the last half note is a concert C4 lasting 1.09 seconds. The upstream MusyngKite trumpet loop for C4 repeats frames 21120–21267 at 44.1 kHz, producing a 300 Hz fundamental about 0.48 seconds into the note. The encoded C4 itself sustains near 261.6 Hz.
+
+The local trumpet loop map uses 44.1 kHz frame offsets for all 88 notes in the MIDI.js bank. For each note, the start search covered 0.7–1.2 seconds and the end search 2.3–2.9 seconds. Each pair was scored by the squared waveform difference between 512-frame windows centered on the boundaries, divided by the sum of their energies. The selected pair minimized the larger error across the decoded OGG and MP3 recordings. C4 now plays the original sample through frame 106272 and loops back to 48490 on longer holds.
+
+With both encodings the corrected final C4 measured 260.8–262.1 Hz over the portion that previously buzzed. Separate 4.8-second C4 and G4 holds retained their pitch across multiple wraps. The trumpet row above includes the corrected sustain at the existing −4 dB trim.
