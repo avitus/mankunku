@@ -26,6 +26,8 @@
 		getHandoffPreviewKey,
 		getFocusProjectionRows,
 		isFocusTake,
+		usesDeepRetryQueue,
+		queuedRetryRow,
 		buildLickSuperPhrase,
 		getKeyBars,
 		getDemoBars,
@@ -210,7 +212,7 @@
 	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let nextCycleKey = $state<PlannedKey | null>(null);
-	// The focus takes still to come, drawn under the current one (display only).
+	// Future focus takes or scored retries, drawn beneath the scheduled rows.
 	let projectedRows = $state<PlannedKey[]>([]);
 	let precedingKey = $state<PlannedKey | null>(null);
 	// Audio must be queued during lookahead, but the chart must retain the
@@ -297,16 +299,11 @@
 	// the session-length estimate reads them — the estimate and the scheduler
 	// must never hold separate copies of this layout.
 	//
-	// Single-lick deep practice has no rest at all: cycles join over ONE bar
-	// of full rhythm-section turnaround (ii-V into the next head key), so the
-	// band never stops and the user keeps playing. The bar doubles as the
-	// scheduling lead for the next cycle's audio.
+	// The final score resolves the next entrance. Read the audible clock for
+	// any cycle that can join its successor without a turnaround.
 	const TURNAROUND_BARS = 1;
-	// A focused drill keeps its musical pulse through retries and tempo steps.
-	// Any sheet preparation is already part of the next cycle's own plan.
-	const turnaroundBars = $derived(
-		lickPractice.ramp && lickPractice.config.practiceMode === 'continuous' ? 0 : TURNAROUND_BARS
-	);
+	const canJoinCycles = $derived(usesDeepRetryQueue() ||
+		(!!lickPractice.ramp && lickPractice.config.practiceMode === 'continuous'));
 
 	/**
 	 * Recording window — captures the state needed to score a single key's
@@ -359,12 +356,8 @@
 		return getCurrentKey();
 	});
 
-	// Ring props fork by mode. Single-lick renders the STABLE session key set
-	// with session-long latest results — `plan[0].keys` shrinks as keys
-	// master out and reorders worst-first every cycle, which would make dots
-	// jump and vanish; `sessionKeys`/`latestKeyResults` don't. The current
-	// key is then matched by key (currentKeyIndex indexes the rotation, not
-	// the ring).
+	// The Deep ring keeps its full circle as the queue shrinks. It shows the
+	// latest score at this tempo and locates the active dot by pitch class.
 	const ringKeys = $derived(
 		lickPractice.mode === 'single-lick' ? lickPractice.sessionKeys : (currentItem?.keys ?? [])
 	);
@@ -687,7 +680,7 @@
 		const mode = lickPractice.config.practiceMode;
 		// A joined focused cycle has no demo. Other cycles may embed a demo
 		// (or a call per key in C&R), so retain their melody.
-		const skipMelody = boundaryTime !== undefined;
+		const skipMelody = boundaryTime !== undefined && mode === 'continuous';
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
@@ -867,7 +860,7 @@
 			ticksPerBar,
 			countInBars,
 			trailingBars:
-				lickPractice.mode === 'single-lick' ? turnaroundBars : INTER_LICK_REST_BARS
+				lickPractice.mode === 'single-lick' ? (canJoinCycles ? 0 : TURNAROUND_BARS) : INTER_LICK_REST_BARS
 		});
 		const roomCheck = micCapture && roomChecks.get(micCapture.source)?.measure;
 		if (roomCheck) {
@@ -989,8 +982,8 @@
 
 	/**
 	 * Score the final key, resolve the next rotation/tempo, then queue its
-	 * audio and windows. Focused drills join on this downbeat using Tone's
-	 * audio lookahead; other drills retain their one-bar turnaround. A late
+	 * audio and windows. Previewed retries can join on this downbeat using
+	 * Tone's audio lookahead. Other entrances get a turnaround bar. A late
 	 * callback falls back to a future bar to avoid clipping the entrance.
 	 */
 	function handleSingleLickCycleBoundary(lickEndTick: number, ticksPerBar: number, time: number): void {
@@ -1000,17 +993,9 @@
 		if (lastBoundaryTick === lickEndTick) return;
 		lastBoundaryTick = lickEndTick;
 
-		// Bookkeeping first: drops mastered keys, sorts survivors worst-first
-		// from the rolling scores (including the attempt just recorded), sets
-		// demoNextCycle, and bumps tempo + refills on a full clear. The next
-		// cycle's layout and the turnaround's target key both depend on it.
-		advanceSingleLickRound();
-
-		// Tone dispatches this callback ahead of audible time. The focused
-		// drill uses that lead to join at the SAME downbeat. Only an actually
-		// late callback needs recovery time; the normal path adds no beats.
+		const joinDownbeat = advanceSingleLickRound();
 		const transport = toneModule.getTransport();
-		const seamless = turnaroundBars === 0 && time - toneModule.immediate() >= 0.015;
+		const seamless = joinDownbeat && time - toneModule.immediate() >= 0.015;
 		const nextStartTick = seamless ? lickEndTick : resolveNextCycleStart(
 			lickEndTick + TURNAROUND_BARS * ticksPerBar,
 			transport.ticks,
@@ -1133,10 +1118,10 @@
 			if (!isSessionRunning) return;
 			if (toneModule) {
 				const transport = toneModule.getTransport();
-				// The focused drill has no gap to absorb the scheduler's lookahead.
+				// Joined cycles have no gap to absorb the scheduler's lookahead.
 				// Read the audible clock so its cue cannot run past the current
 				// window before Tone has dispatched the boundary callback.
-				const ticks = turnaroundBars === 0
+				const ticks = canJoinCycles
 					? transport.getTicksAtTime(toneModule.immediate())
 					: transport.ticks;
 				if (pendingCycleDisplay && ticks >= pendingCycleDisplay.startTick) {
@@ -1445,6 +1430,15 @@
 			if (window.finalPass) {
 				try {
 					recordKeyAttempt(score, window.sessionId);
+					// The last window immediately builds the actual next stack.
+					// Earlier misses are visible while the remaining keys play.
+					if (usesDeepRetryQueue() && window.keyIndex < windowItem.keys.length - 1) {
+						const rows = pendingCycleDisplay?.rows ?? plannedKeysForLick;
+						const row = rows.find(row => row.key === window.key);
+						const retry = row && queuedRetryRow(row);
+						if (retry && pendingCycleDisplay) pendingCycleDisplay.projected.push(retry);
+						else if (retry) projectedRows = [...projectedRows, retry];
+					}
 				} catch (err) {
 					console.warn('[lick-practice] recordKeyAttempt failed:', err);
 				}

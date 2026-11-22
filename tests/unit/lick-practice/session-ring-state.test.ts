@@ -102,6 +102,25 @@ describe('latestKeyResults', () => {
 		expect(lickPractice.latestKeyResults.C?.score).toBe(0.8);
 	});
 
+	it('clears all markers at the tempo bump and retains the scored attempts for the report', () => {
+		setUnlockedCount('lick-c', 2);
+		startSingleLickSession(makeLick('C', 'lick-c'));
+		const tempo = lickPractice.currentTempo;
+		recordKeyAttempt(makeScore(0.8));
+		lickPractice.currentKeyIndex = 1;
+		recordKeyAttempt(makeScore(0.95));
+		expect(advanceSingleLickRound()).toBe(true);
+		expect(lickPractice.latestKeyResults.G?.score).toBe(0.95);
+		recordKeyAttempt(makeScore(0.96));
+		expect(advanceSingleLickRound()).toBe(false);
+
+		expect(lickPractice.currentTempo).toBeGreaterThan(tempo);
+		expect(lickPractice.latestKeyResults).toEqual({});
+		expect(lickPractice.allAttempts.flat().map(result => result.score)).toEqual([0.8, 0.95, 0.96]);
+		recordKeyAttempt(makeScore(0.7));
+		expect(Object.values(lickPractice.latestKeyResults)).toHaveLength(1);
+	});
+
 	it('clears on a new session start', () => {
 		startSingleLickSession(makeLick('C', 'lick-c'));
 		recordKeyAttempt(makeScore(0.8));

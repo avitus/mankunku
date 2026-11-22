@@ -37,6 +37,7 @@ import {
 	playCountOff,
 	prepareBackingSection
 } from './backing-track';
+import { scheduleBoundaryEvents } from './boundary-events';
 import { COUNT_IN_VOICE, drumCountInHits } from './drum-count-in';
 import {
 	codaPhrase,
@@ -694,7 +695,7 @@ export interface PhrasePlaybackOpts {
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
 	startTick?: number;
-	/** Audio time for a seamless, backing-only continuation at startTick. */
+	/** Audio time of a joined downbeat whose transport tick has already fired. */
 	boundaryTime?: number;
 	/**
 	 * Fired once per sounding melody note, on the UI thread at the audible
@@ -1121,7 +1122,7 @@ export async function scheduleNextPhrase(
 	if (!skipMelody) {
 		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
 		const onNote = opts.onNote;
-		currentPart = new Tone.Part((time, event) => {
+		const playMelody = (time: number, event: PlaybackEvent) => {
 			startNote({ ...event, time });
 			if (onNote) {
 				const info: PlaybackNoteEvent = {
@@ -1134,7 +1135,12 @@ export async function scheduleNextPhrase(
 					if (scheduleId === currentScheduleId) onNote(info);
 				}, time);
 			}
-		}, events);
+		};
+		const boundary = opts.boundaryTime === undefined ? undefined : {
+			audioTime: opts.boundaryTime, startTick: nextBarTicks, throughTick: transport.ticks,
+			secondsPerTick: 60 / options.tempo / ppq
+		};
+		currentPart = new Tone.Part(playMelody, scheduleBoundaryEvents(events, playMelody, boundary));
 		currentPart.start(`${nextBarTicks}i`);
 	}
 
