@@ -302,7 +302,7 @@
 			}
 
 			// Load instrument if needed for playback later
-			if (!playbackModule.isInstrumentLoaded()) {
+			if (!playbackModule.isInstrumentLoaded(settings.instrumentId)) {
 				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 			}
 			if (!isCurrent()) return;

@@ -5,15 +5,17 @@ import { createHeadlessTransport } from '../../helpers/headless-tone';
 import { guardTickRedelivery } from '$lib/audio/tick-redelivery';
 
 // Real Tone clock and real backing generation; only sample rendering is inert.
-const hits: { voice: string; note: unknown; time: number }[] = [];
+const melodyBus = {};
+const hits: { voice: string; note: unknown; time: number; destination: unknown; preset?: string; kit?: string }[] = [];
 beforeAll(() => vi.stubGlobal('cancelAnimationFrame', () => {}));
 afterAll(() => vi.unstubAllGlobals());
 vi.mock('smplr', () => {
 	class Instrument {
+		constructor(_context: unknown, private options: { destination: unknown; instrument?: string; kit?: string }) {}
 		load = Promise.resolve();
 		output = { addInsert() {} };
 		start(hit: { note: unknown; time: number }) {
-			hits.push({ voice: this.constructor.name, note: hit.note, time: hit.time });
+			hits.push({ destination: this.options.destination, preset: this.options.instrument, kit: this.options.kit, voice: this.constructor.name, note: hit.note, time: hit.time });
 		}
 		stop() {}
 		disconnect() {}
@@ -41,7 +43,7 @@ vi.mock('$lib/audio/audio-context', async () => {
 		createDelay: () => ({ ...node(), delayTime: param() }),
 		createOscillator: () => ({ ...node(), frequency: param(), start() {}, stop() {} })
 	};
-	return { initAudio: async () => ctx, getAudioContext: () => ctx, getMasterGain: node, getProgramGain: node, getClickGain: node, getMelodyGain: node, setMasterVolume() {} };
+	return { initAudio: async () => ctx, getAudioContext: () => ctx, getMasterGain: node, getProgramGain: node, getClickGain: node, getMelodyGain: () => melodyBus, setMasterVolume() {} };
 });
 
 const phrase: Phrase = {
@@ -96,7 +98,7 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled', 
 		await next;
 		const after = hits.slice(beforeStop).filter(hit => hit.voice !== 'Soundfont');
 		const band = hits.filter(hit => hit.voice !== 'Soundfont').map(hit => ({
-			...hit, time: Math.round(hit.time * 1e6) / 1e6
+			voice: hit.voice, note: hit.note, time: Math.round(hit.time * 1e6) / 1e6
 		}));
 		return { band, after };
 	} finally {
@@ -105,6 +107,39 @@ async function runSession(continuation: 'none' | 'retry' | 'stop' | 'disabled', 
 		h.context.dispose();
 	}
 }
+
+describe('Concert Pitch calls with backing off', () => {
+	it.each([
+		['piano', 'SplendidGrandPiano', undefined], ['concert', 'SplendidGrandPiano', undefined],
+		['bass', 'Smolken', 'Pizzicato'], ['guitar', 'Soundfont', 'electric_guitar_jazz'],
+		['trombone', 'Soundfont', 'trombone'], ['flute', 'Soundfont', 'flute'],
+		['vibraphone', 'Soundfont', 'vibraphone'], ['violin', 'Soundfont', 'violin'],
+		['voice', 'Soundfont', 'voice_oohs']
+	] as const)('%s plays the call on Melody', async (id, voice, preset) => {
+		const h = await createHeadlessTransport({ sampleRate: 48000, bpm: 120, startQuantum: 1 });
+		h.Tone.setContext(h.context);
+		const playback = await import('$lib/audio/playback');
+		try {
+			await playback.loadInstrument(id, 1, undefined, 'ear-training');
+			expect(playback.isInstrumentLoaded(id, 'ear-training')).toBe(true);
+			expect(playback.isInstrumentLoaded(id)).toBe(false);
+			const started = vi.fn();
+			hits.length = 0;
+			const call = playback.playPhrase(phrase, { ...options, backingTrackEnabled: false }, true,
+				{ resolveAtMelodyEnd: true, onStarted: started });
+			await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+			h.run(3.3);
+			await call;
+			expect(hits).toHaveLength(1);
+			expect(hits[0]).toMatchObject({ voice, preset, note: 60 });
+			expect(hits[0].destination).toBe(melodyBus);
+			if (voice === 'Soundfont') expect(hits[0].kit).toBe(id === 'violin' ? 'FluidR3_GM' : 'MusyngKite');
+		} finally {
+			await playback.stopPlayback();
+			h.context.dispose();
+		}
+	});
+});
 
 describe('ear-training backing continuity', () => {
 	it.each(['coordinated'] as const)('%s keeps every attack and the session seed through successive retry downbeats', async arrangement => {
@@ -147,7 +182,7 @@ it('plays the opening call exactly once on a joined Deep Practice downbeat', asy
 		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		h.run(3); // One bar plus the playback completion beat.
 		await next;
-		expect(hits).toEqual([{ voice: 'Soundfont', note: 60, time: downbeat }]);
+		expect(hits).toMatchObject([{ voice: 'Soundfont', note: 60, time: downbeat }]);
 		expect(onDemonstration.mock.calls).toEqual([[downbeat, 2.5]]);
 	} finally {
 		await playback.stopPlayback();

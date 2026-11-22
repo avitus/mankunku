@@ -483,15 +483,16 @@
 			await ensureMicCapture(generation);
 			if (!currentRun(generation)) return;
 
-			if (!playback.isInstrumentLoaded()) {
+			const backing = settings.backingTrackEnabled ? settings.backingInstrument : undefined;
+			if (!playback.isInstrumentLoaded(settings.instrumentId, 'ear-training')) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, settings.backingInstrument);
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing, 'ear-training');
 				if (!currentRun(generation)) return;
 				session.isLoadingInstrument = false;
-			} else {
+			} else if (backing) {
 				// Ensure backing instrument matches current setting (idempotent)
-				await loadBackingInstruments(settings.backingInstrument);
+				await loadBackingInstruments(backing);
 				if (!currentRun(generation)) return;
 			}
 

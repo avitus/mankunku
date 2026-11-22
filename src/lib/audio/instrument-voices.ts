@@ -41,6 +41,8 @@ export interface InstrumentVoice {
 	samples?: SampleMap;
 	/** smplr GM SoundFont name — the fallback when `samples` is absent or fails to load. */
 	soundfont: string;
+	/** Sustain boundaries for the encoded MIDI.js recordings, in 44.1 kHz frames. */
+	soundfontLoopUrl?: string;
 	/**
 	 * Lowpass ceiling on the instrument bus, Hz. Tames the harsh top of the
 	 * recordings without dulling the horn: a higher-pitched horn needs a higher
@@ -87,6 +89,8 @@ export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
 	},
 	trumpet: {
 		soundfont: 'trumpet',
+		// The upstream C4 loop repeats 147 frames and turns the held C into a 300 Hz buzz.
+		soundfontLoopUrl: '/samples/musyngkite-trumpet-loops.json',
 		warmthCutoffHz: 6000,
 		// Trumpet vibrato is narrower than a sax's.
 		vibrato: { ...HELD_NOTE_VIBRATO, rateHz: 4.8, depthCents: 6 }
@@ -94,8 +98,8 @@ export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
 	// Concert pitch has always played the GM tenor SoundFont, never the
 	// tenor samples, with the non-sax tone settings.
 	concert: CONCERT_VOICE,
-	// The C instruments behind the "which C instrument?" follow-up keep the
-	// concert demo voice; none has a voice of its own yet.
+	// Other playback surfaces share the concert demo voice. Ear Training
+	// selects instrument-specific players in ear-training-voices.ts.
 	piano: CONCERT_VOICE,
 	guitar: CONCERT_VOICE,
 	bass: CONCERT_VOICE,

@@ -31,7 +31,7 @@ export function createLickAudition() {
 			if (cancelled() || previous === phrase.id) return;
 			player ??= await import('$lib/audio/playback');
 			if (cancelled()) return;
-			if (!player.isInstrumentLoaded()) {
+			if (!player.isInstrumentLoaded(settings.instrumentId)) {
 				await player.loadInstrument(settings.instrumentId, settings.masterVolume);
 				if (cancelled()) return;
 			}
