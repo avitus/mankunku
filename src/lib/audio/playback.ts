@@ -1189,9 +1189,15 @@ export async function scheduleNextPhrase(
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
 	const endTicks = nextBarTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 	if (opts.onDemonstration && !skipMelody) {
-		transport.scheduleOnce(time => {
-			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, (endTicks - nextBarTicks) * 60 / (ppq * options.tempo));
-		}, `${nextBarTicks}i`);
+		const duration = (endTicks - nextBarTicks) * 60 / (ppq * options.tempo);
+		const notify = (time: number) => {
+			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, duration);
+		};
+		if (opts.boundaryTime !== undefined && nextBarTicks <= transport.ticks) {
+			notify(opts.boundaryTime);
+		} else {
+			transport.scheduleOnce(notify, `${nextBarTicks}i`);
+		}
 	}
 
 	return new Promise<void>((resolve) => {

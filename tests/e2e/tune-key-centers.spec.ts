@@ -216,7 +216,9 @@ for (const width of [1440, 390]) for (const melody of [true, false]) {
 }
 
 test('illustrated chart settings persist independently and print the written melody', async ({ page }) => {
-	await seedTunes(page, [autumn]);
+	const tune = structuredClone(autumn);
+	tune.sections[0].notes[0].gliss = true;
+	await seedTunes(page, [tune]);
 	await page.goto('/settings');
 	const radio = (name: string) => page.getByRole('radio', { name, exact:true });
 	await expect(radio('Chord stroke')).toBeChecked();
@@ -230,6 +232,8 @@ test('illustrated chart settings persist independently and print the written mel
 	await page.getByRole('button', { name:'Print lead sheet' }).click();
 	const rows = page.locator('.systems > svg');
 	await expect(rows.first().locator('.abcjs-note').first()).toBeVisible();
+	await expect(rows.first().locator('.abcjs-glissando')).toBeVisible();
+	await expect(rows.locator('.abcjs-glissando')).toHaveCount(1);
 	const wash = rows.locator('[data-treatment="staff-wash"]').first();
 	await expect(wash).toBeVisible();
 	expect(await wash.evaluate(group => {

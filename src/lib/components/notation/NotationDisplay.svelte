@@ -1486,7 +1486,9 @@
 			if (!src || !tgt) return;
 			const svg = src.ownerSVGElement;
 			if (!svg || tgt.ownerSVGElement !== svg) return;
-			const staff = svg.querySelector('.abcjs-staff') as SVGGraphicsElement | null;
+			const system = src.closest('.abcjs-staff-wrapper');
+			if (!system || tgt.closest('.abcjs-staff-wrapper') !== system) return;
+			const staff = system.querySelector<SVGGraphicsElement>('.abcjs-staff');
 			if (!staff) return;
 			const spacing = staff.getBBox().height / 4;
 			const srcHead = (src.querySelector('.abcjs-notehead') ?? src) as SVGGraphicsElement;
@@ -1500,7 +1502,7 @@
 			path.setAttribute('stroke-width', wave.strokeWidth);
 			path.setAttribute('stroke-linecap', 'round');
 			path.setAttribute('class', 'abcjs-glissando');
-			svg.appendChild(path);
+			system.appendChild(path);
 		});
 	}
 

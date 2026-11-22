@@ -170,7 +170,7 @@ Starting a recommendation retains the Daily report and its resolved plan for the
 
 ## Deep Practice retries at the current tempo
 
-Each final take below 95% goes behind all waiting keys. The chart previews the retry with the notation it will use. For example, if C and F miss and G clears, C then F play again at the same tempo. The backing and recording continue on the downbeat when a different key is next. An immediate repeat of the same key gets a turnaround bar. When every key clears and the tempo rises, the full circle opens with fresh score markers. The session report keeps the attempts from every tempo.
+During a queued rotation, each final take below 95% goes behind all waiting keys. The chart previews the retry with the notation it will use. For example, if C and F miss and G clears, C then F play again at the same tempo. The backing and recording continue on the downbeat when a different key is next. An immediate retry from this queue gets a turnaround bar. During the continuous focus staircase, the same key joins directly at either the current or the next tempo when its sheet stays the same. A change of sheet gets one preparation bar. When every key clears and the tempo rises, the full circle opens with fresh score markers. The session report keeps the attempts from every tempo.
 
 ## 4. Recommended Deep Practice: strategy and key admission
 
@@ -338,12 +338,16 @@ flowchart TD
     Reveal --> Freeze[Freeze decision for whole cycle]
     Memory --> Freeze
     Freeze --> Prep{Revealed key in continuous mode?}
-    Prep -->|No| Entrance{Head of score-dependent Deep cycle other than a focus take, a focus take just off its sheet, or later sheet graduation?}
+    Prep -->|No| Queued{Previewed retry after a different key?}
+    Queued -->|Yes| OnePass
+    Queued -->|No| Entrance{Deep turnaround, handoff entry, or sheet graduation requiring preparation?}
     Entrance -->|Yes| Ready[One preparation bar, resolved chart and Play countdown]
     Ready --> OnePass[One play window, C and R includes a call]
     Entrance -->|No| OnePass
     Prep -->|Yes| Shared{Daily or Deep session?}
-    Shared -->|Yes| Result{Deep result requires preparation? Focus take: only when the sheet comes on}
+    Shared -->|Yes| SheetRetry{Previewed retry after a different key?}
+    SheetRetry -->|Yes| Three
+    SheetRetry -->|No| Result{Deep result requires preparation? Focus take only when the sheet comes on}
     Result -->|Yes| ResultBar[One result-preparation bar]
     ResultBar --> Three[Three consecutive play windows]
     Result -->|No| Three
@@ -376,12 +380,12 @@ stateDiagram-v2
     [*] --> CountIn
     CountIn --> Listen: Demo or call starts
     Listen --> Play: User window opens
-    Play --> Play: Announced adjacent key, rehearsal, focus take, or promised handoff exit
-    Play --> Prepare: Score-dependent Deep result outside the focus phase, a focus take's sheet change, or handoff entry
+    Play --> Play: Announced adjacent key, distinct queued retry, rehearsal, focus take with unchanged sheet, or promised handoff exit
+    Play --> Prepare: Deep refill preparation, a focus sheet change, an unqueued sheet graduation, or handoff entry
     Play --> Prepare: Focused key has notation preparation
     Prepare --> Play: One Deep result bar or two Focused sheet bars finish
     Play --> Listen: Next C and R call, or ordinary Deep requests demo
-    Play --> Transition: Daily rest or ordinary Deep turnaround
+    Play --> Transition: Daily rest, same-key queue turnaround, or ordinary Deep refill
     Transition --> Listen: Next lick demo or call
     Transition --> Play: No-demo cycle
     Play --> Idle: Session ends
@@ -452,4 +456,4 @@ Scoring/recording persistence failures are caught so one failed save cannot free
 | Chart stack, notation visibility, compact cue and geometry | `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte` |
 | Stack scroll math, outgoing-row rule | `src/lib/ui/key-stack-layout.ts` |
 
-Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear, with eligible sheet visible; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; every sheet triple previews and commits one memory turn despite low or missing scores; successful sheet turns still reset rescue history; the memory turn gets a preparation bar; completed Deep row scrolls out, the next key settles at the top, same-key retries stay still, and scores never attach to a future duplicate; three sheet passes numbered; distinct queued retries join directly and immediate repeats and refills get preparation; a focus take joins on the downbeat with a bar only when its sheet comes or goes; the stack lists one tagged row per take still needed, re-projected after a hold (one row added) or step down (the climb back), never scheduled; the target take has one row at the target under it, so a missed target take's successor is on screen before its downbeat; a finished focus take's score stays on its own row as the next take of its key scrolls up; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily and both Deep paths show upcoming notation immediately with readable notes and chord symbols; Listen has no count, demo/call final-bar Play counts have no key names; regular sheet entrances and passes have no Read segment or pause; Deep retains result preparation, rescue thresholds and saved-tempo behavior; Focused retains its existing sheet preparation.
+Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear, with eligible sheet visible; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; every sheet triple previews and commits one memory turn despite low or missing scores; successful sheet turns still reset rescue history; a queued memory turn following another key joins directly, and an unqueued sheet graduation receives preparation; completed Deep row scrolls out, the next key settles at the top, same-key retries stay still, and scores never attach to a future duplicate; three sheet passes numbered; distinct queued retries join directly and immediate queued repeats and refills get preparation; a focus take joins on the downbeat with a bar only when its sheet comes or goes; the stack lists one tagged row per take still needed, re-projected after a hold (one row added) or step down (the climb back), never scheduled; the target take has one row at the target under it, so a missed target take's successor is on screen before its downbeat; a finished focus take's score stays on its own row as the next take of its key scrolls up; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily and both Deep paths show upcoming notation immediately with readable notes and chord symbols; Listen has no count, demo/call final-bar Play counts have no key names; regular sheet entrances and passes have no Read segment or pause; Deep retains result preparation, rescue thresholds and saved-tempo behavior; Focused retains its existing sheet preparation.
