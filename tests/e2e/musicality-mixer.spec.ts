@@ -91,7 +91,7 @@ for (const mode of ['coordinated']) test(`mutes the three instrument buses and R
  expect(record.playback.params.instrument).toBe(keyboard.toLowerCase());
  expect(record.playback.params.mix.comp).toBe(1);
  expect(record.playback.params.mix.room).toBe(1);
- expect(record.playback.monitoring).toMatchObject({ adjusted: true, mix: { comp: 3 * 10 ** (-30/20), room: 3 * 10 ** (-30/20) } });
+ expect(record.playback.monitoring).toMatchObject({ adjusted: true, mix: { comp: 3 * 10 ** (-12 / 20), room: 3 * 10 ** (-12 / 20) } });
  await page.getByTestId('listening-stop').click();
  expect(await page.evaluate(() => localStorage.getItem('backing-mix-levels-v3'))).toBe(stored);
  await page.getByRole('button', { name: /Saved feedback/ }).click();

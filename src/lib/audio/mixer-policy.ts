@@ -18,15 +18,38 @@ export const OUTPUT_CEILING = 10 ** (-1 / 20);
 export function clampGain(value: number, max = 1, fallback = 0): number {
  return Number.isFinite(value) ? Math.max(0, Math.min(max, value)) : fallback;
 }
-/** Same logarithmic control travel everywhere, with an exact silence endpoint. */
+// Dial travel is linear in dB between stops. Zero travel is a separate mute detent.
+const stops = [
+  { position: 0.01, db: -60 },
+  { position: 0.25, db: -24 },
+  { position: 0.50, db: -12 },
+  { position: 0.75, db: -6 },
+  { position: 1.00, db: 0 },
+] as const;
+
+function interpolate(value: number, from: 'position' | 'db', to: 'position' | 'db'): number {
+  if (value <= stops[0][from]) return stops[0][to];
+  for (let index = 1; index < stops.length; index++) {
+    const lower = stops[index - 1];
+    const upper = stops[index];
+    if (value <= upper[from]) {
+      const travel = (value - lower[from]) / (upper[from] - lower[from]);
+      return lower[to] + travel * (upper[to] - lower[to]);
+    }
+  }
+  return stops[stops.length - 1][to];
+}
+
 export function faderToGain(position: number, max = 1): number {
- const p = clampGain(position);
- return p === 0 ? 0 : max * 10 ** ((p - 1) * 60 / 20);
+  if (!Number.isFinite(position) || position <= 0 || !(max > 0)) return 0;
+  return max * 10 ** (interpolate(position, 'position', 'db') / 20);
 }
-/** Inverse of the common 60 dB fader taper. Stored values remain amplitudes. */
+
 export function gainToFader(gain: number, max = 1): number {
- return gain <= 0 || !Number.isFinite(gain) ? 0 : Number(clampGain(1 + 20 * Math.log10(gain / max) / 60).toFixed(14));
+  if (!Number.isFinite(gain) || gain <= 0 || !(max > 0)) return 0;
+  return Number(interpolate(20 * Math.log10(gain / max), 'db', 'position').toFixed(14));
 }
+
 /** Readout in amplitude dB; 0 dB always means unity, not a page-specific default. */
 export function gainLabel(gain: number): string {
  if (!(gain > 0) || !Number.isFinite(gain)) return 'Muted';

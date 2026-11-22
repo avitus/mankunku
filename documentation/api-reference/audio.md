@@ -40,7 +40,7 @@ Set the listening amplitude (0–1), including before initialization. It affects
 
 `mixer-policy.ts` is the source of truth for reference levels and the common fader law. `MIXER_DEFAULTS` contains linear amplitudes: `{ master: 0.8, melody: 1, click: 0.5, backing: 0.6 }`. Sample channels explicitly use smplr volume 127 and Soundfonts use `extraGain: 1`; their former implicit factors are included in named calibration instead.
 
-- `faderToGain(position, max = 1)` maps normalized control travel onto a 60 dB span, with exact zero at position zero. `gainToFader(gain, max = 1)` is the inverse. Advanced controls pass `max = 3`.
+- `faderToGain(position, max = 1)` maps normalized control travel to mute at zero and to −60, −24, −12, −6 and 0 dB relative to maximum at positions 0.01, 0.25, 0.50, 0.75 and 1.00, interpolating linearly in dB between those marks. `gainToFader(gain, max = 1)` is the inverse. Advanced controls pass `max = 3`.
 - `gainLabel(gain)` displays amplitude dB, or `Muted` for zero. `clampGain(value, max = 1, fallback = 0)` bounds untrusted amplitudes and rejects non-finite values.
 - `createMixer(context, destination, levels?)` creates Melody and Click feeding Program; Program feeds the listening output, then output protection and Master. Initial levels are immediate; live positive changes are smoothed with a 5 ms time constant and mute is immediate. The returned `dispose()` disconnects its owned nodes.
 - `getMixerLevels()`, `setMixerLevels(partial)` and `subscribeMixer(listener)` share levels before or after initialization without creating an AudioContext. Subscribers receive the current levels immediately; subscription returns an unsubscribe function.

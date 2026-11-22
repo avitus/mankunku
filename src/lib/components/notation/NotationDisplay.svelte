@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { compactCenter } from '$lib/tunes/key-centers';
+	import { settings } from '$lib/state/settings.svelte';
 	import { tick, untrack } from 'svelte';
 	import SectionLabelOverlay from './SectionLabelOverlay.svelte';
 	import { drawDirectionLines } from '$lib/notation/direction-lines-dom';
@@ -141,7 +143,7 @@
 		rangeMarkers?: RangeMarker[];
 		/** Visual treatment for `status: 'playhead'` markers. Default 'under-bar'. */
 		playheadStyle?: PlayheadStyle;
-		/** Reserve stable space below tune systems for labeled key-center rails. */
+		/** Engrave key-center highlights on the chord row or staff. */
 		keyCenterRails?: boolean;
 		/** Full producer lane count, retained when rails are hidden. */
 		keyCenterLaneCount?: number;
@@ -272,6 +274,7 @@
 	interface SystemBand extends BandGeometry {
 		wrapper: SVGGElement;
 		bottom: number;
+		chordBaseline: number;
 	}
 
 	// Non-reactive per-render caches consumed by the positioning effect.
@@ -341,7 +344,7 @@
 			chordSlotAnchors: ChordSlotAnchor[];
 			gapAnchors: GapAnchor[];
 		} = tune
-			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, ...(keyCenterRails ? { staffSeparation: 110 + Math.max(0, keyCenterLaneCount - 2) * 18 } : {}), preserveRestBoundaries: !!onSelect })
+			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, ...(keyCenterRails ? { staffSeparation: 56 + Math.max(0, keyCenterLaneCount - 1) * 11 } : {}), preserveRestBoundaries: !!onSelect })
 			: {
 					...phraseToAbcWithMap(phrase!, instrument, [1, 8], !!onSelect),
 					barAnchors: [],
@@ -360,8 +363,8 @@
 			// Keep the score named for assistive technology when the page owns its visual masthead.
 			...(tuneOptions?.omitMasthead && tune ? { ariaLabel: `Sheet Music for "${tune.title}"` } : {}),
 			staffwidth: staffWidth ?? CHART_STAFF_WIDTH,
-			paddingtop: compactStaff ? 0 : showEngravedMasthead ? 8 : 12,
-			paddingbottom: compactStaff ? 2 : keyCenterRails ? 68 + Math.max(0, keyCenterLaneCount - 2) * 18 : 16,
+			paddingtop: compactStaff ? 0 : keyCenterRails ? 18 + keyCenterLaneCount * 11 : showEngravedMasthead ? 8 : 12,
+			paddingbottom: compactStaff ? 2 : 16,
 			paddingleft: 12,
 			paddingright: 12,
 			add_classes: true,
@@ -617,6 +620,7 @@
 		const barWholeNotes = sheet.timeSignature[0] / sheet.timeSignature[1];
 		const pickupPrefixes = pickupPrefixesFor(sheet);
 
+		const highlights = new Map<SystemBand, { x0:number; x1:number; lane:number; group:SVGElement }[]>();
 		for (const marker of markers) {
 			// Merge the marker's bar zones into one x-run per system row.
 			// With timeRange, each bar is clipped to the span first so mid-bar
@@ -675,32 +679,26 @@
 				if (marker.keyCenter) {
 					const { lane, lanes, label, minor } = marker.keyCenter;
 					if (keyCenterRails) {
-						const y = band.staffBottom + band.spacing * 5 + lane * 18;
 						const group = svgEl('g');
-						group.setAttribute('class', 'range-marker key-center-rail');
+						group.setAttribute('class', 'range-marker key-center-ink');
 						group.setAttribute('data-key-center', label);
+						group.setAttribute('data-treatment', settings.leadSheetHighlight);
 						group.setAttribute('data-key-center-lane', String(lane));
 						group.setAttribute('role', 'img');
 						group.setAttribute('aria-label', label);
 						group.style.color = marker.color ?? 'currentColor';
-						const line = svgEl('line');
-						line.setAttribute('x1', run.x0.toFixed(2));
-						line.setAttribute('x2', run.x1.toFixed(2));
-						line.setAttribute('y1', y.toFixed(2));
-						line.setAttribute('y2', y.toFixed(2));
-						if (minor) line.setAttribute('stroke-dasharray', '5 3');
-						group.appendChild(line);
-						// Labels repeat at system breaks; narrow partial spans retain
-						// their accessible name without overflowing neighboring rails.
-						const compact = label.replace(/ major$/, ' maj').replace(/ minor$/, ' min');
-						if (run.x1 - run.x0 >= compact.length * 6 + 12) {
+						const row = highlights.get(band) ?? [];
+						row.push({ ...run, lane, group });
+						highlights.set(band, row);
+						const compact = compactCenter(label);
+						if (run.x1 - run.x0 >= compact.length * 6 + 5) {
 							const text = svgEl('text');
-							text.setAttribute('x', (run.x0 + 7).toFixed(2));
-							text.setAttribute('y', (y + 3).toFixed(2));
+							text.setAttribute('x', String(run.x0 + 2));
+							text.setAttribute('y', String(band.top - 3 - lane * 11));
 							text.textContent = compact;
 							group.appendChild(text);
 						}
-						band.wrapper.appendChild(group);
+						band.wrapper.prepend(group);
 						continue;
 					}
 
@@ -768,6 +766,27 @@
 					el.textContent = text;
 					band.wrapper.appendChild(el);
 				}
+			}
+		}
+		// Divide the ink only where centers actually overlap. A single center
+		// always receives the full stroke, even if another system has three lanes.
+		for (const [band, row] of highlights) {
+			const wash = settings.leadSheetHighlight === 'staff-wash';
+			const height = wash ? band.staffBottom - band.staffTop + 6 : 20;
+			const top = wash ? band.staffTop - 3 : band.chordBaseline - 15;
+			const edges = [...new Set(row.flatMap(span => [span.x0, span.x1]))].sort((a, b) => a - b);
+			row.sort((a, b) => a.lane - b.lane);
+			for (let i = 1; i < edges.length; i++) {
+				const left = edges[i - 1], right = edges[i];
+				const active = row.filter(span => span.x0 < right && span.x1 > left);
+				active.forEach((span, slot) => {
+					const strip = svgEl('rect');
+					strip.setAttribute('x', String(left));
+					strip.setAttribute('y', String(top + slot * height / active.length));
+					strip.setAttribute('width', String(right - left));
+					strip.setAttribute('height', String(height / active.length));
+					span.group.prepend(strip);
+				});
 			}
 		}
 	});
@@ -893,7 +912,10 @@
 			if (!staffEl) break; // keep index alignment: stop at the first oddity
 			const staffBox = staffEl.getBBox();
 			const wrapBox = wrapper.getBBox();
-			systemBands.push({ wrapper, bottom: Math.max(wrapBox.y + wrapBox.height, staffBox.y + staffBox.height),
+			const chord = wrapper.querySelector<SVGTextElement>('text.abcjs-chord');
+			const chordBaseline = chord ? Number(chord.getAttribute('y')) + (chord.transform.baseVal.consolidate()?.matrix.f ?? 0)
+				: staffBox.y - staffBox.height / 2;
+			systemBands.push({ wrapper, chordBaseline, bottom: Math.max(wrapBox.y + wrapBox.height, staffBox.y + staffBox.height),
 				...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
 		}
 		// Wrapper↔system alignment is load-bearing (follow-scroll + range markers
@@ -1223,9 +1245,11 @@
 					)
 					.map((leaf) => leaf.getBBox());
 				const deltas = chordSymbolDeltas(chords, obstacles, staffBox.y, staffBox.height / 4);
+				const baseline = Math.min(...chords.map((chord, i) => chord.baselineY + deltas[i]));
 				chordEls.forEach((el, i) => {
-					if (Math.abs(deltas[i]) > 0.01) {
-						el.setAttribute('transform', `translate(0, ${deltas[i].toFixed(2)})`);
+					const dy = keyCenterRails ? baseline - chords[i].baselineY : deltas[i];
+					if (Math.abs(dy) > 0.01) {
+						el.setAttribute('transform', `translate(0, ${dy.toFixed(2)})`);
 					}
 				});
 			}
@@ -1462,7 +1486,9 @@
 			if (!src || !tgt) return;
 			const svg = src.ownerSVGElement;
 			if (!svg || tgt.ownerSVGElement !== svg) return;
-			const staff = svg.querySelector('.abcjs-staff') as SVGGraphicsElement | null;
+			const system = src.closest('.abcjs-staff-wrapper');
+			if (!system || tgt.closest('.abcjs-staff-wrapper') !== system) return;
+			const staff = system.querySelector<SVGGraphicsElement>('.abcjs-staff');
 			if (!staff) return;
 			const spacing = staff.getBBox().height / 4;
 			const srcHead = (src.querySelector('.abcjs-notehead') ?? src) as SVGGraphicsElement;
@@ -1476,7 +1502,7 @@
 			path.setAttribute('stroke-width', wave.strokeWidth);
 			path.setAttribute('stroke-linecap', 'round');
 			path.setAttribute('class', 'abcjs-glissando');
-			svg.appendChild(path);
+			system.appendChild(path);
 		});
 	}
 
@@ -1958,19 +1984,12 @@
 		stroke: none;
 		pointer-events: none;
 	}
-	.notation-container :global(svg .key-center-rail line),
-	:global(:root.light) .notation-container :global(svg .key-center-rail line) {
-		stroke: currentColor !important;
-		stroke-width: 2.5;
-		stroke-opacity: 0.72;
-	}
-	.notation-container :global(svg .key-center-rail text),
-	:global(:root.light) .notation-container :global(svg .key-center-rail text) {
-		fill: currentColor !important;
-		font: 500 10px system-ui, sans-serif;
-		stroke: var(--studio-well, var(--color-bg)) !important;
-		stroke-width: 4px;
-		paint-order: stroke fill;
+	.notation-container :global(svg .key-center-ink rect) { fill:currentColor; fill-opacity:.22; stroke:none; }
+	.notation-container :global(svg [data-treatment="staff-wash"] rect) { fill-opacity:.15; }
+	.notation-container :global(svg .key-center-ink text),
+	:global(:root.light) .notation-container :global(svg .key-center-ink text) {
+		fill:currentColor !important;
+		font:600 9px system-ui,sans-serif;
 	}
 	.notation-container :global(svg .playhead-wash-subtle) {
 		fill: var(--color-text);

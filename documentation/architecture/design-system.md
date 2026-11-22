@@ -467,9 +467,19 @@ Fraunces for headings and larger readouts. The dial marker sits near the rim
 so it stays clear of four-character values such as `100%`. Swing is displayed
 as 50–80% in 1% increments while its stored ratio and audio behaviour remain unchanged.
 
-Backing and metronome controls stay mounted when switched off. Their dependent
-knobs and selector bank are disabled, their values remain saved, and Rhythm &
-band retains its dimensions. The summary is read-only. Account, tour, password
+Settings groups Tempo and Swing above the Metronome and Backing band rows. Level
+and power controls align across both rows. Speaker bleed reduction and its explicit
+sound check share a separate panel. Highest, Master and Melody stay together as
+Appearance moves to its own row on phones.
+
+Master, Melody, Click and Backing use the same volume dial. Fully left is mute.
+The first step is −60 dB, one-quarter turn is −24 dB, halfway is −12 dB,
+three-quarters is −6 dB and fully right is 0 dB. Interpolate in decibels between
+audible marks and store linear amplitude. Center the number on the dial and put
+the unit in its label or the Level (dB) heading. Announce the complete value.
+
+Backing controls stay mounted and retain their settings when disabled. Click
+level stays available for count-in when the metronome is off. The summary is read-only. Account, tour, password
 recovery, and destructive-action confirmation flows retain their existing logic.
 
 Before adopting these components on another route, check both themes, desktop,

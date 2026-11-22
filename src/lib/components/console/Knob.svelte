@@ -2,12 +2,15 @@
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 
 	interface Props {
+		/** Use the adjacent row heading as the visible label. */
+		compact?: boolean;
 		value: number;
 		min: number;
 		max: number;
 		step?: number;
 		label: string;
 		displayValue?: string;
+		levelDial?: boolean;
 		helpText?: string;
 		size?: 'sm' | 'md' | 'lg';
 		ariaLabel?: string;
@@ -18,12 +21,14 @@
 	}
 
 	let {
+		compact = false,
 		value,
 		min,
 		max,
 		step = 0.01,
 		label,
 		displayValue,
+		levelDial = false,
 		helpText,
 		size = 'md',
 		ariaLabel,
@@ -160,10 +165,12 @@
 	}
 
 	const readout = $derived(displayValue ?? value.toFixed(2));
+	const dbNumber = $derived(levelDial && readout.endsWith(' dB') ? readout.slice(0, -3) : '');
+	const dbDigits = $derived(dbNumber.replace(/^[+-]/, ''));
 </script>
 
 <div class="inline-flex flex-col items-center gap-1.5 select-none" class:knob-disabled={disabled}>
-	<div class="flex items-center justify-center" style:min-height="84px">
+	<div class="flex items-center justify-center" style:min-height={compact ? undefined : '84px'}>
 	<button
 		bind:this={buttonEl}
 		type="button"
@@ -248,7 +255,7 @@
 			<!-- Pointer (rotates with value) -->
 			<g transform="rotate({angle} {cx} {cy})">
 				<line
-					class="knob-pointer"
+					class="knob-pointer" class:level-pointer={levelDial}
 					x1={cx}
 					y1={cy - rInner + 6}
 					x2={cx}
@@ -260,7 +267,30 @@
 			</g>
 
 			<!-- Center readout (only when displayValue is provided) -->
-			{#if displayValue}
+			{#if levelDial}
+				{#if dbNumber}
+					<g
+						class="level-value"
+						class:wide={dbDigits.length > 3}
+						fill="var(--color-text)"
+						text-anchor="middle"
+					>
+						{#if dbNumber.startsWith('-') || dbNumber.startsWith('+')}
+							<text
+								class="level-sign"
+								x={dbDigits.length > 3 ? 33 : 36}
+								y="55.5"
+								text-anchor="end">{dbNumber.startsWith('-') ? '−' : '+'}</text
+							>
+						{/if}
+						<text x="52" y="57">{dbDigits}</text>
+					</g>
+				{:else}
+					<text class="level-muted" x={cx} y="55" text-anchor="middle" fill="var(--color-text)"
+						>{readout}</text
+					>
+				{/if}
+			{:else if displayValue}
 				{@const spaceIdx = displayValue.indexOf(' ')}
 				{#if spaceIdx > 0}
 					{@const num = displayValue.slice(0, spaceIdx)}
@@ -298,15 +328,47 @@
 	</button>
 	</div>
 
-	<span class="smallcaps console-engrave inline-flex items-center gap-1">
-		{label}
-		{#if helpText}
-			<TooltipHint text={helpText} position="top" />
-		{/if}
-	</span>
+	{#if !compact}
+		<span class="smallcaps console-engrave inline-flex items-center gap-1">
+			{label}{#if levelDial}<span class="level-label-unit">(dB)</span>{/if}
+			{#if helpText}
+				<TooltipHint text={helpText} position="top" />
+			{/if}
+		</span>
+	{/if}
 </div>
 
 <style>
+	.level-value,
+	.level-muted {
+		font-family: system-ui, sans-serif;
+		font-variant-numeric: lining-nums tabular-nums;
+		font-weight: 600;
+		letter-spacing: 0;
+		pointer-events: none;
+	}
+	.level-value {
+		font-size: 21px;
+	}
+	.level-value.wide {
+		font-size: 18px;
+	}
+	.level-sign {
+		font-size: 0.78em;
+		font-weight: 500;
+	}
+	.level-muted {
+		font-size: 15px;
+	}
+	.level-label-unit {
+		text-transform: none;
+		letter-spacing: 0;
+	}
+	:global(.studio-desk .studio-panel) .knob-pointer.level-pointer {
+		transform: translateY(-13px) scaleY(0.81);
+		transform-origin: 50px 22px;
+	}
+
 	.knob-disabled { opacity: 0.45; }
 	.knob-disabled button { cursor: not-allowed; }
 	.knob-readout {

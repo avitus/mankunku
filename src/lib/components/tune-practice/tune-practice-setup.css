@@ -27,33 +27,38 @@ main:has(.tune-practice-setup) { max-width:1440px; padding:30px 40px; }
 .tune-practice-setup .tp-show-plan { color:var(--color-brass); font-size:11px; text-decoration:underline; margin-bottom:12px; cursor:pointer; }
 .tune-practice-setup .tp-untagged { padding-top:15px; border-top:1px solid var(--studio-border); }
 .tune-practice-setup .tp-untagged a { color:var(--color-brass); display:block; margin-top:4px; }
-.tune-practice-setup.tp-focus .tp-rail,.tune-practice-setup.tp-focus .tp-help { display:none; }
-.tune-practice-setup.tp-focus .td-detail-layout { grid-template-columns:minmax(0,1fr); }
+.tune-practice-setup.tp-focus .tp-help { display:none; }
 .tune-practice-setup.tp-focus .td-workspace { --td-reading-height:clamp(250px,calc(100dvh - 390px),850px); }
 @media(max-width:1050px) {
  main:has(.tune-practice-setup) { padding:24px; }
- .tune-practice-setup .td-detail-layout { grid-template-columns:minmax(0,1fr) 250px; }
  .tune-practice-setup .td-chart-context { gap:7px; }
  .tune-practice-setup .td-chart-context>span { font-size:10px; }
 }
 @media(max-width:800px) {
  main:has(.tune-practice-setup) { padding:24px 16px; }
- .tune-practice-setup .td-detail-layout { display:flex; flex-direction:column; gap:22px; }
  .tune-practice-setup .td-workspace { position:static; width:100%; --td-reading-height:clamp(250px,calc(100dvh - 420px),540px); }
- .tune-practice-setup .tp-rail { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
  .tune-practice-setup .tp-guide { padding-top:10px; }
  .tune-practice-setup .tp-help { font-size:10px; }
 }
 @media(max-width:540px) {
- .tune-practice-setup .tp-rail { display:block; }
  .tune-practice-setup .tp-guide { padding:24px 5px 0; }
  .tune-practice-setup .td-detail-heading { gap:12px; }
  .tune-practice-setup .td-chart-context h2 { font-size:11px; }
  .tune-practice-setup .td-play-summary { text-align:left; display:block; }
- .tune-practice-setup .td-play-summary strong { font-size:11px; }
  .tune-practice-setup .td-play-summary p { margin-top:4px; }
  .tune-practice-setup .tp-start .le-play { width:100%; }
  .tune-practice-setup .td-tempo-control>button { width:42px; height:42px; }
 }
 
 .tune-practice-setup.tp-focus .tp-options { display:none; }
+
+.tune-practice-setup .td-detail-layout { display:block; }
+.tune-practice-setup .td-workspace { position:static; }
+.tune-practice-setup .tp-controls .td-rhythm {
+	display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr));
+	align-items:center; gap:8px 16px; padding:12px 16px;
+}
+.tune-practice-setup .tp-controls .td-rhythm > * { min-width:0; margin:0; }
+.tune-practice-setup .tp-controls .td-saved-style, .tune-practice-setup .tp-controls .td-key-row { padding:0; }
+.tune-practice-setup .tp-start { padding:8px 0; }
+.tune-practice-setup.tp-focus .tp-controls,.tune-practice-setup.tp-focus .tp-vocabulary { display:none; }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { gainToFader, faderToGain, gainLabel } from '$lib/audio/mixer-policy';
+	import { gainLabel } from '$lib/audio/mixer-policy';
 	import {
 		INSTRUMENTS,
 		TRANSPOSING_INSTRUMENT_IDS,
@@ -25,8 +25,11 @@
 	import { midiToDisplayName } from '$lib/music/notation';
 	import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 	import type { PitchClass } from '$lib/types/music';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import KeyCenterSettings from '$lib/components/tunes/KeyCenterSettings.svelte';
 	import StudioPage from '$lib/components/console/StudioPage.svelte';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import VolumeDial from '$lib/components/console/VolumeDial.svelte';
 	import Knob from '$lib/components/console/Knob.svelte';
 	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
 	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
@@ -55,6 +58,7 @@
 	let roomMessage = $state('');
 	let calibrating = $state(false);
 	let calibration: AbortController | undefined;
+	const mutedCheckMessage = 'Master is muted. Raise it to a comfortable listening level, then start the speaker sound check.';
 	onMount(() => {
 		explicitRoomPreference = roomPreference();
 		return () => calibration?.abort();
@@ -69,6 +73,10 @@
 
 	async function calibrateSpeakers(): Promise<void> {
 		if (calibrating || !roomCorrection) return;
+		if (settings.masterVolume === 0) {
+			roomMessage = mutedCheckMessage;
+			return;
+		}
 		const controller = new AbortController();
 		calibration = controller;
 		calibrating = true;
@@ -84,7 +92,8 @@
 			if (controller.signal.aborted) return;
 			switch (result) {
 				case 'saved': roomMessage = 'Speaker calibration saved on this device.'; break;
-				case 'rejected': roomMessage = 'No reliable speaker return. Practice will use the original microphone.'; break;
+				case 'rejected': roomMessage = 'The microphone could not match the test hiss. If you heard silence, check the tab mute and speaker output. If you heard the hiss, check the selected microphone and retry in a quiet room. Practice will use the original microphone.'; break;
+				case 'silent-output': roomMessage = 'The sound check produced no output. Check Master and retry.'; break;
 				case 'unsaved': roomMessage = 'Calibration passed, but could not be saved on this device.'; break;
 				default: roomMessage = 'Calibration unavailable. You can retry here.';
 			}
@@ -212,6 +221,8 @@
 	function handleMasterVolumeInput(v: number) {
 		settings.masterVolume = v;
 		setMasterVolume(v);
+		if (calibrating && v === 0) cancelCalibration(mutedCheckMessage);
+		else if (v > 0 && roomMessage === mutedCheckMessage) roomMessage = '';
 	}
 
 	function selectBackingInstrument(instrument: BackingInstrument) {
@@ -411,24 +422,22 @@
 						onInput={handleHighestNoteInput}
 						onCommit={syncSettingsToCloud}
 					/>
-					<Knob
-						size="lg"
+					<VolumeDial
 						label="Master"
 						ariaLabel="Master volume"
+						gain={settings.masterVolume}
 						helpText="Listening level for music, clicks and recordings. Does not change the saved recording mix."
-						value={gainToFader(settings.masterVolume)}
-						min={0}
-						max={1}
-						step={0.01}
-						displayValue={gainLabel(settings.masterVolume)}
-						onInput={(v) => handleMasterVolumeInput(faderToGain(v))}
+						onInput={handleMasterVolumeInput}
 						onCommit={syncSettingsToCloud}
 					/>
-					<Knob size="lg" label="Melody" ariaLabel="Melody volume"
+					<VolumeDial
+						label="Melody"
+						ariaLabel="Melody volume"
+						gain={settings.melodyVolume}
 						helpText="Melody level relative to backing. Saved on this device."
-						value={gainToFader(settings.melodyVolume)} min={0} max={1} step={0.01}
-						displayValue={gainLabel(settings.melodyVolume)}
-						onInput={(v) => (settings.melodyVolume = faderToGain(v))} onCommit={syncSettingsToCloud} />
+						onInput={(gain) => (settings.melodyVolume = gain)}
+						onCommit={syncSettingsToCloud}
+					/>
 					<div class="settings-appearance">
 						<p class="studio-label">Appearance</p>
 						<SelectorPad
@@ -442,6 +451,9 @@
 						/>
 					</div>
 				</div>
+				<KeyCenterSettings sheet={settings.leadSheetHighlight} solo={settings.soloHighlight}
+					onsheet={style => { settings.leadSheetHighlight = style; saveSettings(); }}
+					onsolo={style => { settings.soloHighlight = style; saveSettings(); }} />
 			</StudioPanel>
 			<StudioPanel
 				id="settings-tonality"
@@ -512,44 +524,92 @@
 				title="Rhythm & band"
 				description="Set the pace. Bring in the accompaniment."
 			>
-				<div class="settings-rhythm-grid">
-					<div class="settings-rhythm-cell">
-						<Knob
-							size="lg"
-							label="Tempo"
-							ariaLabel="Default tempo"
-							helpText="Starting tempo for new ear-training sessions, in BPM."
-							value={settings.defaultTempo}
-							min={60}
-							max={200}
-							step={5}
-							displayValue={String(settings.defaultTempo)}
-							onInput={(v) => (settings.defaultTempo = v)}
-							onCommit={syncSettingsToCloud}
-						/>
-						<p class="studio-caption">Starting pace for<br />ear training.</p>
+				<div class="timing-strip">
+					<div class="timing-control">
+						<div class="hardware">
+							<Knob
+								compact
+								size="lg"
+								label="Tempo"
+								ariaLabel="Default tempo"
+								value={settings.defaultTempo}
+								min={60}
+								max={200}
+								step={5}
+								displayValue={`${settings.defaultTempo} BPM`}
+								onInput={(v) => (settings.defaultTempo = v)}
+								onCommit={syncSettingsToCloud}
+							/>
+						</div>
+						<div>
+							<div class="control-title">
+								<h3>Tempo</h3>
+								<TooltipHint
+									text="Starting tempo for new ear-training sessions, in BPM."
+									position="top"
+								/>
+							</div>
+							<p>Starting pace for ear training, library playback and tune practice.</p>
+						</div>
 					</div>
-					<div class="settings-rhythm-cell">
-						<Knob
-							size="lg"
-							label="Swing"
-							ariaLabel="Swing feel"
-							helpText="Eighth-note swing ratio for the Swing backing style. 50% is straight eighths, 80% is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
-							value={settings.swing}
-							min={STRAIGHT_SWING}
-							max={MAX_SWING}
-							step={0.01}
-							displayValue={`${Math.round(settings.swing * 100)}%`}
-							onInput={(v) => (settings.swing = v)}
-							onCommit={syncSettingsToCloud}
-						/>
-						<p class="studio-caption">
-							Straight to heavy swing.<br />Applies to Swing backing.
-						</p>
+					<div class="timing-control">
+						<div class="hardware">
+							<Knob
+								compact
+								size="lg"
+								label="Swing"
+								ariaLabel="Swing feel"
+								value={settings.swing}
+								min={STRAIGHT_SWING}
+								max={MAX_SWING}
+								step={0.01}
+								displayValue={`${Math.round(settings.swing * 100)}%`}
+								onInput={(v) => (settings.swing = v)}
+								onCommit={syncSettingsToCloud}
+							/>
+						</div>
+						<div>
+							<div class="control-title">
+								<h3>Swing</h3>
+								<TooltipHint
+									text="Eighth-note swing ratio for the Swing backing style. 50% is straight eighths, 80% is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
+									position="top"
+								/>
+							</div>
+							<p>Straight to heavy eighths for Swing backing.</p>
+						</div>
 					</div>
-					<div class="settings-rhythm-cell">
-						<div class="settings-accompaniment">
+				</div>
+				<div class="band-strip">
+					<div class="channel-line channel-head" aria-hidden="true">
+						<span>Accompaniment</span><span>Level <span class="db-unit">(dB)</span></span><span
+							>On / off</span
+						>
+					</div>
+					<div class="channel-line channel">
+						<div class="channel-name">
+							<div class="control-title">
+								<h3>Metronome</h3>
+								<TooltipHint
+									text="Click and count-in level, including the drummer’s count-off."
+									position="top"
+								/>
+							</div>
+							<p>Click and count-in</p>
+						</div>
+						<div class="hardware">
+							<VolumeDial
+								label="Click"
+								ariaLabel="Click and count-in volume"
+								gain={settings.metronomeVolume}
+								compact
+								onInput={(gain) => (settings.metronomeVolume = gain)}
+								onCommit={syncSettingsToCloud}
+							/>
+						</div>
+						<div class="hardware">
 							<RockerSwitch
+								compact
 								label="Metronome"
 								checked={settings.metronomeEnabled}
 								onChange={(v) => {
@@ -557,27 +617,51 @@
 									saveSettings(supabase);
 								}}
 							/>
-							<Knob
-								size="lg"
-								label="Click"
-								ariaLabel="Click and count-in volume"
-								helpText="Click and count-in level, including the drummer’s count-off."
-								value={gainToFader(settings.metronomeVolume)}
-								min={0}
-								max={1}
-								step={0.01}
-								displayValue={gainLabel(settings.metronomeVolume)}
-								onInput={(v) => (settings.metronomeVolume = faderToGain(v))}
+						</div>
+					</div>
+					<div class="channel-line channel">
+						<div class="channel-name">
+							<div class="control-title">
+								<h3>Backing band</h3>
+								<TooltipHint
+									text="Accompanies lick and tune practice. Each lick keeps its own tempo."
+									position="top"
+								/>
+							</div>
+							<fieldset
+								class="band-voice"
+								disabled={!settings.backingTrackEnabled}
+								aria-label="Backing track settings"
+							>
+								<SelectorPad
+									size="sm"
+									disabled={!settings.backingTrackEnabled}
+									ariaLabel="Backing instrument"
+									value={settings.backingInstrument}
+									options={[
+										{ value: 'piano', label: 'Piano' },
+										{ value: 'organ', label: 'Organ' }
+									]}
+									onChange={selectBackingInstrument}
+								/>
+							</fieldset>
+						</div>
+						<div class="hardware">
+							<VolumeDial
+								label="Backing Vol"
+								ariaLabel="Backing track volume"
+								gain={settings.backingTrackVolume}
+								compact
+								disabled={!settings.backingTrackEnabled}
+								onInput={(gain) => (settings.backingTrackVolume = gain)}
 								onCommit={syncSettingsToCloud}
 							/>
 						</div>
-					</div>
-					<div class="settings-rhythm-cell">
-						<div class="settings-accompaniment">
+						<div class="hardware">
 							<RockerSwitch
+								compact
 								label="Backing"
 								ariaLabel="Backing track"
-								helpText="Play the rhythm section during practice."
 								checked={settings.backingTrackEnabled}
 								onChange={(v) => {
 									settings.backingTrackEnabled = v;
@@ -585,60 +669,46 @@
 									if (!v) cancelCalibration();
 								}}
 							/>
-							<Knob
-								size="lg"
-								disabled={!settings.backingTrackEnabled}
-								label="Backing Vol"
-								ariaLabel="Backing track volume"
-								helpText="Backing track level, relative to master."
-								value={gainToFader(settings.backingTrackVolume)}
-								min={0}
-								max={1}
-								step={0.01}
-								displayValue={gainLabel(settings.backingTrackVolume)}
-								onInput={(v) => (settings.backingTrackVolume = faderToGain(v))}
-								onCommit={syncSettingsToCloud}
+						</div>
+					</div>
+				</div>
+				<div class="speaker-check">
+					<div class="speaker-head">
+						<div>
+							<div class="control-title"><h3>Speaker bleed reduction</h3></div>
+							<p>Reduce backing spill in the scoring microphone.</p>
+						</div>
+						<div class="hardware">
+							<RockerSwitch
+								compact
+								label="Speaker bleed reduction"
+								checked={roomCorrection}
+								onChange={(v) => {
+									explicitRoomPreference = v;
+									setRoomCorrection(v);
+									if (!v) cancelCalibration();
+								}}
 							/>
 						</div>
-						<fieldset
-							disabled={!settings.backingTrackEnabled}
-							aria-label="Backing track settings"
-							class="settings-band-voice"
-						>
-							<SelectorPad
-								disabled={!settings.backingTrackEnabled}
-								ariaLabel="Backing instrument"
-								value={settings.backingInstrument}
-								options={[
-									{ value: 'piano', label: 'Piano' },
-									{ value: 'organ', label: 'Organ' }
-								]}
-								onChange={selectBackingInstrument}
-							/>
-						</fieldset>
 					</div>
-				</div>
-				<div class="settings-room">
-					<RockerSwitch label="Speaker bleed reduction" checked={roomCorrection}
-						helpText="Use a saved speaker calibration to reduce backing spill in the scoring microphone."
-						onChange={(v) => {
-							explicitRoomPreference = v;
-							setRoomCorrection(v);
-							if (!v) cancelCalibration();
-						}} />
-					<div class="settings-room-check">
-						<p id="speaker-check-description">The sound check plays six seconds of hiss through your speakers. Set Master to a comfortable level and keep your instrument quiet.</p>
-						<button type="button" class="studio-action disabled:opacity-50" disabled={!roomCorrection}
+					<div class="sound-check-action">
+						<p id="speaker-check-description">
+							The sound check plays six seconds of hiss through your speakers. Set Master to a
+							comfortable level and keep your instrument quiet.
+						</p>
+						<button
+							type="button"
+							class="studio-action disabled:opacity-50"
+							disabled={!roomCorrection}
 							aria-describedby="speaker-check-description"
-							onclick={() => calibrating ? cancelCalibration('Sound check stopped.') : calibrateSpeakers()}>
+							onclick={() =>
+								calibrating ? cancelCalibration('Sound check stopped.') : calibrateSpeakers()}
+						>
 							{calibrating ? 'Stop sound check' : 'Start speaker sound check'}
 						</button>
-						<p role="status" class="studio-caption">{roomMessage}</p>
 					</div>
+					<p class="sound-check-status" role="status">{roomMessage}</p>
 				</div>
-				<p class="studio-caption settings-footnote">
-					Tempo also sets library playback and the starting pace for tune practice. Backing applies to lick and tune practice; each lick keeps its own tempo.
-				</p>
 			</StudioPanel>
 		</div>
 		<aside class="settings-summary studio-panel" aria-label="Your setup">
@@ -974,15 +1044,17 @@
 	}
 	.settings-general-controls {
 		display: grid;
-		grid-template-columns: 1fr 1fr 1fr;
+		grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(148px, 1.15fr);
 		align-items: center;
-		gap: 24px;
+		gap: 12px;
 		border-top: 1px solid var(--studio-border);
 		padding-top: 24px;
 		margin-top: 24px;
 	}
 	.settings-appearance {
-		max-width: 190px;
+		max-width: 220px;
+		border-left: 1px solid var(--studio-border);
+		padding-left: 20px;
 		width: 100%;
 		justify-self: center;
 	}
@@ -1023,63 +1095,208 @@
 	.settings-keys {
 		min-width: 0;
 	}
-	.settings-rhythm-grid {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+    .timing-strip,
+	.speaker-check {
+		border: 1px solid color-mix(in srgb, var(--studio-border) 72%, transparent);
+		border-radius: 6px;
+		background: color-mix(in srgb, var(--color-bg) 42%, transparent);
 	}
-	.settings-rhythm-cell {
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
+	.timing-strip {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		padding: 16px 0;
+	}
+	.timing-control {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 14px;
 		align-items: center;
-		text-align: center;
-		gap: 16px;
-		padding: 0 14px;
-		border-right: 1px solid var(--studio-border);
-	}
-	.settings-rhythm-cell:first-child {
-		padding-left: 0;
-	}
-	.settings-rhythm-cell:last-child {
-		border-right: 0;
-		padding-right: 0;
-	}
-	.settings-accompaniment {
-		display: grid;
-		gap: 20px;
-		justify-items: center;
-	}
-	.settings-band-voice {
 		min-width: 0;
-		width: 100%;
-		border: 0;
-		padding: 0;
+		padding: 0 20px;
+	}
+	.timing-control > div:last-child {
+		align-self: stretch;
+		padding-top: 8px;
+	}
+	.timing-control + .timing-control {
+		border-left: 1px solid var(--studio-border);
+	}
+	.control-title {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+	}
+	.control-title h3 {
+		font: 500 20px/1.2 var(--font-display);
+		color: var(--color-text);
 		margin: 0;
 	}
-	.settings-room {
+	.timing-control p,
+	.channel-name p,
+	.speaker-check p {
+		color: var(--studio-muted);
+		font-size: 13px;
+		line-height: 1.5;
+		margin: 5px 0 0;
+	}
+	.hardware {
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr);
+		place-items: center;
+	}
+	.hardware :global(.knob-disabled) {
+		opacity: 0.6;
+	}
+	.band-strip {
+		margin: 22px 0;
+	}
+	.channel-line {
+		display: grid;
 		align-items: center;
+		grid-template-columns: minmax(0, 1fr) 112px 100px;
+		gap: 14px;
+		padding: 0 15px;
+	}
+	.channel-head {
+		color: var(--color-brass-soft);
+		font-size: 10px;
+		font-weight: 650;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		padding-bottom: 9px;
+	}
+	.db-unit {
+		text-transform: none;
+		letter-spacing: 0;
+	}
+	.channel-head span:not(:first-child) {
+		text-align: center;
+	}
+	.channel {
+		border-top: 1px solid color-mix(in srgb, var(--studio-border) 68%, transparent);
+		min-height: 89px;
+		padding-top: 10px;
+		padding-bottom: 10px;
+	}
+	.channel:last-child {
+		border-bottom: 1px solid color-mix(in srgb, var(--studio-border) 68%, transparent);
+	}
+	.band-voice {
+		min-width: 0;
+		width: max-content;
+		max-width: 100%;
+		margin: 6px 0 0;
+		padding: 0;
+		border: 0;
+	}
+	.band-voice :global(.pad-frame) {
+		display: inline-flex;
+	}
+	.band-voice :global(.pad-btn) {
+		min-width: 54px;
+		min-height: 26px;
+		padding: 3px 10px;
+	}
+	.speaker-check {
+		padding: 16px 18px;
+	}
+	.speaker-head {
+		display: flex;
+		justify-content: space-between;
+		gap: 16px;
+		align-items: center;
+	}
+	.sound-check-action {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		gap: 20px;
-		border-top: 1px solid var(--studio-border);
-		margin-top: 20px;
+		margin-top: 13px;
+		padding-top: 13px;
+		border-top: 1px solid color-mix(in srgb, var(--studio-border) 60%, transparent);
 	}
-	.settings-room-check {
-		display: grid;
-		justify-items: start;
-		gap: 8px;
-		padding-top: 16px;
+	.sound-check-action p {
+		margin: 0;
+		max-width: 55ch;
 	}
-	.settings-room-check [role='status']:empty { margin: 0; }
-	@media (max-width: 600px) {
-		.settings-room { grid-template-columns: 1fr; }
-		.settings-room-check { padding-top: 0; }
+	.sound-check-action button {
+		flex: none;
+		min-height: 38px;
 	}
-	.settings-footnote {
-
-		border-top: 1px solid var(--studio-border);
-		padding-top: 18px;
-		margin-top: 24px;
+	.sound-check-status:empty {
+		display: none;
+	}
+	.speaker-check .sound-check-status:not(:empty) {
+		margin-top: 12px;
+		color: var(--color-text);
+	}
+	@media (max-width: 1050px) {
+		.timing-control {
+			padding: 0 13px;
+			gap: 8px;
+		}
+	}
+	@media (max-width: 620px) {
+		.timing-strip {
+			padding: 12px 0;
+		}
+		.timing-control {
+			grid-template-columns: 1fr;
+			justify-items: center;
+			text-align: center;
+			align-content: start;
+			gap: 4px;
+		}
+		.timing-control > div:last-child {
+			padding-top: 0;
+		}
+		.timing-control .control-title {
+			justify-content: center;
+		}
+		.timing-control p,
+		.speaker-check p,
+		.channel-name p {
+			font-size: 12px;
+		}
+		.channel-line {
+			grid-template-columns: minmax(0, 1fr) 64px 80px;
+			gap: 7px;
+			padding-left: 0;
+			padding-right: 0;
+		}
+		.channel .control-title h3 {
+			font-size: 17px;
+		}
+		.band-voice :global(.pad-btn) {
+			min-width: 40px;
+			padding: 3px 5px;
+		}
+		.speaker-check {
+			padding: 14px;
+		}
+		.speaker-head {
+			align-items: flex-start;
+			gap: 10px;
+		}
+		.speaker-head .control-title {
+			align-items: baseline;
+		}
+		.speaker-head .control-title h3 {
+			font-size: 18px;
+		}
+		.sound-check-action {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 10px;
+		}
+	}
+	@media (max-width: 360px) {
+		.channel-line {
+			grid-template-columns: minmax(0, 1fr) 56px 80px;
+			gap: 4px;
+		}
+		.channel .control-title {
+			gap: 3px;
+		}
 	}
 	.settings-summary {
 		border-top: 3px solid var(--color-brass);
@@ -1192,18 +1409,6 @@
 		.settings-scales {
 			--selector-columns: 4;
 		}
-		.settings-rhythm-grid {
-			grid-template-columns: 1fr 1fr;
-			row-gap: 28px;
-		}
-		.settings-rhythm-cell:nth-child(2) {
-			border: 0;
-		}
-		.settings-accompaniment {
-			display: flex;
-			align-items: center;
-			gap: 18px;
-		}
 	}
 	@media (max-width: 900px) {
 		.settings-desk-grid {
@@ -1237,20 +1442,37 @@
 			--selector-columns: 2;
 		}
 		.settings-general-controls {
-			grid-template-columns: 1fr 1fr;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 12px 4px;
+		}
+		.settings-general-controls :global([role='slider']) {
+			max-width: 100%;
+		}
+		.settings-general-controls :global(svg) {
+			max-width: 100%;
+		}
+		.settings-general-controls > :global(div) {
+			min-width: 0;
 		}
 		.settings-appearance {
 			grid-column: 1 / -1;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			justify-self: stretch;
+			max-width: none;
+			border: 0;
+			border-top: 1px solid var(--studio-border);
+			padding: 14px 0 0;
+		}
+		.settings-appearance > p {
+			margin: 0;
+		}
+		.settings-appearance :global(.pad-frame) {
+			width: min(56%, 185px);
 		}
 		.settings-scales {
 			--selector-columns: 2;
-		}
-		.settings-rhythm-cell {
-			padding: 0 10px;
-		}
-		.settings-accompaniment {
-			flex-direction: column;
-			gap: 16px;
 		}
 		.settings-summary dl {
 			grid-template-columns: 1fr;

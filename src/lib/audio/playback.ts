@@ -20,7 +20,7 @@ import { SAMPLE_OPTIONS, SOUNDFONT_OPTIONS, SAMPLE_CHANNEL_REFERENCE, SOUNDFONT_
 import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
-import { fractionToFloat } from '$lib/music/intervals';
+import { addFractions, compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMelodyGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, continueMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
@@ -37,6 +37,7 @@ import {
 	playCountOff,
 	prepareBackingSection
 } from './backing-track';
+import { scheduleBoundaryEvents } from './boundary-events';
 import { COUNT_IN_VOICE, drumCountInHits } from './drum-count-in';
 import {
 	codaPhrase,
@@ -546,7 +547,7 @@ export function phraseToEvents(
 	tempo: number,
 	swing: number,
 	ppq: number,
-	{ performed = false }: { performed?: boolean } = {}
+	{ performed = false, tongueRepeats = false }: Pick<PhrasePlaybackOpts, 'performed' | 'tongueRepeats'> = {}
 ): PlaybackEvent[] {
 	// Rest-skip + tie-merge into sounding notes, then compute per-note musical
 	// expression (dynamics + articulation). The expression pass NEVER touches
@@ -565,6 +566,23 @@ export function phraseToEvents(
 		const gridTicks = Math.round(swungBeats * ppq);
 		const ticks = performed ? gridTicks : humanizeTiming(gridTicks, ppq, tempo);
 		const notatedSeconds = fractionToFloat(s.duration) * 4 * (60 / tempo);
+
+		const prev = sounding[k - 1];
+		if (tongueRepeats && !performed && prev?.pitch === s.pitch &&
+			compareFractions(addFractions(prev.offset, prev.duration), s.offset) === 0) {
+			// Fade the preceding sample into the new reed attack. Use the actual
+			// swung, humanized interval: a short upbeat can otherwise ring right
+			// across the downbeat. Tied continuations already form one event.
+			const prior = events[k - 1];
+			const interval = (ticks - prior.ticks) * 60 / (ppq * tempo);
+			if (interval > 0) {
+				const lead = Math.min(0.022, interval * 0.12);
+				prior.duration = Math.min(prior.duration, interval - lead);
+				// Let some tone carry through the attack, even on a fast upbeat.
+				const fadeBeforeAttack = interval - prior.duration;
+				prior.release = Math.min(prior.release, fadeBeforeAttack * 1.5 + lead / 2);
+			}
+		}
 
 		events.push({
 			time: `${ticks}i`,
@@ -678,6 +696,8 @@ function getPhraseBars(phrase: Phrase): number {
  * `onStarted` is added to the freshly-started transport and will fire.
  */
 export interface PhrasePlaybackOpts {
+	/** Give adjacent untied unisons a soft re-attack in a sax ear-training call. */
+	tongueRepeats?: boolean;
 	skipMelody?: boolean;
 	/** The phrase is a recorded performance: play its timing as written (see `phraseToEvents`). */
 	performed?: boolean;
@@ -694,7 +714,7 @@ export interface PhrasePlaybackOpts {
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
 	startTick?: number;
-	/** Audio time for a seamless, backing-only continuation at startTick. */
+	/** Audio time of a joined downbeat whose transport tick has already fired. */
 	boundaryTime?: number;
 	/**
 	 * Fired once per sounding melody note, on the UI thread at the audible
@@ -815,7 +835,7 @@ export async function playPhrase(
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
-	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
+	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, opts);
 	const onNote = opts.onNote;
 	/** Sound one melody note and, at its audible moment, report it to the cursor. */
 	const playMelodyEvent = (time: number, event: PlaybackEvent): void => {
@@ -1119,9 +1139,9 @@ export async function scheduleNextPhrase(
 
 	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
+		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, opts);
 		const onNote = opts.onNote;
-		currentPart = new Tone.Part((time, event) => {
+		const playMelody = (time: number, event: PlaybackEvent) => {
 			startNote({ ...event, time });
 			if (onNote) {
 				const info: PlaybackNoteEvent = {
@@ -1134,7 +1154,12 @@ export async function scheduleNextPhrase(
 					if (scheduleId === currentScheduleId) onNote(info);
 				}, time);
 			}
-		}, events);
+		};
+		const boundary = opts.boundaryTime === undefined ? undefined : {
+			audioTime: opts.boundaryTime, startTick: nextBarTicks, throughTick: transport.ticks,
+			secondsPerTick: 60 / options.tempo / ppq
+		};
+		currentPart = new Tone.Part(playMelody, scheduleBoundaryEvents(events, playMelody, boundary));
 		currentPart.start(`${nextBarTicks}i`);
 	}
 
@@ -1164,9 +1189,15 @@ export async function scheduleNextPhrase(
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
 	const endTicks = nextBarTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 	if (opts.onDemonstration && !skipMelody) {
-		transport.scheduleOnce(time => {
-			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, (endTicks - nextBarTicks) * 60 / (ppq * options.tempo));
-		}, `${nextBarTicks}i`);
+		const duration = (endTicks - nextBarTicks) * 60 / (ppq * options.tempo);
+		const notify = (time: number) => {
+			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, duration);
+		};
+		if (opts.boundaryTime !== undefined && nextBarTicks <= transport.ticks) {
+			notify(opts.boundaryTime);
+		} else {
+			transport.scheduleOnce(notify, `${nextBarTicks}i`);
+		}
 	}
 
 	return new Promise<void>((resolve) => {

@@ -16,6 +16,7 @@
 	import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TuneSessionOptions from '$lib/components/tunes/TuneSessionOptions.svelte';
+	import PrintableTune from '$lib/components/tunes/PrintableTune.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
 	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
 	import { tuneKeyCenters } from '$lib/tunes/key-centers';
@@ -149,6 +150,7 @@
 	$effect(() => {
 		if (player.playing && baseId) recordRecentTune(baseId);
 	});
+	let printPreview = $state(false);
 	let settingsDialog = $state<HTMLDialogElement>();
 	let chartWidth = $state(800);
 	let viewportWidth = $state(1280);
@@ -185,7 +187,7 @@
 		selectedWrittenKey = key;
 		if (baseId) saveTuneKey(baseId, writtenKeyToConcert(key, getInstrument()));
 	}
-	const keyCenters = $derived(displayedSheet ? tuneKeyCenters(displayedSheet, getInstrument(), { solo: showChordChart }) : null);
+	const keyCenters = $derived(displayedSheet && (!player.playing || showChordChart) ? tuneKeyCenters(displayedSheet, getInstrument(), { solo: showChordChart }) : null);
 	const markers: RangeMarker[] = $derived([
 		...(showKeyCenters ? keyCenters?.markers ?? [] : []),
 		...(player.chartBar === null ? [] : [{ id: 'tune-playhead', startBar: Math.floor(player.chartBar), endBarExclusive: Math.floor(player.chartBar) + 1, status: 'playhead' as const }])
@@ -218,7 +220,7 @@
 
 	/** Keep playback and focus shortcuts clear of dialogs and editable controls. */
 	function handleKeydown(event: KeyboardEvent): void {
-		if (document.querySelector('dialog[open]')) return;
+		if (printPreview || document.querySelector('dialog[open]')) return;
 		if (event.key === 'Escape') { setFocus(false); return; }
 		if (event.repeat) return;
 		if (event.key !== ' ' || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -276,12 +278,16 @@
 
 <svelte:window onkeydown={handleKeydown} bind:innerWidth={viewportWidth} />
 
+{#if printPreview && sheet}
+	<PrintableTune tune={sheet} instrument={getInstrument()} showCenters={showKeyCenters} onclose={() => printPreview = false} />
+{:else}
 <div class="lick-editor tune-desk tune-detail studio-desk" class:td-focus={tuneDeskView.focus}>
 	{#if !tuneDeskView.focus}
 		<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>
 		<header class="td-detail-heading">
 			<div><p class="studio-label">Your tune book</p><h1>{baseSheet?.title ?? 'Tune'}</h1><p class="td-heading-meta">{baseSheet?.composer ?? 'Your arrangement'} <span>·</span> {totalBars} bars <span>·</span> <span class="le-badge">{isCurated ? 'Curated' : isOwnSheet ? 'Your arrangement' : 'Community'}</span></p>{#if authorName}<p class="td-composer">Shared by {authorName}</p>{/if}</div>
 			<div class="td-detail-actions">{#if baseSheet}
+				<button class="le-button le-quiet" onclick={() => { player.stop(); printPreview = true; }}>Print lead sheet</button>
 				{#if isOwnSheet}<button class="le-button le-quiet" onclick={handleEdit}>Edit tune</button>
 				{:else if isCurated}<button class="le-button le-quiet" onclick={handleCopy}>Edit a copy</button>{/if}
 				{#if bookSheet}<button class="td-practice-link" onclick={() => goto(tunePracticePath(baseSheet))}>Practice licks <span aria-hidden="true">→</span></button>
@@ -298,7 +304,7 @@
 						<div class="td-chart-tools"><button aria-pressed={showKeyCenters} onclick={() => showKeyCenters = saveTuneDisplay('key-centers', !showKeyCenters)}><i class="td-color-dot" aria-hidden="true"></i><span>Show Key Centers</span><i class="td-switch" class:active={showKeyCenters} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => setFocus(!tuneDeskView.focus)}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
 					</div>
 					{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
-					<div class="td-score-well" use:observeChartWidth={(width) => { chartWidth = width; }}>{#if showChordChart}<TuneChordChart keyCenterLaneCount={keyCenters?.laneCount ?? 0} highlightCurrentBeat={false} tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />{:else}<NotationDisplay staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} playheadStyle="wash-subtle" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />{/if}</div>
+					<div class="td-score-well" use:observeChartWidth={(width) => { chartWidth = width; }}>{#if showChordChart}<TuneChordChart solo={player.playing} keyCenterLaneCount={keyCenters?.laneCount ?? 0} highlightCurrentBeat={false} tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />{:else}<NotationDisplay staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} keyCenterRails keyCenterLaneCount={keyCenters?.laneCount ?? 0} playheadStyle="wash-subtle" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />{/if}</div>
 					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + openingBarNumber}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>
@@ -317,6 +323,8 @@
 	{:else}<section class="le-panel le-chart"><p>Tune not found: {page.params.id}</p><a href="/tunes">Back to Tunes</a></section>{/if}
 	{#if !tuneDeskView.focus}<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>{/if}
 </div>
+
+{/if}
 
 {#snippet chartSettings(prefix: string)}
 	{#if sheet && baseSheet}

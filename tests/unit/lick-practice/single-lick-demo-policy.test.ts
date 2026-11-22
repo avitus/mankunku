@@ -3,7 +3,7 @@
  *
  * - `startSingleLickSession` orders the rotation worst-first from PERSISTED
  *   rolling scores and always demos the first cycle (session reminder).
- * - `advanceSingleLickRound` re-sorts the survivors (and the refilled circle)
+ * - `advanceSingleLickRound` keeps survivors in FIFO order and sorts the refilled circle
  *   from the rolling scores — which by then include this cycle's attempts —
  *   and decides `demoNextCycle`: demo only while the head (worst) key is
  *   below proficient, only in continuous mode, and NEVER on a refill cycle —
@@ -116,16 +116,16 @@ describe('startSingleLickSession worst-first ordering', () => {
 });
 
 describe('advanceSingleLickRound rotation + demo decision', () => {
-	it('sorts survivors worst-first and demos while the head key is weak', () => {
+	it('retries misses in the order played and joins without another demo', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
 		seedRolling('lick-f', { F: 0.92, G: 0.96, C: 0.85 });
 		lickPractice.masteredThisRound = ['G'];
 
-		advanceSingleLickRound();
+		expect(advanceSingleLickRound()).toBe(true);
 
-		expect(lickPractice.plan[0].keys).toEqual(['C', 'F']);
-		expect(lickPractice.demoNextCycle).toBe(true); // head C at 0.85 < 0.9
+		expect(lickPractice.plan[0].keys).toEqual(['F', 'C']);
+		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
 	it('skips the demo once every surviving key is proficient', () => {
@@ -136,8 +136,8 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 
 		advanceSingleLickRound();
 
-		expect(lickPractice.plan[0].keys).toEqual(['C', 'F']);
-		expect(lickPractice.demoNextCycle).toBe(false); // head C at 0.93 ≥ 0.9
+		expect(lickPractice.plan[0].keys).toEqual(['F', 'C']);
+		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
 	it('sorts the refilled circle worst-first after a full clear', () => {
@@ -167,28 +167,27 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
-	it('still demos a weak head key when the rotation was not cleared in full', () => {
+	it('keeps the turnaround when the last played key is the only retry', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
 		seedRolling('lick-f', { F: 0.99, G: 0.98, C: 0.8 });
 		lickPractice.masteredThisRound = ['F', 'G']; // C survives
 
-		advanceSingleLickRound();
+		expect(advanceSingleLickRound()).toBe(false);
 
 		expect(lickPractice.plan[0].keys).toEqual(['C']);
 		expect(lickPractice.demoNextCycle).toBe(true);
 	});
 
-	it('ranks a never-practiced key worst so it gets the demo', () => {
+	it('joins directly into a sole survivor that was missed earlier in the queue', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		seedRolling('lick-f', { F: 0.95, G: 0.92 }); // C unknown
-		lickPractice.masteredThisRound = [];
+		lickPractice.masteredThisRound = ['G', 'C'];
 
-		advanceSingleLickRound();
-
-		expect(lickPractice.plan[0].keys[0]).toBe('C');
-		expect(lickPractice.demoNextCycle).toBe(true);
+		expect(advanceSingleLickRound()).toBe(true);
+		expect(lickPractice.plan[0].keys).toEqual(['F']);
+		expect(lickPractice.demoNextCycle).toBe(false);
+		expect(advanceSingleLickRound()).toBe(false); // F now follows itself.
 	});
 
 	it('never demos in call-response mode (each key already has its own call)', () => {

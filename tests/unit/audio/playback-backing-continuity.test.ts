@@ -122,3 +122,35 @@ describe('ear-training backing continuity', () => {
 		expect((await runSession('disabled')).after).toEqual([]);
 	});
 });
+
+it('plays the opening call exactly once on a joined Deep Practice downbeat', async () => {
+	const h = await createHeadlessTransport({ sampleRate: 48000, bpm: 120, startQuantum: 1 });
+	h.Tone.setContext(h.context);
+	guardTickRedelivery(h.transport);
+	const playback = await import('$lib/audio/playback');
+	try {
+		await playback.loadInstrument('trumpet', 1, 'piano');
+		hits.length = 0;
+		const startTick = h.transport.PPQ * 4;
+		const onDemonstration = vi.fn();
+		const started = vi.fn();
+		let next: Promise<void> | undefined;
+		let downbeat = 0;
+		h.transport.scheduleOnce(time => {
+			downbeat = time;
+			next = playback.scheduleNextPhrase(phrase, { ...options, backingTrackEnabled: false }, {
+				startTick, boundaryTime: time, loopBacking: false, performed: true, onStarted: started, onDemonstration
+			});
+		}, `${startTick}i`);
+		h.transport.start();
+		h.run(2.05);
+		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+		h.run(3); // One bar plus the playback completion beat.
+		await next;
+		expect(hits).toEqual([{ voice: 'Soundfont', note: 60, time: downbeat }]);
+		expect(onDemonstration.mock.calls).toEqual([[downbeat, 2.5]]);
+	} finally {
+		await playback.stopPlayback();
+		h.context.dispose();
+	}
+});

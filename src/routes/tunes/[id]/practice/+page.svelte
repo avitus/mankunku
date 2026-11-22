@@ -248,7 +248,7 @@
 		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
 	);
 	const activeKeyCenters = $derived.by(() => {
-		const sheet = showSoloChart ? chartSheet : displayedSheet;
+		const sheet = showSoloChart ? chartSheet : null;
 		return sheet ? tuneKeyCenters(sheet, getInstrument(), { solo: showSoloChart }) : null;
 	});
 	const markers = $derived.by<RangeMarker[]>(() => {
@@ -1012,12 +1012,11 @@
 
 		{#if showKeyCenters && activeKeyCenters}<KeyCenterLegend display={activeKeyCenters} />{/if}
 		{#if displayedSheet && showSoloChart}
-			<TuneChordChart keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0} tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
+			<TuneChordChart solo tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
 			<NotationDisplay
-				keyCenterRails keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0}
 				tune={displayedSheet}
 				instrument={getInstrument()}
 				tuneOptions={audioPlan?.chartOptions}

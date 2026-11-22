@@ -57,7 +57,7 @@ can still attenuate or mute their own element; their default is unity.
 | Stage | Reference / behavior |
 | --- | --- |
 | Main faders | Master 0.8, Melody 1, Click 0.5, Backing 0.6, stored as amplitudes |
-| Control travel | 60 dB logarithmic span; bottom is exact mute; readouts are dB |
+| Control travel | Mute at 0%; first step −60 dB; 25/50/75/100% give −24/−12/−6/0 dB relative to maximum |
 | Advanced faders | Same taper; maximum amplitude 3 (+9.54 dB), unity explicitly marked |
 | Sample channels | Explicit smplr volume 127; former `(100/127)²` moved into named calibration |
 | Soundfont channels | Explicit extraGain 1; historical factor 5 moved into named calibration |

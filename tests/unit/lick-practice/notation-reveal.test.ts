@@ -24,6 +24,7 @@ import {
 	getCurrentKey,
 	getPlannedKey,
 	getPlannedKeysForLick,
+	queuedRetryRow,
 	getHandoffPreviewKey,
 	getDeepCycleEntry,
 	getKeyPasses,
@@ -279,7 +280,7 @@ describe('deep practice rescue for any unlocked key', () => {
 });
 
 describe('planned rows carry the reveal decision', () => {
-	it('prepares a later key graduating from sheet music, not just the cycle head', () => {
+	it('previews a missed sheet key from memory while another key is still playing', () => {
 		const lick = makeLick('C');
 		setUnlockedCount(lick.id, 2);
 		seedRolling(lick.id, { C: 0.8, G: 0.7 });
@@ -287,12 +288,15 @@ describe('planned rows carry the reveal decision', () => {
 		expect(getPlannedKeysForLick(0).find(row => row.key === 'G')?.reveal).toBe(true);
 		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('G');
 		recordKeyAttempt(makeScore(0.9));
+		expect(queuedRetryRow(getPlannedKeysForLick(0)[0])).toMatchObject({
+			key: 'G', reveal: false, passes: 1, cycle: 2
+		});
 		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('C');
 		recordKeyAttempt(makeScore(0.5));
 		advanceSingleLickRound();
-		expect(lickPractice.plan[0].keys).toEqual(['C', 'G']);
-		expect(getKeyPauses(0)).toEqual([0, 1]);
-		expect(getPlannedKeysForLick(0)[1].cycleEntry).toMatchObject({ fromMemory: true, prepareBars: 1 });
+		expect(lickPractice.plan[0].keys).toEqual(['G', 'C']);
+		expect(getKeyPauses(0)).toEqual([0, 0]);
+		expect(getPlannedKeysForLick(0)[0].cycleEntry).toMatchObject({ fromMemory: true, prepareBars: 0 });
 	});
 
 	it('remembers a graduated sheet when that key returns after sitting out a round', () => {

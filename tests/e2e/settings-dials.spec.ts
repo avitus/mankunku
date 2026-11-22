@@ -12,7 +12,7 @@ const numericDials = [
 		max: 200,
 		step: 5,
 		divisor: 1,
-		unit: ''
+		unit: ' BPM'
 	},
 	{
 		name: 'Swing feel',
@@ -58,7 +58,7 @@ for (const dial of numericDials) {
 				`${value}${dial.unit}`
 			);
 			await expect(slider.locator('svg text')).toHaveText(
-				`${value}${dial.unit}`
+				dial.key === 'defaultTempo' ? [String(value), 'BPM'] : [`${value}${dial.unit}`]
 			);
 		}
 		await slider.press('ArrowUp');

@@ -26,7 +26,7 @@
   {@const db=playing && mix[instrument.key]>0 && level?.peak ? Math.max(-60,Math.min(0,20*Math.log10(level.peak))) : -60}
   <div class="channel" class:muted={mix[instrument.key] === 0}>
    <label for={`mix-${instrument.key}`}>{instrument.label}</label>
-   <div class="fader-pair"><div class="fader"><span class="unity" aria-hidden="true"></span><input id={`mix-${instrument.key}`} aria-label={`${instrument.label} volume`} aria-orientation="vertical" type="range" min="0" max="1" step="0.01" value={gainToFader(mix[instrument.key],3)} aria-valuetext={gainLabel(mix[instrument.key])} {disabled}
+   <div class="fader-pair"><div class="fader"><span class="unity" aria-hidden="true" style:bottom={`calc(8px + (100% - 16px) * ${gainToFader(1, 3)})`}></span><input id={`mix-${instrument.key}`} aria-label={`${instrument.label} volume`} aria-orientation="vertical" type="range" min="0" max="1" step="0.01" value={gainToFader(mix[instrument.key],3)} aria-valuetext={gainLabel(mix[instrument.key])} {disabled}
     oninput={event => onchange({ ...mix, [instrument.key]: faderToGain(Number(event.currentTarget.value),3) })} />
    </div>
    <div class="signal-meter" role="meter" aria-label={`${instrument.label} audio signal`} aria-valuemin={-60} aria-valuemax={0} aria-valuenow={db} aria-valuetext={playing && !level ? 'Signal unavailable' : `${Math.round(db)} dBFS`} title={instrument.key === 'room' ? 'Reverb return before backing volume' : 'Instrument audio before backing volume'}>
@@ -48,7 +48,7 @@
  .channel label{font-weight:500;letter-spacing:.025em}.fader{position:relative;height:118px;width:44px;display:flex;justify-content:center}
  .fader-pair{display:flex;align-items:center;gap:5px}.signal-meter{position:relative;width:8px;height:118px;overflow:hidden;border-radius:2px;background:linear-gradient(to top,#65af87 0%,#65af87 65%,#d5ad6c 85%,#ce725f 100%);box-shadow:0 0 0 1px var(--line)}
  .meter-cover{position:absolute;inset:0 0 auto;background:var(--color-bg-secondary,#182433)}.dark .meter-cover{background:#182433}.meter-segments{position:absolute;inset:0;background:repeating-linear-gradient(to top,transparent 0 4px,#101b2a88 4px 6px);pointer-events:none}
- .unity{position:absolute;bottom:calc(84.096% + 3px);width:40px;height:1px;background:var(--subtle);opacity:.45;pointer-events:none}
+ .unity{position:absolute;width:40px;height:1px;background:var(--subtle);opacity:.45;pointer-events:none}
  input{writing-mode:vertical-lr;direction:rtl;width:28px;height:118px;margin:0;accent-color:var(--accent);cursor:pointer;position:relative;z-index:1}output{font-size:.65rem;font-variant-numeric:tabular-nums;color:var(--subtle);min-width:3rem;text-align:center}
  button{border:1px solid var(--line);padding:.45rem .4rem;min-width:3.4rem;border-radius:3px;color:var(--subtle);font-size:.6rem;cursor:pointer}button[aria-pressed=true]{background:var(--accent);color:#172435;border-color:var(--accent)}
  input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button:disabled,input:disabled{opacity:.5;cursor:default}.muted label{color:var(--subtle)}

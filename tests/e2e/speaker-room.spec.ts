@@ -18,6 +18,60 @@ async function countSoundChecks(page: Page): Promise<void> {
 	});
 }
 
+test('the Settings sound check reaches the speaker output before any music has played', async ({ page, browserName }) => {
+	test.skip(browserName !== 'chromium', 'Uses the native speaker graph in Chromium');
+	test.setTimeout(45_000);
+	await seedOnboardedAnonymous(page);
+	await page.addInitScript(() => {
+		// Stand in for the physical output jack. The microphone hears only connections
+		// that actually reach the destination, including their disconnections.
+		let speaker: DelayNode | undefined;
+		for (const method of ['connect', 'disconnect'] as const) {
+			AudioNode.prototype[method] = new Proxy(AudioNode.prototype[method], {
+				apply(target, source, args) {
+					const context = source.context;
+					if (args[0] instanceof AudioDestinationNode && context instanceof AudioContext) {
+						speaker ??= context.createDelay();
+						if (context === speaker.context) args[0] = speaker;
+					}
+					return Reflect.apply(target, source, args);
+				}
+			}) as typeof AudioNode.prototype.connect & typeof AudioNode.prototype.disconnect;
+		}
+		MediaDevices.prototype.getUserMedia = async () => {
+			if (!speaker || !(speaker.context instanceof AudioContext)) throw new Error('Missing speaker output');
+			const ctx = speaker.context;
+			const mic = ctx.createMediaStreamDestination();
+			// A newly opened duplex device adjusts its buffering before latency settles.
+			speaker.delayTime.setValueAtTime(0.070, ctx.currentTime);
+			speaker.delayTime.setValueAtTime(0.071, ctx.currentTime + 1.2);
+			speaker.delayTime.setValueAtTime(0.072, ctx.currentTime + 2.4);
+			speaker.connect(mic);
+			return mic.stream;
+		};
+	});
+	await countSoundChecks(page);
+	await page.goto('/settings');
+	await page.getByRole('switch', { name: 'Speaker bleed reduction' }).click();
+	const check = page.getByRole('button', { name: 'Start speaker sound check' });
+	const master = page.getByRole('slider', { name: 'Master volume' });
+	await master.press('Home');
+	await check.click();
+	await expect(page.getByText(/Master is muted/)).toBeVisible();
+	expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBeNull();
+	await master.press('End');
+	await check.click();
+	await expect(page.getByText('Speaker calibration saved on this device.')).toBeVisible({timeout: 20_000});
+	const savedProfile = () => page.evaluate(() => localStorage.getItem('mankunku.speaker-room-profile.v1'));
+	const profile = await savedProfile();
+	expect(profile).toBeTruthy();
+	// Simulate a silent playback failure on retry while Master is still up.
+	await page.evaluate(() => { AudioBufferSourceNode.prototype.start = () => {}; });
+	await check.click();
+	await expect(page.getByText(/sound check produced no output/i)).toBeVisible({timeout: 20_000});
+	expect(await savedProfile()).toBe(profile);
+});
+
 test('Play with backing and no calibration starts the phrase on both attempts without a sound check', async ({ page, browserName }) => {
 	test.skip(browserName !== 'chromium', 'Measures the native speaker graph in Chromium');
 	test.setTimeout(90_000);
@@ -293,7 +347,7 @@ for (const failure of ['unrelated microphone', 'stalled worklet'])
 		await startCheck.click();
 		const stalled = failure === 'stalled worklet';
 		await expect(page.getByText(stalled ? 'Calibration unavailable. You can retry here.' :
-			'No reliable speaker return. Practice will use the original microphone.')).toBeVisible({ timeout: 20_000 });
+			'The microphone could not match the test hiss.')).toBeVisible({ timeout: 20_000 });
 		await page.goto('/ear-training');
 		await page.getByRole('button', { name: 'Start practice' }).click();
 		await expect(page.getByText(stalled ? 'Using original microphone · calibrate speakers in Settings' :
@@ -319,7 +373,7 @@ test('turning backing off releases the calibration microphone; a completed negat
 	await expect.poll(tracks).toEqual(['ended']);
 	await backing.click();
 	await startCheck.click();
-	await expect(page.getByText('No reliable speaker return. Practice will use the original microphone.')).toBeVisible({timeout: 20_000});
+	await expect(page.getByText('The microphone could not match the test hiss.')).toBeVisible({timeout: 20_000});
 	await expect.poll(tracks).toEqual(['ended', 'ended']);
 	await backing.click();
 	await backing.click();

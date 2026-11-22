@@ -22,27 +22,21 @@ for (const width of [1440, 390]) {
 		const a = page.locator('svg [data-key-center="A minor"]').first();
 		await expect(g).toBeVisible(); await expect(a).toBeVisible();
 		await expect(page.getByText('Key-center readings', { exact: true })).toHaveCount(0);
-		await expect(g.locator('text')).toHaveText('G maj');
-		await expect(a.locator('text')).toHaveText('A min');
-		await expect(g.locator('line')).toHaveCSS('stroke-width', '2.5px');
-		// Both overlapping rails remain below the music and inside the SVG,
-		// including the last system and the narrower mobile engraving.
-		const railsFit = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.every(rail => {
-			const box = rail.getBoundingClientRect();
-			const svg = rail.closest('svg')!.getBoundingClientRect();
-			const notes = rail.parentElement!.querySelectorAll('.abcjs-note');
-			const wrappers = [...rail.closest('svg')!.querySelectorAll('.abcjs-staff-wrapper')];
-			const next = wrappers[wrappers.indexOf(rail.parentElement!) + 1];
-			const nextInk = next?.querySelectorAll('.abcjs-note, .abcjs-chord, .abcjs-part, .abcjs-bar-number') ?? [];
-			return box.bottom <= svg.bottom && [...notes].every(note => note.getBoundingClientRect().bottom < box.top)
-				&& [...nextInk].every(ink => ink.getBoundingClientRect().top > box.bottom);
-		}));
-		expect(railsFit).toBe(true);
+		await expect(g.locator('text')).toHaveText('G');
+		await expect(a.locator('text')).toHaveText('A-');
+		await expect(g).toHaveAttribute('data-treatment', 'chord-stroke');
+		expect(await g.evaluate(group => {
+			const chord = group.parentElement!.querySelector('.abcjs-chord')!;
+			const rect = group.querySelector('rect')!.getBoundingClientRect();
+			const ink = chord.getBoundingClientRect();
+			return rect.top < ink.bottom && rect.bottom > ink.top &&
+				!!(group.compareDocumentPosition(chord) & Node.DOCUMENT_POSITION_FOLLOWING);
+		})).toBe(true);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-${width}.png`), fullPage: true });
 		await page.evaluate(() => document.documentElement.classList.add('light'));
 		const lightColor = await g.evaluate(el => getComputedStyle(el).color);
-		await expect(g.locator('line')).toHaveCSS('stroke', lightColor);
+		await expect(g.locator('rect')).toHaveCSS('fill', lightColor);
 		await expect(g.locator('text')).toHaveCSS('fill', lightColor);
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-light-${width}.png`), fullPage: true });
 		await page.evaluate(() => document.documentElement.classList.remove('light'));
@@ -196,7 +190,7 @@ for (const width of [1440, 390]) for (const melody of [true, false]) {
 		const rail = page.locator('[data-key-center-lane="2"]').last();
 		await expect(rail).toBeVisible();
 		if (melody) {
-			const failures = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.flatMap(rail => {
+			const failures = await page.locator('svg .key-center-ink').evaluateAll(rails => rails.flatMap(rail => {
 				const box = rail.getBoundingClientRect();
 				const svg = rail.closest('svg')!;
 				const wrappers = [...svg.querySelectorAll('.abcjs-staff-wrapper')];
@@ -220,3 +214,35 @@ for (const width of [1440, 390]) for (const melody of [true, false]) {
 		expect(await geometry()).toEqual(before);
 	});
 }
+
+test('illustrated chart settings persist independently and print the written melody', async ({ page }) => {
+	const tune = structuredClone(autumn);
+	tune.sections[0].notes[0].gliss = true;
+	await seedTunes(page, [tune]);
+	await page.goto('/settings');
+	const radio = (name: string) => page.getByRole('radio', { name, exact:true });
+	await expect(radio('Chord stroke')).toBeChecked();
+	await expect(radio('Full bar')).toBeChecked();
+	await radio('Staff wash').check();
+	await radio('Top strip').check();
+	await page.reload();
+	await expect(radio('Staff wash')).toBeChecked();
+	await expect(radio('Top strip')).toBeChecked();
+	await page.goto('/tunes/key-center-autumn');
+	await page.getByRole('button', { name:'Print lead sheet' }).click();
+	const rows = page.locator('.systems > svg');
+	await expect(rows.first().locator('.abcjs-note').first()).toBeVisible();
+	await expect(rows.first().locator('.abcjs-glissando')).toBeVisible();
+	await expect(rows.locator('.abcjs-glissando')).toHaveCount(1);
+	const wash = rows.locator('[data-treatment="staff-wash"]').first();
+	await expect(wash).toBeVisible();
+	expect(await wash.evaluate(group => {
+		const staff = group.parentElement!.querySelector('.abcjs-staff')!.getBoundingClientRect();
+		const tint = group.querySelector('rect')!.getBoundingClientRect();
+		return tint.bottom > staff.top && tint.top < staff.bottom;
+	})).toBe(true);
+	await page.emulateMedia({ media:'print' });
+	await expect(page.getByRole('navigation').first()).toBeHidden();
+	await expect(rows.last()).toBeVisible();
+	await expect(page.getByRole('button', { name:'Print', exact:true })).toBeHidden();
+});

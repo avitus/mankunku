@@ -28,13 +28,13 @@ test.describe('lick-practice session flow', () => {
 		// WebKit sample decoding can consume much of a cycle's timeout. Wait
 		// for audible playback before timing the following three-pass keys.
 		await expect(page.locator('.row.current[data-key="C"] .phase-tab[data-kind="play"]')).toBeVisible({ timeout: 30_000 });
-		// Arm while the first key is still playing. Waiting for Bb's final
-		// pass and then crossing the browser connection can miss the entire
-		// 420 ms cycle animation on a busy runner.
+		// The silent C take misses. While Bb plays, the retry must already
+		// be visible below it so the player can anticipate the downbeat.
+		await expect(page.locator('.row.current[data-key="Bb"] + .row[data-key="C"]')).toBeVisible({ timeout: 30_000 });
 		// Inspect the real CSS animation at deterministic checkpoints. Under
 		// CI load, WebKit can miss its early frames in a requestAnimationFrame
 		// sampler even though the animation starts in the correct position.
-		const { movement, duration } = await page.evaluate(() => new Promise<{ movement: number[]; duration: number }>((resolve, reject) => {
+		const { movement, duration, playing } = await page.evaluate(() => new Promise<{ movement: number[]; duration: number; playing: boolean }>((resolve, reject) => {
 			const observer = new MutationObserver(sample);
 			const timeout = setTimeout(() => {
 				observer.disconnect();
@@ -59,11 +59,12 @@ test.describe('lick-practice session flow', () => {
 				animation.currentTime = duration / 2;
 				const middle = offset();
 				animation.finish();
-				resolve({ movement: [start, middle, offset()], duration });
+				resolve({ movement: [start, middle, offset()], duration, playing: !!row.querySelector('.chart-wrap.recording .phase-tab[data-kind="play"]') });
 			}
 			observer.observe(document, { childList: true, subtree: true, attributes: true });
 			sample();
 		}));
+		expect(playing).toBe(true);
 		expect(duration).toBe(420);
 		expect(Math.max(...movement)).toBeGreaterThan(64);
 		expect(movement.some(y => y > 2 && y < 100)).toBe(true);

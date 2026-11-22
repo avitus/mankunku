@@ -89,13 +89,13 @@ async function openSessionOptions(page: Page): Promise<void> {
 	await expect(options).toHaveAttribute('open', '');
 }
 
-/** Commit numeric tempo entry and wait for the reactive transport readout. */
+/** Commit numeric tempo entry after setup hydration. */
 async function setTempoMax(page: Page): Promise<void> {
 	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
 	await expect(async () => {
 		await tempo.fill('240');
 		await tempo.press('Tab');
-		await expect(page.locator('.tp-start')).toContainText('240 BPM', { timeout: 1_000 });
+		await expect(tempo).toHaveValue('240', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 
@@ -596,13 +596,13 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await setTempoMax(page);
 		await startPracticeSession(page);
 
-		// The head has harmonic context and a playhead, but no lick prompts.
+		// The head shows the melody and playhead. Solo annotations arrive with the changes.
 		// A regex in getByText is not whitespace-normalised, and the template breaks
 		// this line between "once" and "through".
 		await expect(page.getByText(/melody once\s+through/i)).toBeVisible({ timeout: 20_000 });
 		const annotationsDuringHead = await page.evaluate(() => {
 			const vp = document.querySelector('[data-testid="chart-scroll-viewport"].following');
-			const markers = [...(vp?.querySelectorAll('svg .range-marker:not(.key-center-rail)') ?? [])];
+			const markers = [...(vp?.querySelectorAll('svg .range-marker') ?? [])];
 			return {
 				labels: markers.filter((m) => m.classList.contains('range-marker-label')).length,
 				bands: markers.filter((m) => m.getAttribute('data-marker-id') !== '__playhead').length,
@@ -714,10 +714,13 @@ test.describe.serial('tune practice session follow-scroll', () => {
 	});
 });
 
-for (const showCenters of [true, false]) test(`active key-center rails retain setup visibility: ${showCenters}`, async ({ page, browserName }) => {
+for (const [showCenters, style] of [[true, 'Full bar'], [true, 'Top strip'], [false, 'Top strip']] as const)
+test(`key centers follow the solo and respect the setup switch: ${style}, ${showCenters}`, async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [threeLaneSheet()]);
+	await page.goto('/settings');
+	await page.getByRole('radio', { name:style }).check();
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
 	await page.goto('/tunes/three-lane-centers/practice');
@@ -729,20 +732,19 @@ for (const showCenters of [true, false]) test(`active key-center rails retain se
 	await startPracticeSession(page);
 	await expect(page.getByText(/melody once\s+through/i)).toBeVisible();
 	const legend = page.getByRole('list', { name: 'Key center legend', exact: true });
-	const staffRails = page.locator('[data-testid="chart-scroll-viewport"].following [data-key-center-lane="2"]');
-	if (showCenters) {
-		await expect(legend).toBeVisible();
-		await expect(staffRails.first()).toBeAttached();
-	} else {
-		await expect(legend).toHaveCount(0);
-		await expect(staffRails).toHaveCount(0);
-	}
+	await expect(legend).toHaveCount(0);
+	await expect(page.locator('.following [data-key-center]')).toHaveCount(0);
 	const chart = page.getByTestId('tune-chord-chart');
 	await expect(chart).toBeVisible({ timeout: 20_000 });
-	await expect(chart.locator('.tcc-key-centers').first()).toHaveCSS('height', '54px');
+	await expect(chart.locator('.solo-cues').first()).toBeVisible();
 	if (showCenters) {
 		await expect(legend).toBeVisible();
-		await expect(chart.locator('[data-key-center-lane="2"]').first()).toBeAttached();
+		const centers = chart.locator('.solo-harmony[data-key-center]');
+		await expect(centers.first()).toBeVisible();
+		await expect(centers.first()).toHaveAttribute('data-treatment', style === 'Full bar' ? 'full-bar' : 'top-strip');
+		expect(await chart.locator('[data-bar]').evaluateAll(bars => bars.every(bar =>
+			bar.querySelectorAll('[data-key-center]').length <= 1 &&
+			!bar.querySelector('.solo-cues [data-key-center]')))).toBe(true);
 	} else {
 		await expect(legend).toHaveCount(0);
 		await expect(chart.locator('[data-key-center]')).toHaveCount(0);

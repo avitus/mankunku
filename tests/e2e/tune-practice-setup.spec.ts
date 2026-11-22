@@ -35,16 +35,15 @@ for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844
 		await expect(page.getByRole('radiogroup', { name: 'Mode', exact: true })).toBeHidden();
 		await expect(page.getByRole('radiogroup', { name: 'Chart cues', exact: true })).toBeHidden();
 		await expect(page.getByRole('button', { name: /insert my licks|remove licks/i })).toHaveCount(0);
-		await expect(page.locator('.tp-start')).toContainText('100 BPM');
+		await expect(page.getByRole('spinbutton', { name: 'Tempo' })).toHaveValue('100');
 		const chart = await page.getByRole('region', { name: 'Practice chart' }).boundingBox();
 		const rail = await page.getByRole('complementary', { name: 'Practice settings' }).boundingBox();
 		expect(chart).not.toBeNull();
 		expect(rail).not.toBeNull();
-		if (viewport.width > 800) {
-			expect(chart!.width).toBeGreaterThan(rail!.width * 2);
-			expect(rail!.x).toBeGreaterThan(chart!.x + chart!.width);
-		} else {
-			expect(rail!.y).toBeGreaterThan(chart!.y + chart!.height);
+		expect(rail!.y + rail!.height).toBeLessThanOrEqual(chart!.y);
+		const start = await page.getByRole('button', { name:'Start', exact:true }).boundingBox();
+		expect(start!.y + start!.height).toBeLessThanOrEqual(chart!.y);
+		if (viewport.width <= 800) {
 			// Two bars must engrave at a readable size, not shrink a desktop staff.
 			const staff = await page.locator('.abcjs-staff').first().boundingBox();
 			expect(staff!.height).toBeGreaterThanOrEqual(26);
@@ -58,7 +57,7 @@ for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844
 		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
 		await tempo.fill('135');
 		await tempo.press('Tab');
-		await expect(page.locator('.tp-start')).toContainText('135 BPM');
+		await expect(tempo).toHaveValue('135');
 		expect(await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:settings') ?? '{}').tuneTempos['e2e-when-the-saints'])).toBe(135);
 
 		await page.locator('details.tp-options summary').click();
