@@ -6,16 +6,16 @@ import { guardTickRedelivery } from '$lib/audio/tick-redelivery';
 
 // Real Tone clock and real backing generation; only sample rendering is inert.
 const melodyBus = {};
-const hits: { voice: string; note: unknown; time: number; destination: unknown; preset?: string }[] = [];
+const hits: { voice: string; note: unknown; time: number; destination: unknown; preset?: string; kit?: string }[] = [];
 beforeAll(() => vi.stubGlobal('cancelAnimationFrame', () => {}));
 afterAll(() => vi.unstubAllGlobals());
 vi.mock('smplr', () => {
 	class Instrument {
-		constructor(_context: unknown, private options: { destination: unknown; instrument?: string }) {}
+		constructor(_context: unknown, private options: { destination: unknown; instrument?: string; kit?: string }) {}
 		load = Promise.resolve();
 		output = { addInsert() {} };
 		start(hit: { note: unknown; time: number }) {
-			hits.push({ destination: this.options.destination, preset: this.options.instrument, voice: this.constructor.name, note: hit.note, time: hit.time });
+			hits.push({ destination: this.options.destination, preset: this.options.instrument, kit: this.options.kit, voice: this.constructor.name, note: hit.note, time: hit.time });
 		}
 		stop() {}
 		disconnect() {}
@@ -133,6 +133,7 @@ describe('Concert Pitch calls with backing off', () => {
 			expect(hits).toHaveLength(1);
 			expect(hits[0]).toMatchObject({ voice, preset, note: 60 });
 			expect(hits[0].destination).toBe(melodyBus);
+			if (voice === 'Soundfont') expect(hits[0].kit).toBe(id === 'violin' ? 'FluidR3_GM' : 'MusyngKite');
 		} finally {
 			await playback.stopPlayback();
 			h.context.dispose();

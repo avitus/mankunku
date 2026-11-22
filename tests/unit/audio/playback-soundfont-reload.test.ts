@@ -127,6 +127,20 @@ describe('reloading an instrument (MANKUNKU-1T)', () => {
 });
 
 describe('the loaded voice shapes the expression chain', () => {
+	it('reloads the trumpet trim when switching between Ear Training and other players', async () => {
+		const { loadInstrument, isInstrumentLoaded } = await import('$lib/audio/playback');
+		const { SOUNDFONT_REFERENCE } = await import('$lib/audio/mixer-policy');
+		for (const mode of ['ear-training', undefined] as const) {
+			const before = graph.nodes.length;
+			await loadInstrument('trumpet', undefined, undefined, mode);
+			expect(isInstrumentLoaded('trumpet', mode)).toBe(true);
+			expect(isInstrumentLoaded('trumpet', mode ? undefined : 'ear-training')).toBe(false);
+			const filter = graph.nodes.slice(before).find(node => 'Q' in node)!;
+			const [trim] = filter.outputs as Set<{ gain: { value: number } }>;
+			expect(trim.gain.value).toBeCloseTo(SOUNDFONT_REFERENCE * (mode ? 10 ** (-4 / 20) : 1));
+		}
+	});
+
 	it.each(['tenor-sax', 'alto-sax', 'soprano-sax', 'trumpet'])(
 		'%s gets its own warmth ceiling and a PITCH vibrato',
 		async (instrumentId) => {

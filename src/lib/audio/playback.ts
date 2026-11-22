@@ -47,7 +47,7 @@ import {
 	splitLoopEvents,
 	type LoopRegion
 } from './phrase-loop';
-import { earTrainingVoice, loadEarTrainingVoice } from './ear-training-voices';
+import { earTrainingGain, earTrainingVoice, loadEarTrainingVoice } from './ear-training-voices';
 import { loadSampleLayer } from './sample-loader';
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
@@ -99,6 +99,7 @@ let tone: ToneModule | null = null;
 let instrument: SmplrSoundfont | null = null;
 let concertPlayer: Awaited<ReturnType<typeof loadEarTrainingVoice>> | null = null;
 let loadedInstrumentId: string | undefined;
+let loadedMode: 'ear-training' | undefined;
 /** Custom sample layers for velocity switching */
 let samplerPiano: SmplrSampler | null = null;
 let samplerForte: SmplrSampler | null = null;
@@ -285,6 +286,7 @@ function cleanupInstruments(): void {
 	concertPlayer?.disconnect();
 	concertPlayer = null;
 	loadedInstrumentId = undefined;
+	loadedMode = undefined;
 	if (samplerPiano) {
 		samplerPiano.disconnect();
 		samplerPiano = null;
@@ -432,8 +434,19 @@ export async function loadInstrument(
 		if (loadId !== currentLoadId) return;
 	}
 
-	loadedInstrumentId = instrumentId;
 	setupJazzExpression(audioCtx, instrumentId);
+	if (mode === 'ear-training') {
+		const gain = earTrainingGain(instrumentId, !!sampleMap && !activeSampleMap);
+		if (concertPlayer) {
+			const trim = audioCtx.createGain();
+			trim.gain.value = gain;
+			concertPlayer.output.addInsert(trim);
+		} else if (melodyTrim) {
+			melodyTrim.gain.value *= gain;
+		}
+	}
+	loadedInstrumentId = instrumentId;
+	loadedMode = mode;
 
 	// Load backing track instruments in parallel with metronome warmup
 	// Backing track load is best-effort — failures must not block playback
@@ -451,11 +464,7 @@ export async function loadInstrument(
  * Check if an instrument is loaded and ready.
  */
 export function isInstrumentLoaded(instrumentId?: string, mode?: 'ear-training'): boolean {
-	if (instrumentId !== undefined) {
-		if (instrumentId !== loadedInstrumentId) return false;
-		const wantsConcertPlayer = mode === 'ear-training' && earTrainingVoice(instrumentId) !== undefined;
-		if (wantsConcertPlayer !== (concertPlayer !== null)) return false;
-	}
+	if (instrumentId !== undefined && (instrumentId !== loadedInstrumentId || loadedMode !== mode)) return false;
 	return concertPlayer !== null || instrument !== null || (samplerPiano !== null && samplerForte !== null);
 }
 
