@@ -118,12 +118,14 @@ describe('loadSettingsFromCloud', () => {
 		expect(syncSettingsToCloud).toHaveBeenLastCalledWith(expect.anything(), { instrumentId: 'tenor-sax', highestNote: 78 });
 	});
 
-	it('keeps melody balance on the device without sending a cloud patch', async () => {
+	it('keeps melody balance and chart styles on the device without sending a cloud patch', async () => {
 		mockFetchSettings.mockResolvedValue({ instrumentId: 'tenor-sax' });
 		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
 		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
 		vi.mocked(syncSettingsToCloud).mockClear();
 		settingsModule.settings.melodyVolume = 0.3;
+		settingsModule.settings.leadSheetHighlight = 'staff-wash';
+		settingsModule.settings.soloHighlight = 'top-strip';
 		settingsModule.saveSettings();
 		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
 		expect(syncSettingsToCloud).not.toHaveBeenCalled();
@@ -132,7 +134,7 @@ describe('loadSettingsFromCloud', () => {
 		const reloaded = await import('$lib/state/settings.svelte');
 		mockFetchSettings.mockResolvedValue({ instrumentId: 'soprano-sax' });
 		await reloaded.loadSettingsFromCloud(mockSupabase() as any);
-		expect(reloaded.settings.melodyVolume).toBe(0.3);
+		expect(reloaded.settings).toMatchObject({ melodyVolume:0.3, leadSheetHighlight:'staff-wash', soloHighlight:'top-strip' });
 		expect(reloaded.settings.instrumentId).toBe('soprano-sax');
 	});
 

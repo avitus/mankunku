@@ -26,6 +26,7 @@
 	import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 	import type { PitchClass } from '$lib/types/music';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import KeyCenterSettings from '$lib/components/tunes/KeyCenterSettings.svelte';
 	import StudioPage from '$lib/components/console/StudioPage.svelte';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import VolumeDial from '$lib/components/console/VolumeDial.svelte';
@@ -450,6 +451,9 @@
 						/>
 					</div>
 				</div>
+				<KeyCenterSettings sheet={settings.leadSheetHighlight} solo={settings.soloHighlight}
+					onsheet={style => { settings.leadSheetHighlight = style; saveSettings(); }}
+					onsolo={style => { settings.soloHighlight = style; saveSettings(); }} />
 			</StudioPanel>
 			<StudioPanel
 				id="settings-tonality"

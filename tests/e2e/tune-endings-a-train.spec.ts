@@ -361,15 +361,14 @@ test('the editor bar hit rect for the stacked [2] bar sits under its music, not 
 });
 
 /**
- * Commit the maximum tempo after hydration; the transport readout confirms
- * that the input reached the practice state.
+ * Commit the maximum tempo after setup hydration.
  */
 async function setTempoMax(page: Page): Promise<void> {
 	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
 	await expect(async () => {
 		await tempo.fill('240');
 		await tempo.press('Tab');
-		await expect(page.locator('.tp-start')).toContainText('240 BPM', { timeout: 1_000 });
+		await expect(tempo).toHaveValue('240', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 

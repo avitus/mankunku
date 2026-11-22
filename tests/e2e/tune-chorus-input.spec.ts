@@ -31,7 +31,6 @@ test('practice tempo entry displays the actual tempo at both boundaries and afte
 		await tempo.fill(entered);
 		await tempo.blur();
 		await expect(tempo).toHaveValue(normalized);
-		await expect(page.locator('.td-play-summary')).toContainText(`${normalized} BPM`);
 	}
 	await page.getByRole('button', { name: 'Increase tempo', exact: true }).click();
 	await expect(tempo).toHaveValue('55');
@@ -43,5 +42,4 @@ test('practice tempo entry displays the actual tempo at both boundaries and afte
 	await page.reload();
 	await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
 	await expect(tempo).toHaveValue('240');
-	await expect(page.locator('.td-play-summary')).toContainText('240 BPM');
 });

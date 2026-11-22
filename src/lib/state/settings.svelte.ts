@@ -26,12 +26,16 @@ function loadSettings() {
 		result.backingStyle = 'swing';
 	}
 	result.tuneBackingStyles = cleanTuneBackingStyles(result.tuneBackingStyles);
+	result.leadSheetHighlight = result.leadSheetHighlight === 'staff-wash' ? 'staff-wash' : 'chord-stroke';
+	result.soloHighlight = result.soloHighlight === 'top-strip' ? 'top-strip' : 'full-bar';
 	result.tuneTempos = cleanTuneTempos(result.tuneTempos);
 	return result;
 }
 
 const defaultSettings = {
 	instrumentId: 'tenor-sax',
+	leadSheetHighlight: 'chord-stroke' as 'chord-stroke' | 'staff-wash',
+	soloHighlight: 'full-bar' as 'full-bar' | 'top-strip',
 	defaultTempo: 100,
 	masterVolume: MIXER_DEFAULTS.master,
 	/** Device-local melody balance; cloud volume columns retain their amplitude meaning. */
@@ -75,8 +79,8 @@ let settingsHydrationOk = false;
 type Settings = typeof defaultSettings;
 type SettingsKey = keyof Settings;
 type FieldRevisions = Partial<Record<SettingsKey, number>>;
-// Melody balance is device-local and must not enqueue an empty cloud patch.
-const settingsKeys = (Object.keys(defaultSettings) as SettingsKey[]).filter(key => key !== 'melodyVolume');
+// Device-local audio and chart presentation choices do not enqueue cloud patches.
+const settingsKeys = (Object.keys(defaultSettings) as SettingsKey[]).filter(key => !['melodyVolume', 'leadSheetHighlight', 'soloHighlight'].includes(key));
 
 // Track edits per field: an unsent volume change must not keep a fresh browser's
 // default instrument or push it over the account's instrument on another device.
@@ -182,7 +186,8 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 
 		// Apply cloud values except for fields with unsent edits, or edits made
 		// after this read started (even if a concurrent flush already sent them).
-		const merged = { ...defaultSettings, ...cloudSettings, melodyVolume: settings.melodyVolume };
+		const merged = { ...defaultSettings, ...cloudSettings, melodyVolume: settings.melodyVolume,
+			leadSheetHighlight: settings.leadSheetHighlight, soloHighlight: settings.soloHighlight };
 		for (const key of settingsKeys) {
 			if (pendingFields[key] !== undefined || readPending[key] !== undefined || (lastEdited[key] ?? 0) > readLocalRev) {
 				Object.assign(merged, { [key]: settings[key] });

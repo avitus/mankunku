@@ -232,3 +232,25 @@ export function keyCenterBarSpan(marker: RangeMarker, bar: number, barLength: nu
 	const end = Math.min((bar + 1) * barLength, marker.timeRange?.end ?? marker.endBarExclusive * barLength);
 	return { left: (start / barLength - bar) * 100, width: Math.max(0, (end - start) / barLength * 100) };
 }
+
+/** Engraved short form; assistive labels retain the full written key name. */
+export function compactCenter(label: string): string {
+	return label.replace(/ major$/, '').replace(/ minor$/, '-').replace(/ blues$/, ' bl.').replace(/^[A-G]b/, s => s[0] + '♭').replace('#', '♯');
+}
+
+/** Prefer the center covering most of a solo bar, then the primary analysis lane. */
+export function soloBarCenters(markers: RangeMarker[], barLength: number): Map<number, RangeMarker> {
+	const centers = new Map<number, RangeMarker>();
+	for (const marker of markers) {
+		if (!marker.keyCenter) continue;
+		for (let bar = marker.startBar; bar < marker.endBarExclusive; bar++) {
+			const previous = centers.get(bar);
+			const width = keyCenterBarSpan(marker, bar, barLength).width;
+			const priorWidth = previous ? keyCenterBarSpan(previous, bar, barLength).width : 0;
+			if (width > priorWidth + 1e-7 || (previous && Math.abs(width - priorWidth) < 1e-7 && marker.keyCenter.lane < previous.keyCenter!.lane)) {
+				centers.set(bar, marker);
+			}
+		}
+	}
+	return centers;
+}
