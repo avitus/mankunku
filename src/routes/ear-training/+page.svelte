@@ -450,6 +450,14 @@
 		};
 	}
 
+	function demonstrationOptions(resolveAtMelodyEnd: boolean) {
+		return {
+			resolveAtMelodyEnd,
+			tongueRepeats: settings.instrumentId.endsWith('-sax'),
+			onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
+		};
+	}
+
 	/** Start a practice run with fresh tuning evidence and exclusive audio setup. */
 	async function handlePlay() {
 		if (starting) return;
@@ -497,10 +505,7 @@
 			// bars past a short melody and let the user's echo start before
 			// the mic is live). Without a mic there's no handoff, so keep the
 			// bar-aligned stop.
-			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, {
-				resolveAtMelodyEnd: hasMic,
-				onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
-			});
+			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, demonstrationOptions(hasMic));
 
 			if (!currentRun(generation)) return;
 			if (hasMic) {
@@ -888,10 +893,7 @@
 		session.lastScore = null;
 		try {
 			session.engineState = 'playing';
-			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), {
-				resolveAtMelodyEnd: true,
-				onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
-			});
+			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), demonstrationOptions(true));
 			if (looping && currentRun(generation)) await enterAwaitingInput(generation);
 		} catch (err) {
 			if (!currentRun(generation)) return;

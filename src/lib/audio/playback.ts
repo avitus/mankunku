@@ -20,7 +20,7 @@ import { SAMPLE_OPTIONS, SOUNDFONT_OPTIONS, SAMPLE_CHANNEL_REFERENCE, SOUNDFONT_
 import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
-import { fractionToFloat } from '$lib/music/intervals';
+import { addFractions, compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMelodyGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, continueMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
@@ -547,7 +547,7 @@ export function phraseToEvents(
 	tempo: number,
 	swing: number,
 	ppq: number,
-	{ performed = false }: { performed?: boolean } = {}
+	{ performed = false, tongueRepeats = false }: Pick<PhrasePlaybackOpts, 'performed' | 'tongueRepeats'> = {}
 ): PlaybackEvent[] {
 	// Rest-skip + tie-merge into sounding notes, then compute per-note musical
 	// expression (dynamics + articulation). The expression pass NEVER touches
@@ -566,6 +566,23 @@ export function phraseToEvents(
 		const gridTicks = Math.round(swungBeats * ppq);
 		const ticks = performed ? gridTicks : humanizeTiming(gridTicks, ppq, tempo);
 		const notatedSeconds = fractionToFloat(s.duration) * 4 * (60 / tempo);
+
+		const prev = sounding[k - 1];
+		if (tongueRepeats && !performed && prev?.pitch === s.pitch &&
+			compareFractions(addFractions(prev.offset, prev.duration), s.offset) === 0) {
+			// Fade the preceding sample into the new reed attack. Use the actual
+			// swung, humanized interval: a short upbeat can otherwise ring right
+			// across the downbeat. Tied continuations already form one event.
+			const prior = events[k - 1];
+			const interval = (ticks - prior.ticks) * 60 / (ppq * tempo);
+			if (interval > 0) {
+				const lead = Math.min(0.022, interval * 0.12);
+				prior.duration = Math.min(prior.duration, interval - lead);
+				// Let some tone carry through the attack, even on a fast upbeat.
+				const fadeBeforeAttack = interval - prior.duration;
+				prior.release = Math.min(prior.release, fadeBeforeAttack * 1.5 + lead / 2);
+			}
+		}
 
 		events.push({
 			time: `${ticks}i`,
@@ -679,6 +696,8 @@ function getPhraseBars(phrase: Phrase): number {
  * `onStarted` is added to the freshly-started transport and will fire.
  */
 export interface PhrasePlaybackOpts {
+	/** Give adjacent untied unisons a soft re-attack in a sax ear-training call. */
+	tongueRepeats?: boolean;
 	skipMelody?: boolean;
 	/** The phrase is a recorded performance: play its timing as written (see `phraseToEvents`). */
 	performed?: boolean;
@@ -816,7 +835,7 @@ export async function playPhrase(
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
-	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
+	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, opts);
 	const onNote = opts.onNote;
 	/** Sound one melody note and, at its audible moment, report it to the cursor. */
 	const playMelodyEvent = (time: number, event: PlaybackEvent): void => {
@@ -1120,7 +1139,7 @@ export async function scheduleNextPhrase(
 
 	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
+		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, opts);
 		const onNote = opts.onNote;
 		const playMelody = (time: number, event: PlaybackEvent) => {
 			startNote({ ...event, time });
