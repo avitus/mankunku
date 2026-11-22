@@ -11,6 +11,7 @@ const fallback = 'Room check unavailable · scoring the original microphone';
 const rejected = 'Room check did not pass · scoring the original microphone';
 
 interface Measurement {
+	silentOutput?: boolean;
 	reduction?: number;
 	filter?: RoomFilter;
 	check?: RoomTimingCheck | null;
@@ -19,8 +20,8 @@ interface Measurement {
 /** Low-level, decorrelated stereo calibration noise, ramped at both ends. */
 function probe(ctx: AudioContext): AudioBuffer {
 	const buffer = ctx.createBuffer(2, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+	const samples = new Float32Array(buffer.length);
 	for (let channel = 0; channel < 2; channel++) {
-		const samples = buffer.getChannelData(channel);
 		let brown = 0;
 		let seed = 0x67185 + channel;
 		for (let i = 0; i < samples.length; i++) {
@@ -34,6 +35,7 @@ function probe(ctx: AudioContext): AudioBuffer {
 			);
 			samples[i] = ramp * (0.065 * white + 0.29 * brown);
 		}
+		buffer.copyToChannel(samples, channel);
 	}
 	return buffer;
 }
@@ -112,7 +114,7 @@ async function measure(
 export async function calibrateRoom(
 	capture: MicCapture,
 	request: { mode: 'practice' } | { mode: 'sound-check'; signal: AbortSignal }
-): Promise<'saved' | 'rejected' | 'unsaved' | undefined> {
+): Promise<'saved' | 'rejected' | 'silent-output' | 'unsaved' | undefined> {
 	const soundCheck = request.mode === 'sound-check' ? request.signal : undefined;
 	const { source, stream, analyser } = capture;
 	const track = stream.getAudioTracks()[0];
@@ -136,8 +138,8 @@ export async function calibrateRoom(
 		roomStatus.text = filter === null ? rejected : 'Using original microphone · calibrate speakers in Settings';
 		return;
 	}
-	const wrapped = getMasterGain() as GainNode & { _nativeAudioNode?: GainNode };
-	const master = wrapped._nativeAudioNode ?? wrapped;
+	const mixerMaster = getMasterGain() as GainNode & { _nativeAudioNode?: GainNode };
+	const master = mixerMaster._nativeAudioNode ?? mixerMaster;
 	// Speaker upmix duplicates a mono program into L and R. Use this exact
 	// two-channel reference for both the worklet and the native convolvers.
 	const reference = ctx.createGain();
@@ -198,14 +200,17 @@ export async function calibrateRoom(
 		life.signal.throwIfAborted();
 		master.connect(reference);
 		if (soundCheck) {
-			const buffer = probe(ctx);
-			sound = ctx.createBufferSource();
+			// Start playback through the same context and Master as the instruments.
+			// Only the worklet and its reference tap need the native graph.
+			const buffer = probe(capture.context);
+			sound = capture.context.createBufferSource();
 			sound.buffer = buffer;
-			sound.connect(master);
+			sound.connect(mixerMaster);
 			const start = Math.ceil((ctx.currentTime + 0.12) * ctx.sampleRate);
 			sound.start(start / ctx.sampleRate);
-			const measured = await measure(ctx, mic, reference, start, buffer.length, ctx.currentTime + 15, life.signal);
+			const measured = await measure(ctx, mic, reference, start, buffer.length, start / ctx.sampleRate + 15, life.signal);
 			life.signal.throwIfAborted();
+			if (measured.silentOutput) return 'silent-output';
 			// A completed negative check can be remembered. A worker failure is retryable.
 			if (!Number.isFinite(measured.reduction)) return;
 			const stored = await saveProfile(snapshot, setup, measured.filter ?? null, life.signal);

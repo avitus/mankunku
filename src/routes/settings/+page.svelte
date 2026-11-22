@@ -55,6 +55,7 @@
 	let roomMessage = $state('');
 	let calibrating = $state(false);
 	let calibration: AbortController | undefined;
+	const mutedCheckMessage = 'Master is muted. Raise it to a comfortable listening level, then start the speaker sound check.';
 	onMount(() => {
 		explicitRoomPreference = roomPreference();
 		return () => calibration?.abort();
@@ -69,6 +70,10 @@
 
 	async function calibrateSpeakers(): Promise<void> {
 		if (calibrating || !roomCorrection) return;
+		if (settings.masterVolume === 0) {
+			roomMessage = mutedCheckMessage;
+			return;
+		}
 		const controller = new AbortController();
 		calibration = controller;
 		calibrating = true;
@@ -84,7 +89,8 @@
 			if (controller.signal.aborted) return;
 			switch (result) {
 				case 'saved': roomMessage = 'Speaker calibration saved on this device.'; break;
-				case 'rejected': roomMessage = 'No reliable speaker return. Practice will use the original microphone.'; break;
+				case 'rejected': roomMessage = 'The microphone could not match the test hiss. If you heard silence, check the tab mute and speaker output. If you heard the hiss, check the selected microphone and retry in a quiet room. Practice will use the original microphone.'; break;
+				case 'silent-output': roomMessage = 'The sound check produced no output. Check Master and retry.'; break;
 				case 'unsaved': roomMessage = 'Calibration passed, but could not be saved on this device.'; break;
 				default: roomMessage = 'Calibration unavailable. You can retry here.';
 			}
@@ -212,6 +218,8 @@
 	function handleMasterVolumeInput(v: number) {
 		settings.masterVolume = v;
 		setMasterVolume(v);
+		if (calibrating && v === 0) cancelCalibration(mutedCheckMessage);
+		else if (v > 0 && roomMessage === mutedCheckMessage) roomMessage = '';
 	}
 
 	function selectBackingInstrument(instrument: BackingInstrument) {
