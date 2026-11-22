@@ -132,8 +132,8 @@ test.beforeEach(async ({ page }) => {
 	await seedTunes(page, [HIGH_BAR_TUNE]);
 });
 
-test('chords sit 2.5 spaces above the staff regardless of high bars elsewhere in the system', async ({ page }) => {
-	await page.goto('/tunes/e2e-chord-height-tune');
+test('editor chords sit 2.5 spaces above the staff regardless of high bars elsewhere in the system', async ({ page }) => {
+	await page.goto('/tunes/editor?edit=e2e-chord-height-tune');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text.abcjs-chord').first()).toBeVisible();
 
@@ -179,4 +179,22 @@ test('chords sit 2.5 spaces above the staff regardless of high bars elsewhere in
 			(c.inkTopSp ?? 0) - 0.2
 		);
 	}
+});
+
+test('illustrated lead-sheet chords share a baseline that clears the highest obstruction in each system', async ({ page }) => {
+	await page.goto('/tunes/e2e-chord-height-tune');
+	await expect(page.locator('.abcjs-container svg text.abcjs-chord').last()).toBeVisible();
+	const systems = await measureChords(page);
+	expect(systems.map(chords => chords.length)).toEqual([4, 2]);
+	for (const chords of systems) {
+		const gaps = chords.map(chord => chord.baselineGapSp);
+		expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(0.1);
+		for (const chord of chords) {
+			if (chord.inkTopSp !== null) {
+				expect(chord.baselineGapSp).toBeGreaterThanOrEqual(chord.inkTopSp + 0.4);
+			}
+		}
+	}
+	expect(systems[0][0].baselineGapSp).toBeGreaterThan(systems[1][0].baselineGapSp);
+	expect(systems[1][0].baselineGapSp).toBeCloseTo(2.5, 1);
 });
