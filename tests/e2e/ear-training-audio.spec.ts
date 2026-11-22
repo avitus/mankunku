@@ -1,3 +1,4 @@
+import { observeListeningOutput } from './fixtures/listening-output';
 import { test, expect } from './fixtures/test';
 import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples, audibleSample } from './fixtures/audio';
@@ -78,4 +79,32 @@ for (const sampleScenario of ['real', 'valid-wav', 'decode', 'stalled']) test(`e
 	}
 	expect(peaks.backing, 'the backing must actually sound').toBeGreaterThan(0.001);
 	expect(peaks.melody, 'the lick must actually sound, including after sample decode failure').toBeGreaterThan(0.001);
+});
+
+for (const [instrumentId, bank] of [
+	['piano', 'splendid-grand-piano'], ['bass', 'dsmolken-double-bass'], ['guitar', 'electric_guitar_jazz']
+]) test(`Concert Pitch ${instrumentId} sounds with accompaniment muted`, async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI && process.env.MANKUNKU_TEST_AUDIO_SINK !== '1', 'Headless Linux Firefox has no audio output device');
+	test.setTimeout(60_000);
+	await seedStorage(page, {
+		settings: { ...SETTINGS_ONBOARDED, instrumentId, metronomeEnabled: false, metronomeVolume: 0,
+			backingTrackEnabled: false, backingTrackVolume: 0 },
+		'tour-state': TOUR_DISMISSED
+	});
+	await installAudioMock(page);
+	await observeListeningOutput(page);
+	await stubCdnInstrumentSamples(page, audibleSample());
+	if (instrumentId === 'bass') {
+		await page.route('**/d_smolken_rubner_bass_pizz.sfz', route => route.fulfill({
+			path: 'tests/fixtures/audio/smolken-pizzicato.sfz', contentType: 'text/plain',
+			headers: { 'access-control-allow-origin': '*' }
+		}));
+	}
+	await page.goto('/ear-training', { waitUntil: 'networkidle' });
+	const request = page.waitForRequest(req => req.url().includes(bank));
+	await page.locator('[data-tour="play-button"]').click();
+	await request;
+	await expect.poll(() => page.evaluate(() =>
+		(window as unknown as { __listeningOutput: { peak: number } }).__listeningOutput.peak
+	), { timeout: 30_000 }).toBeGreaterThan(0.001);
 });

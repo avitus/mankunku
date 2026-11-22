@@ -538,7 +538,7 @@
 		// A rejected sample fetch or AudioWorklet error must still unwind
 		// isLoading, or the Start button stays disabled on "Setting up…" forever.
 		try {
-			if (!playback.isInstrumentLoaded()) {
+			if (!playback.isInstrumentLoaded(settings.instrumentId)) {
 				await playback.loadInstrument(
 					settings.instrumentId,
 					settings.masterVolume,

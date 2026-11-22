@@ -47,6 +47,7 @@ import {
 	splitLoopEvents,
 	type LoopRegion
 } from './phrase-loop';
+import { earTrainingVoice, loadEarTrainingVoice } from './ear-training-voices';
 import { loadSampleLayer } from './sample-loader';
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
@@ -96,6 +97,8 @@ export interface PlaybackNoteEvent {
 let tone: ToneModule | null = null;
 /** SoundFont instrument (used when no custom samples available) */
 let instrument: SmplrSoundfont | null = null;
+let concertPlayer: Awaited<ReturnType<typeof loadEarTrainingVoice>> | null = null;
+let loadedInstrumentId: string | undefined;
 /** Custom sample layers for velocity switching */
 let samplerPiano: SmplrSampler | null = null;
 let samplerForte: SmplrSampler | null = null;
@@ -279,6 +282,9 @@ function cleanupJazzExpression(): void {
  * argument-less disconnects, which never throw.
  */
 function cleanupInstruments(): void {
+	concertPlayer?.disconnect();
+	concertPlayer = null;
+	loadedInstrumentId = undefined;
 	if (samplerPiano) {
 		samplerPiano.disconnect();
 		samplerPiano = null;
@@ -391,7 +397,8 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 export async function loadInstrument(
 	instrumentId: string = 'tenor-sax',
 	masterVolume?: number,
-	backingInstrument?: BackingInstrument
+	backingInstrument?: BackingInstrument,
+	mode?: 'ear-training'
 ): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
@@ -405,7 +412,15 @@ export async function loadInstrument(
 
 	// Try custom samples first, fall back to SoundFont
 	const sampleMap = instrumentVoice(instrumentId).samples;
-	if (sampleMap) {
+	const voice = mode === 'ear-training' ? earTrainingVoice(instrumentId) : undefined;
+	if (voice) {
+		const player = await loadEarTrainingVoice(audioCtx, getMelodyGain(), voice);
+		if (loadId !== currentLoadId) {
+			player.disconnect();
+			return;
+		}
+		concertPlayer = player;
+	} else if (sampleMap) {
 		const loaded = await loadCustomSamples(audioCtx, sampleMap, loadId);
 		if (loadId !== currentLoadId) return;
 		if (!loaded) {
@@ -417,6 +432,7 @@ export async function loadInstrument(
 		if (loadId !== currentLoadId) return;
 	}
 
+	loadedInstrumentId = instrumentId;
 	setupJazzExpression(audioCtx, instrumentId);
 
 	// Load backing track instruments in parallel with metronome warmup
@@ -434,8 +450,13 @@ export async function loadInstrument(
 /**
  * Check if an instrument is loaded and ready.
  */
-export function isInstrumentLoaded(): boolean {
-	return instrument !== null || (samplerPiano !== null && samplerForte !== null);
+export function isInstrumentLoaded(instrumentId?: string, mode?: 'ear-training'): boolean {
+	if (instrumentId !== undefined) {
+		if (instrumentId !== loadedInstrumentId) return false;
+		const wantsConcertPlayer = mode === 'ear-training' && earTrainingVoice(instrumentId) !== undefined;
+		if (wantsConcertPlayer !== (concertPlayer !== null)) return false;
+	}
+	return concertPlayer !== null || instrument !== null || (samplerPiano !== null && samplerForte !== null);
 }
 
 /**
@@ -444,6 +465,10 @@ export function isInstrumentLoaded(): boolean {
  * and applies per-note tuning corrections from the SFZ mapping.
  */
 function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
+	if (concertPlayer) {
+		concertPlayer.start({ note: event.midi, velocity: event.velocity, time: event.time, duration: event.duration });
+		return;
+	}
 	shapeVibrato(event.time, event.duration, event.release);
 	if (activeSampleMap && samplerPiano && samplerForte) {
 		// Layer + tuning are chosen from the intended (un-humanized) velocity so
@@ -474,6 +499,7 @@ function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void 
 
 /** Stop all ringing notes on the active instrument. */
 function stopNotes(): void {
+	concertPlayer?.stop();
 	samplerPiano?.stop();
 	samplerForte?.stop();
 	instrument?.stop();

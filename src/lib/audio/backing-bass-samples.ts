@@ -39,15 +39,19 @@ const SOURCE_GROUPS: readonly (readonly [stem: string, low: number, high: number
 	['pizz_g3_f', 53, 55, 55, 5, 121, 127, 4]
 ];
 
-const sourceGroups = SOURCE_GROUPS.map(([stem, low, high, pitch, choke, velLow, velHigh, length]) => ({
-	velRange: [velLow, velHigh] as [number, number],
-	length,
-	group: { group: choke, offBy: choke, ampRelease: 0.4 },
-	regions: Array.from({ length }, (_, position): SmplrRegion => ({
-		sample: `pizz/${stem}${'abcd'[position]}`, keyRange: [low, high], pitch,
-		...(position ? { seqPosition: position + 1 } : {}), group: choke, offBy: choke, ampRelease: 0.4
-	}))
-}));
+function sourceGroup([stem, low, high, pitch, choke, velLow, velHigh, length]: typeof SOURCE_GROUPS[number]) {
+	return {
+		velRange: [velLow, velHigh] as [number, number],
+		length,
+		group: { group: choke, offBy: choke, ampRelease: 0.4 },
+		regions: Array.from({ length }, (_, position): SmplrRegion => ({
+			sample: `pizz/${stem}${'abcd'[position]}`, keyRange: [low, high], pitch,
+			...(position ? { seqPosition: position + 1 } : {}), group: choke, offBy: choke, ampRelease: 0.4
+		}))
+	};
+}
+
+const sourceGroups = SOURCE_GROUPS.map(sourceGroup);
 
 function equalFields(actual: object, expected: object): boolean {
 	const entries = Object.entries(actual);
@@ -101,4 +105,23 @@ export function normalizeBackingBassPresetWithStatus(preset: SmplrPreset): { rec
 		if (group.seqLength === undefined) { group.seqLength = source.length; changed = true; }
 	}
 	return { recognized: true, changed };
+}
+
+/** Preserve the A3 recordings' velocity layers and pitch-shift them up to
+ * the player's highest selectable note. Only the melody owns this preset. */
+export function extendMelodyBassRange(preset: SmplrPreset, highest: number): void {
+	// The source uses C5 and higher keys for unpitched mutes and body noises.
+	preset.groups = preset.groups.filter(group => !group.regions.every(region => region.sample.startsWith('pizz/noises/')));
+	const layers = [
+		sourceGroup(['pizz_a3_p', 56, 60, 57, 5, 0, 74, 4]),
+		sourceGroup(['pizz_a3_m', 56, 60, 57, 5, 75, 120, 4]),
+		sourceGroup(['pizz_a3_f', 56, 60, 57, 5, 121, 127, 4])
+	];
+	for (const layer of layers) {
+		const group = preset.groups.find(candidate => matchesGroup(candidate, layer));
+		if (!group) throw new Error('Unrecognized Smolken upper-register sample map');
+		group.velRange = layer.velRange;
+		group.seqLength = layer.length;
+		for (const region of group.regions) region.keyRange = [56, highest];
+	}
 }

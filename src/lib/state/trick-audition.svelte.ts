@@ -8,7 +8,6 @@ export function createTrickAudition() {
 	let player: typeof import('$lib/audio/playback') | undefined;
 	let generation = 0;
 	let disposed = false;
-	let loadedInstrument: string | undefined;
 
 	/** Stop only this page's active preview, including asynchronous setup. */
 	async function stop(): Promise<void> {
@@ -32,10 +31,9 @@ export function createTrickAudition() {
 			player ??= await import('$lib/audio/playback');
 			if (disposed || request !== generation) return;
 			const instrument = settings.instrumentId;
-			if (!player.isInstrumentLoaded() || loadedInstrument !== instrument) {
+			if (!player.isInstrumentLoaded(instrument)) {
 				await player.loadInstrument(instrument, settings.masterVolume);
 				if (disposed || request !== generation) return;
-				loadedInstrument = instrument;
 			}
 			setMasterVolume(settings.masterVolume);
 			await player.playPhrase(phrase, {

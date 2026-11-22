@@ -290,7 +290,7 @@
 		const phrase = findPhraseForSession(s);
 		if (!phrase) return;
 
-		if (!playbackModule.isInstrumentLoaded()) {
+		if (!playbackModule.isInstrumentLoaded(settings.instrumentId)) {
 			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 		}
 		setMasterVolume(settings.masterVolume);

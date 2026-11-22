@@ -94,8 +94,8 @@ export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
 	// Concert pitch has always played the GM tenor SoundFont, never the
 	// tenor samples, with the non-sax tone settings.
 	concert: CONCERT_VOICE,
-	// The C instruments behind the "which C instrument?" follow-up keep the
-	// concert demo voice; none has a voice of its own yet.
+	// Other playback surfaces share the concert demo voice. Ear Training
+	// selects instrument-specific players in ear-training-voices.ts.
 	piano: CONCERT_VOICE,
 	guitar: CONCERT_VOICE,
 	bass: CONCERT_VOICE,
