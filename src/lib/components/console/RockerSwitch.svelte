@@ -2,6 +2,8 @@
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 
 	interface Props {
+		/** Use the adjacent row heading as the visible label. */
+		compact?: boolean;
 		checked: boolean;
 		label: string;
 		ariaLabel?: string;
@@ -14,7 +16,7 @@
 		onChange: (checked: boolean) => void;
 	}
 
-	let { checked, label, ariaLabel, helpText, disabled = false, onChange }: Props = $props();
+	let { compact = false, checked, label, ariaLabel, helpText, disabled = false, onChange }: Props = $props();
 
 	/**
 	 * Flip the switch. The click and the Space/Enter path both land here, so
@@ -34,7 +36,7 @@
 </script>
 
 <div class="inline-flex flex-col items-center gap-1.5">
-	<div class="flex items-center justify-center" style:min-height="84px">
+	<div class="flex items-center justify-center" style:min-height={compact ? undefined : '84px'}>
 		<!-- Housing size is pinned in px (not the rem-based h-8/w-20 utilities)
 		     because the sliding cap's geometry below (width 36px, translateX 36px,
 		     top/left 3px) is fixed px. If the housing scaled with the root
@@ -61,12 +63,14 @@
 			</span>
 		</button>
 	</div>
-	<span class="smallcaps console-engrave inline-flex items-center gap-1">
-		{label}
-		{#if helpText}
-			<TooltipHint text={helpText} position="top" />
-		{/if}
-	</span>
+	{#if !compact}
+		<span class="smallcaps console-engrave inline-flex items-center gap-1">
+			{label}
+			{#if helpText}
+				<TooltipHint text={helpText} position="top" />
+			{/if}
+		</span>
+	{/if}
 </div>
 
 <style>

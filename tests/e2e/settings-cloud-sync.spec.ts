@@ -68,9 +68,9 @@ test('a stale browser changing volume cannot overwrite another device’s instru
 	// has the earlier snapshot and must send only the setting it actually edits.
 	Object.assign(cloud.rows('user_settings')[0], { instrument_id: 'soprano-sax', swing: 0.62 });
 	await page.getByRole('slider', { name: 'Master volume', exact: true }).press('ArrowDown');
-	// ArrowDown snaps the saved 0.8 amplitude to 96% fader travel (-2.4 dB).
+	// ArrowDown snaps the saved 0.8 amplitude to 91% fader travel (-2.16 dB).
 	// The cloud still stores linear amplitude rather than the control position.
-	await expect.poll(() => cloud.rows('user_settings')[0].master_volume).toBeCloseTo(10 ** (-2.4 / 20), 10);
+	await expect.poll(() => cloud.rows('user_settings')[0].master_volume).toBeCloseTo(10 ** (-2.16 / 20), 10);
 	expect(cloud.rows('user_settings')[0]).toMatchObject({ instrument_id: 'soprano-sax', swing: 0.62 });
 
 	const fresh = await browser.newContext({ baseURL });
@@ -83,7 +83,7 @@ test('a stale browser changing volume cannot overwrite another device’s instru
 		await newPage.goto('/settings');
 		await expect(newPage.getByRole('radio', { name: /Soprano Saxophone/ })).toHaveAttribute('aria-checked', 'true');
 		await expect(newPage.getByRole('slider', { name: 'Swing feel' })).toHaveAttribute('aria-valuetext', '62%');
-		await expect(newPage.getByRole('slider', { name: 'Master volume', exact: true })).toHaveAttribute('aria-valuetext', '-2.4 dB');
+		await expect(newPage.getByRole('slider', { name: 'Master volume', exact: true })).toHaveAttribute('aria-valuetext', '-2.2 dB');
 		await newPage.waitForLoadState('networkidle');
 		expect(errors).toEqual([]);
 	} finally {
