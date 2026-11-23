@@ -1,6 +1,7 @@
 <script lang="ts">
  import { mixAudio } from '$lib/audio/media-playback';
-	import { clearSpeakerExamples, includeListenAudio, speakerReport } from '$lib/diagnostics/speaker-checks';
+	import { goto } from '$app/navigation';
+	import { clearSpeakerExamples, includeListenAudio, speakerExampleCount, speakerReport } from '$lib/diagnostics/speaker-checks';
 	import { onMount, onDestroy } from 'svelte';
 	import { getBackingTrackLog } from '$lib/audio/backing-track';
 	import type { BackingTrackLog } from '$lib/audio/backing-track';
@@ -41,12 +42,25 @@
 	let replayError = $state<string | null>(null);
 	let downloading = $state(false);
 	let downloadError = $state<string | null>(null);
-	let saveListenAudio = $state(false);
+	let exampleCount = $state<number | null>(null);
+	async function refreshSpeakerExamples() {
+		try {
+			exampleCount = await speakerExampleCount();
+		} catch { exampleCount = null; }
+	}
+	async function startSpeakerCapture() {
+		if (!includeListenAudio(true)) {
+			speakerMessage = 'This browser could not enable Listen audio capture.';
+			return;
+		}
+		await goto('/ear-training');
+	}
 	let speakerMessage = $state('');
 	async function clearListenAudio() {
-		saveListenAudio = includeListenAudio(false);
+		includeListenAudio(false);
 		try {
 			await clearSpeakerExamples();
+			await refreshSpeakerExamples();
 			speakerMessage = 'Saved Listen audio cleared.';
 		} catch {
 			speakerMessage = 'Could not clear saved Listen audio.';
@@ -73,7 +87,6 @@
 	}
 
 	onMount(async () => {
-		saveListenAudio = includeListenAudio();
 		await refresh();
 	});
 
@@ -82,6 +95,7 @@
 	});
 
 	async function refresh() {
+		void refreshSpeakerExamples();
 		btHistory = getBackingTrackLog(20);
 		try {
 			summaries = await getAllRecordingSummaries();
@@ -335,6 +349,8 @@
 	}
 </script>
 
+<svelte:window onfocus={refreshSpeakerExamples} />
+
 <svelte:head>
 	<title>Diagnostics — Mankunku</title>
 </svelte:head>
@@ -383,13 +399,14 @@
 	<section class="space-y-2 rounded-lg bg-[var(--color-bg-secondary)] p-4">
 		<h2 class="font-semibold">Speaker bleed reduction</h2>
 		<p class="text-sm">The report includes the last 64 speaker checks and their measurements.</p>
-		<label class="flex items-center gap-2 text-sm">
-			<input type="checkbox" checked={saveListenAudio}
-				onchange={(e) => { saveListenAudio = includeListenAudio(e.currentTarget.checked); }} />
-			Save Listen audio for troubleshooting in this tab
-		</label>
-		<p class="text-xs text-[var(--color-text-secondary)]">Keeps up to three seconds of microphone and speaker audio from the latest accepted and bypassed checks on this device. Saved examples are included in the download.</p>
-		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={downloadSpeakerReport}>Download speaker report</button>
+		<p class="text-sm">Capture up to three seconds of microphone and speaker audio per Listen check for ten minutes. This device keeps the latest example of each result.</p>
+		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={startSpeakerCapture}>Capture Listen audio and open Ear Training</button>
+		<p class="text-sm" role="status">
+			{#if exampleCount === null}Audio example count unavailable.
+			{:else if exampleCount === 0}No Listen audio saved. The download contains measurements only.
+			{:else}{exampleCount} {exampleCount === 1 ? 'audio example' : 'audio examples'} ready to download.{/if}
+		</p>
+		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={downloadSpeakerReport}>{exampleCount === 0 ? 'Download measurements only' : 'Download speaker report'}</button>
 		<button class="ml-2 text-sm underline" onclick={clearListenAudio}>Clear saved Listen audio</button>
 		{#if speakerMessage}<p role="status">{speakerMessage}</p>{/if}
 	</section>

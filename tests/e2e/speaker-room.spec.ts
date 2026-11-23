@@ -215,7 +215,13 @@ for (const mode of ['ear-training', 'lick-practice'])
 		);
 		if (mode === 'ear-training') {
 			await page.goto('/diagnostics');
-			await page.getByLabel('Save Listen audio for troubleshooting in this tab').check();
+			await expect(page.getByText('No Listen audio saved.', { exact: false })).toBeVisible();
+			// Enable in a separate tab, as when Settings or practice opens from a chat link.
+			const diagnosticsTab = await page.context().newPage();
+			await diagnosticsTab.goto('/diagnostics');
+			await diagnosticsTab.getByRole('button', { name: 'Capture Listen audio and open Ear Training' }).click();
+			await expect(diagnosticsTab).toHaveURL(/\/ear-training$/);
+			await diagnosticsTab.close();
 		}
 		await page.goto('/settings');
 		await page.getByRole('switch', { name: 'Backing track', exact: true }).click();
@@ -293,10 +299,10 @@ for (const mode of ['ear-training', 'lick-practice'])
 		if (mode === 'lick-practice') {
 			await page.goto('/diagnostics');
 			const [download] = await Promise.all([
-				page.waitForEvent('download'), page.getByRole('button', { name: 'Download speaker report' }).click()
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download measurements only' }).click()
 			]);
 			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
-			expect(report.checks).toContainEqual(expect.objectContaining({ stage: 'listen', result: 'active', attempt: 2 }));
+			expect(report.checks).toContainEqual(expect.objectContaining({ stage: 'listen', result: 'active', attempt: 2, audioExample: 'capture-off' }));
 			expect(report.examples).toEqual([]);
 		}
 		if (mode === 'ear-training') {
@@ -322,17 +328,19 @@ for (const mode of ['ear-training', 'lick-practice'])
 				expect.objectContaining({ stage: 'listen', result: 'active', phraseId: expect.any(String) })
 			]));
 			expect(report.examples).toHaveLength(2);
+			await expect(page.getByText('2 audio examples ready to download.')).toBeVisible();
 			for (const clip of report.examples) {
 				expect(Buffer.from(clip.mic, 'base64').length).toBe(Math.round(clip.rate * clip.event.captureSeconds) * 4);
 				expect(clip.left.length).toBe(clip.mic.length);
 				expect(clip.right.length).toBe(clip.mic.length);
 				expect(clip.filter.left.length).toBeGreaterThan(0);
+				expect(clip.event.audioExample).toBe('saved');
 				expect(clip.event.check.validationGain).toEqual(expect.any(Number));
 			}
 			await page.getByRole('button', { name: 'Clear saved Listen audio' }).click();
 			await expect(page.getByText('Saved Listen audio cleared.')).toBeVisible();
 			const [cleared] = await Promise.all([
-				page.waitForEvent('download'), page.getByRole('button', { name: 'Download speaker report' }).click()
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download measurements only' }).click()
 			]);
 			expect(JSON.parse(readFileSync(await cleared.path(), 'utf8')).examples).toEqual([]);
 			await page.goto('/settings');
