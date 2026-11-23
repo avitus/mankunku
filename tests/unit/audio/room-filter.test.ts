@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
 	fitRoom,
+	learnRoomSession,
 	predictRoom,
 	roomReduction,
 	validateRoom,
@@ -138,4 +139,37 @@ it('corrects a changed stereo balance on Listen and rejects a path that changes 
 	mic.set(independent.subarray(19000), 19000);
 	expect(verifyRoom(capture, filter)).toMatchObject({check: {accepted: false}});
 	expect(verifyRoom({...capture, mic: new Float32Array(mic.length)}, filter).correction).toBeUndefined();
+});
+
+
+it('learns stereo balance on an earlier cue and rechecks it on the next cue before use', () => {
+	const rate = 12000, delay = 250;
+	const saved = {left: new Float32Array(600), right: new Float32Array(600)};
+	saved.left[delay] = saved.right[delay] = 1;
+	let seed = 761;
+	function noise(): number {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	}
+	function cue(alternate: boolean) {
+		const left = Float32Array.from({length: 3 * rate}, noise), right = Float32Array.from(left, noise);
+		if (alternate) {
+			right.fill(0, 0, left.length / 2 + delay);
+			left.fill(0, left.length / 2 + delay);
+		}
+		const mic = Float32Array.from(left, (_, i) => 1.3 * (left[i-delay] ?? 0) + 0.65 * (right[i-delay] ?? 0));
+		return {rate, left, right, mic};
+	}
+	const first = cue(false);
+	const accepted = verifyRoom(first, saved).check!;
+	expect(accepted.accepted).toBe(true);
+	const session = learnRoomSession(first, saved, accepted.offset)!;
+	const next = cue(true);
+	expect(verifyRoom(next, saved).check?.accepted).toBe(false);
+	expect(verifyRoom(next, saved, session).check).toMatchObject({accepted: true, sessionCues: 1});
+	const silent = {...next, mic: new Float32Array(next.mic.length)};
+	expect(verifyRoom(silent, saved, session).check?.accepted).toBe(false);
+	next.mic.set(Float32Array.from(next.mic.subarray(19000), noise), 19000);
+	expect(verifyRoom(next, saved, session).check?.accepted).toBe(false);
+	expect(session.cues).toBe(1);
 });

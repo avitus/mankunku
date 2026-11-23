@@ -19,12 +19,14 @@ it('exports every captured Listen check, including repeated results, and trims a
 	const event: SpeakerCheck = { at: new Date().toISOString(), stage: 'listen', result: 'active', rate: samples.rate };
 	for (let i = 0; i < 12; i++) {
 		const cue = {...event, phraseId: String(i)};
-		await recordSpeakerCheck(cue, {event: cue, samples, filter});
+		await recordSpeakerCheck(cue, {event: cue, samples, filter, session: i ? {cues: i, correction: filter} : undefined});
 	}
 	includeListenAudio(false);
 	await recordSpeakerCheck(event);
 	const report = async () => JSON.parse(await (await speakerReport()).text());
 	const first = await report();
+	expect(first.examples[0].session).toBeUndefined();
+	expect(first.examples[1].session).toEqual({cues: 1, correction: first.examples[1].filter});
 	expect(first.examples.map((x: {event: SpeakerCheck}) => x.event.phraseId)).toEqual(Array.from({ length: 12 }, (_, i) => String(i)));
 	expect(first.checks.map((x: {audioIncluded: boolean}) => x.audioIncluded)).toEqual([...Array(12).fill(true), false]);
 	for (let i = 0; i < 54; i++) await recordSpeakerCheck(event);

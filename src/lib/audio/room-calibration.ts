@@ -2,7 +2,7 @@ import type { MicCapture } from './capture';
 import { getMasterGain, getNativeAudioContext } from './audio-context';
 import { ownRoomGraph, roomChecks, roomInputs, roomStatus } from './room-scoring-state.svelte';
 import { includeListenAudio, recordSpeakerCheck, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
-import type { RoomFilter, RoomSamples, RoomTimingCheck } from './room-filter';
+import type { RoomFilter, RoomSamples, RoomSession, RoomTimingCheck } from './room-filter';
 import { loadWorklet } from './load-worklet';
 import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-profile';
 
@@ -19,6 +19,7 @@ const listenFailures = {
 } satisfies Record<NonNullable<RoomTimingCheck['failure']>, string>;
 
 interface Measurement {
+	captureAudio?: boolean;
 	correction?: RoomFilter;
 	samples?: RoomSamples;
 	silentOutput?: boolean;
@@ -59,7 +60,8 @@ async function measure(
 	frames: number,
 	deadline: number,
 	signal: AbortSignal,
-	filter?: RoomFilter
+	filter?: RoomFilter,
+	session?: RoomSession
 ): Promise<Measurement> {
 	signal.throwIfAborted();
 	const capture = new AudioWorkletNode(ctx, 'room-calibration-capture', {
@@ -91,7 +93,7 @@ async function measure(
 					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve(data);
 					worker.onerror = (event) =>
 						reject(new Error(event.message || 'Room estimation worker failed'));
-					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, includeAudio: !!filter && includeListenAudio() }, [
+					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, includeAudio: !!filter && includeListenAudio() }, [
 						input.buffer,
 						left.buffer,
 						right.buffer
@@ -318,6 +320,34 @@ export async function calibrateRoom(
 			}, 300_000);
 		}
 
+		let session: RoomSession | undefined;
+		let learner: Worker | undefined;
+		function stopLearning(): void {
+			learner?.terminate();
+			learner = undefined;
+		}
+		life.signal.addEventListener('abort', stopLearning, { once: true });
+
+		// The scoring graph is already live. Build a candidate for the next cue off
+		// its critical path. Only the current microphone graph owns these taps.
+		function learn(samples: RoomSamples, offset: number, captureAudio: boolean): void {
+			stopLearning();
+			try {
+				const worker = new Worker(new URL('./room-calibration-worker.ts', import.meta.url), { type: 'module' });
+				learner = worker;
+				worker.onmessage = ({ data }) => {
+					if (learner !== worker) return;
+					if (data.session) session = data.session;
+					stopLearning();
+				};
+				worker.onerror = () => { if (learner === worker) stopLearning(); };
+				worker.postMessage({ ...samples, filter, session, learnOffset: offset }, captureAudio ? [] :
+					[samples.mic.buffer, samples.left.buffer, samples.right.buffer]);
+			} catch {
+				stopLearning();
+			}
+		}
+
 		const verifyListen = async (startTime: number, seconds: number, phraseId?: string): Promise<void> => {
 			listen?.abort();
 			if (life.signal.aborted) return;
@@ -343,7 +373,8 @@ export async function calibrateRoom(
 						}
 						return;
 					}
-					const { check, samples, correction } = await measure(
+					const previous = session;
+					const { check, samples, correction, captureAudio } = await measure(
 						ctx,
 						mic,
 						reference,
@@ -351,7 +382,7 @@ export async function calibrateRoom(
 						frames,
 						deadline,
 						current.signal,
-						filter
+						filter, previous
 					);
 					if (current.signal.aborted) return;
 					function log(result: string): void {
@@ -359,7 +390,7 @@ export async function calibrateRoom(
 							at: new Date().toISOString(), stage: 'listen', rate: ctx.sampleRate, ...cue,
 							result, attempt, startSeconds: start / ctx.sampleRate - startTime, captureSeconds: frames / ctx.sampleRate, check
 						};
-						void recordSpeakerCheck(event, samples && filter ? { event, samples, filter } : undefined);
+						void recordSpeakerCheck(event, captureAudio && samples && filter ? { event, samples, filter, session: previous } : undefined);
 					}
 					if (ctx.currentTime >= deadline || !check) {
 						log(check ? 'deadline' : 'insufficient-samples');
@@ -375,6 +406,7 @@ export async function calibrateRoom(
 					delay.delayTime.value = (firstTap + check.offset) / ctx.sampleRate;
 					enable(check.gain);
 					log('active');
+					if (samples) learn(samples, check.offset, !!captureAudio);
 					return;
 				}
 			} catch (error) {

@@ -1,5 +1,5 @@
 import { getActiveUid, nsKey } from '$lib/persistence/namespace';
-import type { RoomFilter, RoomSamples, RoomTimingCheck } from '$lib/audio/room-filter';
+import type { RoomFilter, RoomSamples, RoomSession, RoomTimingCheck } from '$lib/audio/room-filter';
 import { encodeRoomSamples } from '$lib/audio/room-profile';
 
 export interface SpeakerCheck {
@@ -22,6 +22,7 @@ export interface SpeakerExample {
 	event: SpeakerCheck;
 	samples: RoomSamples;
 	filter: RoomFilter;
+	session?: RoomSession;
 }
 
 /** A short, explicit capture session also works when practice opens in a new tab. */
@@ -127,13 +128,16 @@ export async function speakerReport(): Promise<Blob> {
 			request.onsuccess = () => {
 				const cursor = request.result;
 				if (!cursor) return;
-				const { event, samples, filter } = cursor.value as SpeakerExample;
+				const { event, samples, filter, session } = cursor.value as SpeakerExample;
 				if (typeof cursor.key === 'string') legacy.add(legacyId(event));
 				else included.add(cursor.key);
 				parts.push(new Blob([JSON.stringify({
 					event, rate: samples.rate, mic: encodeRoomSamples(samples.mic),
 					left: encodeRoomSamples(samples.left), right: encodeRoomSamples(samples.right),
-					filter: { left: encodeRoomSamples(filter.left), right: encodeRoomSamples(filter.right) }
+					filter: { left: encodeRoomSamples(filter.left), right: encodeRoomSamples(filter.right) },
+					...(session && { session: { cues: session.cues, correction: {
+						left: encodeRoomSamples(session.correction.left), right: encodeRoomSamples(session.correction.right)
+					} } })
 				})]));
 				cursor.continue();
 			};

@@ -104,6 +104,21 @@ for (const mode of ['ear-training', 'lick-practice'])
 		test.setTimeout(100_000);
 		await seedOnboardedAnonymous(page);
 		await countSoundChecks(page);
+		if (mode === 'ear-training') {
+			await page.addInitScript(() => {
+				const post = Worker.prototype.postMessage;
+				Worker.prototype.postMessage = function (message, options) {
+					if (message?.learnOffset !== undefined) {
+						this.addEventListener('message', ({ data }) => {
+							if (data.session?.correction?.left?.length) sessionStorage.setItem('learnedCues', String(data.session.cues));
+						}, { once: true });
+					}
+					if (message?.filter && message.learnOffset === undefined && message.session)
+						sessionStorage.setItem('verifiedWithEarlierCues', String(message.session.cues));
+					return Reflect.apply(post, this, [message, options]);
+				};
+			});
+		}
 		if (mode === 'lick-practice') {
 			// Leave time for two independent Listen windows. The first has no
 			// speaker return; the next must recover before this same lick's Play.
@@ -315,6 +330,13 @@ for (const mode of ['ear-training', 'lick-practice'])
 			expect(report.examples).toEqual([]);
 		}
 		if (mode === 'ear-training') {
+			await expect.poll(() => page.evaluate(() => Number(sessionStorage.getItem('learnedCues')))).toBeGreaterThan(0);
+			// Restart practice on the same mic to verify the next Listen gets the candidate.
+			const pause = page.getByRole('button', {name: 'Pause practice'});
+			if (await pause.isVisible()) await pause.click();
+			const play = page.locator('[data-tour="play-button"]');
+			if (await play.isVisible()) await play.click();
+			await expect.poll(() => page.evaluate(() => Number(sessionStorage.getItem('verifiedWithEarlierCues'))), {timeout: 20_000}).toBeGreaterThan(0);
 			await page.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
 
 			await expect(

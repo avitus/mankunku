@@ -27,7 +27,9 @@ export interface RoomTimingCheck {
 	reduction: number;
 	accepted: boolean;
 	failure: 'timing' | 'reduction' | 'level' | 'attacks' | null;
-	/** Present only when a cue-specific correction passed independent validation. */
+	/** Earlier verified Listen cues contributed this many observations to the active response. */
+	sessionCues?: number;
+	/** The saved calibration's result before a correction passed independent validation. */
 	initial?: Pick<RoomTimingCheck, 'reduction' | 'transientReduction' | 'validationGain' | 'failure'>;
 }
 
@@ -276,7 +278,7 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predic
 }
 
 function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array,
-	broadbandOffset: number, offset: number, gain: number): RoomTimingCheck {
+	broadbandOffset: number, offset: number, gain: number, opening = false): RoomTimingCheck {
 	const middle = Math.floor((filter.left.length + predicted.length) / 2);
 	const limit = Math.round(samples.rate * 0.02);
 	let transientBefore = 0, transientAfter = 0;
@@ -284,7 +286,9 @@ function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: 
 		error = 0,
 		estimated = 0,
 		dot = 0;
-	for (let i = middle + limit; i < predicted.length - limit; i++) {
+	const from = (opening ? filter.left.length : middle) + limit;
+	const to = (opening ? middle : predicted.length) - limit;
+	for (let i = from; i < to; i++) {
 		const observed = samples.mic[i],
 			echo = gain * predicted[i - offset];
 		before += observed * observed;
@@ -311,8 +315,8 @@ function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: 
 		transientReduction,
 		broadbandOffset,
 		validationGain,
-		micRms: Math.sqrt(before / (predicted.length - middle - 2 * limit)),
-		predictedRms: Math.sqrt(estimated / (predicted.length - middle - 2 * limit)),
+		micRms: Math.sqrt(before / (to - from)),
+		predictedRms: Math.sqrt(estimated / (to - from)),
 		offset,
 		gain,
 		reduction,
@@ -321,13 +325,65 @@ function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: 
 	};
 }
 
+/** A graph-local average of corrections measured against the saved response at its original level. */
+export interface RoomSession {
+	correction: RoomFilter;
+	cues: number;
+}
+
+/** Called after an accepted Listen has finished scoring verification. Learn only from
+ * that demonstration, using its verified clock offset. Play never enters this fit. */
+export function learnRoomSession(samples: RoomSamples, filter: RoomFilter, offset: number, previous?: RoomSession): RoomSession | undefined {
+	const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
+	if (first < 0) return;
+	const guard = Math.round(samples.rate * 0.02);
+	const delta = fitRoomCorrection(samples, predictRoom(filter, samples.left, samples.right),
+		first, filter.left.length - first, offset, 1, filter.left.length + guard, samples.mic.length - guard);
+	if (!delta) return;
+	const cues = (previous?.cues ?? 0) + 1;
+	// Average the first four estimates, then give the latest cue one quarter of the weight.
+	// Short captures can estimate fewer taps. Keep the earlier tail in that case.
+	if (previous) {
+		for (const side of ['left', 'right'] as const) {
+			const old = previous.correction[side];
+			const update = delta[side];
+			const mean = new Float32Array(Math.max(old.length, update.length));
+			mean.set(old);
+			for (let i = 0; i < update.length; i++) mean[i] += (update[i] - mean[i]) / Math.min(cues, 4);
+			delta[side] = mean;
+		}
+	}
+	return { cues, correction: delta };
+}
+
 /** Verify the saved response first. A cue-local correction can rescue a
  * recognizable return only if it also passes every gate on unheard audio. */
-export function verifyRoom(samples: RoomSamples, filter: RoomFilter): { check: RoomTimingCheck | null; correction?: RoomFilter } {
+export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: RoomSession): { check: RoomTimingCheck | null; correction?: RoomFilter } {
 	const predicted = predictRoom(filter, samples.left, samples.right);
 	const initial = checkRoomTiming(samples, filter, predicted);
-	if (!initial || !initial.failure || initial.failure === 'timing' || initial.reduction < 1) return { check: initial };
+	if (!initial || !initial.failure || initial.failure === 'timing') return { check: initial };
 	const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
+	const { reduction, transientReduction, validationGain, failure } = initial;
+	const original = { reduction, transientReduction, validationGain, failure };
+	if (session) {
+		const learned = predicted.slice();
+		const delta = predictRoom(session.correction, samples.left, samples.right);
+		for (let i = first; i < learned.length; i++) learned[i] += delta[i - first];
+		const aligned = checkRoomTiming(samples, filter, learned);
+		// Both predictions must locate the same physical return. A musical pitch
+		// alone can correlate at a different cycle even when the speakers moved.
+		if (aligned && aligned.failure !== 'timing' && Math.abs(aligned.offset - initial.offset) <= samples.rate * 0.001) {
+			let check = aligned;
+			// A loud opening note can bias the fitted gain. The level learned on
+			// previous cues is an independent candidate: require both halves to pass at unity.
+			if (aligned.failure === 'level' && validateAlignment(samples, filter, learned,
+				aligned.broadbandOffset, aligned.offset, 1, true).accepted) {
+				check = validateAlignment(samples, filter, learned, aligned.broadbandOffset, aligned.offset, 1);
+			}
+			if (check.accepted) return { check: { ...check, initial: original, sessionCues: session.cues }, correction: session.correction };
+		}
+	}
+	if (initial.reduction < 1) return { check: initial };
 	const guard = Math.round(samples.rate * 0.02);
 	const middle = Math.floor((filter.left.length + predicted.length) / 2);
 	const correction = fitRoomCorrection(samples, predicted, first, filter.left.length - first,
@@ -347,7 +403,6 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter): { check: R
 	if (!(correctionPower < basePower)) return { check: initial };
 	const check = validateAlignment(samples, filter, predicted, initial.broadbandOffset, initial.offset, initial.gain);
 	if (check.failure) return { check: initial };
-	const { reduction, transientReduction, validationGain, failure } = initial;
-	check.initial = { reduction, transientReduction, validationGain, failure };
+	check.initial = original;
 	return { check, correction };
 }
