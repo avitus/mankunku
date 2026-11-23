@@ -367,7 +367,7 @@ const foundationRemaining: Record<string, string> = {
 
 const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> = {
 	D1: ['partial', 'Coordinated ride time varies skip placement and velocity within a remembered two-to-four-bar phrase.', 'Cymbal note-length control remains absent; the renderer still uses its existing sample articulation.'],
-	D7: ['implemented', 'Selected complete solo-peak phrases sustain bell timekeeping at higher energy, preserve quarter-note pulse and return to ride; consecutive bell phrases are excluded.', 'Scoped to explicit coordinated Swing/Straight. Short peaks, incomplete phrases, dense solo evidence at selection and quiet energy retain ordinary ride. Human listening acceptance remains pending.'],
+	D7: ['implemented', 'In 0.23.0 a Swing ride skip can catch a bass pickup on the bell. Selected complete solo-peak phrases sustain bell timekeeping at higher energy, preserve quarter-note pulse and return to ride; consecutive bell phrases are excluded.', 'Scoped to explicit coordinated Swing/Straight. Short peaks, incomplete phrases, dense solo evidence at selection and quiet energy retain ordinary ride. Human listening acceptance remains pending.'],
 	D4: ['implemented', 'The coordinated drummer retains a ride cell across two to four bars, with repetition, variation and release over its phrase.', 'Quarter-note time remains explicit. Broader ride textures, cross-phrase motif development and listening acceptance remain pending.'],
 	D23: ['implemented', 'A named snare Charleston cell is available as a commentary motif source, subject to the current bar’s allowance.', 'Its reprises can be withheld for space, another response or a setup; listening acceptance remains pending.'],
 	D24: ['implemented', 'An eighth-note displacement of the remembered snare Charleston produces its complementary and-of-1 / beat-3 rhythm as a complete commentary cell.', 'Available through motif displacement within the current phrase; a separate reverse-Charleston selection policy and listening acceptance remain pending.'],
@@ -382,6 +382,12 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'B13' || entry.id === 'P3') return { ...entry, status: entry.id === 'B13' ? 'partial' : 'implemented',
+  assessment: entry.id === 'B13' ? 'The Swing bass can open the first bar of a long dominant by dropping beat two, anticipating the third pulse and keeping beat four.'
+   : 'Alongside its existing Charleston figure, the Swing keyboard can play one and the swung and of two to catch an actual bass riff.',
+  scope: '0.23.0 adds interaction over long dominant sevenths in an explicit Swing solo form.',
+  remaining: 'Other omission patterns and full-tune listening feedback remain open.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), source('backing-rolling-piano'), test('backing-dominant-riff')] };
  if (entry.id === 'B4' || entry.id === 'D13') return { ...entry, status: 'partial',
   assessment: entry.id === 'B4'
    ? 'A Ballad out-head can open the pulse to one sustained bass attack over a settled chord.'
@@ -528,7 +534,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	if (drumUpdate) return {
 		...entry, status: drumUpdate[0], assessment: drumUpdate[1], remaining: drumUpdate[2],
 		scope: 'Coordinated swing/straight 4/4 listening-lab preview; current kit and complete cells within the performed harmony. Original practice generation is unchanged.',
-		evidence: [...entry.evidence, ...drumDevelopmentEvidence, ...(entry.id === 'D7' ? structuralTextureEvidence : [])]
+		evidence: [...entry.evidence, ...drumDevelopmentEvidence, ...(entry.id === 'D7' ? [...structuralTextureEvidence, test('backing-dominant-riff')] : [])]
 	};
 	if (entry.id === 'P15' || entry.id === 'D65') return {
 		...entry, status: 'partial',

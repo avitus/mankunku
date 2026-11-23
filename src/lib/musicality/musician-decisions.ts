@@ -802,6 +802,15 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	if (bass.some(event => event.dominantRiff)) {
+		bassCard.action = 'Break the walk on the and of two';
+		bassCard.detail = 'The upright plays one, the swung and of two, then steps back into the walk on four.';
+	}
+	if (piano.some(event => event.dominantRiff)) {
+		pianoCard.action = 'Catch the bass with a Charleston';
+		pianoCard.detail = 'Two chords pick out the bassist’s downbeat and swung pickup.';
+	}
+	if (drums.some(event => event.dominantRiff)) drumCard.action = 'Catch the offbeat on the ride bell';
 	if (bass.some(event => event.balladHeldBass)) {
 		bassCard.action = 'Hold the downbeat through beat three';
 		bassCard.detail = 'One bass note carries the harmony through this bar of the returning head.';

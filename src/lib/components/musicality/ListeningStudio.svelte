@@ -33,13 +33,15 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(exampleStyle: 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(exampleStyle: 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
-  tuneId = LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id;
-  key = 'F';
+  const bridge = exampleStyle === 'swing';
+  const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
+  tuneId = tune.id;
+  key = tune.key;
   style = exampleStyle;
-  tempo = exampleStyle === 'ballad' ? 80 : 128;
-  solos = 2;
+  tempo = bridge ? 176 : exampleStyle === 'ballad' ? 80 : 128;
+  solos = bridge ? 1 : 2;
   ending = 'continue';
   energySeed = 3;
  }
@@ -239,6 +241,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-swing-bridge" onclick={() => loadReleaseExample('swing')} disabled={busy} title="Load Rhythm Changes in B-flat at 176 BPM with one solo. Clears the take and notes, keeps your keyboard and mix.">Load 0.23 Swing bridge ↗</button>
+     · Solo bars 19, 21 and 23. Listen for bass and keys on one and the swung and of two, with a bell on the second attack.</p>
     <p><button class="release-example" data-testid="listening-ballad-example" onclick={() => loadReleaseExample('ballad')} disabled={busy} title="Load Mankunku Blues in F at 80 BPM with two solos. Clears the take and notes, keeps your keyboard and mix.">Load Ballad example ↗</button>
      · Head out, bars 7–8. Listen for the keyboard taking beat three over one long bass note, with ride on one and three.</p>
     <p><button class="release-example" data-testid="listening-release-example" onclick={() => loadReleaseExample('bossa-nova')} disabled={busy} title="Load Mankunku Blues in F at 128 BPM with two solos. Clears the take and notes, keeps your keyboard and mix.">Load Bossa example ↗</button>

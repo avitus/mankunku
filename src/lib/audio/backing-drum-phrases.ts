@@ -299,9 +299,15 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const skipOffsets = phase === 'release' ? state.skips.slice(0, 1) : phase === 'variation' ? state.variedSkips : state.skips;
 	const velocityScale = phase === 'release' ? 0.94 : phase === 'variation' ? 1.04 : phase === 'repeat' ? 1.01 : 1;
 	const timeRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-time', bar));
+	const catchRiff = input.bassEvents?.some(e => e.dominantRiff && e.absBeat === bar * 4 + 1.5);
 	const ostinato: DrumHitSpec[] = [
-		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map((hit) => ({ ...hit,
-			drum: state.rideVoice ?? hit.drum, velocity: hit.velocity * velocityScale })),
+		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map(hit => {
+			const drum = state.rideVoice ?? hit.drum;
+			const velocity = hit.velocity * velocityScale;
+			return catchRiff && drum === 'ride' && hit.beatOffset === 1.5
+				? { ...hit, drum: 'ride-bell' as const, velocity: Math.min(1, velocity + .12), dominantRiff: true as const }
+				: { ...hit, drum, velocity };
+		}),
 		...hihatBar(4, timeRng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
 		...featherBar(4, timeRng, info.intensity)
 	].map((hit): DrumHitSpec => ({ ...hit, role: 'timekeeping' }))

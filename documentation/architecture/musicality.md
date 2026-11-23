@@ -4,6 +4,12 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Swing dominant riff — 0.23.0
+
+The bassist can use a Charleston on the first bar of a dominant seventh that lasts at least two bars within a section. A solo build or peak, four ordinary walking quarters and an open response slot are required. The decision is seeded per bar. The downbeat and fourth-beat approach stay in place. The third pitch arrives on the swung and of two and beat two is left open. The next bar remembers the actual last two pitches. Fresh soloist activity or rest, a committed bass approach, a setup and a reserved ending take priority.
+
+The keyboard can catch the bass with its existing Charleston figure when there is room for two chords and the previous bar carries no committed keyboard sustain. The drummer colors an existing ride skip on the bell, subject to the kit’s usual limb allocation. Each part reports its own accepted gesture. The released policy is fingerprinted for explicit Swing forms. In the fixed 96-bar Rhythm Changes example, compare the opening bridge at bars 17–24 with the solo bridge at bars 49–56, particularly G7, C7 and F7 at bars 51, 53 and 55.
+
 ## Ballad returning head — 0.22.0
 
 In the released four-beat Ballad arrangement, the returning melody can change who supplies the half-note pulse. Over a full bar of one harmony, a bassist with two ordinary half-note attacks can sustain the first note for 3.55 beats. Its selected pitch and placement survive. The next decision remembers the sounding note. A delayed root, launch, reserved response, fresh soloist activity or rest, protected melody space, section ending or arranged accent takes priority.

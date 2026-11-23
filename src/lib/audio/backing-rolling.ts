@@ -40,6 +40,8 @@ export interface RollingBackingOptions {
  readonly performanceTouch?: true;
  /** Trade the half-note pulse when a Ballad returns to its melody. */
  readonly balladReturn?: true;
+ /** Share a Charleston rhythm over a long dominant during a Swing solo. */
+ readonly dominantRiff?: true;
  /** Let native Bossa time answer an octave pickup during the solo. */
  readonly bossaPickup?: true;
  /** 0.19.1: more sustained ordinary Swing/Straight piano support. */
@@ -125,6 +127,7 @@ export interface RollingBackingDefinition {
  readonly harmonicSupportVersion?: 1;
  readonly performanceTouchVersion?: 1;
  readonly balladReturnVersion?: 1;
+ readonly dominantRiffVersion?: 1;
  readonly bossaPickupVersion?: 1;
 	readonly ensembleColorsVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
@@ -264,6 +267,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+  ...(options.dominantRiff && performanceEnergy && style.coordinatedStyle === 'swing' ? { dominantRiffVersion: 1 as const } : {}),
   ...(options.balladReturn && performanceEnergy && style.coordinatedStyle === 'ballad' ? { balladReturnVersion: 1 as const } : {}),
   ...(options.bossaPickup && performanceEnergy && style.coordinatedStyle === 'bossa-nova' ? { bossaPickupVersion: 1 as const } : {}),
   ...(options.performanceTouch && performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { performanceTouchVersion: 1 as const } : {}),
@@ -465,15 +469,17 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const bossaWindow = definition.bossaPickupVersion === 1 && ['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '');
 	const balladWindow = definition.balladReturnVersion === 1 && ensemble.performanceEnergy?.phase === 'head_return' &&
 		!definition.bars[bar].returningMelodySpace && !definition.bars[bar].isSectionFinalBar;
-	const openHarmony = (bossaWindow || balladWindow) &&
+	const riffWindow = definition.dominantRiffVersion === 1 && ['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '') &&
+		!ensemble.drums.allowFill && !definition.bars[bar].isSectionFinalBar;
+	const unreserved = (bossaWindow || balladWindow || riffWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&
 		!ensemble.terminalArrangement && !definition.bars[bar].isChorusFinalBar &&
 		!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
-		!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '') &&
-		definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
+		!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
+	const openHarmony = (balladWindow || bossaWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
 			fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration) >= bar + 1);
 	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy,
-		bossaPickupAllowed: bossaWindow && openHarmony, balladHoldAllowed: balladWindow && openHarmony };
+		bossaPickupAllowed: bossaWindow && openHarmony, balladHoldAllowed: balladWindow && openHarmony, dominantRiffAllowed: riffWindow && unreserved };
 	const phraseEnd = ensemble.phraseStartBar + definition.bars[bar].phrase4!.lengthBars;
 	const timingTrace = checkpoint?.timing.phraseStartBar === ensemble.phraseStartBar ? checkpoint.timing : describeEnsemblePhraseTiming({
 		phraseId: definition.phraseId, tempo: definition.tempo, ppq: definition.ppq, swing: definition.swing,
@@ -523,7 +529,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		...(definition.phraseColorsVersion ? { phraseColors: true as const, phraseColorSeed: definition.bars[bar].pianoPresenceSeed ?? 0 } : {}),
 		...(definition.phraseExpressionVersion ? { phraseExpression: true as const } : {}),
 		...(definition.trioConversationVersion ? { trioConversation: true as const } : {}),
-		...(definition.trioConversationVersion || definition.bossaPickupVersion || definition.balladReturnVersion ? { bassEvents: bass.events } : {}),
+		...(definition.trioConversationVersion || definition.bossaPickupVersion || definition.balladReturnVersion || definition.dominantRiffVersion ? { bassEvents: bass.events } : {}),
 		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
 		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info: pianoResult.answer || pianoResult.trace.carriedReleaseTick !== undefined || (pianoResult.trace.commonToneEntry && ensemble.responseOwner === 'nobody') ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: drumSentence?.startBar ?? ensemble.phraseStartBar, phraseEndBarExclusive: drumSentence?.endBarExclusive ?? phraseEnd, harmonyEndBeat: definition.totalBars * 4,
@@ -554,7 +560,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const scheduleDrums = (result: ReturnType<typeof realizeDrums>): DrumEvent[] => result.bar.hits.map((hit) => {
 		const absBeat = bar * 4 + hit.beatOffset;
 		const tick = hit.role === 'accent' && hit.beatOffset === 0 ? timing.arrivalTick(bar) : timing.place(absBeat, (hit.ensembleColor?.kind === 'cross-stick' || hit.phraseDialogue?.kind === 'kick-answer') ? 'snare' : result.bar.ride.voice === 'hihat' && hit.drum === 'hihat' && hit.role === 'timekeeping' ? 'ride' : hit.drum);
-		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.bossaPickupKick ? { bossaPickupKick: true as const } : {}), ...(hit.walkingBackbeatLift ? { walkingBackbeatLift: hit.walkingBackbeatLift } : {}), ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}), ...(hit.ensembleColor ? { ensembleColor: hit.ensembleColor } : {}), ...(hit.phraseDialogue ? { phraseDialogue: hit.phraseDialogue } : {}), ...(hit.innerMotion ? { innerMotion: hit.innerMotion } : {}) };
+		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.dominantRiff ? { dominantRiff: true as const } : {}), ...(hit.bossaPickupKick ? { bossaPickupKick: true as const } : {}), ...(hit.walkingBackbeatLift ? { walkingBackbeatLift: hit.walkingBackbeatLift } : {}), ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}), ...(hit.ensembleColor ? { ensembleColor: hit.ensembleColor } : {}), ...(hit.phraseDialogue ? { phraseDialogue: hit.phraseDialogue } : {}), ...(hit.innerMotion ? { innerMotion: hit.innerMotion } : {}) };
 	});
 	let drums = realizeDrums(piano);
 	let drumEvents = scheduleDrums(drums);

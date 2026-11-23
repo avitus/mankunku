@@ -201,6 +201,12 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			figure = figureById(score, 'pad-whole'); hits = figure.hits[0].map(hit => ({ ...hit }));
 			transform = 'fallback'; shift = 0; reason = 'harmonic_support';
 		}
+		if (bassEvents?.some(e => e.dominantRiff) && budget >= 2 && hits.length && !backgroundHarmony &&
+			!arrival && !memory.crossBarReleaseTick && !ensemble.piano.silenceReason && answerContext?.feedback.action !== 'yield') {
+			figure = figureById(score, 'charleston');
+			hits = figure.hits[0].map(hit => ({ ...hit }));
+			development = undefined; answerFigureId = undefined; shift = 0; transform = 'fallback'; reason = 'bass_charleston';
+		}
 		if (arrival) {
 			development = undefined; answerFigureId = undefined;
 			hits = [{ b: 0, d: 0.45 }]; transform = 'fallback'; shift = 0; reason = 'shared_arrival';
@@ -287,7 +293,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
   development=undefined;answerFigureId=undefined;transform='fallback';shift=0;reason='common_tone_entry';
   if(motif.sourceBar===bar)motif={startBar:phraseStart,sourceId:null,shift:0,repeat:false};
  }
-	let proposal = !commonTones && reason !== 'cross_bar_breath' && !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
+	let proposal = !commonTones && reason !== 'bass_charleston' && reason !== 'cross_bar_breath' && !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
 		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
 	let segmentIndex = memory.segmentIndex;
@@ -326,7 +332,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		// Supporting chords need time to sound, with a longer final answer.
 		// Protected jabs/replies retain their articulation; actual attack and
 		// harmony bounds still own every release.
-		const supportedDuration = score.pianoContinuityVersion && harmonicSupport && !protectedGesture
+		const supportedDuration = score.pianoContinuityVersion && harmonicSupport && !protectedGesture && reason !== 'bass_charleston'
 			? Math.max(hit.durationBeats, realized.length === 1 ? 3 : hit === realized.at(-1) ? 2.25 : .9) : hit.durationBeats;
 		const articulation = phrasing && availableBeats > 0 ? articulateKeyboardHit({ style: score.style ?? 'swing', instrument: phrasing.instrument,
 			durationBeats: supportedDuration, velocity: hit.velocity, availableBeats }) : undefined;
@@ -366,6 +372,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const lift = info.walkingTouch !== undefined && !protectedGesture && !commonTones && hit.beatOffset % 1 === .5
 			? Math.round(4 + 10 * info.walkingTouch) : 0;
 		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: Math.min(127, hit.velocity + lift),
+			...(reason === 'bass_charleston' ? { dominantRiff: true as const } : {}),
 			...(balladReturnAnswer && hit.beatOffset === 2 ? { balladReturnAnswer: true as const } : {}),
 			...(bossaReplyFrom !== undefined && hit === realized[1] ? { bossaReplyFrom } : {}),
 			...(lift ? { walkingOffbeatLift: Math.min(lift, 127 - hit.velocity) } : {}) } };
@@ -437,6 +444,6 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(score.keyboardSuspensionsVersion && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(commonTones && carry && events.length ? {commonToneEntry:{releaseTick:carry,heldNotes:[...commonTones],time:events[0].time,notes:[...events[0].notes]}} : {}), ...(canBreathe && carry && !answer && events.length && events.every(e=>parseInt(e.time,10)>=carry) ? {carriedReleaseTick:carry} : {}), ...(rhythmicSentence && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: !commonTones && reason !== 'cross_bar_breath' && reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: commonTones || answer || arrival || reason === 'cross_bar_breath' ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(commonTones && carry && events.length ? {commonToneEntry:{releaseTick:carry,heldNotes:[...commonTones],time:events[0].time,notes:[...events[0].notes]}} : {}), ...(canBreathe && carry && !answer && events.length && events.every(e=>parseInt(e.time,10)>=carry) ? {carriedReleaseTick:carry} : {}), ...(rhythmicSentence && reason !== 'bass_charleston' && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: !commonTones && reason !== 'bass_charleston' && reason !== 'cross_bar_breath' && reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: commonTones || answer || arrival || reason === 'cross_bar_breath' ? null : reason === 'bass_charleston' || reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }
