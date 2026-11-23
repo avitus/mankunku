@@ -1,7 +1,8 @@
 import type { MicCapture } from './capture';
 import { getMasterGain, getNativeAudioContext } from './audio-context';
 import { ownRoomGraph, roomChecks, roomInputs, roomStatus } from './room-scoring-state.svelte';
-import type { RoomFilter, RoomTimingCheck } from './room-filter';
+import { includeListenAudio, recordSpeakerCheck, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
+import type { RoomFilter, RoomSamples, RoomTimingCheck } from './room-filter';
 import { loadWorklet } from './load-worklet';
 import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-profile';
 
@@ -10,7 +11,15 @@ const active = 'Speaker bleed reduction active';
 const fallback = 'Room check unavailable · scoring the original microphone';
 const rejected = 'Room check did not pass · scoring the original microphone';
 
+const listenFailures = {
+	timing: 'Speaker timing shifted beyond the saved calibration',
+	reduction: 'Listen could not confirm enough speaker bleed to remove',
+	level: 'Speaker return level changed during Listen',
+	attacks: 'Speaker attacks did not match the saved calibration'
+} satisfies Record<NonNullable<RoomTimingCheck['failure']>, string>;
+
 interface Measurement {
+	samples?: RoomSamples;
 	silentOutput?: boolean;
 	reduction?: number;
 	filter?: RoomFilter;
@@ -78,10 +87,10 @@ async function measure(
 					worker = new Worker(new URL('./room-calibration-worker.ts', import.meta.url), {
 						type: 'module'
 					});
-					worker.onmessage = ({ data }) => resolve(data);
+					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve(data);
 					worker.onerror = (event) =>
 						reject(new Error(event.message || 'Room estimation worker failed'));
-					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter }, [
+					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, includeAudio: !!filter && includeListenAudio() }, [
 						input.buffer,
 						left.buffer,
 						right.buffer
@@ -121,6 +130,8 @@ export async function calibrateRoom(
 	const ctx = await getNativeAudioContext();
 	if (track.readyState !== 'live' || soundCheck?.aborted) return;
 	const settings = track.getSettings();
+	const report = (stage: SpeakerCheck['stage'], result: string, extra: Partial<SpeakerCheck> = {}) =>
+		void recordSpeakerCheck({ at: new Date().toISOString(), rate: ctx.sampleRate, stage, result, ...extra });
 	if (
 		settings.autoGainControl ||
 		settings.echoCancellation ||
@@ -129,12 +140,14 @@ export async function calibrateRoom(
 		ctx.sampleRate > 96000
 	) {
 		if (!soundCheck) roomStatus.text = fallback;
+		report(request.mode === 'practice' ? 'practice' : 'sound-check', 'unsupported-input');
 		return;
 	}
 	const setup = roomSetup(track, ctx);
 	const snapshot = readProfile();
 	const filter = soundCheck ? undefined : restoreProfile(snapshot, setup, ctx.sampleRate);
 	if (!soundCheck && !filter) {
+		report('practice', filter === null ? 'saved-rejection' : 'no-matching-profile');
 		roomStatus.text = filter === null ? rejected : 'Using original microphone · calibrate speakers in Settings';
 		return;
 	}
@@ -170,6 +183,7 @@ export async function calibrateRoom(
 		life.abort();
 		listen?.abort();
 		bypass(fallback);
+		if (!soundCheck) report('practice', 'device-or-clock-changed');
 	}
 	const stateChanged = (): void => {
 		if (ctx.state !== 'running') invalidate();
@@ -210,13 +224,20 @@ export async function calibrateRoom(
 			sound.start(start / ctx.sampleRate);
 			const measured = await measure(ctx, mic, reference, start, buffer.length, start / ctx.sampleRate + 15, life.signal);
 			life.signal.throwIfAborted();
-			if (measured.silentOutput) return 'silent-output';
+			if (measured.silentOutput) {
+				report('sound-check', 'silent-output');
+				return 'silent-output';
+			}
 			// A completed negative check can be remembered. A worker failure is retryable.
-			if (!Number.isFinite(measured.reduction)) return;
+			if (!Number.isFinite(measured.reduction)) {
+				report('sound-check', 'unavailable');
+				return;
+			}
 			const stored = await saveProfile(snapshot, setup, measured.filter ?? null, life.signal);
 			if (life.signal.aborted) return;
-			if (!measured.filter) return 'rejected';
-			return stored ? 'saved' : 'unsaved';
+			const result = measured.filter ? (stored ? 'saved' : 'unsaved') : 'rejected';
+			report('sound-check', result, { calibrationReductionDb: measured.reduction });
+			return result;
 		}
 		if (!filter) return;
 
@@ -260,62 +281,82 @@ export async function calibrateRoom(
 			clearTimeout(expiry);
 			inverse!.gain.value = -gain;
 			roomStatus.text = active;
-			expiry = setTimeout(() => bypass('Room check expired · scoring the original microphone'), 300_000);
+			expiry = setTimeout(() => {
+				bypass('Room check expired · scoring the original microphone');
+				report('practice', 'expired');
+			}, 300_000);
 		}
 
-		const verifyListen = async (startTime: number, seconds: number): Promise<void> => {
+		const verifyListen = async (startTime: number, seconds: number, phraseId?: string): Promise<void> => {
 			listen?.abort();
 			if (life.signal.aborted) return;
+			const cue = { phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap };
 			if (seconds < 1.8) {
+				report('listen', 'short-cue', cue);
 				bypass('Listen too short to verify speakers · scoring the original microphone');
 				return;
 			}
 			const current = new AbortController();
 			listen = current;
-			const start = Math.ceil(Math.max(ctx.currentTime + 0.025, startTime + 0.04) * ctx.sampleRate);
 			const deadline = startTime + seconds - 0.15;
-			const frames = Math.floor(Math.min(3, deadline - start / ctx.sampleRate - 0.4) * ctx.sampleRate);
-			if (frames < ctx.sampleRate) {
-				bypass(rejected);
-				return;
-			}
 			try {
-				const { check } = await measure(
-					ctx,
-					mic,
-					reference,
-					start,
-					frames,
-					deadline,
-					current.signal,
-					filter
-				);
-				if (current.signal.aborted) return;
-				if (ctx.currentTime >= deadline || !check) {
+				// A sparse or ambiguous opening can fail while later music in the
+				// same demonstration verifies the model. Never sample into Play.
+				for (let attempt = 1; attempt <= 2; attempt++) {
+					const start = Math.ceil(Math.max(ctx.currentTime + 0.025, startTime + 0.04) * ctx.sampleRate);
+					const frames = Math.floor(Math.min(3, deadline - start / ctx.sampleRate - 0.4) * ctx.sampleRate);
+					if (frames < ctx.sampleRate) {
+						if (attempt === 1) {
+							report('listen', 'insufficient-time', cue);
+							bypass('Listen started too late to verify speakers · scoring the original microphone');
+						}
+						return;
+					}
+					const { check, samples } = await measure(
+						ctx,
+						mic,
+						reference,
+						start,
+						frames,
+						deadline,
+						current.signal,
+						filter
+					);
+					if (current.signal.aborted) return;
+					function log(result: string): void {
+						const event: SpeakerCheck = {
+							at: new Date().toISOString(), stage: 'listen', rate: ctx.sampleRate, ...cue,
+							result, attempt, startSeconds: start / ctx.sampleRate - startTime, captureSeconds: frames / ctx.sampleRate, check
+						};
+						void recordSpeakerCheck(event, samples && filter ? { event, samples, filter } : undefined);
+					}
+					if (ctx.currentTime >= deadline || !check) {
+						log(check ? 'deadline' : 'insufficient-samples');
+						bypass(fallback);
+						return;
+					}
+					if (check.failure) {
+						log(check.failure);
+						bypass(listenFailures[check.failure] + ' · scoring the original microphone');
+						continue;
+					}
+					log('active');
+					delay.delayTime.value = (firstTap + check.offset) / ctx.sampleRate;
+					enable(check.gain);
+					return;
+				}
+			} catch (error) {
+				if (!current.signal.aborted) {
+					report('listen', error instanceof Error ? error.message : 'measurement-error', cue);
 					bypass(fallback);
-					return;
 				}
-				if (!check.accepted || check.transientReduction < 1 || firstTap + check.offset < 0) {
-					// Keep the reason visible after Listen. The Settings measurement is
-					// still saved, and the next demonstration can verify it again.
-					const reason = firstTap + check.offset < 0 || Math.abs(check.offset) >= Math.round(ctx.sampleRate * 0.02)
-						? 'Speaker timing shifted beyond the saved calibration'
-						: check.reduction < 3
-							? 'Listen could not confirm enough speaker bleed to remove'
-							: 'Speaker return did not consistently match the saved calibration';
-					bypass(reason + ' · scoring the original microphone');
-					return;
-				}
-				delay.delayTime.value = (firstTap + check.offset) / ctx.sampleRate;
-				enable(check.gain);
-			} catch {
-				if (!current.signal.aborted) bypass(fallback);
 			}
 		};
 		roomChecks.set(source, { measure: verifyListen, cancel: () => listen?.abort() });
 		roomStatus.text = 'Using original microphone until Listen verifies saved calibration';
 	} catch (error) {
 		if (!life.signal.aborted) {
+			report(soundCheck ? 'sound-check' : 'practice', error instanceof Error ? error.message : 'unavailable');
 			console.warn('Speaker room check unavailable', error);
 			bypass(fallback);
 		}

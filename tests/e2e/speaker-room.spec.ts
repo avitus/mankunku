@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/test';
 import { SEEDED_PROGRESS } from './fixtures/lick-practice-seeds';
-import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SAMPLE_USER_LICKS, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 /** Count actual starts of the stereo calibration signal across page loads. */
@@ -104,7 +105,26 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await seedOnboardedAnonymous(page);
 		await countSoundChecks(page);
 		if (mode === 'lick-practice') {
-			await seedUserLicks(page);
+			// Leave time for two independent Listen windows. The first has no
+			// speaker return; the next must recover before this same lick's Play.
+			const licks = structuredClone(SAMPLE_USER_LICKS);
+			const lick = licks[0] as {
+				notes: { pitch: number; duration: number[]; offset: number[] }[];
+				difficulty: { lengthBars: number };
+			};
+			lick.difficulty.lengthBars = 3;
+			lick.notes.push({ pitch: 67, duration: [1, 4], offset: [2, 1] });
+			await seedUserLicks(page, licks);
+			await page.addInitScript(() => {
+				const post = Worker.prototype.postMessage;
+				Worker.prototype.postMessage = function (message, options) {
+					if (message?.filter && message.mic instanceof Float32Array && !sessionStorage.getItem('quietListen')) {
+						message.mic.fill(0);
+						sessionStorage.setItem('quietListen', 'true');
+					}
+					return Reflect.apply(post, this, [message, options]);
+				};
+			});
 			const progress = structuredClone(SEEDED_PROGRESS);
 			progress['lick-practice-progress']['e2e-user-lick-bebop'].C.currentTempo = 100;
 			await seedStorage(page, {
@@ -193,6 +213,10 @@ for (const mode of ['ear-training', 'lick-practice'])
 			},
 			mode === 'ear-training' ? 1 : 2
 		);
+		if (mode === 'ear-training') {
+			await page.goto('/diagnostics');
+			await page.getByLabel('Save Listen audio for troubleshooting in this tab').check();
+		}
 		await page.goto('/settings');
 		await page.getByRole('switch', { name: 'Backing track', exact: true }).click();
 		const startCheck = page.getByRole('button', { name: 'Start speaker sound check' });
@@ -266,6 +290,15 @@ for (const mode of ['ear-training', 'lick-practice'])
 		expect(result.mixedSax).toBeGreaterThan(0.015);
 		expect(result.mixedBleed).toBeGreaterThan(0.008);
 		expect(result.bleed).toBeLessThan(0.015);
+		if (mode === 'lick-practice') {
+			await page.goto('/diagnostics');
+			const [download] = await Promise.all([
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download speaker report' }).click()
+			]);
+			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
+			expect(report.checks).toContainEqual(expect.objectContaining({ stage: 'listen', result: 'active', attempt: 2 }));
+			expect(report.examples).toEqual([]);
+		}
 		if (mode === 'ear-training') {
 			await page.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
 
@@ -277,8 +310,31 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.locator('[data-tour="play-button"]').click();
 			await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-			await expect(page.getByText(/^(?:Speaker timing shifted|Listen could not confirm enough speaker bleed|Speaker return did not consistently match).*scoring the original microphone$/)).toBeVisible({timeout: 25_000});
+			await expect(page.getByText(/^(?:Speaker timing shifted|Listen could not confirm enough speaker bleed|Speaker return level changed|Speaker attacks did not match).*scoring the original microphone$/)).toBeVisible({timeout: 25_000});
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
+			await page.goto('/diagnostics');
+			const [download] = await Promise.all([
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download speaker report' }).click()
+			]);
+			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
+			expect(report.checks).toEqual(expect.arrayContaining([
+				expect.objectContaining({ stage: 'sound-check', result: 'saved', calibrationReductionDb: expect.any(Number) }),
+				expect.objectContaining({ stage: 'listen', result: 'active', phraseId: expect.any(String) })
+			]));
+			expect(report.examples).toHaveLength(2);
+			for (const clip of report.examples) {
+				expect(Buffer.from(clip.mic, 'base64').length).toBe(Math.round(clip.rate * clip.event.captureSeconds) * 4);
+				expect(clip.left.length).toBe(clip.mic.length);
+				expect(clip.right.length).toBe(clip.mic.length);
+				expect(clip.filter.left.length).toBeGreaterThan(0);
+				expect(clip.event.check.validationGain).toEqual(expect.any(Number));
+			}
+			await page.getByRole('button', { name: 'Clear saved Listen audio' }).click();
+			await expect(page.getByText('Saved Listen audio cleared.')).toBeVisible();
+			const [cleared] = await Promise.all([
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download speaker report' }).click()
+			]);
+			expect(JSON.parse(readFileSync(await cleared.path(), 'utf8')).examples).toEqual([]);
 			await page.goto('/settings');
 			await startCheck.click();
 			await expect(page.getByText('Speaker calibration saved on this device.')).toBeVisible({timeout: 20_000});

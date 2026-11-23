@@ -864,13 +864,14 @@
 		});
 		const roomCheck = micCapture && roomChecks.get(micCapture.source)?.measure;
 		if (roomCheck) {
+			const phraseId = getPhraseFor(lickIdx, 0)?.id;
 			for (const segment of nextTimeline) {
 				if (segment.phase !== 'listen') continue;
 				const seconds = (segment.endTick - segment.startTick) * 60 / (transport.PPQ * lickPractice.currentTempo);
 				if (boundaryTime !== undefined && segment.startTick === audioStartTick) {
-					roomCheck(boundaryTime, seconds);
+					roomCheck(boundaryTime, seconds, phraseId);
 				} else {
-					const event = transport.scheduleOnce(time => roomCheck(time, seconds), `${segment.startTick}i`);
+					const event = transport.scheduleOnce(time => roomCheck(time, seconds, phraseId), `${segment.startTick}i`);
 					scheduledEventIds.push(event);
 				}
 			}

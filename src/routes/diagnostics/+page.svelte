@@ -1,5 +1,6 @@
 <script lang="ts">
  import { mixAudio } from '$lib/audio/media-playback';
+	import { clearSpeakerExamples, includeListenAudio, speakerReport } from '$lib/diagnostics/speaker-checks';
 	import { onMount, onDestroy } from 'svelte';
 	import { getBackingTrackLog } from '$lib/audio/backing-track';
 	import type { BackingTrackLog } from '$lib/audio/backing-track';
@@ -40,6 +41,25 @@
 	let replayError = $state<string | null>(null);
 	let downloading = $state(false);
 	let downloadError = $state<string | null>(null);
+	let saveListenAudio = $state(false);
+	let speakerMessage = $state('');
+	async function clearListenAudio() {
+		saveListenAudio = includeListenAudio(false);
+		try {
+			await clearSpeakerExamples();
+			speakerMessage = 'Saved Listen audio cleared.';
+		} catch {
+			speakerMessage = 'Could not clear saved Listen audio.';
+		}
+	}
+	async function downloadSpeakerReport() {
+		speakerMessage = '';
+		try {
+			await triggerDownload(await speakerReport(), 'speaker-checks.json');
+		} catch (error) {
+			speakerMessage = error instanceof Error ? error.message : 'Could not read speaker diagnostics.';
+		}
+	}
 	let sortMode = $state<'newest' | 'best' | 'worst'>('newest');
 	let sourceFilter = $state<'all' | 'ear-training' | 'lick-practice'>('all');
 
@@ -53,6 +73,7 @@
 	}
 
 	onMount(async () => {
+		saveListenAudio = includeListenAudio();
 		await refresh();
 	});
 
@@ -357,6 +378,20 @@
 				<div class="font-mono text-lg">{stats.scored ? pct(stats.best) : '—'}</div>
 			</div>
 		</div>
+	</section>
+
+	<section class="space-y-2 rounded-lg bg-[var(--color-bg-secondary)] p-4">
+		<h2 class="font-semibold">Speaker bleed reduction</h2>
+		<p class="text-sm">The report includes the last 64 speaker checks and their measurements.</p>
+		<label class="flex items-center gap-2 text-sm">
+			<input type="checkbox" checked={saveListenAudio}
+				onchange={(e) => { saveListenAudio = includeListenAudio(e.currentTarget.checked); }} />
+			Save Listen audio for troubleshooting in this tab
+		</label>
+		<p class="text-xs text-[var(--color-text-secondary)]">Keeps up to three seconds of microphone and speaker audio from the latest accepted and bypassed checks on this device. Saved examples are included in the download.</p>
+		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={downloadSpeakerReport}>Download speaker report</button>
+		<button class="ml-2 text-sm underline" onclick={clearListenAudio}>Clear saved Listen audio</button>
+		{#if speakerMessage}<p role="status">{speakerMessage}</p>{/if}
 	</section>
 
 	<!-- ── Recording list ─────────────────────────────────── -->

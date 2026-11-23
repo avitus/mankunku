@@ -452,10 +452,12 @@
 	}
 
 	function demonstrationOptions(resolveAtMelodyEnd: boolean) {
+		const verify = micCapture && roomChecks.get(micCapture.source)?.measure;
+		const phraseId = session.phrase?.id;
 		return {
 			resolveAtMelodyEnd,
 			tongueRepeats: settings.instrumentId.endsWith('-sax'),
-			onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
+			onDemonstration: verify ? (start: number, seconds: number) => verify(start, seconds, phraseId) : undefined
 		};
 	}
 

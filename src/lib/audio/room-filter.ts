@@ -17,10 +17,15 @@ export interface RoomFilter {
 /** Alignment and level fitted in Listen, with independent validation of the predicted reduction. */
 export interface RoomTimingCheck {
 	transientReduction: number;
+	broadbandOffset: number;
+	validationGain: number;
+	micRms: number;
+	predictedRms: number;
 	offset: number;
 	gain: number;
 	reduction: number;
 	accepted: boolean;
+	failure: 'timing' | 'reduction' | 'level' | 'attacks' | null;
 }
 
 const powerOfTwo = (length: number): number => 2 ** Math.ceil(Math.log2(length));
@@ -232,16 +237,37 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 		}
 		if (lag < limit) power += predicted[from - lag - 1] ** 2 - predicted[to - lag - 1] ** 2;
 	}
-	// A speaker level or microphone gain change scales both frozen paths.
-	// Fit one bounded level on the timing half; assess it on unseen audio.
-	let calibrationPower = 0,
-		calibrationDot = 0;
-	for (let i = start + limit; i < middle - limit; i++) {
-		const echo = predicted[i - offset];
-		calibrationDot += samples.mic[i] * echo;
-		calibrationPower += echo * echo;
+	// A pitched cue can put the broadband peak a few samples away from its
+	// attacks. Resolve that local ambiguity on the fitting half alone. Give
+	// waveform and first-difference errors equal weight after normalization.
+	const broadbandOffset = offset;
+	const radius = Math.ceil(samples.rate * 0.00035);
+	let micPower = 0, micChangePower = 0;
+	for (let i = from + 1; i < to; i++) {
+		micPower += samples.mic[i] ** 2;
+		micChangePower += (samples.mic[i] - samples.mic[i - 1]) ** 2;
 	}
-	const gain = Math.max(0.6, Math.min(1.6, calibrationDot / (calibrationPower + 1e-15)));
+	let gain = 1, bestError = Infinity;
+	for (let lag = Math.max(-limit, broadbandOffset - radius); lag <= Math.min(limit, broadbandOffset + radius); lag++) {
+		let echoPower = 0, echoDot = 0, changePower = 0, changeDot = 0;
+		for (let i = from + 1; i < to; i++) {
+			const echo = predicted[i - lag];
+			const change = echo - predicted[i - lag - 1];
+			echoPower += echo * echo;
+			echoDot += echo * samples.mic[i];
+			changePower += change * change;
+			changeDot += change * (samples.mic[i] - samples.mic[i - 1]);
+		}
+		const level = Math.max(0.6, Math.min(1.6, echoDot / (echoPower + 1e-15)));
+		// Omit the microphone energy term, identical for every lag.
+		const error = level * (level * echoPower - 2 * echoDot) / (micPower + 1e-15)
+			+ level * (level * changePower - 2 * changeDot) / (micChangePower + 1e-15);
+		if (error < bestError) {
+			bestError = error;
+			offset = lag;
+			gain = level;
+		}
+	}
 	let transientBefore = 0, transientAfter = 0;
 	let before = 0,
 		error = 0,
@@ -263,12 +289,23 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 	}
 	const reduction = 10 * Math.log10((before + 1e-15) / (error + 1e-15));
 	const validationGain = dot / (estimated + 1e-15);
+	const transientReduction = 10 * Math.log10((transientBefore + 1e-15) / (transientAfter + 1e-15));
+	const firstTap = filter.left.findIndex((value, i) => value !== 0 || filter.right[i] !== 0);
+	let failure: RoomTimingCheck['failure'] = null;
+	if (firstTap < 0 || firstTap + offset < 0 || Math.max(Math.abs(broadbandOffset), Math.abs(offset)) >= limit) failure = 'timing';
+	else if (!(reduction >= 3)) failure = 'reduction';
+	else if (!(validationGain >= 0.75 && validationGain <= 1.25)) failure = 'level';
+	else if (!(transientReduction >= 1)) failure = 'attacks';
 	return {
-		transientReduction: 10 * Math.log10((transientBefore + 1e-15) / (transientAfter + 1e-15)),
+		transientReduction,
+		broadbandOffset,
+		validationGain,
+		micRms: Math.sqrt(before / (predicted.length - middle - 2 * limit)),
+		predictedRms: Math.sqrt(estimated / (predicted.length - middle - 2 * limit)),
 		offset,
 		gain,
 		reduction,
-		accepted:
-			Math.abs(offset) < limit && reduction >= 3 && validationGain >= 0.75 && validationGain <= 1.25
+		accepted: failure === null,
+		failure
 	};
 }

@@ -18,7 +18,7 @@ export function readProfile(): string | null {
 	try { return localStorage.getItem(key); } catch { return null; }
 }
 
-function encode(values: Float32Array): string {
+export function encodeRoomSamples(values: Float32Array): string {
 	const bytes = new Uint8Array(values.buffer, values.byteOffset, values.byteLength);
 	let binary = '';
 	for (let i = 0; i < bytes.length; i += 4096) {
@@ -39,7 +39,7 @@ export async function saveProfile(
 		return await navigator.locks.request(key, { ifAvailable: true }, lock => {
 			if (!lock || signal?.aborted || localStorage.getItem(key) !== previous) return false;
 			const record = filter
-				? { setup, left: encode(filter.left), right: encode(filter.right) }
+				? { setup, left: encodeRoomSamples(filter.left), right: encodeRoomSamples(filter.right) }
 				: { setup, rejected: true };
 			localStorage.setItem(key, JSON.stringify(record));
 			return true;

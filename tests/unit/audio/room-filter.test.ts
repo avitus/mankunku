@@ -65,6 +65,7 @@ it('distinguishes a shared bass pitch from an aligned speaker path after reopeni
 	const changed = checkRoomTiming({rate, left, right, mic}, filter);
 	expect(changed?.reduction).toBeGreaterThan(3);
 	expect(changed?.transientReduction).toBeLessThan(1);
+	expect(changed?.accepted).toBe(false);
 });
 
 it('recovers the speaker delay on a sustained pitched cue with a quiet nonrepeating component', () => {
@@ -85,4 +86,22 @@ it('recovers the speaker delay on a sustained pitched cue with a quiet nonrepeat
 		expect(check?.transientReduction).toBeGreaterThan(1);
 		expect(check).toMatchObject({ offset: shift, accepted: true });
 	}
+});
+
+it('aligns the attacks when pitched notes put the broadband peak a few samples early', () => {
+	const rate = 12000;
+	let seed = 9315;
+	const noise = Float32Array.from({ length: rate * 1.25 }, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return 0.08 * (seed / 2147483648 - 1);
+	});
+	const tone = Float32Array.from(noise, (_, i) =>
+		0.4 * Math.sin(2 * Math.PI * 380 * i / rate) + 0.2 * Math.sin(2 * Math.PI * 511 * i / rate));
+	const left = Float32Array.from(tone, (x, i) => x + noise[i]);
+	const mic = Float32Array.from(tone, (x, i) => x + (noise[i - 2] ?? 0));
+	const check = checkRoomTiming({ rate, left, right: new Float32Array(left.length), mic },
+		{ left: Float32Array.of(1), right: Float32Array.of(0) });
+	expect(check).toMatchObject({ broadbandOffset: 0, offset: 2, accepted: true });
+	expect(check!.transientReduction).toBeGreaterThan(9);
+	expect(check!.reduction).toBeGreaterThan(3);
 });

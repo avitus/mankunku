@@ -26,7 +26,7 @@ export function setRoomCorrection(enabled: boolean): void {
 export const roomInputs = new WeakMap<MediaStreamAudioSourceNode, AudioNode>();
 export const roomChecks = new WeakMap<
 	MediaStreamAudioSourceNode,
-	{ measure: (start: number, seconds: number) => Promise<void>; cancel: () => void }
+	{ measure: (start: number, seconds: number, phraseId?: string) => Promise<void>; cancel: () => void }
 >();
 const cleanups = new WeakMap<MediaStreamAudioSourceNode, () => void>();
 /** Bind teardown to the same microphone track and clock as calibration. */
