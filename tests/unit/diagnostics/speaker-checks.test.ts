@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, expect, it, vi } from 'vitest';
-import { clearSpeakerExamples, clearSpeakerJournal, speakerJournalScope, includeListenAudio, recordSpeakerCheck, speakerExampleCount, speakerReport, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
+import { clearSpeakerExamples, clearSpeakerJournal, speakerJournalScope, startListenAudioCapture, stopListenAudioCapture, recordSpeakerCheck, speakerExampleCount, speakerReport, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -12,7 +12,7 @@ it('exports every captured Listen check, including repeated results, and trims a
 		setItem: (k: string, v: string) => storage.set(k, v),
 		removeItem: (k: string) => storage.delete(k)
 	});
-	includeListenAudio(true);
+	startListenAudioCapture();
 	const wave = new Float32Array([0.3]);
 	const samples = { rate: 44100, left: wave, right: wave, mic: wave };
 	const filter = { left: wave, right: wave };
@@ -21,7 +21,7 @@ it('exports every captured Listen check, including repeated results, and trims a
 		const cue = {...event, phraseId: String(i)};
 		await recordSpeakerCheck(cue, {event: cue, samples, filter, session: i ? {cues: i, correction: filter} : undefined});
 	}
-	includeListenAudio(false);
+	stopListenAudioCapture();
 	await recordSpeakerCheck(event);
 	const report = async (includeAudio = true) => JSON.parse(await (await speakerReport({ includeAudio })).text());
 	const numeric = await report(false);
@@ -43,10 +43,15 @@ it('exports every captured Listen check, including repeated results, and trims a
 	expect(cleared.checks.every((x: {audioIncluded: boolean}) => !x.audioIncluded)).toBe(true);
 	expect(cleared.examples).toEqual([]);
 	const oldScope = speakerJournalScope();
-	includeListenAudio(true);
+	startListenAudioCapture();
 	await recordSpeakerCheck(event, {event, samples, filter}, oldScope);
 	await clearSpeakerJournal(oldScope.uid);
 	await recordSpeakerCheck(event, {event, samples, filter}, oldScope);
 	expect((await report()).checks).toEqual([]);
 	expect(await speakerExampleCount()).toBe(0);
+});
+
+it('reports when the browser could not revoke the capture window', () => {
+	vi.stubGlobal('localStorage', { removeItem: () => { throw new Error('storage unavailable'); } });
+	expect(stopListenAudioCapture()).toBe(false);
 });

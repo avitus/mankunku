@@ -59,12 +59,19 @@ export function speakerCaptureUntil(): number {
 }
 
 /** A short, explicit capture session also works when practice opens in a new tab. */
-export function includeListenAudio(enabled?: boolean): boolean {
+export function startListenAudioCapture(): boolean {
 	try {
 		const key = 'mankunku:' + nsKey('speaker-report-audio');
-		if (enabled === true) localStorage.setItem(key, String(Date.now() + 10 * 60_000));
-		if (enabled === false) localStorage.removeItem(key);
+		localStorage.setItem(key, String(Date.now() + 10 * 60_000));
 		return speakerCaptureUntil() > 0;
+	} catch { return false; }
+}
+
+export function stopListenAudioCapture(): boolean {
+	try {
+		const key = 'mankunku:' + nsKey('speaker-report-audio');
+		localStorage.removeItem(key);
+		return localStorage.getItem(key) === null;
 	} catch { return false; }
 }
 
@@ -100,7 +107,7 @@ export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerE
 	logSpeakerCheck(event);
 	try {
 		const db = await openChecks(owner.uid);
-		function write(clip: SpeakerExample | undefined, status: SpeakerCheck['audioExample']): Promise<void> {
+		function write(clip: SpeakerExample | undefined, status: SpeakerCheck['audioExample'], captureWindow = 0): Promise<void> {
 			if (!owner.current()) return Promise.resolve();
 			return new Promise((resolve, reject) => {
 				const tx = db.transaction(['checks', 'examples'], 'readwrite');
@@ -108,12 +115,17 @@ export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerE
 				tx.onabort = () => reject(tx.error);
 				const checks = tx.objectStore('checks');
 				const examples = tx.objectStore('examples');
-				const row = status ? { ...event, audioExample: status } : event;
-				const added = checks.add(row);
-				if (clip) added.onsuccess = () => examples.put({ ...clip, event: row }, added.result);
+				// Wait for the store lock before rechecking capture consent. A clear
+				// from another tab may have run while this transaction was queued.
 				const keys = checks.getAllKeys();
 				keys.onsuccess = () => {
-					for (const key of keys.result.slice(0, -64)) {
+					if (!owner.current()) return;
+					const canSave = clip && captureWindow > Date.now() && captureWindow === speakerCaptureUntil();
+					const finalStatus = clip && !canSave ? 'capture-off' : status;
+					const row = finalStatus ? { ...event, audioExample: finalStatus } : event;
+					const added = checks.add(row);
+					if (canSave) added.onsuccess = () => examples.put({ ...clip, event: row }, added.result);
+					for (const key of keys.result.slice(0, -63)) {
 						checks.delete(key);
 						examples.delete(key);
 					}
@@ -127,7 +139,7 @@ export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerE
 			const status = event.stage !== 'listen' ? undefined
 				: clip ? 'saved' : capturing ? 'unavailable' : 'capture-off';
 			try {
-				await write(clip, status);
+				await write(clip, status, until);
 			} catch (error) {
 				if (!clip || !(error instanceof DOMException) || error.name !== 'QuotaExceededError') throw error;
 				await write(undefined, 'storage-full');

@@ -1,7 +1,7 @@
 <script lang="ts">
  import { mixAudio } from '$lib/audio/media-playback';
 	import { goto } from '$app/navigation';
-	import { clearSpeakerExamples, includeListenAudio, speakerExampleCount, speakerReport } from '$lib/diagnostics/speaker-checks';
+	import { clearSpeakerExamples, startListenAudioCapture, stopListenAudioCapture, speakerExampleCount, speakerReport } from '$lib/diagnostics/speaker-checks';
 	import { onMount, onDestroy } from 'svelte';
 	import { getBackingTrackLog } from '$lib/audio/backing-track';
 	import type { BackingTrackLog } from '$lib/audio/backing-track';
@@ -49,7 +49,7 @@
 		} catch { exampleCount = null; }
 	}
 	async function startSpeakerCapture() {
-		if (!includeListenAudio(true)) {
+		if (!startListenAudioCapture()) {
 			speakerMessage = 'This browser could not enable Listen audio capture.';
 			return;
 		}
@@ -57,13 +57,15 @@
 	}
 	let speakerMessage = $state('');
 	async function clearListenAudio() {
-		includeListenAudio(false);
+		const stopped = stopListenAudioCapture();
 		try {
 			await clearSpeakerExamples();
 			await refreshSpeakerExamples();
-			speakerMessage = 'Saved Listen audio cleared.';
+			speakerMessage = stopped ? 'Saved Listen audio cleared.'
+				: 'Saved clips cleared. Capture may continue until the ten-minute timer ends. Clear Mankunku site data to stop it now.';
 		} catch {
-			speakerMessage = 'Could not clear saved Listen audio.';
+			speakerMessage = stopped ? 'Capture stopped. Could not clear saved Listen audio.'
+				: 'Could not stop capture or clear saved clips. Clear Mankunku site data in your browser settings.';
 		}
 	}
 	async function downloadSpeakerReport(includeAudio: boolean) {
