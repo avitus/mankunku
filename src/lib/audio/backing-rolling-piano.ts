@@ -113,6 +113,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	let hits: CompFigureHit[] = [];
 	let transform: CompMotifDecision['transform'] = 'fallback';
 	let shift = 0;
+	let bossaReplyFrom: number | undefined;
 	let reason: CompMotifDecision['reason'];
 	let development: KeyboardDevelopment | undefined;
 	let answerFigureId: string | undefined;
@@ -212,6 +213,16 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
 			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), clavePhase: clavePhaseFor(score.phraseId, score.tempo),
 			supportQuietPad: !!score.harmonicSupportVersion && ensemble.piano.texture === 'sparse' && budget > 0 && ensemble.responseOwner === 'nobody' });
+		// Keep the first chord. Move only the existing second attack to answer
+		// the actual octave drop, on the other side of the low fifth.
+		if (bassEvents?.some(event => event.bossaOctavePickup) && realized.length === 2 && !memory.crossBarReleaseTick &&
+			!backgroundHarmony && !arrival && !ensemble.piano.silenceReason) {
+			const [first, second] = realized;
+			if (second.beatOffset === 1.5 || second.beatOffset === 2.5) {
+				bossaReplyFrom = second.beatOffset;
+				realized = [first, { ...second, beatOffset: second.beatOffset === 1.5 ? 2.5 : 3 }];
+			}
+		}
 		// When a whole pad would release at a new chord on beat three, use the
 		// native half-pad rhythm to give that harmony its own quiet entrance.
 		if (score.harmonicSupportVersion && score.style === 'ballad' && budget >= 2 &&
@@ -347,6 +358,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const lift = info.walkingTouch !== undefined && !protectedGesture && !commonTones && hit.beatOffset % 1 === .5
 			? Math.round(4 + 10 * info.walkingTouch) : 0;
 		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: Math.min(127, hit.velocity + lift),
+			...(bossaReplyFrom !== undefined && hit === realized[1] ? { bossaReplyFrom } : {}),
 			...(lift ? { walkingOffbeatLift: Math.min(lift, 127 - hit.velocity) } : {}) } };
 	};
 	// Preparation is pure: rejected replies retain the already valid native fallback,

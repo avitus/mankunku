@@ -92,6 +92,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+	readonly bossaOctavePickup?: true;
  /** Previous gate in seconds, when a walking quarter was shortened. */
  readonly walkingGateBefore?: number;
  readonly innerMotion?: InnerMotion;
@@ -112,6 +113,8 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+	/** Original beat offset of the displaced Bossa chord. */
+	readonly bossaReplyFrom?: number;
  /** MIDI velocity added to an offbeat over four walking pulses. */
  readonly walkingOffbeatLift?: number;
  /** Committed cross-bar gate; omitted by every historical policy. */
@@ -130,6 +133,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly bossaPickupKick?: true;
  /** Velocity added to this ride backbeat over four walking pulses. */
  readonly walkingBackbeatLift?: number;
  readonly innerMotion?: InnerMotion;
@@ -382,6 +386,7 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	readonly bossaPickupAllowed?: boolean;
 	/** Released walking bar, from relaxed (0) to driving (1), after bass realization. */
 	readonly walkingTouch?: number;
 	sectionIndex?: number;

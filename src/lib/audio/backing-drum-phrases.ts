@@ -645,6 +645,12 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		clavePhase: createRng(seedFrom(input.phraseId, input.tempo, 'clave', 0)).chance(0.5) ? '32' : '23' });
 	const time: DrumHitSpec[] = raw.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
 		.map((hit) => ({ ...hit, role: 'timekeeping' }));
+	if (isBossa && input.bassEvents?.some(event => event.bossaOctavePickup && event.absBeat === input.barIndex * 4 + 1.5)) {
+		const pickupKick = time.find(hit => hit.drum === 'kick' && hit.beatOffset === 1.5);
+		if (pickupKick) {
+			time[time.indexOf(pickupKick)] = { ...pickupKick, velocity: pickupKick.velocity + .12, bossaPickupKick: true };
+		}
+	}
 	const canComment = !isBossa && ensemble.drums.maxCommentaryHits > 0 && !ensemble.coordinatedAccent &&
 		(ensemble.responseOwner === 'nobody' || ensemble.responseOwner === 'drums');
 	const previous = input.suppressPreviousPianoAnswer ? [] : memory?.previousCompOnsets ?? [];

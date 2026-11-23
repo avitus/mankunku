@@ -11,7 +11,7 @@ it('preserves the complete 0.19 events, traces and checkpoints without the new p
  const hashes:Record<string,string>={};
  for(const tune of [MANKUNKU_BLUES,RHYTHM_CHANGES])for(const style of ['swing','straight','bossa-nova','ballad'] as const)for(const instrument of ['piano','organ'] as const){
   const {phrase}=buildListeningTuneSession({tuneId:tune.id,soloChoruses:2});
-  const score=createRollingBacking(phrase.harmony,BACKING_STYLES[style],{phraseId:phrase.id,tempo:140,ppq:192,beatsPerBar:4,swing:style==='swing'?.62:.5,performanceForm:phrase.performanceForm,sectionMap:phrase.sectionMap,ensemble:{}},{...releasedBackingOptions(instrument,3),performanceTouch:undefined,keyboardSustain:'common-tones',pianoContinuity:undefined});
+  const score=createRollingBacking(phrase.harmony,BACKING_STYLES[style],{phraseId:phrase.id,tempo:140,ppq:192,beatsPerBar:4,swing:style==='swing'?.62:.5,performanceForm:phrase.performanceForm,sectionMap:phrase.sectionMap,ensemble:{}},{...releasedBackingOptions(instrument,3),bossaPickup:undefined,performanceTouch:undefined,keyboardSustain:'common-tones',pianoContinuity:undefined});
   let checkpoint:RollingBackingCheckpoint|undefined;const hash=createHash('sha256');
   for(let bar=0;bar<score.totalBars;bar++){const result=advanceRollingBacking(score,checkpoint);hash.update(JSON.stringify(result));checkpoint=result.checkpoint;}
   hashes[`${tune.id}/${style}/${instrument}`]=hash.digest('hex');

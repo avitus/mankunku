@@ -235,7 +235,15 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 			event.time = `${tick}i`;
 			event.duration = Math.min(event.duration, ((bar + 1) * 4 * score.ppq - tick) * 60 / score.tempo / score.ppq);
 		}
-		const accepted = events.filter((event) => event.duration > 0);
+		let accepted = events.filter((event) => event.duration > 0);
+		if (info.bossaPickupAllowed && !delayedRoot) {
+			const pickup = accepted.find(event => event.absBeat === bar * 4 + 1.5);
+			const landing = accepted.find(event => event.absBeat === bar * 4 + 2);
+			if (pickup && landing && pickup.midi === landing.midi && pickup.midi + 12 <= 55) {
+				accepted = accepted.map(event => event === pickup
+					? { ...event, midi: event.midi + 12, bossaOctavePickup: true } : event);
+			}
+		}
 		const last = accepted.at(-1)?.midi ?? memory.previousMidi;
 		const before = accepted.at(-2)?.midi ?? memory.previousMidi;
 		return { events: accepted, trace: [], memory: { ...memory, previousMidi: last, previousPreviousMidi: before,

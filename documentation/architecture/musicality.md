@@ -4,6 +4,14 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Bossa pickup and answer — 0.22.0
+
+During a solo build or peak, a Bossa bassist can lift an existing and-of-two pickup an octave and land on the low fifth on beat three. This requires a single written harmony across the bar, an actual repeated pitch at those two attacks, and room in the upright register. Structural accents, setups, terminal reservations, chorus endings, reserved responses and fresh soloist activity or rest take precedence. The bassist records the accepted pitches in rolling memory.
+
+The drummer hears that pickup and reinforces the existing kick on the and of two. The rim-click clave, hat subdivision and drum onset grid keep their native pattern. When two keyboard attacks are already admitted and the preceding bar owns no held notes, the first chord stays in place. The second moves from the and of two to the and of three, or from the and of three to beat four. The keyboard resolves its voicing and articulation at the new beat before committing memory. A single supporting chord stays in place. The technique uses generated ensemble events and the declared form. A new energy arc can move the opportunities to another chorus.
+
+The Bossa-only policy has its own fingerprint in the shared prepared and rolling engine. Listening decisions and take exports identify the notes, chord displacement and kick that actually sounded. Load the 0.22.0 example for Mankunku Blues in F, Bossa nova, 128 BPM, two solo choruses and arc seed 3. Compare performed bars 34 and 37. The open listening question is whether the two different keyboard answers give the solo lift while the clave stays easy to follow.
+
 ## Walking pulse across the form — 0.21.0
 
 Swing and Straight can let the actual bass line guide the touch of all three players. A plain bar of four walking quarters qualifies. The current performance energy gives each quarter a gate of 0.58 to 0.85 beats, bounded by its existing release. A relaxed passage has more air between notes. A stronger solo passage has a more connected walk. Where the keyboard already plays an offbeat, its attack gains 4–14 MIDI velocity units. The existing ride cymbal on beats two and four gains 0.035–0.145 on its normalized velocity scale. A closed-hat passage or cushioned ride keeps its own dynamics. Pitches and onsets follow the existing arrangement.

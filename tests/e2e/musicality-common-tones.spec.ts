@@ -22,7 +22,11 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
  if(choice==='initial')await page.addInitScript(chooseNextArc,seed);
  await page.goto('/musicality');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
- if(choice!=='initial')await page.getByTestId('listening-release-example').click();
+ if (choice !== 'initial') {
+  await page.getByTestId('listening-release-example').click();
+  await page.getByTestId('listening-style').selectOption('swing');
+  await page.getByTestId('listening-tempo').fill('140');
+ }
  if(choice===10){
   // Make the user-facing random-arc choice reproducible, without replacing
   // audio, transport time or generation. Restore randomness after this click.
