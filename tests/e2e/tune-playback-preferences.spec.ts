@@ -1,4 +1,5 @@
 import { openTuneSettings } from './fixtures/tune-setup';
+import { stubCdnInstrumentSamples } from './fixtures/audio';
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/test';
 import { SAINTS_USER_TUNE, seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
@@ -65,4 +66,24 @@ test('chart display choices persist while focus remains escapable', async ({ pag
 	await page.keyboard.press('Escape');
 	await expect(page.locator('nav').first()).toBeVisible();
 	await expect(page.getByRole('switch', { name: 'Show key centers' })).not.toBeChecked();
+});
+
+test('entering practice through a same-tune link stops the running tune loop', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+		'Headless Linux Firefox has no audio output device');
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/ls-rhythm-changes');
+	await openTuneSettings(page);
+	await page.getByRole('switch', { name: 'Loop', exact: true }).click();
+	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20_000 });
+	await page.evaluate(() => {
+		const link = document.createElement('a');
+		link.href = '?licks=1';
+		document.querySelector('main')!.append(link);
+		link.click();
+	});
+	await practiceReady(page);
+	await expect(page.getByRole('switch', { name: 'Lick Practice' })).toBeEnabled();
 });

@@ -5,5 +5,5 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = ({ params, url }) => {
 	const search = new URLSearchParams(url.searchParams);
 	search.set('licks', '1');
-	redirect(308, `/tunes/${encodeURIComponent(params.id)}?${search}`);
+	redirect(307, `/tunes/${encodeURIComponent(params.id)}?${search}`);
 };

@@ -5,7 +5,7 @@
 	import { recordRecentTune } from '$lib/persistence/recent-tunes';
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { goto, onNavigate } from '$app/navigation';
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
 	import TuneBandControls from '$lib/components/tunes/TuneBandControls.svelte';
@@ -148,17 +148,25 @@
 	);
 
 	const practice = $derived(!!bookSheet && page.url.searchParams.get('licks') === '1');
-	function setPractice(on: boolean) {
+	let changingMode = $state(false);
+	async function setPractice(on: boolean): Promise<void> {
+		if (changingMode) return;
 		const url = new URL(page.url.href);
 		if (on) url.searchParams.set('licks', '1');
 		else url.searchParams.delete('licks');
-		void goto(url, { replace: true, reset: false });
+		changingMode = true;
+		try {
+			await goto(url, { replace: true, reset: false });
+		} finally {
+			changingMode = false;
+		}
 	}
 	let practiceSession = $state<TunePracticeSession>();
 	const practiceStatus = $derived(practiceSession?.status());
 	let repeatSession = $state(false);
 	let playGeneration = 0;
 	async function togglePlay() {
+		if (changingMode) return;
 		if (practice) { practiceSession?.togglePlay(); return; }
 		const generation = ++playGeneration;
 		if (player.busy) { player.stop(); return; }
@@ -172,6 +180,13 @@
 		tuneId: () => baseSheet?.id,
 		save: (tuneId, tempo) => saveTuneTempo(tuneId, tempo, supabase ?? undefined)
 	}, () => baseSheet?.style);
+	// A same-tune link or history navigation can enter practice while the desk is playing.
+	onNavigate(({ from, to }) => {
+		if (from?.url.searchParams.get('licks') !== '1' && to?.url.searchParams.get('licks') === '1') {
+			playGeneration++;
+			player.stop();
+		}
+	});
 	const busy = $derived(player.busy || !!practiceStatus?.running || !!practiceStatus?.loading);
 	// A new playback also counts when another tab has opened a different tune.
 	$effect(() => {
@@ -329,7 +344,7 @@
 	{#if sheet && baseSheet}
 		<header class="sd-header">
 			<div class="sd-title"><h1>{baseSheet.title}</h1><p>{baseSheet.composer || 'Your arrangement'}{authorName ? ` · Shared by ${authorName}` : ''}</p></div>
-			<button class="sd-play" data-running={busy} disabled={practice && !practiceStatus?.ready} onclick={togglePlay}>
+			<button class="sd-play" data-running={busy} disabled={changingMode || (practice && !practiceStatus?.ready)} onclick={togglePlay}>
 				<EditorIcon name={busy ? 'stop' : 'play'} size={15} />{player.starting || practiceStatus?.loading ? 'Loading…' : busy ? 'Stop' : 'Play'}
 			</button>
 			{#if sharedSheet}<button class="le-button le-save" onclick={handleAdopt} disabled={adopting}>{adopting ? 'Adding…' : 'Add to my book'}</button>{/if}
@@ -349,7 +364,7 @@
 				</fieldset></div>
 			</details>
 		</header>
-		{#if !tuneDeskView.focus}<TuneSessionDesk {player} {hasMelody} disabled={busy} centers={showKeyCenters} {practice} canPractice={!!bookSheet}
+		{#if !tuneDeskView.focus}<TuneSessionDesk {player} {hasMelody} disabled={busy || changingMode} centers={showKeyCenters} {practice} canPractice={!!bookSheet}
 			oncenters={on => showKeyCenters = saveTuneDisplay('key-centers', on)} onpractice={setPractice} />{/if}
 		<section class="le-panel td-detail-chart" aria-label="Tune chart">
 			{#if practice && bookSheet}

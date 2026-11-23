@@ -31,7 +31,10 @@ test.describe('deep links to nothing', () => {
 		// The detail chrome (key selector, Play) needs a tune; none stands empty.
 		await expect(page.getByRole('button', { name: 'Play', exact: true })).toHaveCount(0);
 
-		await page.goto('/tunes/no-such-tune/practice?source=bookmark');
+		const target = '/tunes/no-such-tune/practice?source=bookmark';
+		const redirect = await page.request.get(target, { maxRedirects: 0 });
+		expect(redirect.status()).toBe(307);
+		await page.goto(target);
 		await expect(page).toHaveURL(/\/tunes\/no-such-tune\?source=bookmark&licks=1$/);
 		await expect(page.getByText('Tune not found: no-such-tune')).toBeVisible();
 		await expect(page.getByRole('button', { name: /^play$/i })).toHaveCount(0);
