@@ -349,11 +349,23 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.reload();
 			await page.locator('[data-tour="play-button"]').click();
 			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
+			// Navigation ends this document. Wait for the rejected clip's storage
+			// transaction to commit before leaving, just as the export requires.
+			await page.evaluate(() => {
+				const add = IDBObjectStore.prototype.add;
+				IDBObjectStore.prototype.add = function (value, ...args) {
+					if (this.name === 'checks' && value.stage === 'listen' && value.result !== 'active' && value.audioExample === 'saved') {
+						this.transaction.addEventListener('complete', () => { sessionStorage.setItem('rejectedClipSaved', 'true'); }, { once: true });
+					}
+					return add.call(this, value, ...args);
+				};
+			});
 			const rejected = page.waitForRequest(request => request.url().endsWith('/api/speaker-check') &&
 				request.postDataJSON()?.stage === 'listen' && request.postDataJSON()?.result !== 'active');
 			await page.waitForFunction(() => 'speakerGraphReady' in window);
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
 			await rejected;
+			await page.waitForFunction(() => sessionStorage.getItem('rejectedClipSaved') === 'true', undefined, {timeout: 25_000});
 			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 			await page.goto('/diagnostics');
