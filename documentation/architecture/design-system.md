@@ -423,7 +423,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (migration sta
 | Page | Component | Approved revision |
 |---|---|---|
 | Home · Studio Desk | `460227723458142208` | `471099909966278656` |
-| Settings · Studio Desk | `459540987434397696` | `460225985468596224` |
+| Settings · Studio Desk | `459540987434397696` | `475480658450456576` |
 | Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
 | Licks · Studio Library | `460234239577821184` | `460236188301803520` |
 | Tunes · Studio Library | `460237458806812672` | `460237458806812673` |
@@ -447,7 +447,7 @@ existing font asset. `.studio-action`, `.studio-label`, `.studio-caption`, and
 phase, mastery and accuracy tokens above; they do not replace their meanings.
 `--studio-accent-text` is for text and `--studio-button` is for white-on-colour
 controls. Activity overrides are scoped to the owning panel. Settings is neutral;
-its tonality section is ear-training and its practice link is lick-practice.
+its tonality section uses the ear-training accent.
 
 Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
 the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
@@ -456,8 +456,7 @@ the layout's 1440px Studio Desk container. Tune Detail (`/tunes/[id]`) and Tune 
 shared editor shell. PDF Import (`/tunes/import/pdf`) uses the 1440px Studio Desk
 container and `PdfImportDesk`. Add Tunes and the iReal Pro, Band-in-a-Box and
 MuseScore import routes also use the shared 1440px container. Other session routes
-retain their existing width and presentation. The setup summary
-moves below the controls on tablet/mobile; instrument and scale banks reflow
+retain their existing width and presentation. Settings centers its panels in a 1024px column. Instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
 
@@ -467,7 +466,9 @@ Fraunces for headings and larger readouts. The dial marker sits near the rim
 so it stays clear of four-character values such as `100%`. Swing is displayed
 as 50–80% in 1% increments while its stored ratio and audio behaviour remain unchanged.
 
-Settings groups Tempo and Swing above the Metronome and Backing band rows. Level
+The shared tempo dial has a number-only face and a BPM caption. Settings keeps its 60–200 BPM range in five-beat steps.
+
+Settings groups the tempo and swing controls above the Metronome and Backing band rows. Level
 and power controls align across both rows. Speaker bleed reduction and its explicit
 sound check share a separate panel. Highest, Master and Melody stay together as
 Appearance moves to its own row on phones.
@@ -479,13 +480,13 @@ audible marks and store linear amplitude. Center the number on the dial and put
 the unit in its label or the Level (dB) heading. Announce the complete value.
 
 Backing controls stay mounted and retain their settings when disabled. Click
-level stays available for count-in when the metronome is off. The summary is read-only. Account, tour, password
+level stays available for count-in when the metronome is off. Key center highlighting has independent lead-sheet and solo defaults with theme-aware previews. Help & data follows Ear Training, with Account last for signed-in players. Account, tour, password
 recovery, and destructive-action confirmation flows retain their existing logic.
 
 Before adopting these components on another route, check both themes, desktop,
 tablet and phone widths, keyboard navigation, persisted values and the route's
 real workflows. The Settings E2E tests exercise that baseline, including the
-backing-off layout regression and instrument/tempo summary updates.
+backing-off layout, section order and persisted instrument and tempo choices.
 The dial contract tests cover every volume, tempo and swing step, range limits,
 displayed values, and persistence. Highest-note tests cover written-pitch labels
 and saved concert pitches for all five instruments, including transposing horns.

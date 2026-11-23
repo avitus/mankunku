@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { gainLabel } from '$lib/audio/mixer-policy';
+	import TempoDial from '$lib/components/console/TempoDial.svelte';
 	import {
 		INSTRUMENTS,
 		TRANSPOSING_INSTRUMENT_IDS,
@@ -259,6 +259,14 @@
 		}
 	}
 
+	async function startTour(tour: (typeof TOURS)[number]) {
+		if (page.url?.pathname !== tour.startsAt) {
+			await goto(tour.startsAt);
+			await waitForTourTargets(tour.steps);
+		}
+		runTour({ tourId: tour.id, steps: tour.steps, supabase: supabase ?? undefined });
+	}
+
 	let showResetConfirm = $state(false);
 	let showDeleteConfirm = $state(false);
 
@@ -367,12 +375,12 @@
 
 <svelte:head><title>Settings — Mankunku</title></svelte:head>
 
-<StudioPage
-	eyebrow="The control room / Settings"
-	title="Settings"
-	description="Tune the room to the way you play."
->
-	<div class="settings-desk-grid">
+<div class="settings-page">
+	<StudioPage
+		eyebrow="The control room / Settings"
+		title="Settings"
+		description="Tune the room to the way you play."
+	>
 		<div class="settings-main-bank">
 			<StudioPanel
 				id="settings-instrument"
@@ -451,105 +459,36 @@
 						/>
 					</div>
 				</div>
-				<KeyCenterSettings sheet={settings.leadSheetHighlight} solo={settings.soloHighlight}
-					onsheet={style => { settings.leadSheetHighlight = style; saveSettings(); }}
-					onsolo={style => { settings.soloHighlight = style; saveSettings(); }} />
-			</StudioPanel>
-			<StudioPanel
-				id="settings-tonality"
-				number="02"
-				title="Ear Training"
-				description="Your key and scale."
-				domain="ear-training"
-			>
-				<div class="settings-tonality-readout studio-well">
-					<div>
-						<strong
-							>{concertKeyToWritten(activeTonality.key, instrument)}
-							{SCALE_TYPE_NAMES[activeTonality.scaleType]}</strong
-						><span>{useOverride ? 'Custom override' : 'Daily tonality'}</span>
-					</div>
-					{#if useOverride}<button
-							type="button"
-							class="studio-text-action"
-							onclick={resetToDaily}>Reset to daily</button
-						>{/if}
-				</div>
-				<div class="settings-tonal-banks">
-					<div class="settings-keys">
-						<p class="studio-label">Key center</p>
-						<SelectorPad
-							ariaLabel="Key center"
-							size="sm"
-							columns={6}
-							value={activeTonality.key}
-							options={KEY_UNLOCK_ORDER.map((key) => ({
-								value: key,
-								label: concertKeyToWritten(key, instrument),
-								disabled: !isKeyUnlocked(key, unlockCtx),
-								title: isKeyUnlocked(key, unlockCtx)
-									? concertKeyToWritten(key, instrument)
-									: formatKeyUnlockRequirements(key, instrument)
-							}))}
-							onChange={selectKey}
-						/>
-					</div>
-					<div class="settings-scales">
-						<p class="studio-label">Scale type</p>
-						<SelectorPad
-							ariaLabel="Scale type"
-							size="sm"
-							columns={4}
-							value={activeTonality.scaleType}
-							options={SCALE_UNLOCK_ORDER.map((scaleType) => ({
-								value: scaleType,
-								label: SCALE_TYPE_NAMES[scaleType],
-								disabled: !isScaleTypeUnlocked(scaleType, unlockCtx),
-								title: isScaleTypeUnlocked(scaleType, unlockCtx)
-									? SCALE_TYPE_NAMES[scaleType]
-									: scaleUnlockTooltip(scaleType)
-							}))}
-							onChange={selectScale}
-						/>
-					</div>
-				</div>
-				<p class="studio-caption">
-					{unlockedKeys.length} / {KEY_UNLOCK_ORDER.length} keys · {unlockedScaleTypes.length}
-					/ {SCALE_UNLOCK_ORDER.length} scales unlocked. More unlock as your ear develops.
-				</p>
 			</StudioPanel>
 			<StudioPanel
 				id="settings-rhythm"
-				number="03"
+				number="02"
 				title="Rhythm & band"
 				description="Set the pace. Bring in the accompaniment."
 			>
 				<div class="timing-strip">
 					<div class="timing-control">
 						<div class="hardware">
-							<Knob
-								compact
-								size="lg"
-								label="Tempo"
-								ariaLabel="Default tempo"
+							<TempoDial
+								label="Default tempo"
 								value={settings.defaultTempo}
 								min={60}
 								max={200}
 								step={5}
-								displayValue={`${settings.defaultTempo} BPM`}
-								onInput={(v) => (settings.defaultTempo = v)}
-								onCommit={syncSettingsToCloud}
+								pageStep={50}
+								onchange={(bpm) => (settings.defaultTempo = bpm)}
+								oncommit={syncSettingsToCloud}
 							/>
 						</div>
 						<div>
 							<div class="control-title">
-								<h3>Tempo</h3>
+								<h3>Starting pace</h3>
 								<TooltipHint
 									text="Starting tempo for new ear-training sessions, in BPM."
 									position="top"
 								/>
 							</div>
-							<p>Starting pace for ear training, library playback and tune practice.</p>
+							<p>Default for ear training, library playback and tune practice.</p>
 						</div>
 					</div>
 					<div class="timing-control">
@@ -710,318 +649,418 @@
 					<p class="sound-check-status" role="status">{roomMessage}</p>
 				</div>
 			</StudioPanel>
-		</div>
-		<aside class="settings-summary studio-panel" aria-label="Your setup">
-			<p class="studio-label">Your setup</p>
-			<div class="settings-instrument-readout">
-				<span class="studio-label">Instrument</span>
-				<h2>{instrument.name}</h2>
-				<p>{instrument.key} · Up to {highestReadout} written</p>
-			</div>
-			<dl>
-				<div>
-					<dt>Master</dt>
-					<dd>{gainLabel(settings.masterVolume)}</dd>
-				</div>
-				<div>
-					<dt>Tonality</dt>
-					<dd>
-						{concertKeyToWritten(activeTonality.key, instrument)}
-						{SCALE_TYPE_NAMES[activeTonality.scaleType]}
-					</dd>
-				</div>
-				<div>
-					<dt>Tempo</dt>
-					<dd>{settings.defaultTempo} BPM</dd>
-				</div>
-				<div>
-					<dt>Swing</dt>
-					<dd>{Math.round(settings.swing * 100)}%</dd>
-				</div>
-				<div>
-					<dt>Metronome</dt>
-					<dd>{settings.metronomeEnabled ? 'On' : 'Off'}</dd>
-				</div>
-				<div>
-					<dt>Backing</dt>
-					<dd>
-						{settings.backingTrackEnabled
-							? settings.backingInstrument === 'organ'
-								? 'Organ'
-								: 'Piano'
-							: 'Off'}
-					</dd>
-				</div>
-			</dl>
-			<p class="studio-caption settings-summary-note">
-				A familiar room.<br />A little more possibility.
-			</p>
-		</aside>
-	</div>
-	<!-- Session config info -->
-	<section
-		class="settings-practice"
-		data-domain="lick-practice"
-		aria-labelledby="settings-practice-title"
-	>
-		<div>
-			<p class="studio-label">Vocabulary / Lick Practice</p>
-			<h2 id="settings-practice-title">The session starts over there.</h2>
-			<p>
-				Choose your session, progression, duration, backing style, and mode on
-				the Lick Practice page. These choices stay as you left them until the
-				app reloads. Each new lick starts at 60 BPM; Daily and Focused practice
-				tempos adapt with your scores. Deep Practice works on a single lick with
-				session-local tempo changes.
-			</p>
-		</div>
-		<a href="/lick-practice" class="studio-action"
-			>Go to Lick Practice <span aria-hidden="true">↗</span></a
-		>
-	</section>
-	{#if session && user}
-		<StudioPanel
-			id="settings-account"
-			number="04"
-			title="Account"
-			description="Cloud sync and account management."
-		>
-			<div class="settings-account-content">
-				<!-- Email -->
-				<div class="flex items-center justify-between px-4 py-3">
+			<StudioPanel
+				id="settings-key-centers"
+				number="03"
+				title="Key center highlighting"
+				description="Choose how key centers appear when you play a tune."
+			>
+				<KeyCenterSettings
+					sheet={settings.leadSheetHighlight}
+					solo={settings.soloHighlight}
+					onsheet={(style) => {
+						settings.leadSheetHighlight = style;
+						saveSettings();
+					}}
+					onsolo={(style) => {
+						settings.soloHighlight = style;
+						saveSettings();
+					}}
+				/>
+			</StudioPanel>
+			<StudioPanel
+				id="settings-tonality"
+				number="04"
+				title="Ear Training"
+				description="Your key and scale."
+				domain="ear-training"
+			>
+				<div class="settings-tonality-readout studio-well">
 					<div>
-						<p class="text-xs text-[var(--color-text-secondary)]">
-							Signed in as
-						</p>
-						<p class="text-sm font-medium">{user.email}</p>
+						<strong
+							>{concertKeyToWritten(activeTonality.key, instrument)}
+							{SCALE_TYPE_NAMES[activeTonality.scaleType]}</strong
+						><span>{useOverride ? 'Custom override' : 'Daily tonality'}</span>
 					</div>
+					{#if useOverride}<button
+							type="button"
+							class="studio-text-action"
+							onclick={resetToDaily}>Reset to daily</button
+						>{/if}
 				</div>
-
-				<!-- Display Name -->
-				<div class="px-4 py-3 space-y-2">
-					<div>
-						<label for="display-name-input" class="text-sm font-medium"
-							>Display Name</label
-						>
-						<p
-							id="display-name-help"
-							class="text-xs text-[var(--color-text-secondary)]"
-						>
-							Shown on community licks you share. Leave blank to stay anonymous.
-						</p>
-					</div>
-					<div class="flex items-center gap-2">
-						<input
-							id="display-name-input"
-							type="text"
-							bind:value={displayName}
-							oninput={() => {
-								displayNameStatus = 'idle';
-							}}
-							aria-describedby="display-name-help"
-							placeholder="e.g. Dexter G."
-							maxlength="80"
-							class="flex-1 rounded-lg bg-[var(--color-bg)] px-3 py-1.5 text-sm border border-[var(--color-bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)]"
+				<div class="settings-tonal-banks">
+					<div class="settings-keys">
+						<p class="studio-label">Key center</p>
+						<SelectorPad
+							ariaLabel="Key center"
+							size="sm"
+							columns={6}
+							value={activeTonality.key}
+							options={KEY_UNLOCK_ORDER.map((key) => ({
+								value: key,
+								label: concertKeyToWritten(key, instrument),
+								disabled: !isKeyUnlocked(key, unlockCtx),
+								title: isKeyUnlocked(key, unlockCtx)
+									? concertKeyToWritten(key, instrument)
+									: formatKeyUnlockRequirements(key, instrument)
+							}))}
+							onChange={selectKey}
 						/>
-						<button
-							onclick={handleSaveDisplayName}
-							disabled={displayNameSaving}
-							class="rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors disabled:opacity-50"
-						>
-							{displayNameSaving ? 'Saving…' : 'Save'}
-						</button>
 					</div>
-					{#if displayNameStatus === 'saved'}
-						<p class="text-xs text-[var(--color-text-secondary)]">Saved.</p>
-					{:else if displayNameStatus === 'error'}
-						<p class="text-xs text-[var(--color-error-text)]">
-							Couldn't save. Try again.
-						</p>
-					{/if}
-				</div>
-
-				<!-- Change Password -->
-				<div class="flex items-center justify-between px-4 py-3">
-					<div>
-						<p class="text-sm font-medium">Password</p>
-						<p class="text-xs text-[var(--color-text-secondary)]">
-							Update your password via email
-						</p>
+					<div class="settings-scales">
+						<p class="studio-label">Scale type</p>
+						<SelectorPad
+							ariaLabel="Scale type"
+							size="sm"
+							columns={4}
+							value={activeTonality.scaleType}
+							options={SCALE_UNLOCK_ORDER.map((scaleType) => ({
+								value: scaleType,
+								label: SCALE_TYPE_NAMES[scaleType],
+								disabled: !isScaleTypeUnlocked(scaleType, unlockCtx),
+								title: isScaleTypeUnlocked(scaleType, unlockCtx)
+									? SCALE_TYPE_NAMES[scaleType]
+									: scaleUnlockTooltip(scaleType)
+							}))}
+							onChange={selectScale}
+						/>
 					</div>
-					<button
-						onclick={handleChangePassword}
-						class="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:underline transition-colors"
-					>
-						Change
-					</button>
 				</div>
-
-				<!-- Delete Account -->
-				<div class="px-4 py-3">
-					{#if showDeleteConfirm}
-						<div use:scrollIntoView>
-							<p class="mb-3 text-sm text-[var(--color-error-text)]">
-								This will permanently delete your account and all associated
-								data including progress, recordings, and settings. This action
-								cannot be undone.
-							</p>
-							<div class="flex gap-2">
-								<button
-									onclick={handleDeleteAccount}
-									class="rounded-lg bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 transition-opacity"
-								>
-									Yes, Delete My Account
-								</button>
-								<button
-									onclick={() => {
-										showDeleteConfirm = false;
-									}}
-									class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors"
-								>
-									Cancel
+				<p class="studio-caption">
+					{unlockedKeys.length} / {KEY_UNLOCK_ORDER.length} keys · {unlockedScaleTypes.length}
+					/ {SCALE_UNLOCK_ORDER.length} scales unlocked. More unlock as your ear develops.
+				</p>
+			</StudioPanel>
+			<StudioPanel id="settings-help" number="05" title="Help &amp; data">
+				<div class="utility-list">
+					<a class="utility-row utility-link" href="/docs">
+						<span>User guide</span><span class="utility-arrow" aria-hidden="true">→</span>
+					</a>
+					<details class="utility-group">
+						<summary class="utility-row">
+							Guided tours<span class="utility-chevron" aria-hidden="true"></span>
+						</summary>
+						<div class="tour-list">
+							{#each TOURS as tour (tour.id)}
+								<div class="utility-detail">
+									<div>
+										<strong>{tour.title}</strong>
+										<p>{hasSeen(tour.id) ? 'Completed' : 'Not yet taken'}</p>
+									</div>
+									<button type="button" class="utility-button" onclick={() => startTour(tour)}>
+										{hasSeen(tour.id) ? 'Replay' : 'Start tour'}
+									</button>
+								</div>
+							{/each}
+							<div class="utility-detail">
+								<div>
+									<strong>Tour history</strong>
+									<p>Show welcome prompts and tour invitations again.</p>
+								</div>
+								<button type="button" class="utility-button" onclick={() => resetTours(supabase)}>
+									Reset tour history
 								</button>
 							</div>
 						</div>
-					{:else}
-						<button
-							onclick={() => {
-								showDeleteConfirm = true;
-							}}
-							class="text-sm text-[var(--color-error-text)] hover:underline"
-						>
-							Delete Account
-						</button>
-					{/if}
+					</details>
+					<details class="utility-group">
+						<summary class="utility-row">
+							Practice history<span class="utility-chevron" aria-hidden="true"></span>
+						</summary>
+						<div class="history-body">
+							<p>Clear saved progress, scores, and session history.</p>
+							{#if showResetConfirm}
+								<div use:scrollIntoView>
+									<p class="mb-3 text-sm text-[var(--color-error-text)]">
+										This will erase all progress, scores, and session history. This cannot be undone.
+									</p>
+									<div class="flex gap-2">
+										<button
+											onclick={async () => {
+												try {
+													const { resetAllPracticeData } = await import('$lib/state/reset');
+													await resetAllPracticeData(supabase ?? undefined);
+												} catch (err) {
+													console.warn('Failed to fully reset progress:', err);
+												} finally {
+													showResetConfirm = false;
+												}
+											}}
+											class="rounded-lg bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 transition-opacity"
+										>
+											Yes, Reset Everything
+										</button>
+										<button
+											onclick={() => {
+												showResetConfirm = false;
+											}}
+											class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors"
+										>
+											Cancel
+										</button>
+									</div>
+								</div>
+							{:else}
+								<button
+									onclick={() => {
+										showResetConfirm = true;
+									}}
+									class="text-sm text-[var(--color-error-text)] hover:underline"
+								>
+									Reset practice history
+								</button>
+							{/if}
+						</div>
+					</details>
 				</div>
-			</div>
-		</StudioPanel>
-	{/if}
-	<details class="settings-help studio-panel" open>
-		<summary
-			><span class="studio-label">The reference shelf</span>
-			<h2>Tours, help & data</h2></summary
-		>
-		<div class="settings-help-content">
-			<div class="flex items-center justify-between px-4 py-3 gap-4">
-				<div class="min-w-0">
-					<p class="text-sm font-medium">Documentation</p>
-					<p class="text-xs text-[var(--color-text-secondary)]">
-						User guide, architecture, glossary, API reference.
-					</p>
-				</div>
-				<a
-					href="/docs"
-					class="shrink-0 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+			</StudioPanel>
+			{#if session && user}
+				<StudioPanel
+					id="settings-account"
+					number="06"
+					title="Account"
+					description="Cloud sync and account management."
 				>
-					Browse docs
-				</a>
-			</div>
-			{#each TOURS as tour}
-				<div class="flex items-center justify-between px-4 py-3 gap-4">
-					<div class="min-w-0">
-						<p class="text-sm font-medium">{tour.title}</p>
-						<p class="text-xs text-[var(--color-text-secondary)]">
-							{hasSeen(tour.id) ? 'Already seen' : 'Not yet seen'} · starts at
-							<code class="text-[var(--color-brass)]">{tour.startsAt}</code>
-						</p>
-					</div>
-					<button
-						type="button"
-						onclick={async () => {
-							if (page.url?.pathname !== tour.startsAt) {
-								await goto(tour.startsAt);
-								await waitForTourTargets(tour.steps);
-							}
-							runTour({
-								tourId: tour.id,
-								steps: tour.steps,
-								supabase: supabase ?? undefined
-							});
-						}}
-						class="shrink-0 rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-bg)] transition-colors"
-					>
-						{hasSeen(tour.id) ? 'Replay' : 'Take tour'}
-					</button>
-				</div>
-			{/each}
-			<div class="flex items-center justify-between px-4 py-3 gap-4">
-				<div class="min-w-0">
-					<p class="text-sm font-medium">Reset all tour history</p>
-					<p class="text-xs text-[var(--color-text-secondary)]">
-						The welcome banner and "Need help?" links will reappear.
-					</p>
-				</div>
-				<button
-					type="button"
-					onclick={() => resetTours(supabase)}
-					class="shrink-0 rounded-lg border border-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:border-[var(--color-text-secondary)] transition-colors"
-				>
-					Reset
-				</button>
-			</div>
-			<div class="settings-data">
-				<h3>Progress & session history</h3>
-				<p class="studio-caption">
-					Clear practice history and earned progress.
-				</p>
-				{#if showResetConfirm}
-					<div use:scrollIntoView>
-						<p class="mb-3 text-sm text-[var(--color-error-text)]">
-							This will erase all progress, scores, and session history. This
-							cannot be undone.
-						</p>
-						<div class="flex gap-2">
+					<div class="settings-account-content">
+						<!-- Email -->
+						<div class="flex items-center justify-between px-4 py-3">
+							<div>
+								<p class="text-xs text-[var(--color-text-secondary)]">
+									Signed in as
+								</p>
+								<p class="text-sm font-medium">{user.email}</p>
+							</div>
+						</div>
+
+						<!-- Display Name -->
+						<div class="px-4 py-3 space-y-2">
+							<div>
+								<label for="display-name-input" class="text-sm font-medium"
+									>Display Name</label
+								>
+								<p
+									id="display-name-help"
+									class="text-xs text-[var(--color-text-secondary)]"
+								>
+									Shown on community licks you share. Leave blank to stay anonymous.
+								</p>
+							</div>
+							<div class="flex items-center gap-2">
+								<input
+									id="display-name-input"
+									type="text"
+									bind:value={displayName}
+									oninput={() => {
+										displayNameStatus = 'idle';
+									}}
+									aria-describedby="display-name-help"
+									placeholder="e.g. Dexter G."
+									maxlength="80"
+									class="flex-1 rounded-lg bg-[var(--color-bg)] px-3 py-1.5 text-sm border border-[var(--color-bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)]"
+								/>
+								<button
+									onclick={handleSaveDisplayName}
+									disabled={displayNameSaving}
+									class="rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors disabled:opacity-50"
+								>
+									{displayNameSaving ? 'Saving…' : 'Save'}
+								</button>
+							</div>
+							{#if displayNameStatus === 'saved'}
+								<p class="text-xs text-[var(--color-text-secondary)]">Saved.</p>
+							{:else if displayNameStatus === 'error'}
+								<p class="text-xs text-[var(--color-error-text)]">
+									Couldn't save. Try again.
+								</p>
+							{/if}
+						</div>
+
+						<!-- Change Password -->
+						<div class="flex items-center justify-between px-4 py-3">
+							<div>
+								<p class="text-sm font-medium">Password</p>
+								<p class="text-xs text-[var(--color-text-secondary)]">
+									Update your password via email
+								</p>
+							</div>
 							<button
-								onclick={async () => {
-									try {
-										const { resetAllPracticeData } =
-											await import('$lib/state/reset');
-										await resetAllPracticeData(supabase ?? undefined);
-									} catch (err) {
-										console.warn('Failed to fully reset progress:', err);
-									} finally {
-										showResetConfirm = false;
-									}
-								}}
-								class="rounded-lg bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 transition-opacity"
+								onclick={handleChangePassword}
+								class="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:underline transition-colors"
 							>
-								Yes, Reset Everything
-							</button>
-							<button
-								onclick={() => {
-									showResetConfirm = false;
-								}}
-								class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors"
-							>
-								Cancel
+								Change
 							</button>
 						</div>
+
+						<!-- Delete Account -->
+						<div class="px-4 py-3">
+							{#if showDeleteConfirm}
+								<div use:scrollIntoView>
+									<p class="mb-3 text-sm text-[var(--color-error-text)]">
+										This will permanently delete your account and all associated
+										data including progress, recordings, and settings. This action
+										cannot be undone.
+									</p>
+									<div class="flex gap-2">
+										<button
+											onclick={handleDeleteAccount}
+											class="rounded-lg bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 transition-opacity"
+										>
+											Yes, Delete My Account
+										</button>
+										<button
+											onclick={() => {
+												showDeleteConfirm = false;
+											}}
+											class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors"
+										>
+											Cancel
+										</button>
+									</div>
+								</div>
+							{:else}
+								<button
+									onclick={() => {
+										showDeleteConfirm = true;
+									}}
+									class="text-sm text-[var(--color-error-text)] hover:underline"
+								>
+									Delete Account
+								</button>
+							{/if}
+						</div>
 					</div>
-				{:else}
-					<button
-						onclick={() => {
-							showResetConfirm = true;
-						}}
-						class="text-sm text-[var(--color-error-text)] hover:underline"
-					>
-						Reset All Progress
-					</button>
-				{/if}
-			</div>
+				</StudioPanel>
+			{/if}
 		</div>
-	</details>
-	<footer class="settings-footer">
-		<span>MANKUNKU · YAKHAL’ INKOMO</span><span>MAKE THE ROOM YOURS.</span>
-	</footer>
-</StudioPage>
+	</StudioPage>
+</div>
 
 <style>
-	.settings-desk-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 250px;
-		gap: var(--studio-gap);
-		align-items: start;
+	.settings-page {
+		max-width: 1024px;
+		margin-inline: auto;
 	}
+	.settings-page :global(#settings-help .studio-panel-heading) {
+		align-items: center;
+		margin-bottom: 16px;
+	}
+	.settings-account-content > div {
+		border-top: 1px solid var(--studio-border);
+	}
+	.settings-account-content input {
+		min-width: 0;
+	}
+	.utility-list {
+		border-top: 1px solid var(--studio-border);
+	}
+	.utility-row {
+		width: 100%;
+		min-height: 54px;
+		padding: 10px 4px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		color: var(--studio-text);
+		text-decoration: none;
+		cursor: pointer;
+		font-size: 15px;
+		font-weight: 550;
+		list-style: none;
+	}
+	.utility-row::-webkit-details-marker {
+		display: none;
+	}
+	.utility-row:hover {
+		color: var(--color-brass-soft);
+	}
+	.utility-row:focus-visible,
+	.utility-button:focus-visible {
+		outline: 2px solid var(--color-brass);
+		outline-offset: 2px;
+	}
+	.utility-arrow {
+		width: 18px;
+		text-align: center;
+		color: var(--studio-accent-text);
+		font-size: 18px;
+	}
+	.utility-chevron {
+		width: 8px;
+		height: 8px;
+		border-right: 1.5px solid var(--studio-accent-text);
+		border-bottom: 1.5px solid var(--studio-accent-text);
+		margin-right: 5px;
+		transform: rotate(45deg);
+	}
+	.utility-group[open] > summary .utility-chevron {
+		transform: rotate(225deg);
+	}
+	.utility-group {
+		border-top: 1px solid color-mix(in srgb, var(--studio-border) 65%, transparent);
+	}
+	.tour-list,
+	.history-body {
+		margin: 0 0 12px;
+		padding: 0 clamp(10px, 1.7vw, 18px);
+		background: var(--studio-well);
+		border-radius: 4px;
+	}
+	.utility-detail,
+	.history-body {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.utility-detail {
+		padding: 11px 0;
+	}
+	.utility-detail + .utility-detail {
+		border-top: 1px solid color-mix(in srgb, var(--studio-border) 65%, transparent);
+	}
+	.utility-detail strong {
+		font-weight: 600;
+		font-size: 14px;
+	}
+	.utility-detail p,
+	.history-body > p {
+		margin: 2px 0;
+		color: var(--studio-muted);
+		font-size: 13px;
+	}
+	.utility-button {
+		min-height: 36px;
+		border: 1px solid var(--studio-border);
+		border-radius: 4px;
+		color: var(--studio-text);
+		padding: 5px 10px;
+		font-size: 12px;
+		white-space: nowrap;
+	}
+	.history-body {
+		padding-block: 12px;
+		flex-wrap: wrap;
+	}
+	.history-body > div {
+		width: 100%;
+	}
+	.history-body > button {
+		min-height: 36px;
+		color: var(--color-error-text);
+	}
+	@media (max-width: 520px) {
+		.utility-row {
+			min-height: 50px;
+		}
+		.utility-detail {
+			flex-wrap: wrap;
+		}
+		.utility-detail button {
+			margin-left: auto;
+		}
+	}
+
 	.settings-main-bank {
 		display: grid;
 		gap: var(--studio-gap);
@@ -1298,111 +1337,7 @@
 			gap: 3px;
 		}
 	}
-	.settings-summary {
-		border-top: 3px solid var(--color-brass);
-	}
-	.settings-instrument-readout {
-		margin-top: 40px;
-		margin-bottom: 28px;
-	}
-	.settings-instrument-readout h2 {
-		font: 30px/1.2 var(--font-display);
-		margin: 12px 0;
-	}
-	.settings-instrument-readout p {
-		color: var(--studio-muted);
-		font-size: 12px;
-	}
-	.settings-summary dl > div {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 14px;
-		padding: 16px 0;
-		border-top: 1px solid var(--studio-border);
-		font-size: 12px;
-	}
-	.settings-summary dt {
-		color: var(--studio-muted);
-	}
-	.settings-summary dd {
-		text-align: right;
-		max-width: 65%;
-		overflow-wrap: anywhere;
-	}
-	.settings-summary-note {
-		margin-top: 32px;
-	}
-	.settings-practice {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 28px;
-		padding: 32px 0;
-		margin: 12px 0;
-	}
-	.settings-practice h2 {
-		font: 28px/1.25 var(--font-display);
-		margin: 8px 0 12px;
-	}
-	.settings-practice p:not(.studio-label) {
-		color: var(--studio-muted);
-		font-size: 13px;
-		line-height: 1.8;
-		max-width: 730px;
-	}
-	.settings-practice a {
-		flex-shrink: 0;
-	}
-	.settings-help {
-		margin-top: 24px;
-	}
-	.settings-help summary {
-		cursor: pointer;
-		padding: 4px 0;
-	}
-	.settings-help h2 {
-		display: inline;
-		font: 25px/1.3 var(--font-display);
-	}
-	.settings-help summary .studio-label {
-		display: block;
-		margin-bottom: 7px;
-	}
-	.settings-help-content {
-		margin-top: 20px;
-	}
-	.settings-help-content > :global(div),
-	.settings-account-content > :global(div) {
-		border-top: 1px solid var(--studio-border);
-	}
-	.settings-account-content :global(input) {
-		min-width: 0;
-	}
-	.settings-data {
-		padding: 22px 16px 10px;
-	}
-	.settings-data h3 {
-		font: 20px var(--font-display);
-	}
-	.settings-data > p {
-		margin: 8px 0 16px;
-	}
-	.settings-footer {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 16px;
-		color: var(--studio-muted);
-		font-size: 9px;
-		letter-spacing: 0.12em;
-		padding-top: 30px;
-	}
 	@media (max-width: 1200px) {
-		.settings-desk-grid {
-			grid-template-columns: minmax(0, 1fr) 220px;
-			gap: 20px;
-		}
 		.settings-tonal-banks {
 			grid-template-columns: 1fr;
 		}
@@ -1411,30 +1346,11 @@
 		}
 	}
 	@media (max-width: 900px) {
-		.settings-desk-grid {
-			grid-template-columns: 1fr;
-		}
-		.settings-summary dl {
-			display: grid;
-			grid-template-columns: 1fr 1fr;
-			gap: 0 26px;
-		}
-		.settings-instrument-readout {
-			margin: 20px 0;
-		}
-		.settings-summary-note {
-			margin-top: 18px;
-		}
 		.settings-instrument-bank {
 			--selector-columns: 3;
 		}
 		.settings-concert-bank {
 			--selector-columns: 3;
-		}
-		.settings-practice {
-			align-items: start;
-			flex-direction: column;
-			gap: 18px;
 		}
 	}
 	@media (max-width: 600px) {
@@ -1474,14 +1390,8 @@
 		.settings-scales {
 			--selector-columns: 2;
 		}
-		.settings-summary dl {
-			grid-template-columns: 1fr;
-		}
 		.settings-tonality-readout strong {
 			font-size: 22px;
-		}
-		.settings-help-content > :global(div) {
-			flex-wrap: wrap;
 		}
 	}
 </style>

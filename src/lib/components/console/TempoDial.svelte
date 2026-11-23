@@ -1,27 +1,57 @@
 <script lang="ts">
-	let { value, disabled = false, onchange }: {
-		value: number; disabled?: boolean; onchange: (bpm: number) => void;
+	let {
+		value,
+		disabled = false,
+		label = 'Tempo',
+		min = 40,
+		max = 240,
+		step = 1,
+		pageStep = 5,
+		onchange,
+		oncommit
+	}: {
+		value: number;
+		disabled?: boolean;
+		label?: string;
+		min?: number;
+		max?: number;
+		step?: number;
+		pageStep?: number;
+		oncommit?: () => void;
+		onchange: (bpm: number) => void;
 	} = $props();
-	const min = 40, max = 240;
 	const hint = $props.id();
 	const fraction = $derived((value - min) / (max - min));
 	let drag: { id: number; y: number; initial: number } | null = null;
-	function update(next: number) {
-		const bpm = Math.max(min, Math.min(max, Math.round(next)));
-		if (value !== bpm) onchange(bpm);
+	function update(next: number, commit = false) {
+		const bpm = Math.max(min, Math.min(max, min + step * Math.round((next - min) / step)));
+		if (value !== bpm) {
+			onchange(bpm);
+			if (commit) oncommit?.();
+		}
 	}
 	function keydown(event: KeyboardEvent) {
+		const increment = step * (event.shiftKey ? 10 : 1);
 		const values: Record<string, number> = {
-			ArrowUp: value + 1, ArrowRight: value + 1, ArrowDown: value - 1, ArrowLeft: value - 1,
-			PageUp: value + 5, PageDown: value - 5, Home: min, End: max
+			ArrowUp: value + increment,
+			ArrowRight: value + increment,
+			ArrowDown: value - increment,
+			ArrowLeft: value - increment,
+			PageUp: value + pageStep,
+			PageDown: value - pageStep,
+			Home: min,
+			End: max
 		};
-		if (event.key in values) { event.preventDefault(); update(values[event.key]); }
+		if (event.key in values) {
+			event.preventDefault();
+			update(values[event.key], true);
+		}
 	}
 </script>
 
 <div class="bpm-dial bpm-compact">
-	<button class="bpm-control" type="button" role="slider" aria-label="Tempo" aria-orientation="vertical"
-		aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${value} beats per minute`}
+	<button class="bpm-control" type="button" role="slider" aria-label={label} aria-orientation="vertical"
+		aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${value} BPM`}
 		aria-describedby={hint} {disabled} onkeydown={keydown}
 		onpointerdown={event => {
 			if (!event.isPrimary || event.button !== 0) return;
@@ -29,8 +59,16 @@
 			event.currentTarget.setPointerCapture(event.pointerId);
 			event.currentTarget.focus();
 		}}
-		onpointermove={event => { if (drag?.id === event.pointerId) update(drag.initial + (drag.y - event.clientY) * (max - min) / 150); }}
-		onlostpointercapture={() => drag = null} onpointercancel={() => drag = null}>
+		onpointermove={event => { if (drag?.id === event.pointerId) update(drag.initial + (drag.y - event.clientY) * (max - min) / (event.shiftKey ? 750 : 150)); }}
+		onlostpointercapture={() => {
+			if (drag) oncommit?.();
+			drag = null;
+		}}
+		onwheel={(event) => {
+			if (document.activeElement !== event.currentTarget) return;
+			event.preventDefault();
+			update(value + (event.deltaY < 0 ? step : -step) * (event.shiftKey ? 10 : 1), true);
+		}}>
 		<svg class="bpm-scale" viewBox="0 0 100 100" aria-hidden="true">
 			{#each Array(17) as _, i}
 				<line transform={`rotate(${-135 + i * 270 / 16} 50 50)`} x1="50" x2="50" y1={i % 4 === 0 ? 2.5 : 4} y2="8" class:lit={i / 16 <= fraction} />
@@ -81,7 +119,7 @@
 }
 .bpm-index line {stroke:#fff0ca;stroke-width:2.3;stroke-linecap:round}
 .bpm-dial .bpm-caption {
-  margin-top:-2px; padding-left:.13em; color:var(--bpm-brass);
+  margin-top:-2px; padding-left:.13em; color:var(--color-brass-soft,var(--bpm-brass));
   font:650 var(--bpm-caption-size)/1.25 'DM Sans',system-ui,sans-serif; letter-spacing:.13em;
 }
 .bpm-hint {position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}
