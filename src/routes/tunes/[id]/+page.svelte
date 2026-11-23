@@ -163,8 +163,9 @@
 		const generation = ++playGeneration;
 		if (player.busy) { player.stop(); return; }
 		if (!sheet) return;
-		do { await player.toggle(sheet, backingStyle, player.soloChoruses); }
-		while (repeatSession && generation === playGeneration && !player.error);
+		do {
+			if (!await player.toggle(sheet, backingStyle, player.soloChoruses)) return;
+		} while (repeatSession && generation === playGeneration);
 	}
 	// The tempo is remembered per tune, so the next visit opens at the last choice.
 	const player = new TunePlayer({
@@ -322,8 +323,8 @@
 
 {#if printPreview && sheet}
 	<PrintableTune tune={sheet} instrument={getInstrument()} showCenters={showKeyCenters} onclose={() => printPreview = false} />
-{:else}
-<div class="lick-editor tune-desk tune-detail studio-desk sd-page" class:td-focus={tuneDeskView.focus}>
+{/if}
+<div hidden={printPreview && !!sheet} class="lick-editor tune-desk tune-detail studio-desk sd-page" class:td-focus={tuneDeskView.focus}>
 	{#if !tuneDeskView.focus}<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>{/if}
 	{#if sheet && baseSheet}
 		<header class="sd-header">
@@ -381,7 +382,6 @@
 	{:else if sharedLoading}<p role="status">Loading tune…</p>
 	{:else}<p>Tune not found: {page.params.id}</p>{/if}
 </div>
-{/if}
 
 {#snippet chartSettings(prefix: string)}
 	{#if sheet && baseSheet}

@@ -1,3 +1,4 @@
+import type { Smolken, Soundfont, SplendidGrandPiano } from 'smplr';
 import { INSTRUMENTS, CONCERT_INSTRUMENT_IDS, isConcertInstrument, isInstrumentId, type InstrumentId } from '$lib/types/instruments';
 import { createBackingSampleLoader, createSampleStorage } from './backing-sample-loader';
 import { loadBackingBass } from './backing-bass-instrument';
@@ -39,7 +40,7 @@ export function earTrainingVoice(id: string): Voice | undefined {
 }
 
 /** A player owned by Melody, independent of the accompaniment's transport and fader. */
-export async function loadEarTrainingVoice(context: AudioContext, destination: GainNode, voice: Voice) {
+export async function loadEarTrainingVoice(context: AudioContext, destination: GainNode, voice: Voice): Promise<Smolken | Soundfont | SplendidGrandPiano> {
 	const { Soundfont, SplendidGrandPiano, Smolken, CacheStorage } = await import('smplr');
 	const storage = createSampleStorage(CacheStorage);
 	const loader = createBackingSampleLoader(context, storage);

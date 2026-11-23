@@ -39,9 +39,16 @@ const SOURCE_GROUPS: readonly (readonly [stem: string, low: number, high: number
 	['pizz_g3_f', 53, 55, 55, 5, 121, 127, 4]
 ];
 
-function sourceGroup([stem, low, high, pitch, choke, velLow, velHigh, length]: typeof SOURCE_GROUPS[number]) {
+interface SourceGroup {
+	velRange: [number, number];
+	length: number;
+	group: { group: number; offBy: number; ampRelease: number };
+	regions: SmplrRegion[];
+}
+
+function sourceGroup([stem, low, high, pitch, choke, velLow, velHigh, length]: typeof SOURCE_GROUPS[number]): SourceGroup {
 	return {
-		velRange: [velLow, velHigh] as [number, number],
+		velRange: [velLow, velHigh],
 		length,
 		group: { group: choke, offBy: choke, ampRelease: 0.4 },
 		regions: Array.from({ length }, (_, position): SmplrRegion => ({
@@ -59,7 +66,7 @@ function equalFields(actual: object, expected: object): boolean {
 		Object.hasOwn(expected, key) && JSON.stringify(value) === JSON.stringify((expected as Record<string, unknown>)[key]));
 }
 
-function matchesGroup(group: SmplrGroup, source: typeof sourceGroups[number]): boolean {
+function matchesGroup(group: SmplrGroup, source: SourceGroup): boolean {
 	const { regions, velRange, seqLength, ...rest } = group;
 	if (!equalFields(rest, source.group) || regions.length !== source.length ||
 		(velRange !== undefined && JSON.stringify(velRange) !== JSON.stringify(source.velRange)) ||

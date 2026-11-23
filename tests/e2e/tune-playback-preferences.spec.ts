@@ -63,5 +63,6 @@ test('chart display choices persist while focus remains escapable', async ({ pag
 	await reloadTunePage(page);
 	await expect(page.locator('nav')).toHaveCount(0);
 	await page.keyboard.press('Escape');
+	await expect(page.locator('nav').first()).toBeVisible();
 	await expect(page.getByRole('switch', { name: 'Show key centers' })).not.toBeChecked();
 });

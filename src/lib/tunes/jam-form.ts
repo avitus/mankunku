@@ -35,9 +35,11 @@ export function buildJamForm(tune: Tune, choruses: number, includeHead = true, i
 	const flat = clearPickupBarHarmony(sheet, expanded.flat);
 	const pickupBars = Math.max(soloStartBar, soloPassPickupBars(sheet, flat));
 	const closingFlat = clearPickupBarHarmony(closingSheet, tuneToPhraseWithFlat(closingSheet, { expandRepeats: true }).flat);
-	const playHead = includeHead && flat.notes.some(note => note.pitch !== null);
+	const returningHasMelody = flat.notes.some(note => note.pitch !== null);
+	const playHead = includeHead && returningHasMelody;
+	const playOutro = includeOutro && (returningHasMelody || closingFlat.notes.some(note => note.pitch !== null));
 	const built = buildSessionPhrase({
-		flat, timeSignature: tune.timeSignature, playHead, playOutro: includeOutro && flat.notes.some(note => note.pitch !== null), choruses, pickupBars,
+		flat, timeSignature: tune.timeSignature, playHead, playOutro, choruses, pickupBars,
 		openingFlat: opening?.flat, closingFlat, closingPickupBars: soloPassPickupBars(closingSheet, closingFlat)
 	});
 	const form = headBarsForFlat(flat);

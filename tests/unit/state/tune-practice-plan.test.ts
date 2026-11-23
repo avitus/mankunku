@@ -1079,6 +1079,18 @@ describe('omitted solo sections retain the actual performed form', () => {
 		expect(built.sessionBarMap?.slice(built.headBars, built.headBars + 8)).toEqual([0, 1, 4, 5, 0, 1, 4, 5]);
 		expect(performanceBarContext(built.performanceForm, built.phraseBars - 1)?.isFinalBar).toBe(true);
 	});
+	it('maps an outro-only session with distinct solo and closing omissions', () => {
+		const closingFlat: FlattenedTune = { ...flat, omittedOutroSections: [0],
+			notes: [0, 2, 4].map((offset, i) => ({ pitch: 60 + i, offset: [offset, 1], duration: [1, 4] })),
+			noteSourceIndices: [0, 1, 2]
+		};
+		const built = buildSessionPhrase({ flat, closingFlat, timeSignature: [4, 4],
+			playHead: false, playOutro: true, choruses: 2 });
+		expect(built.headBars).toBe(0);
+		expect(built.outroStartBar).toBe(8);
+		expect(built.sessionBarMap).toEqual([0, 1, 4, 5, 0, 1, 4, 5, 2, 3, 4, 5]);
+		expect(built.notes.map(note => [note.pitch, fractionToFloat(note.offset)])).toEqual([[61, 8], [62, 10]]);
+	});
 	it.each([true, false])('creates no phantom solo when all sections are omitted (head=%s)', playHead => {
 		const built = buildSessionPhrase({ flat: { ...flat, omittedSoloSections: [0, 1, 2] }, timeSignature: [4, 4], playHead, playOutro: playHead, choruses: 2 });
 		expect(built.performanceForm.totalBars).toBe(playHead ? 6 : 0);

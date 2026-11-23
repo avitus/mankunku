@@ -292,7 +292,7 @@ describe('tune desk playback', () => {
 	it.each([true, false])('uses melody and metronome switches without removing the jam head (%s)', async (enabled) => {
 		player.melody = enabled;
 		player.metronome = enabled;
-		await player.toggle(tune, 'swing', 1);
+		await expect(player.toggle(tune, 'swing', 1)).resolves.toBe(true);
 		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ metronomeEnabled: enabled });
 		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ skipMelody: !enabled });
 		// Notes for both heads remain in the plan even when their audio is muted.
@@ -318,7 +318,7 @@ describe('tune desk playback', () => {
 		await vi.waitFor(() => expect(audio.loadInstrument).toHaveBeenCalled());
 		player.dispose();
 		loaded();
-		await started;
+		await expect(started).resolves.toBe(false);
 		expect(audio.playPhrase).not.toHaveBeenCalled();
 		expect(player.busy).toBe(false);
 	});
@@ -409,7 +409,7 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
-	it('maps repeated notes to the printed chart and ignores callbacks after stop', async () => {
+	it('maps repeated notes and reports cancellation when changing Melody stops the pass', async () => {
 		let finish!: () => void;
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
 		const started = player.toggle(tune, 'swing');
@@ -417,10 +417,10 @@ describe('tune desk playback', () => {
 		const callbacks = audio.playPhrase.mock.calls[0][3];
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBe(0);
-		player.stop();
+		player.setMelody(false);
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBeNull();
 		finish();
-		await started;
+		await expect(started).resolves.toBe(false);
 	});
 });

@@ -611,6 +611,11 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(report.locator('.tr-selection-title')).toContainText('F#');
 		await expect(report.locator('.tr-selection-title')).toContainText('Minor');
 		await report.getByRole('button', { name: '+ Practice this spot', exact: true }).click();
+		await openTuneSettings(page);
+		await page.getByRole('button', { name: 'Print lead sheet' }).click();
+		await expect(report).toBeHidden();
+		await page.getByRole('button', { name: 'Back to tune', exact: true }).click();
+		await expect(report).toBeVisible();
 		await report.getByRole('button', { name: 'Practice 1 selected spot', exact: true }).click();
 		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toBeVisible();
 		// A same-route client navigation reuses the page component: retry IDs

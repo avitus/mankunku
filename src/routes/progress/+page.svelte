@@ -117,10 +117,8 @@
 	}
 
 	async function stopLickPlayback(): Promise<void> {
-		if (playbackModule) {
-			await playbackModule.stopPlayback();
-		}
 		playingLickSessionId = null;
+		await playbackModule?.stopPlayback();
 	}
 
 	/** Toggle one recorded take through Master, ignoring superseded async loads. */
@@ -272,12 +270,8 @@
 	}
 
 	async function togglePlayLick(s: SessionResult): Promise<void> {
-		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback');
-		}
-
-		// Don't run lick audio over a recording playback.
 		stopRecordingPlayback();
+		const generation = replayGeneration;
 
 		if (playingLickSessionId === s.id) {
 			await stopLickPlayback();
@@ -285,18 +279,21 @@
 		}
 		if (playingLickSessionId) {
 			await stopLickPlayback();
+			if (generation !== replayGeneration) return;
 		}
 
 		const phrase = findPhraseForSession(s);
 		if (!phrase) return;
 
-		if (!playbackModule.isInstrumentLoaded(settings.instrumentId)) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		}
-		setMasterVolume(settings.masterVolume);
-
-		playingLickSessionId = s.id;
 		try {
+			playbackModule ??= await import('$lib/audio/playback');
+			if (generation !== replayGeneration) return;
+			if (!playbackModule.isInstrumentLoaded(settings.instrumentId)) {
+				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+				if (generation !== replayGeneration) return;
+			}
+			setMasterVolume(settings.masterVolume);
+			playingLickSessionId = s.id;
 			await playbackModule.playPhrase(phrase, {
 				tempo: s.tempo,
 				swing: settings.swing,
@@ -307,7 +304,7 @@
 		} catch (err) {
 			console.error('Failed to play lick:', err);
 		} finally {
-			if (playingLickSessionId === s.id) {
+			if (generation === replayGeneration && playingLickSessionId === s.id) {
 				playingLickSessionId = null;
 			}
 		}

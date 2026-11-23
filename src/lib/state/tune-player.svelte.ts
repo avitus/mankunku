@@ -129,10 +129,11 @@ export class TunePlayer {
 	/**
 	 * One engine call carries the complete finite jam on the tune page. The
 	 * compact editor preview keeps its existing optional loop. Both preserve
-	 * the saved feel, pickup entrance and original chart coordinates.
+	 * the saved feel, pickup entrance and original chart coordinates. Returns
+	 * true only when the pass reaches its natural end.
 	 */
-	async toggle(tune: Tune, style: BackingStyle, soloChoruses?: number): Promise<void> {
-		if (this.busy) { this.stop(); return; }
+	async toggle(tune: Tune, style: BackingStyle, soloChoruses?: number): Promise<boolean> {
+		if (this.busy || this.disposed) { this.stop(); return false; }
 		const generation = ++this.run;
 		this.starting = true;
 		this.error = '';
@@ -146,9 +147,9 @@ export class TunePlayer {
 			const phrase = jam?.phrase ?? expanded.phrase;
 			const flat = jam?.flat ?? expanded.flat;
 			this.playback ??= await import('$lib/audio/playback');
-			if (this.disposed || generation !== this.run) return;
+			if (this.disposed || generation !== this.run) return false;
 			await this.playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing ? settings.backingInstrument : undefined);
-			if (this.disposed || generation !== this.run) return;
+			if (this.disposed || generation !== this.run) return false;
 			this.starting = false;
 			this.playing = true;
 			const region = formLoopRegion(tune, flat);
@@ -223,8 +224,10 @@ export class TunePlayer {
 					if (generation === this.run) this.cursorIndex = (jam?.noteSourceIndices ?? flat.noteSourceIndices)[sourceIndex] ?? null;
 				}
 			});
+			return generation === this.run;
 		} catch {
 			if (!this.disposed && generation === this.run) this.error = 'Playback could not start. Please try again.';
+			return false;
 		} finally {
 			if (generation === this.run) this.stop();
 		}
