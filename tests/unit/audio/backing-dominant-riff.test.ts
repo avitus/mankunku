@@ -39,6 +39,8 @@ for (const keyboard of ['piano', 'organ'] as const) {
     expect(r.checkpoint.bass.previousPreviousMidi).toBe(pickup.midi);
     expect(r.checkpoint.bass.previousMidi).toBe(r.bassEvents[2].midi);
     expect(advanceRollingBacking(score, JSON.parse(JSON.stringify(cp)))).toEqual(r);
+    expect(advanceRollingBacking(score, JSON.parse(JSON.stringify(r.checkpoint))))
+     .toEqual(advanceRollingBacking(score, r.checkpoint));
     const busy = advanceRollingBacking(score, cp, [{ source: 'scripted', barIndex: bar, observedAtBar: bar, confidence: 1, noteDensity: 1, restBeats: 0 }]);
     expect(busy.bassEvents.some(e => e.dominantRiff)).toBe(false);
    }

@@ -110,8 +110,9 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 		const tick = timing.place(skip, 'bass');
 		const secondsPerTick = 60 / score.tempo / score.ppq;
 		if (tick > parseInt(first.time) && tick < parseInt(last.time)) {
-			// The last two sounding pitches and the beat-four approach are preserved.
-			return { ...result, events: [
+			// The pitch history still ends on the same two notes. A three-attack
+			// riff supplies no four-quarter opening motif for the next bar.
+			return { ...result, memory: { ...result.memory, ...(score.phraseDialogueVersion ? { openingMotif: null } : {}) }, events: [
 				{ ...first, duration: Math.min(1.15 * 60 / score.tempo, (tick - parseInt(first.time)) * secondsPerTick) },
 				{ ...third, absBeat: skip, time: `${tick}i`, duration: Math.min(.65 * 60 / score.tempo, (parseInt(last.time) - tick) * secondsPerTick),
 					velocity: Math.min(115, third.velocity + 7), dominantRiff: true }, last
