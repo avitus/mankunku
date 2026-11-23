@@ -7,17 +7,6 @@ import { loadWorklet } from './load-worklet';
 import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-profile';
 
 const duration = 5.6;
-const active = 'Speaker bleed reduction active';
-const fallback = 'Room check unavailable · scoring the original microphone';
-const rejected = 'Room check did not pass · scoring the original microphone';
-
-const listenFailures = {
-	timing: 'Speaker timing shifted beyond the saved calibration',
-	reduction: 'Listen could not confirm enough speaker bleed to remove',
-	level: 'Speaker return level changed during Listen',
-	attacks: 'Speaker attacks did not match the saved calibration'
-} satisfies Record<NonNullable<RoomTimingCheck['failure']>, string>;
-
 interface Measurement {
 	captureAudio?: boolean;
 	correction?: RoomFilter;
@@ -142,7 +131,7 @@ export async function calibrateRoom(
 		!ctx.audioWorklet ||
 		ctx.sampleRate > 96000
 	) {
-		if (!soundCheck) roomStatus.text = fallback;
+		if (!soundCheck) roomStatus.active = false;
 		report(request.mode === 'practice' ? 'practice' : 'sound-check', 'unsupported-input');
 		return;
 	}
@@ -151,7 +140,7 @@ export async function calibrateRoom(
 	const filter = soundCheck ? undefined : restoreProfile(snapshot, setup, ctx.sampleRate);
 	if (!soundCheck && !filter) {
 		report('practice', filter === null ? 'saved-rejection' : 'no-matching-profile');
-		roomStatus.text = filter === null ? rejected : 'Using original microphone · calibrate speakers in Settings';
+		roomStatus.active = false;
 		return;
 	}
 	const mixerMaster = getMasterGain() as GainNode & { _nativeAudioNode?: GainNode };
@@ -176,17 +165,17 @@ export async function calibrateRoom(
 	let expiry: ReturnType<typeof setTimeout> | undefined;
 
 	/** Mute the predicted echo immediately while preserving the microphone path. */
-	function bypass(status: string): void {
+	function bypass(): void {
 		clearTimeout(expiry);
 		if (inverse) inverse.gain.value = 0;
-		if (!soundCheck) roomStatus.text = status;
+		if (!soundCheck) roomStatus.active = false;
 	}
 	function invalidate(): void {
 		sound?.stop();
 		sound?.disconnect();
 		life.abort();
 		listen?.abort();
-		bypass(fallback);
+		bypass();
 		if (!soundCheck) report('practice', 'device-or-clock-changed');
 	}
 	const stateChanged = (): void => {
@@ -260,7 +249,8 @@ export async function calibrateRoom(
 		// Move the common leading silence to an adjustable delay, preserving both FIRs.
 		const firstTap = filter.left.findIndex((value, i) => value !== 0 || filter.right[i] !== 0);
 		if (firstTap < 0) {
-			bypass(rejected);
+			report('practice', 'invalid-filter');
+			bypass();
 			return;
 		}
 		delay.delayTime.value = firstTap / ctx.sampleRate;
@@ -313,9 +303,9 @@ export async function calibrateRoom(
 		function enable(gain: number): void {
 			clearTimeout(expiry);
 			inverse!.gain.value = -gain;
-			roomStatus.text = active;
+			roomStatus.active = true;
 			expiry = setTimeout(() => {
-				bypass('Room check expired · scoring the original microphone');
+				bypass();
 				report('practice', 'expired');
 			}, 300_000);
 		}
@@ -348,13 +338,14 @@ export async function calibrateRoom(
 			}
 		}
 
+		let cueNumber = 0;
 		const verifyListen = async (startTime: number, seconds: number, phraseId?: string): Promise<void> => {
 			listen?.abort();
 			if (life.signal.aborted) return;
-			const cue = { phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap };
+			const cue = { cueNumber: ++cueNumber, phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap };
 			if (seconds < 1.8) {
 				report('listen', 'short-cue', cue);
-				bypass('Listen too short to verify speakers · scoring the original microphone');
+				bypass();
 				return;
 			}
 			const current = new AbortController();
@@ -369,7 +360,7 @@ export async function calibrateRoom(
 					if (frames < ctx.sampleRate) {
 						if (attempt === 1) {
 							report('listen', 'insufficient-time', cue);
-							bypass('Listen started too late to verify speakers · scoring the original microphone');
+							bypass();
 						}
 						return;
 					}
@@ -394,12 +385,12 @@ export async function calibrateRoom(
 					}
 					if (ctx.currentTime >= deadline || !check) {
 						log(check ? 'deadline' : 'insufficient-samples');
-						bypass(fallback);
+						bypass();
 						return;
 					}
 					if (check.failure) {
 						log(check.failure);
-						bypass(listenFailures[check.failure] + ' · scoring the original microphone');
+						bypass();
 						continue;
 					}
 					installResponses(correction);
@@ -412,17 +403,17 @@ export async function calibrateRoom(
 			} catch (error) {
 				if (!current.signal.aborted) {
 					report('listen', error instanceof Error ? error.message : 'measurement-error', cue);
-					bypass(fallback);
+					bypass();
 				}
 			}
 		};
 		roomChecks.set(source, { measure: verifyListen, cancel: () => listen?.abort() });
-		roomStatus.text = 'Using original microphone until Listen verifies saved calibration';
+		roomStatus.active = false;
 	} catch (error) {
 		if (!life.signal.aborted) {
 			report(soundCheck ? 'sound-check' : 'practice', error instanceof Error ? error.message : 'unavailable');
 			console.warn('Speaker room check unavailable', error);
-			bypass(fallback);
+			bypass();
 		}
 	} finally {
 		sound?.disconnect();

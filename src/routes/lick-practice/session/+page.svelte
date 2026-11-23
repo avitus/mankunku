@@ -4,7 +4,7 @@
 	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
-	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
+	import { roomChecks } from '$lib/audio/room-scoring-state.svelte';
 	import { goto } from '$app/navigation';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
@@ -2164,7 +2164,7 @@
 		{/if}
 
 		<!-- Lick header -->
-		{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
+
 		<LickHeader
 			daily={isDailyPractice()}
 			phraseNumber={currentItem.phraseNumber}

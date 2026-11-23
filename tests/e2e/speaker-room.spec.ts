@@ -170,6 +170,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 						const paths = speakerPaths;
 						speakerPaths = undefined;
 						physicalMaster.connect(paths);
+						Object.assign(window, { speakerGraphReady: true });
 					}
 					return (original as (...args: unknown[]) => AudioNode).call(this, to, ...args);
 				} as typeof original;
@@ -257,9 +258,10 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await page.goto('/' + mode);
 		if (mode === 'ear-training') await page.locator('[data-tour="play-button"]').click();
 		else await page.getByRole('button', { name: /start daily practice/i }).click();
-		await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
+		await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
+		await page.waitForFunction(() => 'speakerGraphReady' in window);
 		await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-		await expect(page.getByText('Speaker bleed reduction active', { exact: true })).toBeVisible({timeout: 25_000});
+		await expect(page.getByRole('img', {name: 'Backing cancellation on'})).toBeVisible({timeout: 25_000});
 		expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 		await expect(
 			page
@@ -340,14 +342,18 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
 
 			await expect(
-				page.getByText('Room check unavailable · scoring the original microphone')
+				page.getByRole('img', {name: 'Backing cancellation off'})
 			).toBeVisible();
 			await page.evaluate(() => sessionStorage.setItem('moved', 'true'));
 			await page.reload();
 			await page.locator('[data-tour="play-button"]').click();
-			await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
+			const rejected = page.waitForRequest(request => request.url().endsWith('/api/speaker-check') &&
+				request.postDataJSON()?.stage === 'listen' && request.postDataJSON()?.result !== 'active');
+			await page.waitForFunction(() => 'speakerGraphReady' in window);
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-			await expect(page.getByText(/^(?:Speaker timing shifted|Listen could not confirm enough speaker bleed|Speaker return level changed|Speaker attacks did not match).*scoring the original microphone$/)).toBeVisible({timeout: 25_000});
+			await rejected;
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 			await page.goto('/diagnostics');
 			const [download] = await Promise.all([
@@ -382,7 +388,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.evaluate(() => sessionStorage.setItem('micId', 'new-microphone'));
 			await page.goto('/ear-training');
 			await page.getByRole('button', { name: 'Start practice' }).click();
-			await expect(page.getByText('Using original microphone · calibrate speakers in Settings')).toBeVisible();
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			await expect(page.locator('[data-phase="listen"]')).toBeVisible({ timeout: 30_000 });
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('2');
 		}
@@ -446,8 +452,7 @@ for (const failure of ['unrelated microphone', 'stalled worklet'])
 			'The microphone could not match the test hiss.')).toBeVisible({ timeout: 20_000 });
 		await page.goto('/ear-training');
 		await page.getByRole('button', { name: 'Start practice' }).click();
-		await expect(page.getByText(stalled ? 'Using original microphone · calibrate speakers in Settings' :
-			'Room check did not pass · scoring the original microphone')).toBeVisible();
+		await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 		await expect(page.getByText('Last take', { exact: true })).toBeVisible({ timeout: 45_000 });
 	});
 

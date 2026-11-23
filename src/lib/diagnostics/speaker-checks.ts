@@ -1,8 +1,13 @@
+import { version } from '$app/env';
+import { summarizeSpeakerCheck } from './speaker-metrics';
 import { getActiveUid, nsKey } from '$lib/persistence/namespace';
 import type { RoomFilter, RoomSamples, RoomSession, RoomTimingCheck } from '$lib/audio/room-filter';
 import { encodeRoomSamples } from '$lib/audio/room-profile';
 
+let pageSession: string | undefined;
+
 export interface SpeakerCheck {
+	cueNumber?: number;
 	at: string;
 	stage: 'sound-check' | 'listen' | 'practice';
 	result: string;
@@ -47,8 +52,23 @@ function openChecks(): Promise<IDBDatabase> {
 	});
 }
 
+/** Best effort even if local storage is unavailable. A page reload starts a new anonymous session. */
+function logSpeakerCheck(event: SpeakerCheck): void {
+	if (typeof window === 'undefined') return;
+	try {
+		pageSession ??= crypto.randomUUID();
+		const surface = window.location.pathname.split('/')[1];
+		const metrics = summarizeSpeakerCheck(event, pageSession, surface, version);
+		if (metrics) void fetch('/api/speaker-check', {
+			method: 'POST', credentials: 'omit', keepalive: true,
+			headers: { 'content-type': 'application/json' }, body: JSON.stringify(metrics)
+		}).catch(() => {});
+	} catch { /* Offline or restricted browser. Keep the local journal available. */ }
+}
+
 /** Scoring never waits for diagnostic storage. All writes for one cue share a transaction. */
 export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerExample): Promise<void> {
+	logSpeakerCheck(event);
 	try {
 		const db = await openChecks();
 		function write(clip: SpeakerExample | undefined, status: SpeakerCheck['audioExample']): Promise<void> {

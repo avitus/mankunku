@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
-	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
+	import { roomChecks } from '$lib/audio/room-scoring-state.svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
@@ -1047,7 +1047,6 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
-{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
 <EarTrainingConsole
 	{writtenKey}
 	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}
