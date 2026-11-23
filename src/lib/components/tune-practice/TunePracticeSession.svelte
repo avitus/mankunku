@@ -412,9 +412,9 @@
 		if (!captureModule) return false;
 		if (micCapture) return true;
 		try {
-			const capture = await captureModule.startMicCapture();
+			const capture = await captureModule.openMicrophone();
 			if (!setupIsCurrent(generation)) {
-				if (micCapture !== capture && captureModule.getMicCapture() === capture) captureModule.stopMicCapture();
+				captureModule.closeMicrophone(capture);
 				return false;
 			}
 			micCapture = capture;
@@ -803,7 +803,7 @@
 		onsetDetector?.dispose();
 		onsetDetector = null;
 		if (micCapture) {
-			captureModule?.stopMicCapture();
+			captureModule?.closeMicrophone(micCapture);
 			micCapture = null;
 		}
 		freestyleRecognizer = null;

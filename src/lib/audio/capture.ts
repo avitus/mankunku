@@ -78,18 +78,19 @@ export async function openMicrophone(signal?: AbortSignal): Promise<MicCapture> 
 	}
 }
 
-/**
- * Stop microphone capture and release resources.
- */
+/** Release the exact microphone graph opened by its owner. */
+export function closeMicrophone(current: MicCapture): void {
+	for (const track of current.stream.getTracks()) track.stop();
+	releaseRoomGraph(current.source);
+	current.source.disconnect();
+}
+
+/** Stop the shared capture used by the current recording surface. */
 export function stopMicCapture(): void {
 	if (!capture) return;
-
-	releaseRoomGraph(capture.source);
-	capture.source.disconnect();
-	for (const track of capture.stream.getTracks()) {
-		track.stop();
-	}
+	const current = capture;
 	capture = null;
+	closeMicrophone(current);
 }
 
 /** Attach a matching saved profile for scored practice. */
