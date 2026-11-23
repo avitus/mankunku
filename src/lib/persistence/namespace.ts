@@ -366,8 +366,8 @@ export function isAnonActive(): boolean {
  * Used by the explicit "clear my data on this device" control and by account
  * deletion. Does NOT touch other users' buckets or the control keys.
  */
-export function clearNamespace(uid: string): void {
-	if (!hasLocalStorage()) return;
+export function clearNamespace(uid: string): boolean {
+	if (!hasLocalStorage()) return false;
 	try {
 		const toRemove: string[] = [];
 		if (uid === ANON) {
@@ -387,8 +387,9 @@ export function clearNamespace(uid: string): void {
 			}
 		}
 		for (const k of toRemove) localStorage.removeItem(k);
+		return true;
 	} catch {
-		/* best effort */
+		return false;
 	}
 }
 

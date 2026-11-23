@@ -336,7 +336,6 @@ export function reconcileBeforeHydration(
  * touch other users' buckets. Re-homes to the anon bucket.
  */
 export async function wipeUserData(uid: string): Promise<{ localCleanupComplete: boolean }> {
-	let localCleanupComplete = true;
 	const wipingActiveUser = getActiveUid() === uid;
 	// Invalidate any in-flight writeback for the wiped user BEFORE re-homing, so
 	// a straggling sync/save that resolves after this can't re-persist the
@@ -348,7 +347,7 @@ export async function wipeUserData(uid: string): Promise<{ localCleanupComplete:
 		_generation++;
 		broadcastUserChanged('anon');
 	}
-	clearNamespace(uid);
+	let localCleanupComplete = clearNamespace(uid);
 	try {
 		const { clearSpeakerJournal } = await import('$lib/diagnostics/speaker-checks');
 		await clearSpeakerJournal(uid);
@@ -360,13 +359,11 @@ export async function wipeUserData(uid: string): Promise<{ localCleanupComplete:
 	} catch {
 		localCleanupComplete = false;
 	}
+	if (!(await clearAllTunePdfs(uid))) localCleanupComplete = false;
 	try {
-		await clearAllTunePdfs(uid);
+		if (typeof caches !== 'undefined') await caches.delete(SUPABASE_RUNTIME_CACHE);
 	} catch {
 		localCleanupComplete = false;
-	}
-	if (typeof caches !== 'undefined') {
-		caches.delete(SUPABASE_RUNTIME_CACHE).catch(() => {});
 	}
 	if (wipingActiveUser) setActiveUid(null);
 	return { localCleanupComplete };

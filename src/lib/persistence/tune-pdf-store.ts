@@ -336,17 +336,19 @@ export async function deleteTunePdf(
 }
 
 /** Clear every locally cached PDF for a user (account deletion / wipe). */
-export async function clearAllTunePdfs(uid?: string): Promise<void> {
+export async function clearAllTunePdfs(uid?: string): Promise<boolean> {
 	try {
 		const db = await openDb(uid);
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
 			tx.objectStore(STORE_NAME).clear();
 			await idbTx(tx);
+			return true;
 		} finally {
 			db.close();
 		}
 	} catch (error) {
 		console.warn('Failed to clear tune PDFs:', error);
+		return false;
 	}
 }

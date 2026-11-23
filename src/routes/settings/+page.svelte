@@ -360,7 +360,7 @@
 				const { localCleanupComplete } = await wipeUserData(getActiveUid());
 				if (!localCleanupComplete) throw new Error('Local cleanup incomplete');
 			} catch {
-				alert('Your account was deleted. This browser could still have local recordings. To finish removing them, clear site data for Mankunku in your browser settings.');
+				alert('Your account was deleted. This browser could still have saved practice data. To finish removing it, clear site data for Mankunku in your browser settings.');
 			}
 			window.location.href = '/auth';
 		} catch (err) {
