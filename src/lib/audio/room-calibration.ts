@@ -291,9 +291,19 @@ export async function calibrateRoom(
 					filter
 				);
 				if (current.signal.aborted) return;
-				if (ctx.currentTime >= deadline || !check?.accepted ||
-					check.transientReduction < 1 || firstTap + check.offset < 0) {
-					bypass('Saved speaker check did not pass · scoring the original microphone');
+				if (ctx.currentTime >= deadline || !check) {
+					bypass(fallback);
+					return;
+				}
+				if (!check.accepted || check.transientReduction < 1 || firstTap + check.offset < 0) {
+					// Keep the reason visible after Listen. The Settings measurement is
+					// still saved, and the next demonstration can verify it again.
+					const reason = firstTap + check.offset < 0 || Math.abs(check.offset) >= Math.round(ctx.sampleRate * 0.02)
+						? 'Speaker timing shifted beyond the saved calibration'
+						: check.reduction < 3
+							? 'Listen could not confirm enough speaker bleed to remove'
+							: 'Speaker return did not consistently match the saved calibration';
+					bypass(reason + ' · scoring the original microphone');
 					return;
 				}
 				delay.delayTime.value = (firstTap + check.offset) / ctx.sampleRate;

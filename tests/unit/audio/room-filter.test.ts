@@ -66,3 +66,23 @@ it('distinguishes a shared bass pitch from an aligned speaker path after reopeni
 	expect(changed?.reduction).toBeGreaterThan(3);
 	expect(changed?.transientReduction).toBeLessThan(1);
 });
+
+it('recovers the speaker delay on a sustained pitched cue with a quiet nonrepeating component', () => {
+	const rate = 12000;
+	let seed = 71;
+	const left = Float32Array.from({ length: rate * 2 }, (_, i) => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return 0.3 * Math.sin(2 * Math.PI * 100 * i / rate) + 0.029 * (seed / 2147483648 - 1);
+	});
+	const right = new Float32Array(left.length);
+	const calibratedDelay = 400;
+	const taps = new Float32Array(calibratedDelay + 1);
+	taps[calibratedDelay] = 1;
+	const filter = { left: taps, right: new Float32Array(taps.length) };
+	for (const shift of [-185, 185]) {
+		const mic = Float32Array.from(left, (_, i) => left[i - calibratedDelay - shift] ?? 0);
+		const check = checkRoomTiming({ rate, left, right, mic }, filter);
+		expect(check?.transientReduction).toBeGreaterThan(1);
+		expect(check).toMatchObject({ offset: shift, accepted: true });
+	}
+});
