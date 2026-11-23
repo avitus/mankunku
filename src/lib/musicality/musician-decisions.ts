@@ -802,6 +802,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	if (bass.some(event => event.balladHeldBass)) {
+		bassCard.action = 'Hold the downbeat through beat three';
+		bassCard.detail = 'One bass note carries the harmony through this bar of the returning head.';
+	}
+	if (piano.some(event => event.balladReturnAnswer)) {
+		pianoCard.action = 'Take beat three over the held bass';
+		pianoCard.detail = 'The downbeat chord supplies the harmony. The second chord brings the half-note pulse back into focus.';
+	}
 	if (bass.some(event => event.bossaOctavePickup)) bassCard.evidence.push('Octave pickup on the and of two, low fifth on three');
 	const bossaReply = piano.find(event => event.bossaReplyFrom !== undefined);
 	if (bossaReply) pianoCard.evidence.push(`Answer the bass on ${bossaReply.absBeat % 4 === 2.5 ? 'the and of three' : 'beat four'}`);

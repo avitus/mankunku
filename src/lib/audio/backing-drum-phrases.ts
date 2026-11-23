@@ -36,7 +36,7 @@ export interface DrumPhraseDecision {
 	readonly ride: {
 		/** Selected phrase timekeeping voice; actual substitutions remain in hits. */
 		readonly voice?: 'ride' | 'ride-bell' | 'hihat';
-		readonly mode: RideMode | 'none';
+		readonly mode: RideMode | 'none' | 'half-notes';
 		readonly phase: 'statement' | 'repeat' | 'variation' | 'release' | 'single';
 		readonly skipOffsets: readonly number[];
 		readonly velocityScale: number;
@@ -643,7 +643,9 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 	const raw = style.drumPattern({ ...input.info, ensemble: undefined, barIndex: input.barIndex, beatsPerBar: 4,
 		swing: style.defaultSwing, rng, fillRng: createRng(seedFrom(input.phraseId, input.tempo, 'drum-fill', input.barIndex)),
 		clavePhase: createRng(seedFrom(input.phraseId, input.tempo, 'clave', 0)).chance(0.5) ? '32' : '23' });
-	const time: DrumHitSpec[] = raw.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
+	const halfNoteRide = input.style === 'ballad' && input.bassEvents?.some(event => event.balladHeldBass);
+	const time: DrumHitSpec[] = raw.filter(hit => !halfNoteRide || hit.drum !== 'ride' || hit.beatOffset % 2 === 0)
+		.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
 		.map((hit) => ({ ...hit, role: 'timekeeping' }));
 	if (isBossa && input.bassEvents?.some(event => event.bossaOctavePickup && event.absBeat === input.barIndex * 4 + 1.5)) {
 		const pickupKick = time.find(hit => hit.drum === 'kick' && hit.beatOffset === 1.5);
@@ -677,7 +679,7 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 	const hits = [...time.filter(accepted), ...commentary];
 	const bar: DrumPhraseDecision = { version: 1, style: input.style, barIndex: input.barIndex,
 		phraseStartBar: input.phraseStartBar, phraseLength: input.phraseEndBarExclusive - input.phraseStartBar,
-		ride: { mode: isBossa ? 'none' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
+		ride: { mode: isBossa ? 'none' : halfNoteRide ? 'half-notes' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
 			onsets: hits.filter((hit) => hit.drum === 'ride').map((hit) => hit.beatOffset) },
 		commentary: { motifId: null, source: commentary.length ? answerOffset !== undefined ? 'piano' : 'vocabulary' : 'none',
 			sourceId: commentary.length ? answerOffset !== undefined ? 'previous-piano' : 'ballad-color' : null,

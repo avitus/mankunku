@@ -382,6 +382,13 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'B4' || entry.id === 'D13') return { ...entry, status: 'partial',
+  assessment: entry.id === 'B4'
+   ? 'A Ballad out-head can open the pulse to one sustained bass attack over a settled chord.'
+   : 'Over that held bass the Ballad drummer plays the ride on one and three, keeping the foot hat on two and four.',
+  scope: '0.22.0, unreserved bars in the returning Ballad head over one written harmony.',
+  remaining: 'Extending the device to other sections and human full-tune listening are pending.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), source('backing-drum-phrases'), test('backing-ballad-return')] };
  if (entry.id === 'B34') return { ...entry, status: 'partial',
   assessment: 'In 0.22.0 the Bossa bassist can lift a repeated pickup an octave on the and of two, then drop onto the low fifth on beat three.',
   scope: 'Bossa solo build and peak over a stable bar of harmony.',
@@ -541,10 +548,10 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'P14') return {
 		...entry, status: 'partial',
-		assessment: 'In 0.20.0, Swing and Straight organ simplify figures in quiet bars, and Ballad piano and organ can voice a new chord on beat three. Version 0.19.2 restored Swing and Straight piano support in quiet phrases. The preceding releases added longer piano gates and one-beat carries (0.19.1), shared chord tones through harmony changes (0.19), and sustain over unchanged bar-line harmony (0.18). Version 0.11.0 brought short-chord and held-answer contrast to Swing and Straight solo phrases. Version 0.7.0 established distinct piano and organ articulation, compact Bossa gates and slower Ballad pads.',
+		assessment: 'In 0.22.0, a Ballad keyboard can divide a sustained pad into two chords and take beat three when the bass holds. In 0.20.0, Swing and Straight organ simplify figures in quiet bars, and Ballad piano and organ can voice a new chord on beat three. Version 0.19.2 restored Swing and Straight piano support in quiet phrases. The preceding releases added longer piano gates and one-beat carries (0.19.1), shared chord tones through harmony changes (0.19), and sustain over unchanged bar-line harmony (0.18). Version 0.11.0 brought short-chord and held-answer contrast to Swing and Straight solo phrases. Version 0.7.0 established distinct piano and organ articulation, compact Bossa gates and slower Ballad pads.',
 		remaining: 'Broader pedal technique, sample release envelopes and organ registration remain open. Full-tune listening feedback on articulation and balance is pending.',
 		scope: 'Released 4/4 accompaniment in all four styles. Protected support, replies, arrivals and endings retain priority. Historical policies omit the new flag. Other meters currently use basic accompaniment.',
-		evidence: [...entry.evidence, source('backing-keyboard-sustain'), test('backing-piano-continuity'), test('backing-piano-blues-support'), test('backing-ensemble-continuity'), test('backing-0191-compatibility'), test('backing-019-compatibility'), test('backing-common-tones'), test('backing-018-compatibility'), test('backing-cross-bar'), test('backing-meter'), { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
+		evidence: [...entry.evidence, test('backing-ballad-return'), source('backing-keyboard-sustain'), test('backing-piano-continuity'), test('backing-piano-blues-support'), test('backing-ensemble-continuity'), test('backing-0191-compatibility'), test('backing-019-compatibility'), test('backing-common-tones'), test('backing-018-compatibility'), test('backing-cross-bar'), test('backing-meter'), { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
 	};
 	if (entry.id === 'P31' || entry.id === 'P35') return {
 		...entry, status: 'partial',

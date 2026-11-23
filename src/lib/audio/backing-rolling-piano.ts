@@ -114,6 +114,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	let transform: CompMotifDecision['transform'] = 'fallback';
 	let shift = 0;
 	let bossaReplyFrom: number | undefined;
+	let balladReturnAnswer = false;
 	let reason: CompMotifDecision['reason'];
 	let development: KeyboardDevelopment | undefined;
 	let answerFigureId: string | undefined;
@@ -222,6 +223,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				bossaReplyFrom = second.beatOffset;
 				realized = [first, { ...second, beatOffset: second.beatOffset === 1.5 ? 2.5 : 3 }];
 			}
+		}
+		if (bassEvents?.some(event => event.balladHeldBass) && budget >= 2 && !nativeLatePad &&
+			!backgroundHarmony && !memory.crossBarReleaseTick && !ensemble.piano.silenceReason &&
+			realized.length === 1 && realized[0].beatOffset === 0 && realized[0].durationBeats === 3.6) {
+			const pad = realized[0];
+			realized = [{ ...pad, durationBeats: 1.8 }, { ...pad, beatOffset: 2, durationBeats: 1.7, velocity: pad.velocity + 5 }];
+			balladReturnAnswer = true;
 		}
 		// When a whole pad would release at a new chord on beat three, use the
 		// native half-pad rhythm to give that harmony its own quiet entrance.
@@ -358,6 +366,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const lift = info.walkingTouch !== undefined && !protectedGesture && !commonTones && hit.beatOffset % 1 === .5
 			? Math.round(4 + 10 * info.walkingTouch) : 0;
 		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: Math.min(127, hit.velocity + lift),
+			...(balladReturnAnswer && hit.beatOffset === 2 ? { balladReturnAnswer: true as const } : {}),
 			...(bossaReplyFrom !== undefined && hit === realized[1] ? { bossaReplyFrom } : {}),
 			...(lift ? { walkingOffbeatLift: Math.min(lift, 127 - hit.velocity) } : {}) } };
 	};

@@ -17,7 +17,7 @@ export function sentenceScore(style: BackingStyle = 'swing', seed = 256, instrum
  if (!admitted.ok) throw new Error(admitted.reason);
  const { phrase } = aaba ? admitted.session : buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
  const tempo = style === 'ballad' ? 80 : 140;
- const { bossaPickup: _pickup, performanceTouch: _touch, keyboardSustain: _sustain, ...releaseOptions } = releasedBackingOptions(instrument, seed);
+ const { balladReturn: _return, bossaPickup: _pickup, performanceTouch: _touch, keyboardSustain: _sustain, ...releaseOptions } = releasedBackingOptions(instrument, seed);
  const options = { ...releaseOptions, loopCount: loops } as RollingBackingOptions & { longerSentences?: true };
  delete options.longerSentences;
  if (enabled) options.longerSentences = true;

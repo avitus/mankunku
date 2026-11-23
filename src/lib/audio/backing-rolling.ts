@@ -38,6 +38,8 @@ import { pianoPhraseRecallEnabled, validatePianoPhraseRecall } from './backing-p
 export interface RollingBackingOptions {
  /** Follow the performance energy with walking articulation and ensemble accents. */
  readonly performanceTouch?: true;
+ /** Trade the half-note pulse when a Ballad returns to its melody. */
+ readonly balladReturn?: true;
  /** Let native Bossa time answer an octave pickup during the solo. */
  readonly bossaPickup?: true;
  /** 0.19.1: more sustained ordinary Swing/Straight piano support. */
@@ -122,6 +124,7 @@ export interface RollingBackingDefinition {
  readonly keyboardSustainVersion?: 1 | 2;
  readonly harmonicSupportVersion?: 1;
  readonly performanceTouchVersion?: 1;
+ readonly balladReturnVersion?: 1;
  readonly bossaPickupVersion?: 1;
 	readonly ensembleColorsVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
@@ -261,6 +264,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+  ...(options.balladReturn && performanceEnergy && style.coordinatedStyle === 'ballad' ? { balladReturnVersion: 1 as const } : {}),
   ...(options.bossaPickup && performanceEnergy && style.coordinatedStyle === 'bossa-nova' ? { bossaPickupVersion: 1 as const } : {}),
   ...(options.performanceTouch && performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { performanceTouchVersion: 1 as const } : {}),
   ...(options.keyboardSustain === 'harmonic-support' && keyboardPhrasing &&
@@ -458,15 +462,18 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
   window={...window,plan:{...window.plan,bars:[{...planned,piano}],trace:window.plan.trace.map(t=>({...t,reasons:[...t.reasons,'common-tone harmonic entrance']}))}};
  }
 	const ensemble = window.plan.bars[0];
-	const bossaPickupAllowed = definition.bossaPickupVersion === 1 &&
-		['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '') &&
+	const bossaWindow = definition.bossaPickupVersion === 1 && ['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '');
+	const balladWindow = definition.balladReturnVersion === 1 && ensemble.performanceEnergy?.phase === 'head_return' &&
+		!definition.bars[bar].returningMelodySpace && !definition.bars[bar].isSectionFinalBar;
+	const openHarmony = (bossaWindow || balladWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&
 		!ensemble.terminalArrangement && !definition.bars[bar].isChorusFinalBar &&
 		!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
 		!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '') &&
 		definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
 			fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration) >= bar + 1);
-	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy, bossaPickupAllowed };
+	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy,
+		bossaPickupAllowed: bossaWindow && openHarmony, balladHoldAllowed: balladWindow && openHarmony };
 	const phraseEnd = ensemble.phraseStartBar + definition.bars[bar].phrase4!.lengthBars;
 	const timingTrace = checkpoint?.timing.phraseStartBar === ensemble.phraseStartBar ? checkpoint.timing : describeEnsemblePhraseTiming({
 		phraseId: definition.phraseId, tempo: definition.tempo, ppq: definition.ppq, swing: definition.swing,
@@ -516,7 +523,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		...(definition.phraseColorsVersion ? { phraseColors: true as const, phraseColorSeed: definition.bars[bar].pianoPresenceSeed ?? 0 } : {}),
 		...(definition.phraseExpressionVersion ? { phraseExpression: true as const } : {}),
 		...(definition.trioConversationVersion ? { trioConversation: true as const } : {}),
-		...(definition.trioConversationVersion || definition.bossaPickupVersion ? { bassEvents: bass.events } : {}),
+		...(definition.trioConversationVersion || definition.bossaPickupVersion || definition.balladReturnVersion ? { bassEvents: bass.events } : {}),
 		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
 		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info: pianoResult.answer || pianoResult.trace.carriedReleaseTick !== undefined || (pianoResult.trace.commonToneEntry && ensemble.responseOwner === 'nobody') ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: drumSentence?.startBar ?? ensemble.phraseStartBar, phraseEndBarExclusive: drumSentence?.endBarExclusive ?? phraseEnd, harmonyEndBeat: definition.totalBars * 4,

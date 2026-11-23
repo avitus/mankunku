@@ -4,13 +4,21 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Ballad returning head — 0.22.0
+
+In the released four-beat Ballad arrangement, the returning melody can change who supplies the half-note pulse. Over a full bar of one harmony, a bassist with two ordinary half-note attacks can sustain the first note for 3.55 beats. Its selected pitch and placement survive. The next decision remembers the sounding note. A delayed root, launch, reserved response, fresh soloist activity or rest, protected melody space, section ending or arranged accent takes priority.
+
+The other players use the accepted bass event. The drummer pares four ride strokes down to beats one and three, with the foot hat still on two and four. When the keyboard has room for two attacks and would otherwise play a single whole-bar pad, it voices the downbeat and articulates a second chord on beat three. A committed sustain or deliberate keyboard rest keeps its place. The Ballad option has its own score fingerprint. The Bossa example remains available under the same release number. The full-form regression compares both keyboards against the previous engine and restores checkpoints at the held notes.
+
+Choose **Load Ballad example** in the listening desk. In Mankunku Blues in F at 80 BPM, compare Solo 2 bars 7–8 with Head out bars 7–8 (performed bars 47–48). Listen for which instrument makes a fresh attack on beat three and whether the returning melody still has support.
+
 ## Bossa pickup and answer — 0.22.0
 
 During a solo build or peak, a Bossa bassist can lift an existing and-of-two pickup an octave and land on the low fifth on beat three. This requires a single written harmony across the bar, an actual repeated pitch at those two attacks, and room in the upright register. Structural accents, setups, terminal reservations, chorus endings, reserved responses and fresh soloist activity or rest take precedence. The bassist records the accepted pitches in rolling memory.
 
 The drummer hears that pickup and reinforces the existing kick on the and of two. The rim-click clave, hat subdivision and drum onset grid keep their native pattern. When two keyboard attacks are already admitted and the preceding bar owns no held notes, the first chord stays in place. The second moves from the and of two to the and of three, or from the and of three to beat four. The keyboard resolves its voicing and articulation at the new beat before committing memory. A single supporting chord stays in place. The technique uses generated ensemble events and the declared form. A new energy arc can move the opportunities to another chorus.
 
-The Bossa-only policy has its own fingerprint in the shared prepared and rolling engine. Listening decisions and take exports identify the notes, chord displacement and kick that actually sounded. Load the 0.22.0 example for Mankunku Blues in F, Bossa nova, 128 BPM, two solo choruses and arc seed 3. Compare performed bars 34 and 37. The open listening question is whether the two different keyboard answers give the solo lift while the clave stays easy to follow.
+The Bossa-only policy has its own fingerprint in the shared prepared and rolling engine. Listening decisions and take exports identify the notes, chord displacement and kick that actually sounded. Load the Bossa example for Mankunku Blues in F, Bossa nova, 128 BPM, two solo choruses and arc seed 3. Compare performed bars 34 and 37. The open listening question is whether the two different keyboard answers give the solo lift while the clave stays easy to follow.
 
 ## Walking pulse across the form — 0.21.0
 

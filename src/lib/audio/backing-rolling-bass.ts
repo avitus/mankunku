@@ -82,6 +82,17 @@ export function prepareRollingBass(score: RollingBackingDefinition): PreparedRol
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
  let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+	// The first note takes the full bar only when the ordinary second pulse has
+	// no harmonic destination. Keep memory anchored to the note actually played.
+	if (info.balladHoldAllowed && !result.delayedRootTrace && !previous?.pendingLaunch && !result.memory.pendingLaunch &&
+		result.events.length === 2 && result.events[0].absBeat === bar * 4 && result.events[1].absBeat === bar * 4 + 2) {
+		const first = result.events[0];
+		const remainingBeats = (bar + 1) * 4 - parseInt(first.time) / score.ppq;
+		const priorMidi = previous?.previousMidi ?? null;
+		return { ...result, events: [{ ...first, duration: Math.min(3.55, remainingBeats) * 60 / score.tempo, balladHeldBass: true }],
+			memory: { ...result.memory, previousMidi: first.midi, previousPreviousMidi: priorMidi,
+				direction: priorMidi === null ? 0 : Math.sign(first.midi - priorMidi) } };
+	}
  if(score.trioConversationVersion && allowsTrioConversation(info) && result.memory.feel==='four' &&
   !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch &&
   !result.continuationTrace?.length && info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
