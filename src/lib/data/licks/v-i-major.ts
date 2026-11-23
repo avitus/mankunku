@@ -42,7 +42,7 @@ export const V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }
 		],
 		harmony: V_I_MAJOR,
-		difficulty: { level: 18, pitchComplexity: 15, rhythmComplexity: 20, lengthBars: 2 },
+		difficulty: { level: 18, pitchComplexity: 16, rhythmComplexity: 20, lengthBars: 2 },
 		category: 'V-I-major',
 		tags: ['V-I', 'scalar'],
 		source: 'curated'
@@ -67,7 +67,7 @@ export const V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }
 		],
 		harmony: V_I_MAJOR,
-		difficulty: { level: 25, pitchComplexity: 22, rhythmComplexity: 22, lengthBars: 2 },
+		difficulty: { level: 25, pitchComplexity: 24, rhythmComplexity: 22, lengthBars: 2 },
 		category: 'V-I-major',
 		tags: ['V-I', 'arpeggio'],
 		source: 'curated'
@@ -91,7 +91,7 @@ export const V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }
 		],
 		harmony: V_I_MAJOR,
-		difficulty: { level: 32, pitchComplexity: 30, rhythmComplexity: 28, lengthBars: 2 },
+		difficulty: { level: 35, pitchComplexity: 36, rhythmComplexity: 28, lengthBars: 2 },
 		category: 'V-I-major',
 		tags: ['V-I', 'enclosure'],
 		source: 'curated'

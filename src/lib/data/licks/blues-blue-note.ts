@@ -68,7 +68,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 1, pitchComplexity: 5, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 1, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'neighbor', 'upper-neighbor', 'beginner'],
 		source: 'curated'
@@ -255,7 +255,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 5, pitchComplexity: 9, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 5, pitchComplexity: 10, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'beginner', 'blues', 'neighbor'],
 		source: 'curated'
@@ -322,7 +322,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 6, pitchComplexity: 10, rhythmComplexity: 2, lengthBars: 1 },
+		difficulty: { level: 6, pitchComplexity: 12, rhythmComplexity: 2, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'neighbor', 'valley'],
 		source: 'curated'
@@ -375,7 +375,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 7, pitchComplexity: 11, rhythmComplexity: 3, lengthBars: 1 },
+		difficulty: { level: 7, pitchComplexity: 14, rhythmComplexity: 3, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'neighbor', 'blue-note-neighbor', 'arch'],
 		source: 'curated'
@@ -394,7 +394,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 8, pitchComplexity: 12, rhythmComplexity: 4, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 13, rhythmComplexity: 4, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'valley', 'blue-note-passing-down', 'blues-curl', 'eighths'],
 		source: 'curated'
@@ -412,7 +412,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [1, 2] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 8, pitchComplexity: 12, rhythmComplexity: 4, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 17, rhythmComplexity: 4, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'shake', 'blue-note-shake', 'eighths'],
 		source: 'curated'
@@ -484,7 +484,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 9, pitchComplexity: 13, rhythmComplexity: 5, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 14, rhythmComplexity: 5, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'arch', 'passing'],
 		source: 'curated'
@@ -536,7 +536,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [1, 2] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 10, pitchComplexity: 14, rhythmComplexity: 6, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 18, rhythmComplexity: 6, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'blues-scale', 'neighbor', 'zigzag'],
 		source: 'curated'
@@ -590,7 +590,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 11, pitchComplexity: 15, rhythmComplexity: 7, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 18, rhythmComplexity: 7, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'neighbor', 'cry'],
 		source: 'curated'
@@ -609,7 +609,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 8], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 12, pitchComplexity: 16, rhythmComplexity: 8, lengthBars: 1 },
+		difficulty: { level: 12, pitchComplexity: 22, rhythmComplexity: 8, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'shake', 'repeated'],
 		source: 'curated'
@@ -665,7 +665,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 13, pitchComplexity: 17, rhythmComplexity: 9, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 24, rhythmComplexity: 9, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'zigzag', 'neighbor'],
 		source: 'curated'
@@ -725,7 +725,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [3, 2] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 14, pitchComplexity: 18, rhythmComplexity: 10, lengthBars: 2 },
+		difficulty: { level: 14, pitchComplexity: 23, rhythmComplexity: 10, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'zigzag', 'two-bar'],
 		source: 'curated'
@@ -762,7 +762,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [3, 4] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 14, pitchComplexity: 18, rhythmComplexity: 10, lengthBars: 2 },
+		difficulty: { level: 14, pitchComplexity: 19, rhythmComplexity: 10, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'valley', 'passing-up'],
 		source: 'curated'
@@ -783,7 +783,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 75, duration: [1, 4], offset: [7, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 15, pitchComplexity: 19, rhythmComplexity: 11, lengthBars: 2 },
+		difficulty: { level: 15, pitchComplexity: 23, rhythmComplexity: 11, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'shake', 'altissimo', 'high-register'],
 		source: 'curated'
@@ -803,7 +803,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 8], offset: [7, 8] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 15, pitchComplexity: 19, rhythmComplexity: 11, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 22, rhythmComplexity: 11, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'arch', 'shake'],
 		source: 'curated'
@@ -823,7 +823,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [7, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 15, pitchComplexity: 19, rhythmComplexity: 11, lengthBars: 2 },
+		difficulty: { level: 15, pitchComplexity: 25, rhythmComplexity: 11, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'blues', 'shake', 'ascending'],
 		source: 'curated'
@@ -880,7 +880,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: BLUES_1BAR,
-		difficulty: { level: 16, pitchComplexity: 20, rhythmComplexity: 12, lengthBars: 1 },
+		difficulty: { level: 16, pitchComplexity: 23, rhythmComplexity: 12, lengthBars: 1 },
 		category: 'blues',
 		tags: ['blue-note', 'neighbor', 'descending'],
 		source: 'curated'
@@ -901,7 +901,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 17, pitchComplexity: 21, rhythmComplexity: 13, lengthBars: 2 },
+		difficulty: { level: 17, pitchComplexity: 22, rhythmComplexity: 13, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'arch', 'passing-tone'],
 		source: 'curated'
@@ -942,7 +942,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 17, pitchComplexity: 21, rhythmComplexity: 13, lengthBars: 2 },
+		difficulty: { level: 17, pitchComplexity: 24, rhythmComplexity: 13, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'repeated-riff', 'descending'],
 		source: 'curated'
@@ -964,7 +964,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 18, pitchComplexity: 22, rhythmComplexity: 14, lengthBars: 2 },
+		difficulty: { level: 18, pitchComplexity: 31, rhythmComplexity: 14, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'zigzag', 'passing-tone'],
 		source: 'curated'
@@ -986,7 +986,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 18, pitchComplexity: 22, rhythmComplexity: 14, lengthBars: 2 },
+		difficulty: { level: 18, pitchComplexity: 23, rhythmComplexity: 14, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'descending', 'wide-range'],
 		source: 'curated'
@@ -1008,7 +1008,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 18, pitchComplexity: 22, rhythmComplexity: 14, lengthBars: 2 },
+		difficulty: { level: 18, pitchComplexity: 27, rhythmComplexity: 14, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'shake', 'syncopation'],
 		source: 'curated'
@@ -1073,7 +1073,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 19, pitchComplexity: 23, rhythmComplexity: 15, lengthBars: 2 },
+		difficulty: { level: 19, pitchComplexity: 24, rhythmComplexity: 15, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'zigzag', 'syncopation'],
 		source: 'curated'
@@ -1140,7 +1140,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [1, 4], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 20, pitchComplexity: 24, rhythmComplexity: 16, lengthBars: 2 },
+		difficulty: { level: 20, pitchComplexity: 32, rhythmComplexity: 16, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'zigzag', 'rest'],
 		source: 'curated'
@@ -1161,7 +1161,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 21, pitchComplexity: 25, rhythmComplexity: 17, lengthBars: 2 },
+		difficulty: { level: 21, pitchComplexity: 29, rhythmComplexity: 17, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'ascending', 'passing-up', 'neighbor'],
 		source: 'curated'
@@ -1181,7 +1181,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 21, pitchComplexity: 25, rhythmComplexity: 17, lengthBars: 2 },
+		difficulty: { level: 21, pitchComplexity: 30, rhythmComplexity: 17, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'descending', 'neighbor'],
 		source: 'curated'
@@ -1201,7 +1201,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 21, pitchComplexity: 25, rhythmComplexity: 17, lengthBars: 2 },
+		difficulty: { level: 21, pitchComplexity: 27, rhythmComplexity: 17, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'valley', 'passing-down'],
 		source: 'curated'
@@ -1223,7 +1223,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 22, pitchComplexity: 26, rhythmComplexity: 18, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 29, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'ascending', 'passing-up', 'neighbor'],
 		source: 'curated'
@@ -1245,7 +1245,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 8], offset: [11, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 22, pitchComplexity: 26, rhythmComplexity: 18, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 31, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'call-response', 'rest', 'neighbor'],
 		source: 'curated'
@@ -1267,7 +1267,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 8], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 22, pitchComplexity: 26, rhythmComplexity: 18, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 27, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'ascending', 'high-register', 'passing-up'],
 		source: 'curated'
@@ -1290,7 +1290,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [5, 4] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 23, pitchComplexity: 27, rhythmComplexity: 19, lengthBars: 2 },
+		difficulty: { level: 23, pitchComplexity: 29, rhythmComplexity: 19, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'ascending', 'low-register', 'passing-up', 'passing-down'],
 		source: 'curated'
@@ -1313,7 +1313,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [5, 4] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 23, pitchComplexity: 27, rhythmComplexity: 19, lengthBars: 2 },
+		difficulty: { level: 23, pitchComplexity: 33, rhythmComplexity: 19, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'zigzag', 'neighbor'],
 		source: 'curated'
@@ -1336,7 +1336,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [1, 8], offset: [11, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 23, pitchComplexity: 27, rhythmComplexity: 19, lengthBars: 2 },
+		difficulty: { level: 23, pitchComplexity: 29, rhythmComplexity: 19, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'descending', 'passing-down', 'cry-ending'],
 		source: 'curated'
@@ -1357,7 +1357,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 2], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 24, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 2 },
+		difficulty: { level: 24, pitchComplexity: 29, rhythmComplexity: 20, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'passing', 'arch', 'shuffle'],
 		source: 'curated'
@@ -1379,7 +1379,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [9, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 24, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 2 },
+		difficulty: { level: 24, pitchComplexity: 31, rhythmComplexity: 20, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'descending', 'neighbor'],
 		source: 'curated'
@@ -1402,7 +1402,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [5, 4] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 24, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 2 },
+		difficulty: { level: 24, pitchComplexity: 33, rhythmComplexity: 20, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'valley', 'shake'],
 		source: 'curated'
@@ -1424,7 +1424,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [1, 1] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 25, pitchComplexity: 29, rhythmComplexity: 21, lengthBars: 2 },
+		difficulty: { level: 25, pitchComplexity: 38, rhythmComplexity: 21, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'zigzag', 'neighbor'],
 		source: 'curated'
@@ -1447,7 +1447,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [5, 4] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 25, pitchComplexity: 29, rhythmComplexity: 21, lengthBars: 2 },
+		difficulty: { level: 25, pitchComplexity: 32, rhythmComplexity: 21, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'descending', 'passing'],
 		source: 'curated'
@@ -1471,7 +1471,7 @@ export const BLUES_BLUE_NOTE_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [11, 8] }
 		],
 		harmony: BLUES_2BAR,
-		difficulty: { level: 25, pitchComplexity: 29, rhythmComplexity: 21, lengthBars: 2 },
+		difficulty: { level: 25, pitchComplexity: 31, rhythmComplexity: 21, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'call-response', 'rest', 'arch'],
 		source: 'curated'

@@ -49,7 +49,7 @@ export const DOMINANT_CHORD_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }  // C
 		],
 		harmony: DOMINANT_CHORD,
-		difficulty: { level: 14, pitchComplexity: 12, rhythmComplexity: 18, lengthBars: 1 },
+		difficulty: { level: 12, pitchComplexity: 12, rhythmComplexity: 18, lengthBars: 1 },
 		category: 'dominant-chord',
 		tags: ['dominant', 'scalar'],
 		source: 'curated'
@@ -69,7 +69,7 @@ export const DOMINANT_CHORD_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [3, 4] }  // E
 		],
 		harmony: DOMINANT_CHORD,
-		difficulty: { level: 22, pitchComplexity: 20, rhythmComplexity: 22, lengthBars: 1 },
+		difficulty: { level: 21, pitchComplexity: 21, rhythmComplexity: 22, lengthBars: 1 },
 		category: 'dominant-chord',
 		tags: ['dominant', 'bebop'],
 		source: 'curated'

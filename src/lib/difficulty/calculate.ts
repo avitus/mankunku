@@ -3,7 +3,7 @@
  *
  * Scores four dimensions:
  *   1. Note count — more notes to remember = harder
- *   2. Interval jumps — larger leaps = harder to hear and play
+ *   2. Melodic intervals — larger leaps and more direction changes = harder to recall
  *   3. Rhythm — syncopation, fast subdivisions, variety
  *   4. Chromaticism — non-diatonic notes are harder to hear
  *
@@ -62,8 +62,15 @@ export function calculateDifficulty(phrase: Phrase): DifficultyMetadata {
 
 	// 2. Intervals  (max 30 pts)
 	const intervals: number[] = [];
+	let previousDirection = 0;
+	let directionChanges = 0;
 	for (let i = 1; i < pitches.length; i++) {
-		intervals.push(Math.abs(pitches[i] - pitches[i - 1]));
+		const step = pitches[i] - pitches[i - 1];
+		intervals.push(Math.abs(step));
+		if (step === 0) continue;
+		const direction = Math.sign(step);
+		if (previousDirection !== 0 && direction !== previousDirection) directionChanges++;
+		previousDirection = direction;
 	}
 	const avgInterval =
 		intervals.length > 0
@@ -109,6 +116,7 @@ export function calculateDifficulty(phrase: Phrase): DifficultyMetadata {
 		avgIntervalPts +
 		maxIntervalPts +
 		largeJumpPts +
+		directionChanges + // One raw point per reversal = 1.5 scaled pitch points.
 		chromaticPts +
 		rangePts;
 
@@ -165,7 +173,7 @@ export function calculateDifficulty(phrase: Phrase): DifficultyMetadata {
 	const rhythmComplexity = clamp(rawRhythm * SCALE);
 
 	// Pitch weighted slightly more — this is a play-by-ear app
-	const rawLevel = rawPitch * 0.55 + rawRhythm * 0.45;
+	const rawLevel = rawPitch * 0.60 + rawRhythm * 0.40;
 	const level = clamp(rawLevel * SCALE);
 
 	return {

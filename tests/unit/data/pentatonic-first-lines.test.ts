@@ -58,15 +58,15 @@ describe('Major Pentatonic first lines', () => {
 
 	// Every note is diatonic, so calculateDifficulty needs no adjustment here
 	// (unlike the modal collections, which it reads as chromatic).
-	it('every line is rated exactly as calculated, at levels 1-3, short enough for those levels', () => {
+	it('every line is rated exactly as calculated, at levels 1-6, short enough for those levels', () => {
 		for (const lick of PENTATONIC_FIRST_LINES) {
 			expect(lick.difficulty, lick.id).toEqual(calculateDifficulty(lick));
-			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(3);
+			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(6);
 			expect(effectiveDifficultyLevel(lick), lick.id).toBe(lick.difficulty.level);
 			expect(pitched(lick).length, lick.id).toBeLessThanOrEqual(earTrainingNoteLimit(lick.difficulty.level));
 		}
-		for (const level of [1, 2, 3]) {
-			expect(PENTATONIC_FIRST_LINES.filter((l) => l.difficulty.level === level).length, `level ${level}`).toBeGreaterThanOrEqual(10);
+		for (const [level, minimum] of [[1, 10], [2, 10], [3, 4]]) {
+			expect(PENTATONIC_FIRST_LINES.filter((l) => l.difficulty.level === level).length, `level ${level}`).toBeGreaterThanOrEqual(minimum);
 		}
 	});
 

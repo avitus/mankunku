@@ -198,7 +198,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'interval', 'ascending', 'resolution'],
 		source: 'curated'
@@ -213,7 +213,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [3, 4], offset: [1, 4] }   // F#4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'interval', 'ascending'],
 		source: 'curated'
@@ -228,7 +228,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [1, 2], offset: [1, 2] }   // F#4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 7, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'interval', 'descending'],
 		source: 'curated'
@@ -243,7 +243,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 2], offset: [1, 2] }   // B4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 7, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'interval', 'ascending'],
 		source: 'curated'
@@ -291,7 +291,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -339,7 +339,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [1, 2], offset: [1, 2] }   // F#4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'enclosure'],
 		source: 'curated'
@@ -355,7 +355,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 2], offset: [1, 2] }   // B4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 9, pitchComplexity: 4, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 4, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'ascending'],
 		source: 'curated'
@@ -404,7 +404,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 66, duration: [1, 4], offset: [3, 4] }   // F#4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'scale-run', 'ascending', 'whole-tone'],
 		source: 'curated'
@@ -421,7 +421,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'scale-run', 'descending', 'whole-tone'],
 		source: 'curated'
@@ -438,7 +438,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 4], offset: [3, 4] }   // A4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -455,7 +455,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [3, 4] }   // E4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'scale-run', 'descending'],
 		source: 'curated'
@@ -560,7 +560,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 1] }   // G4
 		],
 		harmony: CMAJ_LYDIAN_2BAR,
-		difficulty: { level: 14, pitchComplexity: 14, rhythmComplexity: 12, lengthBars: 2 },
+		difficulty: { level: 15, pitchComplexity: 16, rhythmComplexity: 12, lengthBars: 2 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'neighbor', 'turn'],
 		source: 'curated'
@@ -578,7 +578,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 1] }   // G4
 		],
 		harmony: CMAJ_LYDIAN_2BAR,
-		difficulty: { level: 11, pitchComplexity: 9, rhythmComplexity: 12, lengthBars: 2 },
+		difficulty: { level: 12, pitchComplexity: 12, rhythmComplexity: 12, lengthBars: 2 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -596,7 +596,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 27, pitchComplexity: 15, rhythmComplexity: 42, lengthBars: 1 },
+		difficulty: { level: 26, pitchComplexity: 15, rhythmComplexity: 42, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'descending', 'arpeggio'],
 		source: 'curated'
@@ -615,7 +615,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 4], offset: [3, 4] }   // A4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -634,7 +634,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'scale-run', 'descending'],
 		source: 'curated'
@@ -653,7 +653,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 34, pitchComplexity: 20, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 35, pitchComplexity: 23, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'sequence', 'ascending', 'whole-tone'],
 		source: 'curated'
@@ -673,7 +673,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 4], offset: [3, 4] }   // B4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 39, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
+		difficulty: { level: 37, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -693,7 +693,7 @@ export const LYDIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMAJ_LYDIAN_1BAR,
-		difficulty: { level: 39, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
+		difficulty: { level: 37, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
 		category: 'modal',
 		tags: ['lydian', 'sharp-four', 'intermediate', 'scale-run', 'descending'],
 		source: 'curated'

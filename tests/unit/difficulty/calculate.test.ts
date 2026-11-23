@@ -38,6 +38,15 @@ describe('calculateDifficulty', () => {
 		expect(diff.pitchComplexity).toBeLessThan(30);
 	});
 
+	it('adds three pitch points for two reversals, carrying direction across repeats and rests', () => {
+		const rate = (pitches: (number | null)[]) =>
+			calculateDifficulty(makePhrase(pitches.map((pitch, i) => makeNote(pitch, [i, 4]))));
+		const rising = rate([60, 62, 62, null, 64, 65]);
+		const turning = rate([60, 62, 62, null, 60, 62]);
+		expect(turning.pitchComplexity).toBe(rising.pitchComplexity + 3);
+		expect(turning.rhythmComplexity).toBe(rising.rhythmComplexity);
+	});
+
 	it('larger intervals increase pitch complexity', () => {
 		const stepwise = makePhrase([
 			makeNote(60, [0, 1]),

@@ -31,7 +31,7 @@ export const DIMINISHED_CHORD_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [3, 4] }  // Bb
 		],
 		harmony: DIMINISHED_CHORD,
-		difficulty: { level: 14, pitchComplexity: 14, rhythmComplexity: 5, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 14, rhythmComplexity: 5, lengthBars: 1 },
 		category: 'diminished-chord',
 		tags: ['diminished', 'arpeggio'],
 		source: 'curated'
@@ -52,7 +52,7 @@ export const DIMINISHED_CHORD_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [7, 8] }  // C
 		],
 		harmony: DIMINISHED_CHORD,
-		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		difficulty: { level: 19, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
 		category: 'diminished-chord',
 		tags: ['diminished', 'scalar'],
 		source: 'curated'
