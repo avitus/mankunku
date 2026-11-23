@@ -382,7 +382,14 @@
 				practiceAgain();
 				syncSetup();
 			}
-			void startSession();
+			const generation = ++setupGeneration;
+			void startSession(generation).catch(error => {
+				if (!setupIsCurrent(generation)) return;
+				stopAll();
+				practiceAgain(retrySpots);
+				loadError = true;
+				console.error('[tune-practice] session setup failed:', error);
+			});
 		}
 	}
 
@@ -455,9 +462,8 @@
 	 * instrument and backing, then hand the planned session to playback.
 	 * Any setup failure unwinds `isLoading` and shows its banner.
 	 */
-	async function startSession() {
+	async function startSession(generation: number): Promise<void> {
 		if (!mounted || !playback || !toneModule || !baseSheet || isLoading) return;
-		const generation = ++setupGeneration;
 
 		isLoading = true;
 		micError = false;
@@ -470,29 +476,18 @@
 			micError = true;
 			return;
 		}
-		// A rejected sample fetch or AudioWorklet error must still unwind
-		// isLoading, or the Start button stays disabled on "Setting up…" forever.
-		try {
-			if (!playback.isInstrumentLoaded(settings.instrumentId)) {
-				await playback.loadInstrument(
-					settings.instrumentId,
-					settings.masterVolume,
-					settings.backingInstrument
-				);
-			} else if (backingTrack) {
-				await backingTrack.loadBackingInstruments(settings.backingInstrument);
-			}
-			if (!setupIsCurrent(generation)) return;
-			setMasterVolume(settings.masterVolume);
-			await ensurePitchDetector(generation);
-		} catch (err) {
-			if (!setupIsCurrent(generation)) return;
-			stopAll();
-			console.error('[tune-practice] audio setup failed:', err);
-			isLoading = false;
-			loadError = true;
-			return;
+		if (!playback.isInstrumentLoaded(settings.instrumentId)) {
+			await playback.loadInstrument(
+				settings.instrumentId,
+				settings.masterVolume,
+				settings.backingInstrument
+			);
+		} else if (backingTrack) {
+			await backingTrack.loadBackingInstruments(settings.backingInstrument);
 		}
+		if (!setupIsCurrent(generation)) return;
+		setMasterVolume(settings.masterVolume);
+		await ensurePitchDetector(generation);
 		if (!setupIsCurrent(generation)) return;
 		isLoading = false;
 
