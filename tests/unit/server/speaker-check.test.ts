@@ -3,8 +3,8 @@ import { POST } from '../../../src/routes/api/speaker-check/+server';
 
 const url = new URL('https://example.com/api/speaker-check');
 const metrics = { session: '5a671f31-2f06-49ac-8ab1-39de99de31d2', stage: 'listen', surface: 'ear-training', result: 'active', reduction: 5.2 };
-function post(data: unknown, origin = url.origin, address = '127.0.0.1') {
-	const request = new Request(url, {method: 'POST', headers: {origin, 'content-type': 'application/json'}, body: JSON.stringify(data)});
+function post(data: unknown, origin = url.origin, address = '127.0.0.1', forwarded = '') {
+	const request = new Request(url, {method: 'POST', headers: {origin, 'x-real-ip': forwarded, 'content-type': 'application/json'}, body: JSON.stringify(data)});
 	return POST({url, request, getClientAddress: () => address} as Parameters<typeof POST>[0]);
 }
 
@@ -23,7 +23,7 @@ describe('speaker monitoring', () => {
 		const log = vi.spyOn(console, 'info').mockImplementation(() => {});
 		try {
 			for (let i = 0; i < 60; i++) expect((await post(metrics, url.origin, 'sender-a')).status).toBe(204);
-			expect((await post(metrics, url.origin, 'sender-a')).status).toBe(429);
+			expect((await post(metrics, url.origin, 'sender-a', 'different')).status).toBe(429);
 			expect((await post(metrics, url.origin, 'sender-b')).status).toBe(204);
 		} finally { log.mockRestore(); }
 	});

@@ -357,9 +357,10 @@
 			try {
 				const { wipeUserData } = await import('$lib/persistence/user-scope');
 				const { getActiveUid } = await import('$lib/persistence/namespace');
-				await wipeUserData(getActiveUid());
+				const { localCleanupComplete } = await wipeUserData(getActiveUid());
+				if (!localCleanupComplete) throw new Error('Local cleanup incomplete');
 			} catch {
-				// Best-effort cleanup — proceed to redirect regardless
+				alert('Your account was deleted. This browser could still have local recordings. To finish removing them, clear site data for Mankunku in your browser settings.');
 			}
 			window.location.href = '/auth';
 		} catch (err) {

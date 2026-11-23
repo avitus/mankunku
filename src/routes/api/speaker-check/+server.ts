@@ -35,8 +35,11 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
 			written = 0;
 			senderCounts.clear();
 		}
-		// Production nginx overwrites X-Real-IP. Keep it in memory for this minute only.
-		const sender = request.headers.get('x-real-ip') || getClientAddress();
+		// Only the local ingress may identify a forwarded sender. Direct connections
+		// use the transport peer. The address never enters the application log.
+		const peer = getClientAddress();
+		const localProxy = peer === '127.0.0.1' || peer === '::1' || peer === '::ffff:127.0.0.1';
+		const sender = (localProxy && request.headers.get('x-real-ip')) || peer;
 		const count = senderCounts.get(sender) ?? 0;
 		if (count >= 60 || written >= 300) return new Response(null, {status: 429});
 		senderCounts.set(sender, count + 1);
