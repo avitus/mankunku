@@ -29,15 +29,17 @@ export interface JamForm {
 }
 
 /** One finite transport timeline: head, silent-melody solos, closing head. */
-export function buildJamForm(tune: Tune, choruses: number, includeHead: boolean = true): JamForm {
-	const { returning: sheet, closing: closingSheet, soloStartBar, opening } = jamSheets(tune, includeHead);
+export function buildJamForm(tune: Tune, choruses: number, includeHead = true, includeOutro = includeHead): JamForm {
+	const { returning: sheet, closing: closingSheet, soloStartBar, opening } = jamSheets(tune, includeHead, includeOutro);
 	const expanded = tuneToPhraseWithFlat(sheet, { expandRepeats: true });
 	const flat = clearPickupBarHarmony(sheet, expanded.flat);
 	const pickupBars = Math.max(soloStartBar, soloPassPickupBars(sheet, flat));
 	const closingFlat = clearPickupBarHarmony(closingSheet, tuneToPhraseWithFlat(closingSheet, { expandRepeats: true }).flat);
-	const playHead = includeHead && flat.notes.some(note => note.pitch !== null);
+	const returningHasMelody = flat.notes.some(note => note.pitch !== null);
+	const playHead = includeHead && returningHasMelody;
+	const playOutro = includeOutro && (returningHasMelody || closingFlat.notes.some(note => note.pitch !== null));
 	const built = buildSessionPhrase({
-		flat, timeSignature: tune.timeSignature, playHead, playOutro: true, choruses, pickupBars,
+		flat, timeSignature: tune.timeSignature, playHead, playOutro, choruses, pickupBars,
 		openingFlat: opening?.flat, closingFlat, closingPickupBars: soloPassPickupBars(closingSheet, closingFlat)
 	});
 	const form = headBarsForFlat(flat);

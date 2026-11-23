@@ -72,7 +72,7 @@ describe('remembered tune settings', () => {
 		save('tune-key:first', 'H');
 		save('tune-practice-style:first', 'invalid');
 		save('tune-display:focus', 'true');
-		expect(savedTunePracticePreferences()).toEqual({ mode: 'suggest', strictness: 'guided', playHead: false });
+		expect(savedTunePracticePreferences()).toEqual({ mode: 'suggest', strictness: 'guided', playHead: false, playOutro: false });
 		expect(savedTuneKey('first', 'C')).toBe('C');
 		expect(savedTunePracticeStyle('first', 'ballad')).toBe('ballad');
 		expect(savedTuneDisplay('focus', false)).toBe(false);

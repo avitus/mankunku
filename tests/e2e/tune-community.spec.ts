@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/auth';
 import {
@@ -164,7 +165,7 @@ test.describe('tune community — authed browse', () => {
 		// Not in the book yet: the page offers to add it, and practice waits
 		// for that — practice resolves tunes from the book.
 		await expect(signedInPage.getByRole('button', { name: 'Add to my book' })).toBeVisible();
-		await expect(signedInPage.getByRole('button', { name: 'Practice licks' })).toHaveCount(0);
+		await expect(signedInPage.getByRole('switch', { name: 'Lick Practice' })).toBeDisabled();
 	});
 
 	test('a cold deep link to a shared tune opens it', async ({
@@ -237,9 +238,10 @@ test.describe('tune community — add from the detail page', () => {
 		});
 		await page.goto('/tunes/e2e-community-tune-1');
 		await expect(page.getByText('shared by Test Author')).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Practice licks' })).toHaveCount(0);
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toBeDisabled();
 		await page.getByRole('button', { name: 'Add to my book' }).click();
-		await expect(page.getByRole('button', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toBeEnabled();
+		await openTuneSettings(page);
 		await expect(page.getByRole('button', { name: 'Return to community' })).toBeVisible();
 		expect(cloud.rows('tune_adoptions')).toHaveLength(1);
 	});
@@ -270,16 +272,18 @@ test.describe('tune community — add from the detail page', () => {
 		});
 		await page.getByRole('button', { name: 'Add to my book' }).click();
 
-		await expect(page.getByRole('button', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toBeEnabled();
+		await openTuneSettings(page);
 		await expect(page.getByRole('button', { name: 'Return to community' })).toBeVisible();
 		await expect(page.getByText('shared by Test Author')).toBeVisible();
 		expect(failedFetches).toBeGreaterThan(0);
 		expect(cloud.rows('tune_adoptions')).toEqual([
 			expect.objectContaining({ user_id: ADOPTER.id, tune_id: COMMUNITY_TUNE_ROW.id })
 		]);
-		await page.getByRole('button', { name: 'Practice licks' }).click();
-		await expect(page).toHaveURL(/\/tunes\/[^/]+\/practice$/);
-		await expect(page.getByRole('heading', { name: 'Practice licks' })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await page.getByRole('switch', { name: 'Lick Practice' }).click();
+		await expect(page).toHaveURL(/\/tunes\/[^/]+\?licks=1$/);
+		await expect(page.getByRole('combobox', { name: 'Practice mode' })).toBeVisible();
 		await expect(page.getByRole('img', { name: 'Sheet Music for "Community Test Tune"' })).toBeVisible();
 	});
 
@@ -296,11 +300,12 @@ test.describe('tune community — add from the detail page', () => {
 
 		await page.goto('/tunes/e2e-community-tune-1');
 		await expect(page.getByRole('heading', { name: 'Community Test Tune' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Practice licks' })).toHaveCount(0);
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toBeDisabled();
 
 		await page.getByRole('button', { name: 'Add to my book' }).click();
 
-		await expect(page.getByRole('button', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toBeEnabled();
+		await openTuneSettings(page);
 		await expect(page.getByRole('button', { name: 'Return to community' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Add to my book' })).toHaveCount(0);
 		expect(cloud.rows('tune_adoptions')).toEqual([

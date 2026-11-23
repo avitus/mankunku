@@ -96,7 +96,7 @@ export function sessionFromPasses(args: {
 	}
 	const headBars = phraseBars;
 	const closingFlat = args.closingFlat ?? flat;
-	const outro = args.playHead && args.playOutro && solo.flat.totalBars > 0
+	const outro = args.playOutro && solo.flat.totalBars > 0
 		? playbackWithoutSections(closingFlat, meter, args.closingStart, closingFlat.omittedOutroSections)
 		: null;
 	const hasOutro = !!outro?.flat.totalBars;

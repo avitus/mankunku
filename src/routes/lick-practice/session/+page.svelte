@@ -616,7 +616,7 @@
 		// rejection unhandled: unwind, clear the rows as the mic path does, and
 		// let the setup banner say why — as tune practice does at the same spot.
 		try {
-			if (!playback.isInstrumentLoaded()) {
+			if (!playback.isInstrumentLoaded(settings.instrumentId)) {
 				await playback.loadInstrument(
 					settings.instrumentId,
 					settings.masterVolume,

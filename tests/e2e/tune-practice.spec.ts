@@ -1,3 +1,4 @@
+import { openTuneSettings, setTuneTempo } from './fixtures/tune-setup';
 import type { Page } from '@playwright/test';
 import { threeLaneSheet } from '../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ const autumnLeavesFixture = JSON.parse(
 ) as Record<string, unknown>;
 
 /**
- * /tunes/[id]/practice — setup screen (no audio) + a session smoke that
+ * /tunes/[id]?licks=1 — setup screen (no audio) + a session smoke that
  * pins the follow-scroll regression where the chart vanished at the first
  * insertion / head→changes sheet swap.
  */
@@ -80,22 +81,13 @@ async function systemSignature(page: Page): Promise<number[]> {
 	});
 }
 
-/** Open the secondary controls through the native disclosure. */
-async function openSessionOptions(page: Page): Promise<void> {
-	const options = page.locator('details.tp-options');
-	if (!(await options.evaluate(element => element.hasAttribute('open')))) {
-		await options.locator('summary').click();
-	}
-	await expect(options).toHaveAttribute('open', '');
-}
-
 /** Commit numeric tempo entry after setup hydration. */
 async function setTempoMax(page: Page): Promise<void> {
-	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
+	const tempo = page.getByRole('slider', { name: /^tempo$/i });
 	await expect(async () => {
-		await tempo.fill('240');
-		await tempo.press('Tab');
-		await expect(tempo).toHaveValue('240', { timeout: 1_000 });
+		await setTuneTempo(page, 240);
+
+		await expect(tempo).toHaveAttribute('aria-valuenow', '240', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 
@@ -133,13 +125,13 @@ async function expectToneClockRunning(page: Page): Promise<void> {
 
 /** Start a session and wait until the running chrome is up (not the setup chart). */
 async function startPracticeSession(page: Page): Promise<void> {
-	await page.getByRole('button', { name: /^start$/i }).click();
+	await page.getByRole('button', { name: /^play$/i }).click();
 	// "End" only exists once the session leaves setup — stronger than the bare
 	// chart viewport testid, which the setup preview also mounts. Session start
 	// runs Tone.start() + sample decode + transport spin-up in real time; on a
 	// box saturated by the full parallel suite that reliably starved a 20s
 	// budget (solo runs finish in ~5s), so the budget covers the loaded case.
-	await expect(page.getByRole('button', { name: /^end$/i })).toBeVisible({ timeout: 45_000 });
+	await expect(page.getByRole('button', { name: /^stop$/i })).toBeVisible({ timeout: 45_000 });
 	await expect(page.locator('[data-testid="chart-scroll-viewport"].following, [data-testid="tune-chord-chart"]').first()).toBeVisible();
 	await expectChartVisibleInFollowViewport(page);
 }
@@ -155,14 +147,14 @@ test.describe('tune practice setup', () => {
 	}) => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints');
-		await page.getByRole('button', { name: /practice licks/i }).click();
+		await page.getByRole('switch', { name: 'Lick Practice' }).click();
 		// Links carry the title slug; the minted id still resolves too.
-		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in\/practice$/);
+		await expect(page).toHaveURL(/\/tunes\/e2e-when-the-saints\?licks=1$/);
 
-		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
+		await expect(page.getByRole('combobox', { name: 'Practice mode' })).toBeVisible();
 		// Compatible major vamps now combine into broader major-region windows.
 		await expect(page.getByText(/3 insertion points/i)).toBeVisible();
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 
 		// The detector's bar ranges render as marker bands inside the chart SVG,
 		// each labeled with its progression name.
@@ -175,9 +167,9 @@ test.describe('tune practice setup', () => {
 
 	test('choruses range from 1 to 12 and update the planned insertion count', async ({ page }) => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
-		await page.goto('/tunes/e2e-when-the-saints/practice');
-		await openSessionOptions(page);
-		const choruses = page.getByRole('spinbutton', { name: /^solo choruses$/i });
+		await page.goto('/tunes/e2e-when-the-saints?licks=1');
+
+		const choruses = page.getByRole('spinbutton', { name: /^choruses$/i });
 		await expect(choruses).toHaveValue('1');
 		await expect(choruses).toHaveAttribute('min', '1');
 		await expect(choruses).toHaveAttribute('max', '12');
@@ -194,12 +186,12 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByText(/6 insertion points/i)).toBeVisible();
 		await expectToneClockRunning(page);
 		await page.reload();
-		await openSessionOptions(page);
+
 		await expect(choruses).toHaveValue('2');
 		await expect(page.getByText(/6 insertion points/i)).toBeVisible();
 		await expectToneClockRunning(page);
-		await page.goto('/tunes/ls-mankunku-blues/practice');
-		await openSessionOptions(page);
+		await page.goto('/tunes/ls-mankunku-blues?licks=1');
+
 		await expect(choruses).toHaveValue('2');
 	});
 
@@ -207,8 +199,8 @@ test.describe('tune practice setup', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/tunes/ls-mankunku-blues/practice');
-		await openSessionOptions(page);
+		await page.goto('/tunes/ls-mankunku-blues?licks=1');
+
 		// With the default head-first setting, only the SOLO pass of the
 		// whole-form repeat is practiceable (the jazz form rule): 2 blues windows,
 		// 1 short ii-V-I, 1 long turnaround and 1 short turnaround. Scope to the summary paragraph — the same
@@ -219,9 +211,10 @@ test.describe('tune practice setup', () => {
 		await expect(summary).toContainText('Short ii-V-I (Maj)');
 		await expect(summary).toContainText('Long Turnaround');
 		await expect(summary).toContainText('Blues');
-		await page.getByRole('switch', { name: /play head and outro/i }).click();
+		await page.getByRole('switch', { name: /^Head$/i }).click();
+		await page.getByRole('switch', { name: 'Outro', exact: true }).click();
 		await expect(summary).toContainText('5 insertion points');
-		await page.getByRole('spinbutton', { name: /^solo choruses$/i }).press('ArrowUp');
+		await page.getByRole('spinbutton', { name: /^choruses$/i }).press('ArrowUp');
 		await expect(summary).toContainText('10 insertion points');
 	});
 
@@ -230,29 +223,17 @@ test.describe('tune practice setup', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
-		await page.goto('/tunes/e2e-when-the-saints/practice');
-		await openSessionOptions(page);
-		const head = page.getByRole('switch', { name: /play head and outro/i });
-		const modes = page.getByRole('radiogroup', { name: 'Mode', exact: true });
-		// The play-the-head option applies to every mode.
-		await expect(head).toBeVisible();
+		await page.goto('/tunes/e2e-when-the-saints?licks=1');
+
+		const head = page.getByRole('switch', { name: /^Head$/i });
+		const mode = page.getByLabel('Practice mode');
+		await mode.selectOption('freestyle');
 		await expect(head).toBeEnabled();
-		await modes.getByRole('radio', { name: 'Play freely', exact: true }).click();
-		await expect(head).toBeVisible();
-		// A pad option's accessible name is its label plus its sublabel line.
-		await modes.getByRole('radio', { name: 'Play for points', exact: true }).click();
-		await expect(head).toBeVisible();
-		// Strictness pad present, and the three levels differ in what the
-		// chart tells you, never in how it listens — each option's sublabel
-		// (part of its accessible name) says what that level names.
-		const strictness = page.getByRole('radiogroup', { name: 'Chart cues', exact: true });
-		await expect(strictness.getByRole('radio', { name: 'Lick names', exact: true })).toBeVisible();
-		await expect(
-			strictness.getByRole('radio', { name: 'Progressions', exact: true })
-		).toBeVisible();
-		await expect(
-			strictness.getByRole('radio', { name: 'No cues', exact: true })
-		).toBeVisible();
+		await expect(page.getByLabel('Chart cues')).toBeHidden();
+		await mode.selectOption('points');
+		await expect(head).toBeEnabled();
+		await expect(page.getByLabel('Target lick')).toBeVisible();
+		await expect(page.getByLabel('Chart cues').locator('option')).toHaveText(['Lick names', 'Progressions', 'No cues']);
 	});
 
 	test('head switch is disabled on a chords-only chart', async ({
@@ -289,15 +270,14 @@ test.describe('tune practice setup', () => {
 			source: 'user'
 		};
 		await seedTunes(page, [chordsOnlyTune]);
-		await page.goto('/tunes/e2e-chords-only/practice');
-		await openSessionOptions(page);
-		const head = page.getByRole('switch', { name: /play head and outro/i });
+		await page.goto('/tunes/e2e-chords-only?licks=1');
+
+		const head = page.getByRole('switch', { name: /^Head$/i });
 		await expect(head).toBeVisible();
 		await expect(head).toBeDisabled();
 		await expect(head).toHaveAttribute('aria-checked', 'false');
 		// Both the Start caption and the disabled form control explain why.
-		await expect(page.locator('.tp-start p', { hasText: /no melody/i })).toBeVisible();
-		await expect(page.locator('.so-no-melody')).toBeVisible();
+		await expect(page.getByRole('switch', { name: 'Outro' })).toBeDisabled();
 	});
 
 	/**
@@ -319,9 +299,9 @@ test.describe('tune practice setup', () => {
 				Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
 		});
 		await seedTunes(page, [SAINTS_USER_TUNE]);
-		await page.goto('/tunes/e2e-when-the-saints/practice');
-		await openSessionOptions(page);
-		const start = page.getByRole('button', { name: /^start$/i });
+		await page.goto('/tunes/e2e-when-the-saints?licks=1');
+
+		const start = page.getByRole('button', { name: /^play$/i });
 		await expect(start).toBeEnabled();
 		await start.click();
 
@@ -329,7 +309,7 @@ test.describe('tune practice setup', () => {
 			timeout: 20_000
 		});
 		await expect(start).toBeEnabled();
-		await expect(page.getByRole('button', { name: /^end$/i })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /^stop$/i })).toHaveCount(0);
 		await expect(page.locator('[data-testid="chart-scroll-viewport"].following')).toHaveCount(0);
 	});
 });
@@ -360,11 +340,12 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			}]
 		};
 		await seedTunes(page, [{ ...practiced, id: 'a-three-choruses' }, practiced]);
-		await page.goto('/tunes/e2e-three-choruses/practice');
-		await openSessionOptions(page);
+		await page.goto('/tunes/e2e-three-choruses?licks=1');
+
 		await setTempoMax(page);
-		await page.getByLabel('Key', { exact: true }).selectOption('E');
-		const choruses = page.getByRole('spinbutton', { name: /^solo choruses$/i });
+		await openTuneSettings(page);
+		await page.getByLabel('Written key', { exact: true }).selectOption('E');
+		const choruses = page.getByRole('spinbutton', { name: /^choruses$/i });
 		await choruses.press('ArrowUp');
 		await choruses.press('ArrowUp');
 		await expect(choruses).toHaveValue('3');
@@ -378,7 +359,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('No matching licks in this take.', { exact: true })).toBeVisible();
 		const report = page.getByTestId('tune-practice-report');
-		await expect(report.getByRole('link', { name: 'Back to tune' })).toHaveAttribute('href', '/tunes/three-choruses-2');
+		await expect(report.getByRole('button', { name: 'Back to tune' })).toBeVisible();
 		await expect(report.locator('[data-report-chorus]')).toHaveCount(3);
 		await expect(report.locator('[data-report-status="unavailable"]')).toHaveCount(3);
 		await expect(report.locator('[data-report-status="open"]')).toHaveCount(0);
@@ -407,9 +388,9 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
-		await page.goto('/tunes/ls-mankunku-blues/practice');
-		await openSessionOptions(page);
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await page.goto('/tunes/ls-mankunku-blues?licks=1');
+
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 
 		// Keep head-first ON (default) — the chart swap is the regression trigger.
 		await setTempoMax(page);
@@ -428,7 +409,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			await page.waitForTimeout(200);
 		}
 
-		await page.getByRole('button', { name: /^end$/i }).click();
+		await page.getByRole('button', { name: /^stop$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
@@ -453,9 +434,9 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
-		await page.goto('/tunes/ls-mankunku-blues/practice');
-		await openSessionOptions(page);
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await page.goto('/tunes/ls-mankunku-blues?licks=1');
+
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 
 		const backing = page.getByRole('switch', { name: /backing track/i });
 		// Exercise both backing states, then take the tune with only the metronome.
@@ -464,10 +445,13 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(backing).toHaveAttribute('aria-checked', 'true');
 		await backing.click();
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
+		await openTuneSettings(page);
 		await page.getByRole('switch', { name: 'Melody', exact: true }).click();
-		await page.getByRole('switch', { name: 'Metronome', exact: true }).click();
 		await expect(page.getByRole('switch', { name: 'Melody', exact: true })).toHaveAttribute('aria-checked', 'false');
+		await page.keyboard.press('Escape');
+		await page.getByRole('switch', { name: 'Metronome', exact: true }).click();
 		await expect(page.getByRole('switch', { name: 'Metronome', exact: true })).toHaveAttribute('aria-checked', 'true');
+		await page.keyboard.press('Escape');
 
 		await setTempoMax(page);
 		await startPracticeSession(page);
@@ -478,7 +462,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			page.getByText(/your turn — play the lick!|comping — insertion/i)
 		).toBeVisible({ timeout: 75_000 });
 
-		await page.getByRole('button', { name: /^end$/i }).click();
+		await page.getByRole('button', { name: /^stop$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
@@ -500,14 +484,11 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
-		await page.goto('/tunes/e2e-when-the-saints/practice');
-		await openSessionOptions(page);
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await page.goto('/tunes/e2e-when-the-saints?licks=1');
 
-		await page
-			.getByRole('radiogroup', { name: 'Mode', exact: true })
-			.getByRole('radio', { name: 'Play freely', exact: true })
-			.click();
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
+
+		await page.getByRole('combobox', { name: 'Practice mode' }).selectOption({ label: 'Freestyle' });
 		await expect(page.getByRole('switch', { name: /backing track/i }))
 			.toHaveAttribute('aria-checked', 'false');
 		await setTempoMax(page);
@@ -515,7 +496,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 
 		// End with nothing played: the no-match branch of the freestyle summary,
 		// which must not credit a band that never played.
-		await page.getByRole('button', { name: /^end$/i }).click();
+		await page.getByRole('button', { name: /^stop$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
@@ -578,21 +559,15 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
-		await page.goto('/tunes/e2e-autumn-leaves/practice');
-		await openSessionOptions(page);
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await page.goto('/tunes/e2e-autumn-leaves?licks=1');
+
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 		// Points: no readiness filter, and the pick card is the one prompt a
 		// head could show.
-		await page
-			.getByRole('radiogroup', { name: 'Mode', exact: true })
-			.getByRole('radio', { name: 'Play for points', exact: true })
-			.click();
+		await page.getByRole('combobox', { name: 'Practice mode' }).selectOption({ label: 'Play for points' });
 		// Guided: the bands name the lick (Standard, the default, names the
 		// progression alone).
-		await page
-			.getByRole('radiogroup', { name: 'Chart cues', exact: true })
-			.getByRole('radio', { name: 'Lick names', exact: true })
-			.click();
+		await page.getByRole('combobox', { name: 'Chart cues' }).selectOption({ label: 'Lick names' });
 		await setTempoMax(page);
 		await startPracticeSession(page);
 
@@ -623,7 +598,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		// The pick card, held back through the head, is up for the next window.
 		await expect(page.getByTestId('suggestion-pick-card')).toBeVisible();
 
-		await page.getByRole('button', { name: /^end$/i }).click();
+		await page.getByRole('button', { name: /^stop$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
@@ -636,18 +611,23 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(report.locator('.tr-selection-title')).toContainText('F#');
 		await expect(report.locator('.tr-selection-title')).toContainText('Minor');
 		await report.getByRole('button', { name: '+ Practice this spot', exact: true }).click();
+		await openTuneSettings(page);
+		await page.getByRole('button', { name: 'Print lead sheet' }).click();
+		await expect(report).toBeHidden();
+		await page.getByRole('button', { name: 'Back to tune', exact: true }).click();
+		await expect(report).toBeVisible();
 		await report.getByRole('button', { name: 'Practice 1 selected spot', exact: true }).click();
 		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toBeVisible();
 		// A same-route client navigation reuses the page component: retry IDs
 		// from Autumn Leaves must not filter a different tune's setup.
 		await page.evaluate(() => {
 			const link = document.createElement('a');
-			link.href = '/tunes/e2e-when-the-saints/practice';
+			link.href = '/tunes/e2e-when-the-saints?licks=1';
 			link.textContent = 'Switch practice tune';
 			document.querySelector('main')!.append(link);
 		});
 		await page.getByRole('link', { name: 'Switch practice tune' }).click();
-		await expect(page).toHaveURL(/e2e-when-the-saints\/practice$/);
+		await expect(page).toHaveURL(/e2e-when-the-saints\?licks=1$/);
 		await expect(page.getByText('1 selected spot · full tune backing', { exact: true })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Practice all spots', exact: true })).toHaveCount(0);
 	});
@@ -676,9 +656,9 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
-		await page.goto('/tunes/e2e-autumn-leaves/practice');
-		await openSessionOptions(page);
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await page.goto('/tunes/e2e-autumn-leaves?licks=1');
+
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 
 		await setTempoMax(page);
 		await startPracticeSession(page);
@@ -707,7 +687,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 		await expect(page.locator('.tcc-bar.active')).toHaveCount(1);
 
-		await page.getByRole('button', { name: /^end$/i }).click();
+		await page.getByRole('button', { name: /^stop$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
@@ -723,11 +703,11 @@ test(`key centers follow the solo and respect the setup switch: ${style}, ${show
 	await page.getByRole('radio', { name:style }).check();
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
-	await page.goto('/tunes/three-lane-centers/practice');
-	const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
-	await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+	await page.goto('/tunes/three-lane-centers?licks=1');
+	const toggle = page.getByRole('switch', { name: 'Show key centers', exact: true });
+	await expect(toggle).toHaveAttribute('aria-checked', 'true');
 	if (!showCenters) await toggle.click();
-	await openSessionOptions(page);
+
 	await setTempoMax(page);
 	await startPracticeSession(page);
 	await expect(page.getByText(/melody once\s+through/i)).toBeVisible();
@@ -749,5 +729,5 @@ test(`key centers follow the solo and respect the setup switch: ${style}, ${show
 		await expect(legend).toHaveCount(0);
 		await expect(chart.locator('[data-key-center]')).toHaveCount(0);
 	}
-	await page.getByRole('button', { name: /^end$/i }).click();
+	await page.getByRole('button', { name: /^stop$/i }).click();
 });

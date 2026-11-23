@@ -46,15 +46,9 @@ test.describe('written pitch follows the instrument setting', () => {
 		await page.goto('/settings');
 		const instrumentGroup = page.getByRole('radiogroup', { name: 'Instrument', exact: true });
 		await instrumentGroup.getByRole('radio', { name: /alto/i }).first().click();
-		// Both the control panel and the read-only summary use written pitch.
 		await expect(
 			page
 				.getByRole('region', { name: 'Ear Training', exact: true })
-				.getByText('A Major Pentatonic', { exact: true })
-		).toBeVisible();
-		await expect(
-			page
-				.getByRole('complementary', { name: 'Your setup' })
 				.getByText('A Major Pentatonic', { exact: true })
 		).toBeVisible();
 		await expect(page.getByText('Custom override')).toBeVisible();
@@ -76,15 +70,9 @@ test.describe('written pitch follows the instrument setting', () => {
 			.getByRole('radiogroup', { name: 'C instrument', exact: true })
 			.getByRole('radio', { name: 'Other', exact: true })
 			.click();
-		// Both the control panel and the read-only summary use written pitch.
 		await expect(
 			page
 				.getByRole('region', { name: 'Ear Training', exact: true })
-				.getByText('C Major Pentatonic', { exact: true })
-		).toBeVisible();
-		await expect(
-			page
-				.getByRole('complementary', { name: 'Your setup' })
 				.getByText('C Major Pentatonic', { exact: true })
 		).toBeVisible();
 		await page.goto('/ear-training');

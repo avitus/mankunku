@@ -1,3 +1,4 @@
+import { openTuneSettings, setTuneTempo } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { seedStorage, seedTunes, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -13,11 +14,12 @@ for(const [n,d] of [[3,4],[5,4],[7,4],[6,8]])test(`normal tune playback complete
   AudioBufferSourceNode.prototype.start=function(...args){if(this.context instanceof AudioContext&&(this.buffer?.length??0)>128&&(args[0]??0)>0)e.starts.push({time:args[0]!,duration:this.buffer!.duration});return Reflect.apply(start,this,args);};
  });
  await page.goto('/tunes/e2e-meter');
- const tempo=page.getByRole('spinbutton',{name:'Tempo',exact:true});await tempo.fill('240');await tempo.press('Tab');
+ await setTuneTempo(page, 240);
+ await openTuneSettings(page);
  for(const name of ['Melody','Metronome']){const control=page.getByRole('switch',{name,exact:true});if(await control.getAttribute('aria-checked')==='true')await control.click();}
- await page.getByRole('button',{name:'Play tune',exact:true}).click();
+ await page.getByRole('button',{name:'Play',exact:true}).click();
  await expect(page.getByRole('button',{name:'Stop',exact:true})).toBeVisible({timeout:60_000});
- await expect(page.getByRole('button',{name:'Play tune',exact:true})).toBeVisible({timeout:70_000});
+ await expect(page.getByRole('button',{name:'Play',exact:true})).toBeVisible({timeout:70_000});
  const e=await page.evaluate(()=>(window as unknown as {__meterAudio:{starts:{time:number;duration:number}[]}}).__meterAudio);
  await info.attach('meter-native-starts',{body:JSON.stringify({meter:[n,d],...e}),contentType:'application/json'});
  expect(e.starts.length).toBeGreaterThan(60);

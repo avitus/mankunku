@@ -66,7 +66,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: 'Your Tunes',
 			description:
-				"Whole song forms — charted by hand, imported from iReal Pro, Band-in-a-Box, MuseScore or a PDF, or adopted from the community. Open one and hit Practice licks: the band plays the form, and the app finds the ii-Vs and turnarounds in the changes and hands you those spots to fill with licks from your book. It's where Side A and Side B pay off.",
+				"Whole song forms — charted by hand, imported from iReal Pro, Band-in-a-Box, MuseScore or a PDF, or adopted from the community. Open one and turn on Lick Practice: the band plays the form, and the app finds the ii-Vs and turnarounds in the changes and hands you those spots to fill with licks from your book. It's where Side A and Side B pay off.",
 			side: 'bottom',
 			align: 'center'
 		}

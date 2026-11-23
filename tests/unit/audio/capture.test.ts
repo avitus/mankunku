@@ -155,6 +155,33 @@ describe('startMicCapture', () => {
 	});
 });
 
+describe('caller-owned microphones', () => {
+	it.each([true, false])('releases each independent graph when the newer request resolves first: %s', async newerFirst => {
+		const shared = await captureModule.startMicCapture();
+		const pending = [Promise.withResolvers<MediaStream>(), Promise.withResolvers<MediaStream>()];
+		const gum = vi.mocked(navigator.mediaDevices.getUserMedia);
+		for (const request of pending) gum.mockReturnValueOnce(request.promise);
+		const opening = [captureModule.openMicrophone(), captureModule.openMicrophone()];
+		const streams = [createMockStream(), createMockStream()];
+		for (const index of newerFirst ? [1, 0] : [0, 1]) {
+			pending[index].resolve(streams[index] as unknown as MediaStream);
+			const current = await opening[index];
+			expect(current.stream).toBe(streams[index]);
+			if (index === 0) captureModule.closeMicrophone(current);
+		}
+		expect(streams[0]._track.stop).toHaveBeenCalledOnce();
+		expect(streams[1]._track.stop).not.toHaveBeenCalled();
+		const active = await opening[1];
+		captureModule.closeMicrophone(active);
+		expect(active.source.disconnect).toHaveBeenCalledOnce();
+		expect(streams[1]._track.stop).toHaveBeenCalledOnce();
+		expect(captureModule.getMicCapture()).toBe(shared);
+		expect(shared.stream.getTracks()[0].stop).not.toHaveBeenCalled();
+		captureModule.stopMicCapture();
+		expect(shared.stream.getTracks()[0].stop).toHaveBeenCalledOnce();
+	});
+});
+
 describe('stopMicCapture', () => {
 	it('stops all tracks and disconnects source', async () => {
 		const capture = await captureModule.startMicCapture();

@@ -159,15 +159,15 @@ for (const { mode, delayedStep } of pendingSetupCases) test(`${mode}: stopping d
 	// The stream probe and permission gate are installed atomically with the mock;
 	// their behavior does not depend on this worklet init script's order.
 	await installAudioMock(page, { trackMicrophoneStreams: true, delayMicrophonePermission: delayedStep === 'permission' });
-	await page.goto(mode.startsWith('tune-') ? '/tunes/ls-mankunku-blues/practice' : `/${mode}`, { waitUntil: 'networkidle' });
+	await page.goto(mode.startsWith('tune-') ? '/tunes/ls-mankunku-blues?licks=1' : `/${mode}`, { waitUntil: 'networkidle' });
 	if (mode === 'ear-training') await page.locator('[data-tour="play-button"]').click();
-	else if (mode.startsWith('tune-')) await page.getByRole('button', { name: /^start$/i }).click();
+	else if (mode.startsWith('tune-')) await page.getByRole('button', { name: /^play$/i }).click();
 	else await page.getByRole('button', { name: /start daily practice/i }).click();
 	await expect.poll(() => page.evaluate(step => step === 'permission'
 		? (window as unknown as { __mockMicPending: boolean }).__mockMicPending
 		: (window as unknown as { __setupPending: boolean }).__setupPending, delayedStep)).toBe(true);
 	if (mode !== 'lick-practice') {
-		const destination = mode === 'tune-change' ? '/tunes/e2e-when-the-saints/practice' : '/settings';
+		const destination = mode === 'tune-change' ? '/tunes/e2e-when-the-saints?licks=1' : '/settings';
 		await page.evaluate(destination => {
 			const link = document.createElement('a');
 			link.href = destination;
@@ -175,7 +175,7 @@ for (const { mode, delayedStep } of pendingSetupCases) test(`${mode}: stopping d
 			document.querySelector('main')!.append(link);
 		}, destination);
 		await page.getByRole('link', { name: 'Leave pending practice' }).click();
-		await expect(page).toHaveURL(new RegExp(`${destination}$`));
+		await expect(page).toHaveURL(url => url.pathname + url.search === destination);
 	} else {
 		await page.getByRole('button', { name: 'End Session', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'End Session', exact: true })).toHaveCount(0);
@@ -202,5 +202,5 @@ for (const { mode, delayedStep } of pendingSetupCases) test(`${mode}: stopping d
 	expect(states.length).toBeGreaterThan(0);
 	expect(states.every(state => state === 'ended')).toBe(true);
 	if (mode === 'lick-practice') await expect(page.locator('.report').first()).toBeVisible();
-	if (mode === 'tune-change') await expect(page.getByRole('button', { name: /^start$/i })).toBeEnabled();
+	if (mode === 'tune-change') await expect(page.getByRole('button', { name: /^play$/i })).toBeEnabled();
 });

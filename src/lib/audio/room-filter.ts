@@ -203,7 +203,13 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 	if (n < samples.rate * 0.22) return null;
 	const fft = new FFT(powerOfTwo(2 * n));
 	const x = spectrum(fft, predicted.subarray(start, middle));
-	const y = spectrum(fft, samples.mic.subarray(start, middle));
+	// Every candidate delay must explain the same microphone samples. Correlating
+	// two whole windows gives short lags more overlap, so a sustained pitched
+	// cue can favor a nearby cycle over the actual speaker return.
+	const limit = Math.round(samples.rate * 0.02);
+	const from = start + limit;
+	const to = middle - limit;
+	const y = spectrum(fft, samples.mic.subarray(from, to));
 	for (let j = 0; j < x.length; j += 2) {
 		const re = y[j] * x[j] + y[j + 1] * x[j + 1];
 		const im = y[j + 1] * x[j] - y[j] * x[j + 1];
@@ -211,10 +217,20 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 		x[j + 1] = im;
 	}
 	const correlation = inverse(fft, x);
-	const limit = Math.round(samples.rate * 0.02);
+	// Normalize by the energy of the matching slice of the prediction. The
+	// microphone energy is constant. Sweep from latest to earliest slice.
+	let power = 0;
+	for (let i = from + limit; i < to + limit; i++) power += predicted[i] ** 2;
 	let offset = 0;
-	for (let i = -limit; i <= limit; i++) {
-		if (correlation[(fft.size + i) % fft.size] > correlation[(fft.size + offset) % fft.size]) offset = i;
+	let best = -Infinity;
+	for (let lag = -limit; lag <= limit; lag++) {
+		const dot = correlation[(fft.size + lag - limit) % fft.size];
+		const score = dot / Math.sqrt(Math.max(power, 1e-15));
+		if (score > best) {
+			offset = lag;
+			best = score;
+		}
+		if (lag < limit) power += predicted[from - lag - 1] ** 2 - predicted[to - lag - 1] ** 2;
 	}
 	// A speaker level or microphone gain change scales both frozen paths.
 	// Fit one bounded level on the timing half; assess it on unseen audio.

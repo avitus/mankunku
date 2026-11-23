@@ -4,7 +4,7 @@ Side A trains your ear. Side B drills a line into your fingers in all 12 keys. *
 
 In **Suggest** and **Points** it scores what you play there. **Freestyle** drops the windows entirely — no scoring, just a solo the app listens to for licks it recognises.
 
-Open any tune from your book and hit **Practice licks**.
+Open any tune from your book and turn on **Lick Practice**.
 
 ## What the app is doing
 
@@ -38,30 +38,19 @@ A trick played here earns points and counts toward your take, but it writes **no
 
 ## The setup screen
 
-The tune chart comes first, with your automatically proposed licks named at their matching spots and **Start** directly below it. Licks are selected automatically by the existing session engine; there is no insert button or manual placement step. **Rhythm & band** holds tempo, backing style and written key beside the chart (below it on a phone). **Focus** gives the chart more room. The *How this works* tour and docs link remain beside the tune title.
+Set the **Tempo** dial, choose 1–12 **Choruses**, and switch **Head** and **Outro** independently. The **Backing track**, **Metronome**, and **Show key centers** switches sit above the chart. Open **Tune settings** to change the written key or backing style.
 
-**Session options** remembers whether you left it open and is collapsed on your first visit. It sits directly below Start. Open it to see the head → solo choruses → head sequence, adjust the solo count with the stepper or number field, and choose how you want to play. Its summary shows the current mode and solo count. Automatic licks and Lick names are the defaults, so the proposed names carry into the playing chart.
+With **Lick Practice** on, the chart gains three practice controls.
 
 | Control | What it does |
 |---|---|
-| **How do you want to play?** | *Automatic licks* (Suggest) — known licks placed for you; *Play for points* (Points) — pick your lick and build a streak; *Play freely* (Freestyle) — no prompts or scoring. See [the three modes](#the-three-modes). Remembers your choice; starts on Automatic licks. |
-| **What should the chart tell you?** | *Lick names* (Guided), *Progressions* (Standard), or *No cues* (Solo). These change the cues, not the grading scale — see [Strictness](#strictness). Remembers your choice; starts on Lick names. Hidden during Play freely; returning to a scored mode restores your selected cue level. |
-| **Solo choruses** | Choose 1–12 solo choruses. Your last choice is remembered on this device and shared with the main tune page (1 until you choose). The melody plays before and after them. A tune's pickup belongs to the head: every practice chorus starts on bar 1, straight after the bar before it, and a session without a head starts on bar 1 too. |
-| **Head & outro** | A switch. Remembers your choice. ON includes the head before the solos and again after the final solo ([the head rule](#the-head-rule)); OFF goes straight to the changes. On a chart with no melody it reads OFF and can't be switched on — there's no head to play. |
-| **Key** | A selector in your written pitch: the key the tune is played and charted in. Remembered per tune and shared with the main tune page, in concert pitch so changing instruments preserves the sounding key. Starts in the tune's own key. |
-| **Tempo** | A numeric field, 50–240 BPM, with minus and plus buttons that move by 5. It starts at the tempo you last chose for this tune, here or on the tune's page, and at your Settings tempo the first time. In Suggest mode it also decides which licks can be named: only ones you already practise at this speed or faster. |
-| **Backing track** | Turns the rhythm section on or off. Remembered across both tune pages; the first visit uses your main backing-track setting. |
-| **Melody** | Turns melody audio on or off, without removing the head or outro from the form or chart. Remembered across both tune pages; initially on. |
-| **Metronome** | Turns the ongoing click on or off. Remembered across both tune pages; initially off. The count-in remains separate. |
-| **Practice feel** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). Remembered separately for each tune's practice page; initially uses the tune's saved style. The choice stays visible with backing off; turn backing on to change it. |
+| **Mode** | Choose **Automatic licks** to practise suggested lines, **Play for points** to build a streak, or **Freestyle** to play freely through the changes. |
+| **Chart cues** | Choose **Lick names**, **Progressions**, or **No cues**. Returning from Freestyle restores the selected cue level. |
+| **Target lick** | In Points mode, choose a fitting lick to prioritise in compatible windows, or leave the default selection in place. |
 
-These preferences are stored for the current user on this browser. Focus view and the Session options disclosure also remember their last state. Press Escape to leave Focus. The main tune page remembers its Focus view and Harmony colors switch too.
+The chart previews the first visit to each insertion point. Later choruses rotate eligible suggestions. Below the chart, the inventory lists fitting licks, their placements, and their readiness in the chosen key and tempo. On phones the chart engraves two bars per line.
 
-Above the chart, a readout lists the planned insertion points and how many have a matching lick from your book. If none are ready in the chosen keys at this tempo, it says so; the progression names remain as a fallback. The guide beside the chart links to untagged licks when there are any. Freestyle instead explains that there are no insertion windows.
-
-Below the chart sits **Start** — it reads *Setting up…* while the instrument loads — with a caption that says how the take will open: *Head, solo choruses, then the head again*, *Straight to the changes*, or, on a chords-only chart, *This chart has no melody — straight to the changes*. If the microphone is refused you'll see *Microphone unavailable — check permissions and try again*; if the sounds fail to load, *Audio setup failed — check your connection and try again*.
-
-The chart previews in the chosen key with insertion points shaded in their progression colours and labelled with the proposed lick and its written key. The side panel lists the full proposed names and written keys, including names abbreviated to fit narrow chart bands. Changing the tempo or key updates the suggestions using the same readiness rules as Start. Repeated chart positions show their first visit; later visits rotate the eligible licks automatically. On phones it uses two bars per line at a readable staff size. Starting a session retains the existing playing view, lick cues, scoring and completion report.
+Press **Play** beside the title to start the count-in. **Stop** ends the take and opens the report.
 
 ## The head rule
 
@@ -73,7 +62,7 @@ Repeat markers determine which bars belong to each pass:
 - If the chart has no whole-form repeat, the app appends a second chorus of the changes for you to play over.
 - An *internal* repeat is just a section played twice, not a form outline — `|: A :| B A` inside an AABA chart, or `|: A :| B` where the B after the repeat is as long as the A inside it (Autumn Leaves' 8-bar repeat under a 16-bar B). Those charts play the head through the whole form and then get an appended solo chorus.
 
-Turn **Head & outro** off and you go straight to the changes, finishing after the last solo chorus.
+Turn both **Head** and **Outro** off and you go straight to the changes, finishing after the last solo chorus.
 
 ## The three modes
 
@@ -118,7 +107,7 @@ On the bleed filter: it's on at every level, which is the forgiving choice if yo
 - Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it; a single-chord lick's window looks like its chord (Minor, Major, Dominant; a half-diminished slot keeps its cadence's colour and is labelled *Diminished*). A band clears a bar after its window has passed, so the chart ahead of you stays clean; a later pass through the same bars labels it again.
 - **Nothing prompts for a lick while the head or outro plays.** The melody sheet carries only the playhead — no bands, no lick names, no pick card — through the count-in, opening head and closing head; the solo choruses show the chord-bar grid and lick cues. A session without a head shows them from the count-in.
 - The status line under the title tells you where you are: *Count-in…*, *Head — melody once through, then it's yours* (Head in red — you're listening), *Comping — insertion 3 of 6 coming up*, and then **Your turn — play the lick!** in brass when a window opens.
-- The header also keeps the time elapsed and, in Points mode, your score; the **End** button stops the take whenever you want.
+- The header also keeps the time elapsed and, in Points mode, your score; the **Stop** button stops the take whenever you want.
 
 ### The band plays the full jam
 

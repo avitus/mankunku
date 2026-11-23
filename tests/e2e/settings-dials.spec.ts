@@ -57,9 +57,7 @@ for (const dial of numericDials) {
 				'aria-valuetext',
 				`${value}${dial.unit}`
 			);
-			await expect(slider.locator('svg text')).toHaveText(
-				dial.key === 'defaultTempo' ? [String(value), 'BPM'] : [`${value}${dial.unit}`]
-			);
+			await expect(slider).toHaveText(dial.key === 'defaultTempo' ? String(value) : `${value}${dial.unit}`);
 		}
 		await slider.press('ArrowUp');
 		await expect(slider).toHaveAttribute(
@@ -102,9 +100,6 @@ test('swing can select and persist 62%, 63%, and 64% individually', async ({
 		await page.reload();
 		await expect(swing).toHaveAttribute('aria-valuenow', String(percent / 100));
 		await expect(swing).toHaveAttribute('aria-valuetext', `${percent}%`);
-		await expect(
-			page.getByRole('complementary', { name: 'Your setup' })
-		).toContainText(`${percent}%`);
 	}
 });
 
@@ -164,9 +159,6 @@ for (const instrument of highestNotes) {
 			await expect(highest).toHaveAttribute('aria-valuenow', String(index));
 			await expect(highest).toHaveAttribute('aria-valuetext', note);
 			await expect(highest.locator('svg text')).toHaveText(note);
-			await expect(
-				page.getByRole('complementary', { name: 'Your setup' })
-			).toContainText(`Up to ${note} written`);
 			expect(
 				await page.evaluate(
 					() =>

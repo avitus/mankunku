@@ -8,7 +8,8 @@
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { selectEarTrainingLicks, transposeEarTrainingLick } from '$lib/phrases/ear-training-pool';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
-	import { setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
+	import { getAudioContext, setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
+	import { replayTakeInWorker } from '$lib/audio/replay-take';
 	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
@@ -483,15 +484,16 @@
 			await ensureMicCapture(generation);
 			if (!currentRun(generation)) return;
 
-			if (!playback.isInstrumentLoaded()) {
+			const backing = settings.backingTrackEnabled ? settings.backingInstrument : undefined;
+			if (!playback.isInstrumentLoaded(settings.instrumentId, 'ear-training')) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, settings.backingInstrument);
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing, 'ear-training');
 				if (!currentRun(generation)) return;
 				session.isLoadingInstrument = false;
-			} else {
+			} else if (backing) {
 				// Ensure backing instrument matches current setting (idempotent)
-				await loadBackingInstruments(settings.backingInstrument);
+				await loadBackingInstruments(backing);
 				if (!currentRun(generation)) return;
 			}
 
@@ -922,10 +924,7 @@
 		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
 		rescoreId: number = latestRescoreId
 	): Promise<boolean> {
-		const { replayFromBlob } = await import('$lib/audio/replay');
-		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
-		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
-		const rawReplay = await replayFromBlob(blob, ctx);
+		const rawReplay = await replayTakeInWorker(blob, await getAudioContext());
 		// Same trim the live path applied, re-derived from the blob rather than
 		// carried across — `transportSeconds` describes the blob's first sample,
 		// so the offset has to be added back on top of it here.

@@ -277,7 +277,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.locator('[data-tour="play-button"]').click();
 			await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-			await expect(page.getByText('Saved speaker check did not pass · scoring the original microphone')).toBeVisible({timeout: 25_000});
+			await expect(page.getByText(/^(?:Speaker timing shifted|Listen could not confirm enough speaker bleed|Speaker return did not consistently match).*scoring the original microphone$/)).toBeVisible({timeout: 25_000});
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 			await page.goto('/settings');
 			await startCheck.click();

@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
@@ -257,6 +258,7 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 		});
 	});
 	expect(pdfIds).toContain(sheets[0].id);
+	await openTuneSettings(page);
 	await page.getByRole('button', { name: 'Edit tune', exact: true }).click();
 	await page.getByText('Original PDF', { exact: true }).click();
 	const original = page.getByRole('link', { name: 'Download original PDF' });

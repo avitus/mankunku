@@ -38,6 +38,9 @@ test('fresh browser loads soprano and swing despite an edit while cloud settings
 		await page.goto('/settings');
 		await page.getByRole('radiogroup', { name: 'Theme' }).getByRole('radio', { name: 'Light' }).click();
 		release();
+		const account = page.getByRole('region', { name: 'Account', exact: true });
+		await expect(account).toContainText(USER.email);
+		await expect(account.locator('.studio-panel-number')).toHaveText('06');
 		await expect(page.getByRole('radio', { name: /Soprano Saxophone/ })).toHaveAttribute('aria-checked', 'true');
 		await expect(page.getByRole('slider', { name: 'Swing feel' })).toHaveAttribute('aria-valuetext', '62%');
 		await expect.poll(() => cloud.rows('user_settings')[0]).toMatchObject({

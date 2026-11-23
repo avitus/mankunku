@@ -37,6 +37,26 @@ describe('a finite jazz jam', () => {
 		expect(jam.harmony.map(chord => fractionToFloat(chord.startOffset))).toEqual([0, 2, 4, 6, 8]);
 		expect(jam.sectionMap.map(section => section.barOffset)).toEqual([0, 2, 4, 6, 8]);
 	});
+	it('plays the opening melody and closing melody independently', () => {
+		const headOnly = buildJamForm(tune, 2, true, false);
+		expect(headOnly.notes.map(note => fractionToFloat(note.offset))).toEqual([0]);
+		expect(headOnly.outroStartBar).toBeNull();
+		const outroOnly = buildJamForm(tune, 2, false, true);
+		expect(outroOnly.headBars).toBe(0);
+		expect(outroOnly.outroStartBar).toBe(4);
+		expect(outroOnly.notes.map(note => fractionToFloat(note.offset))).toEqual([4]);
+	});
+	it('plays a pitched second ending even when the returning chart is silent', () => {
+		const endings: Tune = { ...tune, sections: [
+			{ ...tune.sections[0], repeatStart: true, notes: [] },
+			{ label: 'First', bars: 1, ending: 1, repeatEnd: true, notes: [], harmony: [] },
+			{ label: 'Second', bars: 1, ending: 2, notes: [{ pitch: 67, offset: [0, 1], duration: [1, 1] }], harmony: [] }
+		] };
+		const jam = buildJamForm(endings, 1, false, true);
+		expect(jam.headBars).toBe(0);
+		expect(jam.outroStartBar).toBe(3);
+		expect(jam.notes.map(note => [note.pitch, fractionToFloat(note.offset)])).toEqual([[67, 5]]);
+	});
 	it('takes the second ending on the outro and maps its notes back to that ending', () => {
 		const endings: Tune = { ...tune, sections: [
 			{ ...tune.sections[0], repeatStart: true },

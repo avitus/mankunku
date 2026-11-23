@@ -27,10 +27,20 @@ export class TunePlayer {
 	private previewTempo = $state<number | null>(null);
 	backing = $state(false);
 	melody = $state(true);
+	unaccompaniedSwing = $state<number | null>(null);
+	swingFor(style: BackingStyle): number {
+		return !this.backing && this.unaccompaniedSwing !== null
+			? this.unaccompaniedSwing : melodySwingForStyle(settings.swing, style);
+	}
+	toggleFeel(style: BackingStyle): void {
+		if (this.busy || this.backing) return;
+		this.unaccompaniedSwing = this.swingFor(style) > 0.5 ? 0.5 : settings.swing > 0.5 ? settings.swing : 2 / 3;
+	}
 	metronome = $state(false);
 	loop = $state(false); // Compact editor preview only.
 	soloChoruses = $state(1);
 	playHead = $state(true);
+	playOutro = $state(true);
 	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	showSoloChart = $state(false);
@@ -40,7 +50,9 @@ export class TunePlayer {
 		this.backing = savedTunePlayback('backing', settings.backingTrackEnabled);
 		this.melody = savedTunePlayback('melody', true);
 		this.metronome = savedTunePlayback('metronome', false);
-		this.playHead = savedTunePracticePreferences().playHead;
+		const form = savedTunePracticePreferences();
+		this.playHead = form.playHead;
+		this.playOutro = form.playOutro;
 	}
 	/** Stop the current take and remember whether the band should play. */
 	setBacking(enabled: boolean): void { this.stop(); this.backing = saveTunePlayback('backing', enabled); }
@@ -57,6 +69,11 @@ export class TunePlayer {
 		this.stop();
 		this.playHead = enabled;
 		saveTunePracticePreferences({ ...savedTunePracticePreferences(), playHead: enabled });
+	}
+	setPlayOutro(enabled: boolean): void {
+		this.stop();
+		this.playOutro = enabled;
+		saveTunePracticePreferences({ ...savedTunePracticePreferences(), playOutro: enabled });
 	}
 	playing = $state(false);
 	starting = $state(false);
@@ -112,10 +129,11 @@ export class TunePlayer {
 	/**
 	 * One engine call carries the complete finite jam on the tune page. The
 	 * compact editor preview keeps its existing optional loop. Both preserve
-	 * the saved feel, pickup entrance and original chart coordinates.
+	 * the saved feel, pickup entrance and original chart coordinates. Returns
+	 * true only when the pass reaches its natural end.
 	 */
-	async toggle(tune: Tune, style: BackingStyle, soloChoruses?: number): Promise<void> {
-		if (this.busy) { this.stop(); return; }
+	async toggle(tune: Tune, style: BackingStyle, soloChoruses?: number): Promise<boolean> {
+		if (this.busy || this.disposed) { this.stop(); return false; }
 		const generation = ++this.run;
 		this.starting = true;
 		this.error = '';
@@ -125,13 +143,13 @@ export class TunePlayer {
 		const countInBars = countInBarsForTempo(tempo);
 		try {
 			const expanded = tuneToPhraseWithFlat(tune, { expandRepeats: true });
-			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses, this.playHead);
+			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses, this.playHead, this.playOutro);
 			const phrase = jam?.phrase ?? expanded.phrase;
 			const flat = jam?.flat ?? expanded.flat;
 			this.playback ??= await import('$lib/audio/playback');
-			if (this.disposed || generation !== this.run) return;
+			if (this.disposed || generation !== this.run) return false;
 			await this.playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing ? settings.backingInstrument : undefined);
-			if (this.disposed || generation !== this.run) return;
+			if (this.disposed || generation !== this.run) return false;
 			this.starting = false;
 			this.playing = true;
 			const region = formLoopRegion(tune, flat);
@@ -144,7 +162,7 @@ export class TunePlayer {
 				return again;
 			};
 			await this.playback.playPhrase(phrase, {
-				tempo, swing: melodySwingForStyle(settings.swing, style),
+				tempo, swing: this.swingFor(style),
 				countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
 				backingTrackEnabled: backing, backingInstrument: settings.backingInstrument,
 				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
@@ -206,8 +224,10 @@ export class TunePlayer {
 					if (generation === this.run) this.cursorIndex = (jam?.noteSourceIndices ?? flat.noteSourceIndices)[sourceIndex] ?? null;
 				}
 			});
+			return generation === this.run;
 		} catch {
 			if (!this.disposed && generation === this.run) this.error = 'Playback could not start. Please try again.';
+			return false;
 		} finally {
 			if (generation === this.run) this.stop();
 		}

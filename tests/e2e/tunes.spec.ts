@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,16 +77,16 @@ test('detail page renders a multi-system chart with transposed chord symbols', a
 });
 
 test('tunes link by title slug, and the minted id keeps resolving', async ({ page, consoleCollector: _c }) => {
-	// 2026-09-16: `/tunes/sheet-1789579191100-55iq/practice` → `/tunes/autumn-leaves/practice`.
+	// 2026-09-16: `/tunes/sheet-1789579191100-55iq?licks=1` → `/tunes/autumn-leaves?licks=1`.
 	// The slug is an alias derived from the title; the id stays the storage key.
 	await page.goto('/tunes');
 	await page.getByRole('link', { name: /Open Test Session Tune/ }).click();
 	await expect(page).toHaveURL(/\/tunes\/test-session-tune$/);
 	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
 
-	await page.getByRole('button', { name: /practice licks/i }).click();
-	await expect(page).toHaveURL(/\/tunes\/test-session-tune\/practice$/);
-	await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+	await page.getByRole('switch', { name: 'Lick Practice' }).click();
+	await expect(page).toHaveURL(/\/tunes\/test-session-tune\?licks=1$/);
+	await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 
 	// A curated tune resolves by its title slug as well as its `ls-` id.
 	await page.goto('/tunes/rhythm-changes');
@@ -94,8 +95,8 @@ test('tunes link by title slug, and the minted id keeps resolving', async ({ pag
 	// Old id URLs — bookmarks, the PDF flow's pre-assigned id — still open the tune.
 	await page.goto('/tunes/e2e-user-sheet-1');
 	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
-	await page.goto('/tunes/e2e-user-sheet-1/practice');
-	await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+	await page.goto('/tunes/e2e-user-sheet-1?licks=1');
+	await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 });
 
 test('user sheet detail supports the two-stage delete', async ({ page, consoleCollector: _c }) => {
@@ -106,6 +107,7 @@ test('user sheet detail supports the two-stage delete', async ({ page, consoleCo
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'E-7' }).first()).toBeVisible();
 
+	await openTuneSettings(page);
 	const deleteButton = page.getByRole('button', { name: 'Delete' });
 	await deleteButton.click();
 	await page.getByRole('button', { name: 'Confirm Delete' }).click();
@@ -121,12 +123,13 @@ test('user sheet detail supports the two-stage delete', async ({ page, consoleCo
 test('key selector re-transposes the chart', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes/e2e-user-sheet-1');
 
+	await openTuneSettings(page);
 	// Tenor default: concert C sheet shows written D as the active key.
-	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('D');
+	await expect(page.getByLabel('Written key', { exact: true })).toHaveValue('D');
 
 	// Transpose to written G: the opening ii chord displays as A-7 (ii of the
 	// WRITTEN key — chords on screen are always written pitch, never concert).
-	await page.getByLabel('Key', { exact: true }).selectOption('G');
+	await page.getByLabel('Written key', { exact: true }).selectOption('G');
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'A-7' }).first()).toBeVisible();
 });
 

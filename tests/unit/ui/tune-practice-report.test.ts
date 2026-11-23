@@ -6,7 +6,7 @@ import { point, phrase, result } from '../../helpers/tune-practice-report';
 import { sheet } from '../../helpers/tune-fixtures';
 
 const base = {
-	returnHref: '/tunes/report-colors', tune: sheet({ title: 'Report colors', style: 'Medium swing' }), phrase: phrase(),
+	onexit: () => {}, tune: sheet({ title: 'Report colors', style: 'Medium swing' }), phrase: phrase(),
 	plan: [point('first', 4), point('second', 8)], picked: {},
 	instrument: INSTRUMENTS.piano, tempo: 120, elapsed: '0:32',
 	clock: { barTicks: 1920, countInTicks: 1920 }, onretry: (): void => {}

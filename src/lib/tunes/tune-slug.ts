@@ -3,8 +3,8 @@ import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
 import { foldAccents, slugify } from '$lib/util/slug';
 
 /**
- * Readable tune URLs — `/tunes/autumn-leaves/practice` in place of
- * `/tunes/sheet-1789579191100-55iq/practice`.
+ * Readable tune URLs — `/tunes/autumn-leaves?licks=1` in place of
+ * `/tunes/sheet-1789579191100-55iq?licks=1`.
  *
  * The slug is an ALIAS derived from the title at read time, never a stored
  * id: `Tune.id` is the cloud primary key, two foreign keys, the PDF bucket
@@ -83,5 +83,5 @@ export function tunePath(tune: Tune, book?: readonly Tune[]): string {
 }
 
 export function tunePracticePath(tune: Tune, book?: readonly Tune[]): string {
-	return `${tunePath(tune, book)}/practice`;
+	return `${tunePath(tune, book)}?licks=1`;
 }
