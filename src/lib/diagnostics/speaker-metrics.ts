@@ -2,7 +2,7 @@ import type { SpeakerCheck } from './speaker-checks';
 
 const results = new Set([
 	'saved', 'unsaved', 'rejected', 'silent-output', 'unavailable', 'unsupported-input',
-	'saved-rejection', 'no-matching-profile', 'device-or-clock-changed', 'invalid-filter',
+	'disabled', 'saved-rejection', 'no-matching-profile', 'device-or-clock-changed', 'invalid-filter',
 	'expired', 'short-cue', 'insufficient-time', 'insufficient-samples', 'deadline',
 	'timing', 'reduction', 'level', 'attacks', 'active', 'measurement-error',
 	'timeout', 'interrupted', 'processor-error', 'worker-error', 'diagnostic-probe'
@@ -23,8 +23,18 @@ const stages = new Set(['sound-check', 'listen', 'practice']);
 const methods = new Set(['saved', 'cue', 'session']);
 const failures = new Set(['timing', 'reduction', 'level', 'attacks']);
 
+type SpeakerMetrics = Partial<Record<typeof measurements[number], number>> & {
+	session: string;
+	surface: string;
+	stage: string;
+	result: string;
+	clientVersion?: string;
+	method?: string;
+	initialFailure?: string;
+};
+
 /** The wire format is also the log allowlist. Local recordings and arbitrary strings stay on the device. */
-export function speakerMetrics(value: unknown) {
+export function speakerMetrics(value: unknown): SpeakerMetrics | null {
 	if (!value || typeof value !== 'object') return null;
 	const row = value as Record<string, unknown>;
 	if (typeof row.surface !== 'string' || !surfaces.has(row.surface) ||
@@ -45,7 +55,7 @@ export function speakerMetrics(value: unknown) {
 	};
 }
 
-export function summarizeSpeakerCheck(event: SpeakerCheck, session: string, surface: string, clientVersion: string) {
+export function summarizeSpeakerCheck(event: SpeakerCheck, session: string, surface: string, clientVersion: string): SpeakerMetrics | null {
 	const check = event.check;
 	return speakerMetrics({
 		...event, ...check, session, surface, clientVersion,

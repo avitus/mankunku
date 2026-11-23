@@ -4,9 +4,8 @@ import { getActiveUid, nsKey } from '$lib/persistence/namespace';
 import type { RoomFilter, RoomSamples, RoomSession, RoomTimingCheck } from '$lib/audio/room-filter';
 import { encodeRoomSamples } from '$lib/audio/room-profile';
 
-let pageSession: string | undefined;
-
 export interface SpeakerCheck {
+	monitorSession?: string;
 	cueNumber?: number;
 	at: string;
 	stage: 'sound-check' | 'listen' | 'practice';
@@ -28,6 +27,35 @@ export interface SpeakerExample {
 	samples: RoomSamples;
 	filter: RoomFilter;
 	session?: RoomSession;
+	captureUntil?: number;
+}
+
+/** A namespace wipe removes the shared marker, invalidating in-flight writers in every tab. */
+const journalEpoch = new Map<string, number>();
+export function speakerJournalScope(): { uid: string; current(): boolean } {
+	const uid = getActiveUid();
+	const key = 'mankunku:' + nsKey('speaker-journal-generation');
+	let marker: string | null = null;
+	try {
+		marker = localStorage.getItem(key);
+		if (!marker) {
+			const value = crypto.randomUUID();
+			localStorage.setItem(key, value);
+			marker = value;
+		}
+	} catch { /* Private storage can still support IndexedDB in this realm. */ }
+	const epoch = journalEpoch.get(uid);
+	return { uid, current(): boolean {
+		if (uid !== getActiveUid() || epoch !== journalEpoch.get(uid)) return false;
+		try { return !marker || marker === localStorage.getItem(key); } catch { return !marker; }
+	} };
+}
+
+export function speakerCaptureUntil(): number {
+	try {
+		const until = Number(localStorage.getItem('mankunku:' + nsKey('speaker-report-audio')));
+		return until > Date.now() ? until : 0;
+	} catch { return 0; }
 }
 
 /** A short, explicit capture session also works when practice opens in a new tab. */
@@ -36,13 +64,13 @@ export function includeListenAudio(enabled?: boolean): boolean {
 		const key = 'mankunku:' + nsKey('speaker-report-audio');
 		if (enabled === true) localStorage.setItem(key, String(Date.now() + 10 * 60_000));
 		if (enabled === false) localStorage.removeItem(key);
-		return Number(localStorage.getItem(key)) > Date.now();
+		return speakerCaptureUntil() > 0;
 	} catch { return false; }
 }
 
-function openChecks(): Promise<IDBDatabase> {
+function openChecks(uid = getActiveUid()): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
-		const request = indexedDB.open('mankunku-speaker-checks:' + getActiveUid(), 1);
+		const request = indexedDB.open('mankunku-speaker-checks:' + uid, 1);
 		request.onupgradeneeded = () => {
 			request.result.createObjectStore('checks', { autoIncrement: true });
 			request.result.createObjectStore('examples');
@@ -52,13 +80,13 @@ function openChecks(): Promise<IDBDatabase> {
 	});
 }
 
-/** Best effort even if local storage is unavailable. A page reload starts a new anonymous session. */
+/** Best effort even if local storage is unavailable. The identifier belongs to this microphone session. */
 function logSpeakerCheck(event: SpeakerCheck): void {
 	if (typeof window === 'undefined') return;
 	try {
-		pageSession ??= crypto.randomUUID();
+		const session = event.monitorSession ?? crypto.randomUUID();
 		const surface = window.location.pathname.split('/')[1];
-		const metrics = summarizeSpeakerCheck(event, pageSession, surface, version);
+		const metrics = summarizeSpeakerCheck(event, session, surface, version);
 		if (metrics) void fetch('/api/speaker-check', {
 			method: 'POST', credentials: 'omit', keepalive: true,
 			headers: { 'content-type': 'application/json' }, body: JSON.stringify(metrics)
@@ -67,11 +95,13 @@ function logSpeakerCheck(event: SpeakerCheck): void {
 }
 
 /** Scoring never waits for diagnostic storage. All writes for one cue share a transaction. */
-export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerExample): Promise<void> {
+export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerExample, owner = speakerJournalScope()): Promise<void> {
+	if (!owner.current()) return;
 	logSpeakerCheck(event);
 	try {
-		const db = await openChecks();
+		const db = await openChecks(owner.uid);
 		function write(clip: SpeakerExample | undefined, status: SpeakerCheck['audioExample']): Promise<void> {
+			if (!owner.current()) return Promise.resolve();
 			return new Promise((resolve, reject) => {
 				const tx = db.transaction(['checks', 'examples'], 'readwrite');
 				tx.oncomplete = () => resolve();
@@ -91,7 +121,8 @@ export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerE
 			});
 		}
 		try {
-			const capturing = includeListenAudio();
+			const until = speakerCaptureUntil();
+			const capturing = until > 0 && (example?.captureUntil === undefined || example.captureUntil === until);
 			const clip = capturing ? example : undefined;
 			const status = event.stage !== 'listen' ? undefined
 				: clip ? 'saved' : capturing ? 'unavailable' : 'capture-off';
@@ -103,6 +134,21 @@ export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerE
 			}
 		} finally { db.close(); }
 	} catch (error) { console.warn('Could not save speaker diagnostics', error); }
+}
+
+/** Called by device/account erasure after the user's localStorage namespace has been cleared. */
+export async function clearSpeakerJournal(uid: string): Promise<void> {
+	journalEpoch.set(uid, (journalEpoch.get(uid) ?? 0) + 1);
+	const db = await openChecks(uid);
+	try {
+		await new Promise<void>((resolve, reject) => {
+			const tx = db.transaction(['checks', 'examples'], 'readwrite');
+			tx.oncomplete = () => resolve();
+			tx.onabort = () => reject(tx.error);
+			tx.objectStore('checks').clear();
+			tx.objectStore('examples').clear();
+		});
+	} finally { db.close(); }
 }
 
 /** Inspect only the keys. Sample buffers stay off the diagnostics page until download. */
@@ -130,10 +176,10 @@ export async function clearSpeakerExamples(): Promise<void> {
 	} finally { db.close(); }
 }
 
-export async function speakerReport(): Promise<Blob> {
+export async function speakerReport({ includeAudio }: { includeAudio: boolean }): Promise<Blob> {
 	const db = await openChecks();
 	try {
-		const tx = db.transaction(['checks', 'examples']);
+		const tx = db.transaction(includeAudio ? ['checks', 'examples'] : ['checks']);
 		const store = tx.objectStore('checks');
 		const rows = store.getAll();
 		const keys = store.getAllKeys();
@@ -144,6 +190,7 @@ export async function speakerReport(): Promise<Blob> {
 		await new Promise<void>((resolve, reject) => {
 			tx.oncomplete = () => resolve();
 			tx.onabort = () => reject(tx.error);
+			if (!includeAudio) return;
 			const request = tx.objectStore('examples').openCursor();
 			request.onsuccess = () => {
 				const cursor = request.result;

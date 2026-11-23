@@ -1,7 +1,7 @@
 import type { MicCapture } from './capture';
 import { getMasterGain, getNativeAudioContext } from './audio-context';
 import { ownRoomGraph, roomChecks, roomInputs, roomStatus } from './room-scoring-state.svelte';
-import { includeListenAudio, recordSpeakerCheck, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
+import { speakerJournalScope, speakerCaptureUntil, recordSpeakerCheck, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
 import type { RoomFilter, RoomSamples, RoomSession, RoomTimingCheck } from './room-filter';
 import { loadWorklet } from './load-worklet';
 import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-profile';
@@ -9,6 +9,7 @@ import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-prof
 const duration = 5.6;
 interface Measurement {
 	captureAudio?: boolean;
+	captureUntil?: number;
 	correction?: RoomFilter;
 	samples?: RoomSamples;
 	silentOutput?: boolean;
@@ -53,6 +54,7 @@ async function measure(
 	session?: RoomSession
 ): Promise<Measurement> {
 	signal.throwIfAborted();
+	const captureUntil = filter ? speakerCaptureUntil() : 0;
 	const capture = new AudioWorkletNode(ctx, 'room-calibration-capture', {
 		numberOfInputs: 2,
 		numberOfOutputs: 1,
@@ -79,10 +81,10 @@ async function measure(
 					worker = new Worker(new URL('./room-calibration-worker.ts', import.meta.url), {
 						type: 'module'
 					});
-					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve(data);
+					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve({ ...data, captureUntil });
 					worker.onerror = (event) =>
 						reject(new Error(event.message || 'Room estimation worker failed'));
-					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, includeAudio: !!filter && includeListenAudio() }, [
+					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, includeAudio: captureUntil > 0 }, [
 						input.buffer,
 						left.buffer,
 						right.buffer
@@ -116,14 +118,16 @@ export async function calibrateRoom(
 	capture: MicCapture,
 	request: { mode: 'practice' } | { mode: 'sound-check'; signal: AbortSignal }
 ): Promise<'saved' | 'rejected' | 'silent-output' | 'unsaved' | undefined> {
+	const journal = speakerJournalScope();
 	const soundCheck = request.mode === 'sound-check' ? request.signal : undefined;
 	const { source, stream, analyser } = capture;
 	const track = stream.getAudioTracks()[0];
 	const ctx = await getNativeAudioContext();
 	if (track.readyState !== 'live' || soundCheck?.aborted) return;
 	const settings = track.getSettings();
+	const monitorSession = globalThis.crypto?.randomUUID?.();
 	const report = (stage: SpeakerCheck['stage'], result: string, extra: Partial<SpeakerCheck> = {}) =>
-		void recordSpeakerCheck({ at: new Date().toISOString(), rate: ctx.sampleRate, stage, result, ...extra });
+		void recordSpeakerCheck({ at: new Date().toISOString(), rate: ctx.sampleRate, monitorSession, stage, result, ...extra }, undefined, journal);
 	if (
 		settings.autoGainControl ||
 		settings.echoCancellation ||
@@ -342,7 +346,7 @@ export async function calibrateRoom(
 		const verifyListen = async (startTime: number, seconds: number, phraseId?: string): Promise<void> => {
 			listen?.abort();
 			if (life.signal.aborted) return;
-			const cue = { cueNumber: ++cueNumber, phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap };
+			const cue = { monitorSession, cueNumber: ++cueNumber, phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap };
 			if (seconds < 1.8) {
 				report('listen', 'short-cue', cue);
 				bypass();
@@ -365,7 +369,7 @@ export async function calibrateRoom(
 						return;
 					}
 					const previous = session;
-					const { check, samples, correction, captureAudio } = await measure(
+					const { check, samples, correction, captureAudio, captureUntil } = await measure(
 						ctx,
 						mic,
 						reference,
@@ -381,7 +385,7 @@ export async function calibrateRoom(
 							at: new Date().toISOString(), stage: 'listen', rate: ctx.sampleRate, ...cue,
 							result, attempt, startSeconds: start / ctx.sampleRate - startTime, captureSeconds: frames / ctx.sampleRate, check
 						};
-						void recordSpeakerCheck(event, captureAudio && samples && filter ? { event, samples, filter, session: previous } : undefined);
+						void recordSpeakerCheck(event, captureAudio && samples && filter ? { event, samples, filter, session: previous, captureUntil } : undefined, journal);
 					}
 					if (ctx.currentTime >= deadline || !check) {
 						log(check ? 'deadline' : 'insufficient-samples');
@@ -407,7 +411,7 @@ export async function calibrateRoom(
 				}
 			}
 		};
-		roomChecks.set(source, { measure: verifyListen, cancel: () => listen?.abort() });
+		roomChecks.set(source, { measure: verifyListen, cancel: () => { listen?.abort(); bypass(); } });
 		roomStatus.active = false;
 	} catch (error) {
 		if (!life.signal.aborted) {

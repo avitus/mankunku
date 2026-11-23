@@ -349,6 +349,12 @@ export async function wipeUserData(uid: string): Promise<void> {
 	}
 	clearNamespace(uid);
 	try {
+		const { clearSpeakerJournal } = await import('$lib/diagnostics/speaker-checks');
+		await clearSpeakerJournal(uid);
+	} catch {
+		/* IndexedDB errors must not block deletion */
+	}
+	try {
 		await clearAllRecordings(uid);
 	} catch {
 		/* IndexedDB errors must not block deletion */

@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, expect, it, vi } from 'vitest';
-import { clearSpeakerExamples, includeListenAudio, recordSpeakerCheck, speakerExampleCount, speakerReport, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
+import { clearSpeakerExamples, clearSpeakerJournal, speakerJournalScope, includeListenAudio, recordSpeakerCheck, speakerExampleCount, speakerReport, type SpeakerCheck } from '$lib/diagnostics/speaker-checks';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -23,7 +23,10 @@ it('exports every captured Listen check, including repeated results, and trims a
 	}
 	includeListenAudio(false);
 	await recordSpeakerCheck(event);
-	const report = async () => JSON.parse(await (await speakerReport()).text());
+	const report = async (includeAudio = true) => JSON.parse(await (await speakerReport({ includeAudio })).text());
+	const numeric = await report(false);
+	expect(numeric.examples).toEqual([]);
+	expect(numeric.checks.every((row: {audioIncluded: boolean}) => !row.audioIncluded)).toBe(true);
 	const first = await report();
 	expect(first.examples[0].session).toBeUndefined();
 	expect(first.examples[1].session).toEqual({cues: 1, correction: first.examples[1].filter});
@@ -39,4 +42,11 @@ it('exports every captured Listen check, including repeated results, and trims a
 	expect(cleared.checks).toHaveLength(64);
 	expect(cleared.checks.every((x: {audioIncluded: boolean}) => !x.audioIncluded)).toBe(true);
 	expect(cleared.examples).toEqual([]);
+	const oldScope = speakerJournalScope();
+	includeListenAudio(true);
+	await recordSpeakerCheck(event, {event, samples, filter}, oldScope);
+	await clearSpeakerJournal(oldScope.uid);
+	await recordSpeakerCheck(event, {event, samples, filter}, oldScope);
+	expect((await report()).checks).toEqual([]);
+	expect(await speakerExampleCount()).toBe(0);
 });

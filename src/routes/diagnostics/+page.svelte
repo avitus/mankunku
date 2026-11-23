@@ -66,10 +66,10 @@
 			speakerMessage = 'Could not clear saved Listen audio.';
 		}
 	}
-	async function downloadSpeakerReport() {
+	async function downloadSpeakerReport(includeAudio: boolean) {
 		speakerMessage = '';
 		try {
-			await triggerDownload(await speakerReport(), 'speaker-checks.json');
+			await triggerDownload(await speakerReport({ includeAudio }), 'speaker-checks.json');
 		} catch (error) {
 			speakerMessage = error instanceof Error ? error.message : 'Could not read speaker diagnostics.';
 		}
@@ -406,7 +406,7 @@
 			{:else if exampleCount === 0}No Listen audio saved. The download contains measurements only.
 			{:else}{exampleCount} {exampleCount === 1 ? 'audio example' : 'audio examples'} ready to download.{/if}
 		</p>
-		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={downloadSpeakerReport}>{exampleCount === 0 ? 'Download measurements only' : 'Download speaker report'}</button>
+		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={() => downloadSpeakerReport((exampleCount ?? 0) > 0)}>{(exampleCount ?? 0) === 0 ? 'Download measurements only' : 'Download speaker report'}</button>
 		<button class="ml-2 text-sm underline" onclick={clearListenAudio}>Clear saved Listen audio</button>
 		{#if speakerMessage}<p role="status">{speakerMessage}</p>{/if}
 	</section>

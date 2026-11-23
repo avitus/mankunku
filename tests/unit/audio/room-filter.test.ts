@@ -5,10 +5,12 @@ import {
 	predictRoom,
 	roomReduction,
 	validateRoom,
-	verifyRoom
+	verifyRoom,
+	type RoomTimingCheck,
+	type RoomSamples
 } from '$lib/audio/room-filter';
 
-const verifyTiming = (...args: Parameters<typeof verifyRoom>) => verifyRoom(...args).check;
+const verifyTiming = (...args: Parameters<typeof verifyRoom>): RoomTimingCheck | null => verifyRoom(...args).check;
 
 it('subtracts independent stereo reflections on held-out audio and preserves added playing', () => {
 	const rate = 12000,
@@ -113,7 +115,7 @@ it('aligns the attacks when pitched notes put the broadband peak a few samples e
 it('corrects a changed stereo balance on Listen and rejects a path that changes again during validation', () => {
 	const rate = 12000;
 	let seed = 291;
-	const noise = () => {
+	const noise = (): number => {
 		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
 		return seed / 2147483648 - 1;
 	};
@@ -151,7 +153,7 @@ it('learns stereo balance on an earlier cue and rechecks it on the next cue befo
 		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
 		return seed / 2147483648 - 1;
 	}
-	function cue(alternate: boolean) {
+	function cue(alternate: boolean): RoomSamples {
 		const left = Float32Array.from({length: 3 * rate}, noise), right = Float32Array.from(left, noise);
 		if (alternate) {
 			right.fill(0, 0, left.length / 2 + delay);
@@ -172,4 +174,19 @@ it('learns stereo balance on an earlier cue and rechecks it on the next cue befo
 	next.mic.set(Float32Array.from(next.mic.subarray(19000), noise), 19000);
 	expect(verifyRoom(next, saved, session).check?.accepted).toBe(false);
 	expect(session.cues).toBe(1);
+});
+
+it('bypasses a learned correction more powerful than the saved speaker response on the current cue', () => {
+	const rate = 12000;
+	let seed = 713;
+	const left = Float32Array.from({length: rate * 2}, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	});
+	const mic = Float32Array.from(left, x => 4 * x);
+	const saved = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const session = {cues: 1, correction: {left: Float32Array.of(3), right: Float32Array.of(0)}};
+	const result = verifyRoom({rate, left, mic, right: new Float32Array(left.length)}, saved, session);
+	expect(result.check).toMatchObject({accepted: false, failure: 'level'});
+	expect(result.correction).toBeUndefined();
 });

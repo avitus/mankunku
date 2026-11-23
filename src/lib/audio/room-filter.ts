@@ -207,7 +207,7 @@ export function validateRoom(samples: RoomSamples, filter: RoomFilter, start: nu
 
 /** Align a frozen prediction on quiet Listen audio. Only the first half chooses
  * the delay. An independent second half must also benefit from subtraction. */
-export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predicted = predictRoom(filter, samples.left, samples.right)): RoomTimingCheck | null {
+export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array = predictRoom(filter, samples.left, samples.right)): RoomTimingCheck | null {
 	const start = filter.left.length;
 	const middle = Math.floor((start + predicted.length) / 2);
 	const n = middle - start;
@@ -278,7 +278,7 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predic
 }
 
 function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array,
-	broadbandOffset: number, offset: number, gain: number, opening = false): RoomTimingCheck {
+	broadbandOffset: number, offset: number, gain: number, opening: boolean = false): RoomTimingCheck {
 	const middle = Math.floor((filter.left.length + predicted.length) / 2);
 	const limit = Math.round(samples.rate * 0.02);
 	let transientBefore = 0, transientAfter = 0;
@@ -356,6 +356,24 @@ export function learnRoomSession(samples: RoomSamples, filter: RoomFilter, offse
 	return { cues, correction: delta };
 }
 
+/** Reuse the correction buffer for the candidate prediction, shifting causal taps in place. */
+function addSavedPrediction(extra: Float32Array, saved: Float32Array, first: number): void {
+	for (let i = saved.length - 1; i >= first; i--) extra[i] = saved[i] + extra[i - first];
+	extra.set(saved.subarray(0, first));
+}
+
+/** On the same held-out samples used by the gate, keep calibration the primary predictor. */
+function correctionWithinRoom(saved: Float32Array, combined: Float32Array, length: number, rate: number, offset: number): boolean {
+	const guard = Math.round(rate * 0.02);
+	const middle = Math.floor((length + saved.length) / 2);
+	let roomPower = 0, correctionPower = 0;
+	for (let i = middle + guard - offset; i < saved.length - guard - offset; i++) {
+		roomPower += saved[i] ** 2;
+		correctionPower += (combined[i] - saved[i]) ** 2;
+	}
+	return correctionPower < roomPower;
+}
+
 /** Verify the saved response first. A cue-local correction can rescue a
  * recognizable return only if it also passes every gate on unheard audio. */
 export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: RoomSession): { check: RoomTimingCheck | null; correction?: RoomFilter } {
@@ -366,9 +384,8 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 	const { reduction, transientReduction, validationGain, failure } = initial;
 	const original = { reduction, transientReduction, validationGain, failure };
 	if (session) {
-		const learned = predicted.slice();
-		const delta = predictRoom(session.correction, samples.left, samples.right);
-		for (let i = first; i < learned.length; i++) learned[i] += delta[i - first];
+		const learned = predictRoom(session.correction, samples.left, samples.right);
+		addSavedPrediction(learned, predicted, first);
 		const aligned = checkRoomTiming(samples, filter, learned);
 		// Both predictions must locate the same physical return. A musical pitch
 		// alone can correlate at a different cycle even when the speakers moved.
@@ -380,7 +397,9 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 				aligned.broadbandOffset, aligned.offset, 1, true).accepted) {
 				check = validateAlignment(samples, filter, learned, aligned.broadbandOffset, aligned.offset, 1);
 			}
-			if (check.accepted) return { check: { ...check, initial: original, sessionCues: session.cues }, correction: session.correction };
+			if (check.accepted && correctionWithinRoom(predicted, learned, filter.left.length, samples.rate, check.offset)) {
+				return { check: { ...check, initial: original, sessionCues: session.cues }, correction: session.correction };
+			}
 		}
 	}
 	if (initial.reduction < 1) return { check: initial };
@@ -389,19 +408,10 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 	const correction = fitRoomCorrection(samples, predicted, first, filter.left.length - first,
 		initial.offset, initial.gain, filter.left.length + guard, middle - guard);
 	if (!correction) return { check: initial };
-	const extra = predictRoom(correction, samples.left, samples.right);
-	let basePower = 0, correctionPower = 0;
-	for (let i = first; i < predicted.length; i++) {
-		if (i >= middle + guard - initial.offset && i < predicted.length - guard - initial.offset) {
-			basePower += predicted[i] ** 2;
-			correctionPower += extra[i - first] ** 2;
-		}
-		predicted[i] += extra[i - first];
-	}
-	// Keep the measured room as the primary predictor. A fit that would
-	// replace the speaker path needs a fresh Settings calibration.
-	if (!(correctionPower < basePower)) return { check: initial };
-	const check = validateAlignment(samples, filter, predicted, initial.broadbandOffset, initial.offset, initial.gain);
+	const combined = predictRoom(correction, samples.left, samples.right);
+	addSavedPrediction(combined, predicted, first);
+	if (!correctionWithinRoom(predicted, combined, filter.left.length, samples.rate, initial.offset)) return { check: initial };
+	const check = validateAlignment(samples, filter, combined, initial.broadbandOffset, initial.offset, initial.gain);
 	if (check.failure) return { check: initial };
 	check.initial = original;
 	return { check, correction };

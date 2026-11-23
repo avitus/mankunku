@@ -3,7 +3,8 @@ import type { RoomFilter, RoomSamples } from './room-filter';
 
 /**
  * Fit a short stereo correction to the residual left by the saved calibration.
- * Only opening Listen samples enter the fit. In the frequency domain forward
+ * The caller selects the Listen interval: the opening for cue-local verification,
+ * or both guarded halves of an already verified cue for the next cue. Forward
  * convolution sums X·H and its adjoint correlates each speaker with the error.
  * Eight conjugate-gradient steps bound both fitting and worker time.
  */

@@ -244,6 +244,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 			// Enable in a separate tab, as when Settings or practice opens from a chat link.
 			const diagnosticsTab = await page.context().newPage();
 			await diagnosticsTab.goto('/diagnostics');
+			await diagnosticsTab.locator('[data-hydrated="true"]').waitFor({state: 'attached'});
 			await diagnosticsTab.getByRole('button', { name: 'Capture Listen audio and open Ear Training' }).click();
 			await expect(diagnosticsTab).toHaveURL(/\/ear-training$/);
 			await diagnosticsTab.close();
