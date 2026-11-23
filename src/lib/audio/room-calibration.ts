@@ -19,6 +19,7 @@ const listenFailures = {
 } satisfies Record<NonNullable<RoomTimingCheck['failure']>, string>;
 
 interface Measurement {
+	correction?: RoomFilter;
 	samples?: RoomSamples;
 	silentOutput?: boolean;
 	reduction?: number;
@@ -169,6 +170,7 @@ export async function calibrateRoom(
 	let listen: AbortController | undefined;
 	let sound: AudioBufferSourceNode | undefined;
 	let inverse: GainNode | undefined;
+	let releaseResponses: (() => void) | undefined;
 	let expiry: ReturnType<typeof setTimeout> | undefined;
 
 	/** Mute the predicted echo immediately while preserving the microphone path. */
@@ -205,6 +207,7 @@ export async function calibrateRoom(
 		} catch {
 			/* partially installed or already disposed */
 		}
+		releaseResponses?.();
 		for (const node of nodes) node.disconnect();
 		capture.analyser = analyser;
 	}
@@ -259,16 +262,44 @@ export async function calibrateRoom(
 			return;
 		}
 		delay.delayTime.value = firstTap / ctx.sampleRate;
-		for (const [channel, taps] of [filter.left, filter.right].entries()) {
-			const convolution = ctx.createConvolver();
-			nodes.push(convolution);
-			convolution.normalize = false;
-			const impulse = ctx.createBuffer(1, taps.length - firstTap, ctx.sampleRate);
-			impulse.copyToChannel(taps.subarray(firstTap), 0);
-			convolution.buffer = impulse;
-			splitter.connect(convolution, channel);
-			convolution.connect(delay);
+		// Convolver buffers are write-once. Replace the pair together when a
+		// cue needs different taps, retaining the saved calibration for each Listen.
+		const saved = filter;
+		let usingCorrection = false;
+		function installResponses(correction?: RoomFilter): void {
+			if (releaseResponses && !usingCorrection && !correction) return;
+			const pair: ConvolverNode[] = [];
+			function release(): void {
+				for (const node of pair) {
+					try { splitter.disconnect(node); } catch { /* partial setup */ }
+					node.disconnect();
+				}
+			}
+			try {
+				for (const [channel, side] of (['left', 'right'] as const).entries()) {
+					const taps = saved[side].subarray(firstTap);
+					const impulse = ctx.createBuffer(1, taps.length, ctx.sampleRate);
+					impulse.copyToChannel(taps, 0);
+					if (correction) {
+						const data = impulse.getChannelData(0);
+						for (let i = 0; i < correction[side].length; i++) data[i] += correction[side][i];
+					}
+					const node = ctx.createConvolver();
+					pair.push(node);
+					node.normalize = false;
+					node.buffer = impulse;
+					splitter.connect(node, channel);
+					node.connect(delay);
+				}
+			} catch (error) {
+				release();
+				throw error;
+			}
+			releaseResponses?.();
+			releaseResponses = release;
+			usingCorrection = !!correction;
 		}
+		installResponses();
 		delay.connect(inverse);
 		reference.connect(splitter);
 		mic.connect(output);
@@ -312,7 +343,7 @@ export async function calibrateRoom(
 						}
 						return;
 					}
-					const { check, samples } = await measure(
+					const { check, samples, correction } = await measure(
 						ctx,
 						mic,
 						reference,
@@ -340,9 +371,10 @@ export async function calibrateRoom(
 						bypass(listenFailures[check.failure] + ' · scoring the original microphone');
 						continue;
 					}
-					log('active');
+					installResponses(correction);
 					delay.delayTime.value = (firstTap + check.offset) / ctx.sampleRate;
 					enable(check.gain);
+					log('active');
 					return;
 				}
 			} catch (error) {

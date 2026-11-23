@@ -177,7 +177,16 @@ for (const mode of ['ear-training', 'lick-practice'])
 						gain.gain.value = 0.35;
 						split.connect(delay, ch);
 						delay.connect(gain);
-						gain.connect(dest);
+						if (channels === 2 && location.pathname !== '/settings') {
+							// The bass still matches calibration, but the room now returns
+							// quieter attacks. Exercise the corrected native convolver pair.
+							const shelf = ctx.createBiquadFilter();
+							shelf.type = 'highshelf';
+							shelf.frequency.value = 1800;
+							shelf.gain.value = -9;
+							gain.connect(shelf);
+							shelf.connect(dest);
+						} else gain.connect(dest);
 					}
 					const controls = window as unknown as { startBand: () => void; playNote: () => void };
 					function tone(hz: number, destination: AudioNode): void {
@@ -302,7 +311,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 				page.waitForEvent('download'), page.getByRole('button', { name: 'Download measurements only' }).click()
 			]);
 			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
-			expect(report.checks).toContainEqual(expect.objectContaining({ stage: 'listen', result: 'active', attempt: 2, audioExample: 'capture-off' }));
+			expect(report.checks).toContainEqual(expect.objectContaining({ stage: 'listen', result: 'active', attempt: 2, audioExample: 'capture-off', check: expect.objectContaining({ initial: expect.objectContaining({ failure: expect.any(String) }) }) }));
 			expect(report.examples).toEqual([]);
 		}
 		if (mode === 'ear-training') {
@@ -327,8 +336,9 @@ for (const mode of ['ear-training', 'lick-practice'])
 				expect.objectContaining({ stage: 'sound-check', result: 'saved', calibrationReductionDb: expect.any(Number) }),
 				expect.objectContaining({ stage: 'listen', result: 'active', phraseId: expect.any(String) })
 			]));
-			expect(report.examples).toHaveLength(2);
-			await expect(page.getByText('2 audio examples ready to download.')).toBeVisible();
+			expect(report.examples.length).toBeGreaterThanOrEqual(2);
+			expect(report.examples).toHaveLength(report.checks.filter((row: {audioIncluded?: boolean}) => row.audioIncluded).length);
+			await expect(page.getByText(report.examples.length + ' audio examples ready to download.')).toBeVisible();
 			for (const clip of report.examples) {
 				expect(Buffer.from(clip.mic, 'base64').length).toBe(Math.round(clip.rate * clip.event.captureSeconds) * 4);
 				expect(clip.left.length).toBe(clip.mic.length);

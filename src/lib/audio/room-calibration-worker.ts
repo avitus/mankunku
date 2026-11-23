@@ -1,7 +1,7 @@
 import {
 	fitRoom,
 	validateRoom,
-	checkRoomTiming,
+	verifyRoom,
 	type RoomFilter,
 	type RoomSamples
 } from './room-filter';
@@ -9,12 +9,12 @@ import {
 self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter; includeAudio?: boolean }>): void => {
 	try {
 		if (data.filter) {
-			const check = checkRoomTiming(data, data.filter);
+			const result = verifyRoom(data, data.filter);
 			if (data.includeAudio) {
 				const { mic, left, right, rate } = data;
-				self.postMessage({ check, samples: { mic, left, right, rate } },
+				self.postMessage({ ...result, samples: { mic, left, right, rate } },
 					{ transfer: [mic.buffer, left.buffer, right.buffer] });
-			} else self.postMessage({ check });
+			} else self.postMessage(result);
 			return;
 		}
 		// A silent Master gives us no speaker signal to test against. In

@@ -4,8 +4,10 @@ import {
 	predictRoom,
 	roomReduction,
 	validateRoom,
-	checkRoomTiming
+	verifyRoom
 } from '$lib/audio/room-filter';
+
+const verifyTiming = (...args: Parameters<typeof verifyRoom>) => verifyRoom(...args).check;
 
 it('subtracts independent stereo reflections on held-out audio and preserves added playing', () => {
 	const rate = 12000,
@@ -35,14 +37,14 @@ it('subtracts independent stereo reflections on held-out audio and preserves add
 	// A changed microphone clock can move the echo either side of the calibrated arrival.
 	for (const shift of [-155, 97]) {
 		const shifted = Float32Array.from(mic, (_, i) => mic[i - shift] ?? 0);
-		expect(checkRoomTiming({ ...capture, mic: shifted }, model)).toMatchObject({
+		expect(verifyTiming({ ...capture, mic: shifted }, model)).toMatchObject({
 			offset: shift,
 			accepted: true
 		});
 		// Use another room for the held-out half. A good first-half fit must not enable subtraction.
 		const heldOutStart = Math.floor((model.left.length + n) / 2);
 		shifted.set(independent.subarray(heldOutStart), heldOutStart);
-		expect(checkRoomTiming({ ...capture, mic: shifted }, model)).toMatchObject({
+		expect(verifyTiming({ ...capture, mic: shifted }, model)).toMatchObject({
 			offset: shift,
 			accepted: false
 		});
@@ -58,11 +60,11 @@ it('distinguishes a shared bass pitch from an aligned speaker path after reopeni
 	});
 	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
 	const right = new Float32Array(left.length);
-	const same = checkRoomTiming({rate, left, right, mic: left}, filter);
+	const same = verifyTiming({rate, left, right, mic: left}, filter);
 	expect(same?.transientReduction).toBeGreaterThan(10);
 	// Ten whole bass periods outside the adjustable delay range. The pitch still cancels.
 	const mic = Float32Array.from(left, (_, i) => left[i - 600] ?? 0);
-	const changed = checkRoomTiming({rate, left, right, mic}, filter);
+	const changed = verifyTiming({rate, left, right, mic}, filter);
 	expect(changed?.reduction).toBeGreaterThan(3);
 	expect(changed?.transientReduction).toBeLessThan(1);
 	expect(changed?.accepted).toBe(false);
@@ -82,7 +84,7 @@ it('recovers the speaker delay on a sustained pitched cue with a quiet nonrepeat
 	const filter = { left: taps, right: new Float32Array(taps.length) };
 	for (const shift of [-185, 185]) {
 		const mic = Float32Array.from(left, (_, i) => left[i - calibratedDelay - shift] ?? 0);
-		const check = checkRoomTiming({ rate, left, right, mic }, filter);
+		const check = verifyTiming({ rate, left, right, mic }, filter);
 		expect(check?.transientReduction).toBeGreaterThan(1);
 		expect(check).toMatchObject({ offset: shift, accepted: true });
 	}
@@ -99,9 +101,41 @@ it('aligns the attacks when pitched notes put the broadband peak a few samples e
 		0.4 * Math.sin(2 * Math.PI * 380 * i / rate) + 0.2 * Math.sin(2 * Math.PI * 511 * i / rate));
 	const left = Float32Array.from(tone, (x, i) => x + noise[i]);
 	const mic = Float32Array.from(tone, (x, i) => x + (noise[i - 2] ?? 0));
-	const check = checkRoomTiming({ rate, left, right: new Float32Array(left.length), mic },
+	const check = verifyTiming({ rate, left, right: new Float32Array(left.length), mic },
 		{ left: Float32Array.of(1), right: Float32Array.of(0) });
 	expect(check).toMatchObject({ broadbandOffset: 0, offset: 2, accepted: true });
 	expect(check!.transientReduction).toBeGreaterThan(9);
 	expect(check!.reduction).toBeGreaterThan(3);
+});
+
+
+it('corrects a changed stereo balance on Listen and rejects a path that changes again during validation', () => {
+	const rate = 12000;
+	let seed = 291;
+	const noise = () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	};
+	const left = Float32Array.from({length: rate * 3}, noise);
+	const right = Float32Array.from(left, noise);
+	const delay = 247;
+	const filter = {left: new Float32Array(600), right: new Float32Array(600)};
+	filter.left[delay] = 1;
+	filter.right[delay] = 1;
+	const mic = new Float32Array(left.length);
+	// The opening favors the left speaker. The validation half favors the right.
+	// A scalar gain inferred from the opening cannot transfer across that change.
+	for (let i = 0; i < left.length / 2; i++) right[i] *= 0.25;
+	for (let i = left.length / 2; i < left.length; i++) left[i] *= 0.25;
+	for (let i = 0; i < mic.length; i++) mic[i] = 1.3 * (left[i - delay] ?? 0) + 0.8 * (right[i - delay] ?? 0);
+	const capture = {rate, left, right, mic};
+	const stable = verifyRoom(capture, filter);
+	expect(stable.check?.accepted).toBe(true);
+	expect(stable.correction).toBeDefined();
+	expect(stable.check?.initial?.failure).toBeTruthy();
+	expect(stable.check!.reduction).toBeGreaterThan(10);
+	const independent = Float32Array.from(mic, noise);
+	mic.set(independent.subarray(19000), 19000);
+	expect(verifyRoom(capture, filter)).toMatchObject({check: {accepted: false}});
+	expect(verifyRoom({...capture, mic: new Float32Array(mic.length)}, filter).correction).toBeUndefined();
 });

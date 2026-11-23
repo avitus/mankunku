@@ -1,4 +1,5 @@
 import FFT from 'fft.js';
+import { fitRoomCorrection } from './room-refinement';
 
 /** Original microphone and stereo output captured on a shared sample clock. */
 export interface RoomSamples {
@@ -26,6 +27,8 @@ export interface RoomTimingCheck {
 	reduction: number;
 	accepted: boolean;
 	failure: 'timing' | 'reduction' | 'level' | 'attacks' | null;
+	/** Present only when a cue-specific correction passed independent validation. */
+	initial?: Pick<RoomTimingCheck, 'reduction' | 'transientReduction' | 'validationGain' | 'failure'>;
 }
 
 const powerOfTwo = (length: number): number => 2 ** Math.ceil(Math.log2(length));
@@ -45,7 +48,9 @@ function spectrum(fft: FFT, samples: ArrayLike<number>): Float64Array<ArrayBuffe
 function inverse(fft: FFT, bins: Float64Array): Float32Array<ArrayBuffer> {
 	const out = complex(fft);
 	fft.inverseTransform(out, bins);
-	return Float32Array.from({ length: fft.size }, (_, i) => out[2 * i]);
+	const samples = new Float32Array(fft.size);
+	for (let i = 0; i < samples.length; i++) samples[i] = out[2 * i];
+	return samples;
 }
 
 /** PHAT correlation locates the direct arrival even with coloured calibration music. */
@@ -200,8 +205,7 @@ export function validateRoom(samples: RoomSamples, filter: RoomFilter, start: nu
 
 /** Align a frozen prediction on quiet Listen audio. Only the first half chooses
  * the delay. An independent second half must also benefit from subtraction. */
-export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomTimingCheck | null {
-	const predicted = predictRoom(filter, samples.left, samples.right);
+export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predicted = predictRoom(filter, samples.left, samples.right)): RoomTimingCheck | null {
 	const start = filter.left.length;
 	const middle = Math.floor((start + predicted.length) / 2);
 	const n = middle - start;
@@ -268,6 +272,13 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 			gain = level;
 		}
 	}
+	return validateAlignment(samples, filter, predicted, broadbandOffset, offset, gain);
+}
+
+function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array,
+	broadbandOffset: number, offset: number, gain: number): RoomTimingCheck {
+	const middle = Math.floor((filter.left.length + predicted.length) / 2);
+	const limit = Math.round(samples.rate * 0.02);
 	let transientBefore = 0, transientAfter = 0;
 	let before = 0,
 		error = 0,
@@ -308,4 +319,35 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 		accepted: failure === null,
 		failure
 	};
+}
+
+/** Verify the saved response first. A cue-local correction can rescue a
+ * recognizable return only if it also passes every gate on unheard audio. */
+export function verifyRoom(samples: RoomSamples, filter: RoomFilter): { check: RoomTimingCheck | null; correction?: RoomFilter } {
+	const predicted = predictRoom(filter, samples.left, samples.right);
+	const initial = checkRoomTiming(samples, filter, predicted);
+	if (!initial || !initial.failure || initial.failure === 'timing' || initial.reduction < 1) return { check: initial };
+	const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
+	const guard = Math.round(samples.rate * 0.02);
+	const middle = Math.floor((filter.left.length + predicted.length) / 2);
+	const correction = fitRoomCorrection(samples, predicted, first, filter.left.length - first,
+		initial.offset, initial.gain, filter.left.length + guard, middle - guard);
+	if (!correction) return { check: initial };
+	const extra = predictRoom(correction, samples.left, samples.right);
+	let basePower = 0, correctionPower = 0;
+	for (let i = first; i < predicted.length; i++) {
+		if (i >= middle + guard - initial.offset && i < predicted.length - guard - initial.offset) {
+			basePower += predicted[i] ** 2;
+			correctionPower += extra[i - first] ** 2;
+		}
+		predicted[i] += extra[i - first];
+	}
+	// Keep the measured room as the primary predictor. A fit that would
+	// replace the speaker path needs a fresh Settings calibration.
+	if (!(correctionPower < basePower)) return { check: initial };
+	const check = validateAlignment(samples, filter, predicted, initial.broadbandOffset, initial.offset, initial.gain);
+	if (check.failure) return { check: initial };
+	const { reduction, transientReduction, validationGain, failure } = initial;
+	check.initial = { reduction, transientReduction, validationGain, failure };
+	return { check, correction };
 }

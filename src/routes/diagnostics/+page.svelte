@@ -399,7 +399,7 @@
 	<section class="space-y-2 rounded-lg bg-[var(--color-bg-secondary)] p-4">
 		<h2 class="font-semibold">Speaker bleed reduction</h2>
 		<p class="text-sm">The report includes the last 64 speaker checks and their measurements.</p>
-		<p class="text-sm">Capture up to three seconds of microphone and speaker audio per Listen check for ten minutes. This device keeps the latest example of each result.</p>
+		<p class="text-sm">Capture up to three seconds of microphone and speaker audio per Listen check for ten minutes. Each captured check keeps its own audio with the last 64 measurements.</p>
 		<button class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm" onclick={startSpeakerCapture}>Capture Listen audio and open Ear Training</button>
 		<p class="text-sm" role="status">
 			{#if exampleCount === null}Audio example count unavailable.

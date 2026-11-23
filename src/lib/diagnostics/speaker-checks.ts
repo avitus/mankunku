@@ -15,7 +15,7 @@ export interface SpeakerCheck {
 	calibratedDelaySamples?: number;
 	calibrationReductionDb?: number;
 	check?: RoomTimingCheck | null;
-	audioExample?: 'saved' | 'capture-off' | 'unavailable';
+	audioExample?: 'saved' | 'capture-off' | 'unavailable' | 'storage-full';
 }
 
 export interface SpeakerExample {
@@ -50,28 +50,36 @@ function openChecks(): Promise<IDBDatabase> {
 export async function recordSpeakerCheck(event: SpeakerCheck, example?: SpeakerExample): Promise<void> {
 	try {
 		const db = await openChecks();
-		try {
-			await new Promise<void>((resolve, reject) => {
+		function write(clip: SpeakerExample | undefined, status: SpeakerCheck['audioExample']): Promise<void> {
+			return new Promise((resolve, reject) => {
 				const tx = db.transaction(['checks', 'examples'], 'readwrite');
 				tx.oncomplete = () => resolve();
 				tx.onabort = () => reject(tx.error);
 				const checks = tx.objectStore('checks');
-				const captureAudio = includeListenAudio();
-				if (event.stage === 'listen') {
-					event = { ...event, audioExample: captureAudio ? (example ? 'saved' : 'unavailable') : 'capture-off' };
-				}
-				checks.add(event);
+				const examples = tx.objectStore('examples');
+				const row = status ? { ...event, audioExample: status } : event;
+				const added = checks.add(row);
+				if (clip) added.onsuccess = () => examples.put({ ...clip, event: row }, added.result);
 				const keys = checks.getAllKeys();
 				keys.onsuccess = () => {
-					for (const key of keys.result.slice(0, -64)) checks.delete(key);
+					for (const key of keys.result.slice(0, -64)) {
+						checks.delete(key);
+						examples.delete(key);
+					}
 				};
-				if (example && captureAudio) {
-					// Each failure needs a different fix. A weak cue must not overwrite
-					// the last cue that had good reduction but poor attack alignment.
-					const key = event.result === 'active' ? 'active' : event.check?.failure ?? 'bypassed';
-					tx.objectStore('examples').put({ ...example, event }, key);
-				}
 			});
+		}
+		try {
+			const capturing = includeListenAudio();
+			const clip = capturing ? example : undefined;
+			const status = event.stage !== 'listen' ? undefined
+				: clip ? 'saved' : capturing ? 'unavailable' : 'capture-off';
+			try {
+				await write(clip, status);
+			} catch (error) {
+				if (!clip || !(error instanceof DOMException) || error.name !== 'QuotaExceededError') throw error;
+				await write(undefined, 'storage-full');
+			}
 		} finally { db.close(); }
 	} catch (error) { console.warn('Could not save speaker diagnostics', error); }
 }
@@ -105,20 +113,40 @@ export async function speakerReport(): Promise<Blob> {
 	const db = await openChecks();
 	try {
 		const tx = db.transaction(['checks', 'examples']);
-		function all<T>(store: string): Promise<T[]> {
-			return new Promise((resolve, reject) => {
-				const request = tx.objectStore(store).getAll();
-				request.onsuccess = () => resolve(request.result);
-				request.onerror = () => reject(request.error);
-			});
-		}
-		const [checks, examples] = await Promise.all([all<SpeakerCheck>('checks'), all<SpeakerExample>('examples')]);
-		const audio = examples.map(({ event, samples, filter }) => ({
-			event, rate: samples.rate, mic: encodeRoomSamples(samples.mic),
-			left: encodeRoomSamples(samples.left), right: encodeRoomSamples(samples.right),
-			filter: { left: encodeRoomSamples(filter.left), right: encodeRoomSamples(filter.right) }
+		const store = tx.objectStore('checks');
+		const rows = store.getAll();
+		const keys = store.getAllKeys();
+		const parts: BlobPart[] = [];
+		const included = new Set<IDBValidKey>();
+		const legacy = new Set<string>();
+		const legacyId = (e: SpeakerCheck) => JSON.stringify([e.at, e.phraseId, e.attempt, e.result]);
+		await new Promise<void>((resolve, reject) => {
+			tx.oncomplete = () => resolve();
+			tx.onabort = () => reject(tx.error);
+			const request = tx.objectStore('examples').openCursor();
+			request.onsuccess = () => {
+				const cursor = request.result;
+				if (!cursor) return;
+				const { event, samples, filter } = cursor.value as SpeakerExample;
+				if (typeof cursor.key === 'string') legacy.add(legacyId(event));
+				else included.add(cursor.key);
+				parts.push(new Blob([JSON.stringify({
+					event, rate: samples.rate, mic: encodeRoomSamples(samples.mic),
+					left: encodeRoomSamples(samples.left), right: encodeRoomSamples(samples.right),
+					filter: { left: encodeRoomSamples(filter.left), right: encodeRoomSamples(filter.right) }
+				})]));
+				cursor.continue();
+			};
+		});
+		const checks = (rows.result as SpeakerCheck[]).map((event, index) => ({
+			...event, ...(event.stage === 'listen' && { audioIncluded: included.has(keys.result[index]) || legacy.has(legacyId(event)) })
 		}));
-		return new Blob([JSON.stringify({ version: 1, checks, sampleEncoding: 'float32-le-base64', examples: audio })],
-			{ type: 'application/json' });
+		const json: BlobPart[] = ['{"version":1,"sampleEncoding":"float32-le-base64","checks":', JSON.stringify(checks), ',"examples":['];
+		for (const [index, part] of parts.entries()) {
+			if (index > 0) json.push(',');
+			json.push(part);
+		}
+		json.push(']}');
+		return new Blob(json, { type: 'application/json' });
 	} finally { db.close(); }
 }
