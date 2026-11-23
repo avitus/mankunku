@@ -862,7 +862,7 @@ export function buildSessionPhrase(args: {
 	const soloStart = passStart + (args.pickupBars ?? 0);
 	const outroSourceStartBar = args.closingFlat ? (args.closingPickupBars ?? 0) : soloStart;
 	if ((args.playHead && args.openingFlat) || hasOmissionsAfter(args.flat, args.flat.omittedSoloSections, soloStart) ||
-		hasOmissionsAfter(closingFlat, args.playHead && args.playOutro ? closingFlat.omittedOutroSections : closingFlat.omittedSoloSections, outroSourceStartBar)) {
+		hasOmissionsAfter(closingFlat, args.playOutro ? closingFlat.omittedOutroSections : closingFlat.omittedSoloSections, outroSourceStartBar)) {
 		const count = normalizeChoruses(args.choruses);
 		return sessionFromPasses({ ...args, headBars, soloStart, closingStart: outroSourceStartBar, choruses: count });
 	}
@@ -890,7 +890,7 @@ export function buildSessionPhrase(args: {
 	}
 	const soloEnd = built.headBars + chorusBars * count;
 	const noteSourceIndices = args.flat.noteSourceIndices.slice(0, built.notes.length);
-	const outroStartBar = args.playOutro && args.playHead ? soloEnd : null;
+	const outroStartBar = args.playOutro ? soloEnd : null;
 	const closingStartBar = outroStartBar ?? (args.closingFlat ? built.headBars + chorusBars * (count - 1) : null);
 	if (closingStartBar !== null) {
 		// A melody-free session still resolves on its last solo. Replace that

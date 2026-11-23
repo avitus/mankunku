@@ -37,6 +37,15 @@ describe('a finite jazz jam', () => {
 		expect(jam.harmony.map(chord => fractionToFloat(chord.startOffset))).toEqual([0, 2, 4, 6, 8]);
 		expect(jam.sectionMap.map(section => section.barOffset)).toEqual([0, 2, 4, 6, 8]);
 	});
+	it('plays the opening melody and closing melody independently', () => {
+		const headOnly = buildJamForm(tune, 2, true, false);
+		expect(headOnly.notes.map(note => fractionToFloat(note.offset))).toEqual([0]);
+		expect(headOnly.outroStartBar).toBeNull();
+		const outroOnly = buildJamForm(tune, 2, false, true);
+		expect(outroOnly.headBars).toBe(0);
+		expect(outroOnly.outroStartBar).toBe(4);
+		expect(outroOnly.notes.map(note => fractionToFloat(note.offset))).toEqual([4]);
+	});
 	it('takes the second ending on the outro and maps its notes back to that ending', () => {
 		const endings: Tune = { ...tune, sections: [
 			{ ...tune.sections[0], repeatStart: true },

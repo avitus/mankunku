@@ -1,3 +1,4 @@
+import { openTuneSettings, setTuneTempo } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedStorage, seedTunes, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { requireRealtimeAudio } from './fixtures/realtime-audio';
@@ -53,19 +54,20 @@ test(`normal ${style} ${keyboard} completes a whole Blues with continuous native
   };
  });
  await page.goto('/tunes/e2e-release-blues');
- const band = page.getByRole('region', { name: 'Rhythm and band' });
+ const band = page.getByRole('group', { name: 'Accompaniment' });
  // This section is a labelled section, but is visually in the desktop rail.
- const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
- await tempo.fill('240'); await tempo.press('Tab');
+
+ await setTuneTempo(page, 240);
+ await openTuneSettings(page);
  const melody = page.getByRole('switch', { name: 'Melody', exact: true });
  if (await melody.getAttribute('aria-checked') === 'true') await melody.click();
  const metronome = page.getByRole('switch', { name: 'Metronome', exact: true });
  if (await metronome.getAttribute('aria-checked') === 'true') await metronome.click();
  await expect(band.getByRole('switch', { name: 'Backing track', exact: true })).toBeChecked();
- await page.getByRole('button', { name: 'Play tune', exact: true }).click();
+ await page.getByRole('button', { name: 'Play', exact: true }).click();
  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 60_000 });
  await expect(page.getByText(/Solo 2/).first()).toBeVisible({ timeout: 50_000 });
- await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible({ timeout: 35_000 });
+ await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 35_000 });
  const observed = await page.evaluate(() => {
   const e = (window as unknown as { __releaseAudio: { starts: number[]; peak: number; excluded: unknown[] } }).__releaseAudio;
   return { starts: e.starts, peak: e.peak, excluded: e.excluded };

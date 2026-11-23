@@ -1,3 +1,4 @@
+import { setTuneTempo } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedStorage, seedTunes } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
@@ -19,19 +20,19 @@ test.beforeEach(async ({ page }) => {
 
 test('both tune pages remember the last solo count across navigation and reload', async ({ page }) => {
 	await page.goto('/tunes/e2e-jam');
-	await page.locator('details.td-session-options summary').click();
-	const count = page.getByRole('spinbutton', { name: 'Solo choruses' });
+
+	const count = page.getByRole('spinbutton', { name: 'Choruses' });
 	await expect(count).toHaveValue('2');
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveCount(0);
 	await count.fill('3');
 	await count.press('Tab');
-	await page.getByRole('button', { name: /Practice licks/ }).click();
-	await page.locator('details.tp-options summary').click();
-	const practiceCount = page.getByRole('spinbutton', { name: 'Solo choruses' });
+	await page.getByRole('switch', { name: 'Lick Practice' }).click();
+
+	const practiceCount = page.getByRole('spinbutton', { name: 'Choruses' });
 	await expect(practiceCount).toHaveValue('3');
 	await practiceCount.press('ArrowUp');
-	await page.getByRole('link', { name: 'Jam Form', exact: true }).click();
-	await expect(page).toHaveURL(/\/tunes\/jam-form$/);
+	await page.getByRole('switch', { name: 'Lick Practice', exact: true }).click();
+	await expect(page).toHaveURL(/\/tunes\/e2e-jam$/);
 	await expect(count).toHaveValue('4');
 	await page.reload();
 	await expect(count).toHaveValue('4');
@@ -45,13 +46,12 @@ for (const practice of [false, true]) {
 		await page.setViewportSize({ width: 390, height: 800 });
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
-		await page.goto(`/tunes/e2e-long-jam${practice ? '/practice' : ''}`);
-		if (!practice) await page.getByRole('button', { name: 'Settings', exact: true }).click();
-		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-		await tempo.fill('240');
-		await tempo.press('Tab');
-		if (!practice) await page.getByRole('button', { name: 'Close tune settings', exact: true }).click();
-		await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
+		await page.goto(`/tunes/e2e-long-jam${practice ? '?licks=1' : ''}`);
+
+
+		await setTuneTempo(page, 240);
+
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
 		const chart = page.getByTestId('tune-chord-chart');
 		await expect(chart).toBeVisible({ timeout: 30_000 });
 		await expect.poll(() => chart.locator('.tcc-bar.active').getAttribute('data-bar'), { timeout: 15_000, intervals: [50] }).toBe('4');
@@ -80,7 +80,7 @@ for (const practice of [false, true]) {
 		})), { timeout: 8_000, intervals: [25] }).toEqual({ offset: 0, active: '11' });
 		await expect(page.getByText(/Solo 2 of 2/).first()).toBeVisible({ timeout: 12_000 });
 		await expect.poll(async () => Number(await chart.getAttribute('data-follow-offset'))).toBe(0);
-		await page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true }).click();
+		await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	});
 	for (const width of [1440, 390]) {
 		test(`${practice ? 'lick practice' : 'tune desk'} plays head, two solos and outro at ${width}px`, async ({ page, browserName }, info) => {
@@ -90,10 +90,10 @@ for (const practice of [false, true]) {
 			await page.setViewportSize({ width, height: 1000 });
 			await installAudioMock(page);
 			await stubCdnInstrumentSamples(page);
-			await page.goto(`/tunes/e2e-jam${practice ? '/practice' : ''}`);
+			await page.goto(`/tunes/e2e-jam${practice ? '?licks=1' : ''}`);
 			await expect(page.locator('.abcjs-container svg')).toBeVisible();
-			await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
-			await expect(page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true })).toBeVisible({ timeout: 30_000 });
+			await page.getByRole('button', { name: 'Play', exact: true }).click();
+			await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 30_000 });
 			await expect(page.getByTestId('tune-chord-chart')).toBeVisible({ timeout: 20_000 });
 			// Chords must arrive during the head's early return, before solo audio starts.
 			await expect(page.getByText(practice ? /Head — melody once/ : /Head · Bar/).first()).toBeVisible();
@@ -102,13 +102,13 @@ for (const practice of [false, true]) {
 			await expect(page.locator('.tcc-bar .chord-symbol').first()).toContainText('D');
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 			await page.screenshot({ path: info.outputPath(`solo-${width}.png`), fullPage: true });
-			await expect(page.getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
+			await expect(page.locator('.td-status, .practice-session').getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
 			await expect(page.getByTestId('tune-chord-chart')).toHaveCount(0);
 			await expect(page.locator('.abcjs-container svg')).toBeVisible();
 			await expect(page.locator('svg text.range-marker-label')).toHaveCount(0);
 			await page.screenshot({ path: info.outputPath(`outro-${width}.png`), fullPage: true });
 			if (practice) await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible({ timeout: 10_000 });
-			else await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible({ timeout: 10_000 });
+			else await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 10_000 });
 		});
 	}
 }

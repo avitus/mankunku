@@ -27,7 +27,7 @@ import {
 	type LickSuggestion
 } from '$lib/tunes/lick-matcher';
 import { transposeTune } from '$lib/tunes/book-loader';
-import { getAllLicks, getBaseLickFromId, transposeLick } from '$lib/phrases/library-loader';
+import { baseLickId, getAllLicks, getBaseLickFromId, transposeLick } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
 import { getInstrument, settings } from '$lib/state/settings.svelte';
 import {
@@ -68,6 +68,8 @@ import {
  */
 
 export interface TunePracticeConfig {
+	playOutro?: boolean;
+	targetLick?: string;
 	mode: TunePracticeMode;
 	strictness: TunePracticeStrictness;
 	tempo: number;
@@ -256,7 +258,7 @@ export function restoreTunePracticeSettings(sheet: Tune): void {
 /** Save only the practice mode, cue level and head/outro choice. */
 export function setTunePracticeOptions(options: Partial<TunePracticePreferences>): void {
 	Object.assign(tunePractice.config, options);
-	saveTunePracticePreferences(tunePractice.config);
+	saveTunePracticePreferences({ ...tunePractice.config, playOutro: tunePractice.config.playOutro ?? tunePractice.config.playHead });
 }
 
 /** Remember the sounding key for this tune on both tune pages. */
@@ -274,6 +276,7 @@ export function setTunePracticeStyle(style: BackingStyle): void {
 /** Enter the setup phase for a tune (idempotent per tune). */
 export function initTunePractice(sheet: Tune): void {
 	restoreTunePracticeSettings(sheet);
+	tunePractice.config.targetLick = undefined;
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.phase = 'setup';
@@ -291,6 +294,7 @@ export function initTunePractice(sheet: Tune): void {
 }
 
 export interface SessionPreview {
+	targetLicks: { id: string; name: string }[];
 	firstBar: { returning: number; closing: number };
 	fittingLicks: FittingLick[];
 	/** Which chart is visible in setup; the inventory can also include the closing chart. */
@@ -344,7 +348,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 			startBar: ip.notationBarRange.start,
 			endBarExclusive: ip.notationBarRange.endExclusive,
 			timeRange: ip.notationTimeRange,
-			label: lickName ?? ip.bandName,
+			label: tunePractice.config.strictness === 'guided' ? lickName ?? ip.bandName : ip.bandName,
 			labelBar: ip.notationLabelBar,
 			lickName,
 			progressionType: ip.progressionType,
@@ -353,6 +357,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 	}
 
 	return {
+		targetLicks: tunePractice.config.mode === 'points' ? practiceVocabulary(plan).map(({ id, name }) => ({ id, name })) : [],
 		firstBar: { returning: firstBarNumber(audioPlan.sheet), closing: firstBarNumber(audioPlan.closingSheet) },
 		fittingLicks: practiceVocabulary(inventory),
 		closingChart: audioPlan.closingStartBar === 0 && audioPlan.separateClosingChart,
@@ -379,7 +384,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		sheet.key === config.concertKey
 			? sheet
 			: transposeTune(sheet, config.concertKey);
-	const { returning: transposed, closing: closingSheet, soloStartBar, opening } = jamSheets(keyed, config.playHead);
+	const { returning: transposed, closing: closingSheet, soloStartBar, opening } = jamSheets(keyed, config.playHead, config.playOutro);
 	const separateClosingChart = closingSheet !== transposed;
 	const closingFlat = clearPickupBarHarmony(closingSheet, flattenTune(closingSheet, { expandRepeats: true }));
 	const closingPickupBars = soloPassPickupBars(closingSheet, closingFlat);
@@ -400,7 +405,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	const choruses = config.choruses;
 	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
 	const pickupBars = Math.max(soloStartBar, soloPassPickupBars(transposed, flat));
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars, openingFlat: opening?.flat, closingFlat, closingPickupBars });
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: (config.playOutro ?? config.playHead) && hasMelody, choruses, pickupBars, openingFlat: opening?.flat, closingFlat, closingPickupBars });
 	const countInBars = countInBarsForTempo(config.tempo);
 	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
@@ -447,7 +452,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		suggestionLimit: inventory || mode === 'suggest' ? undefined : MAX_SUGGESTIONS
 	};
 	let plan = buildSessionPlan(planDeps);
-	if (!playHead && separateClosingChart) {
+	if (built.outroStartBar === null && separateClosingChart) {
 		const closingStart = built.closingStartBar!;
 		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * 4 / transposed.timeSignature[1] * ppq;
 		plan = plan.filter(ip => ip.openTick < closingTick);
@@ -492,7 +497,14 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		duplicatedForm: built.duplicatedForm,
 		playHead
 	};
-	return { audioPlan, plan, pickedSuggestion: mode === 'suggest' ? assignSuggestRotation(plan) : {} };
+	const pickedSuggestion = mode === 'suggest' ? assignSuggestRotation(plan) : {};
+	if (mode === 'points' && config.targetLick) {
+		for (const point of plan) {
+			const index = point.suggestions.findIndex(s => baseLickId(s.lickId) === config.targetLick);
+			if (index >= 0) pickedSuggestion[point.id] = index;
+		}
+	}
+	return { audioPlan, plan, pickedSuggestion };
 }
 
 /** Arm the already-shared plan only when the player presses Start. */

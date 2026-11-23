@@ -58,7 +58,7 @@ Routes that belong to neither domain (or that serve both):
 - `/` — home
 - `/licks`, `/licks/[id]` — your lick book (used by both modes)
 - `/licks/add`, `/licks/editor`, `/licks/record` — adding new licks (book-building, not practice)
-- `/tunes` and its subroutes — the tune songbook, including the scored `/tunes/[id]/practice` session (a tune take is not a lick-practice session; it earns no domain accent)
+- `/tunes` and its subroutes — the tune songbook, including the scored `/tunes/[id]?licks=1` session (a tune take is not a lick-practice session; it earns no domain accent)
 - `/tricks`, `/tricks/[id]` — the melodic-device catalog and its mastery ladders (the *session* they launch runs under `/lick-practice`, which is where the terracotta appears)
 - `/settings` — global app settings
 - `/docs` and its subroutes — in-app documentation
@@ -402,7 +402,7 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | `/licks`, `/licks/[id]`          | neutral       | slate                               |
 | `/licks/add`, `/licks/editor`    | neutral       | slate                               |
 | `/licks/record`, `/tunes`        | neutral       | slate                               |
-| `/tunes/[id]/practice`, `/tricks` | neutral      | slate                               |
+| `/tunes/[id]?licks=1`, `/tricks` | neutral      | slate                               |
 | `/settings`, `/docs`, `/auth`, `/diag…` | neutral | slate                              |
 
 For each page confirm:

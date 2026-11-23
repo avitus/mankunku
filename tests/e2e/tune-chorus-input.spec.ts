@@ -1,3 +1,4 @@
+import { setTuneTempo } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { SAINTS_USER_TUNE, seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
@@ -5,8 +6,8 @@ test('solo chorus input displays the saved count when already at a clamp boundar
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [SAINTS_USER_TUNE]);
 	await page.goto('/tunes/e2e-when-the-saints');
-	await page.locator('details.td-session-options summary').click();
-	const count = page.getByRole('spinbutton', { name: 'Solo choruses', exact: true });
+
+	const count = page.getByRole('spinbutton', { name: 'Choruses', exact: true });
 	for (const [entered, normalized] of [['12', '12'], ['20', '12'], ['1', '1'], ['0', '1'], ['', '1']] as const) {
 		await count.fill(entered);
 		await count.blur();
@@ -24,22 +25,15 @@ test('solo chorus input displays the saved count when already at a clamp boundar
 test('practice tempo entry displays the actual tempo at both boundaries and after reload', async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [SAINTS_USER_TUNE]);
-	await page.goto('/tunes/e2e-when-the-saints/practice');
-	await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
-	const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-	for (const [entered, normalized] of [['240', '240'], ['300', '240'], ['50', '50'], ['20', '50'], ['', '50']] as const) {
-		await tempo.fill(entered);
-		await tempo.blur();
-		await expect(tempo).toHaveValue(normalized);
-	}
-	await page.getByRole('button', { name: 'Increase tempo', exact: true }).click();
-	await expect(tempo).toHaveValue('55');
-	await page.getByRole('button', { name: 'Decrease tempo', exact: true }).click();
-	await expect(tempo).toHaveValue('50');
-	await tempo.fill('300');
-	await tempo.blur();
-	await expect(tempo).toHaveValue('240');
+	await page.goto('/tunes/e2e-when-the-saints?licks=1');
+	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+	const tempo = page.getByRole('slider', { name: 'Tempo', exact: true });
+	await setTuneTempo(page, 40);
+	await tempo.press('ArrowDown');
+	await expect(tempo).toHaveAttribute('aria-valuenow', '40');
+	await setTuneTempo(page, 240);
+	await tempo.press('ArrowUp');
+	await expect(tempo).toHaveAttribute('aria-valuenow', '240');
 	await page.reload();
-	await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
-	await expect(tempo).toHaveValue('240');
+	await expect(tempo).toHaveAttribute('aria-valuenow', '240');
 });

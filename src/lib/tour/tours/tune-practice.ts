@@ -2,9 +2,9 @@ import type { DriveStep } from 'driver.js';
 
 /**
  * Tune-practice tour — a walkthrough of the scored session reached from
- * "Practice licks" on any tune.
+ * "Lick Practice" on any tune.
  *
- * Deliberately ELEMENT-FREE. The session lives at /tunes/<id>/practice, which
+ * Deliberately ELEMENT-FREE. The session lives at /tunes/<id>?licks=1, which
  * has no static path Settings' replay could navigate to, and its setup
  * controls only exist once a tune is open. Elementless steps read identically
  * from the Tunes page (where the tour is registered) and from the setup screen
@@ -39,7 +39,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Head, solos, head out',
 			description:
-				"Jazz convention, implemented literally. With Head & outro on, the melody plays before the solos and returns after the final solo. Solos show chords in bars; both heads show melody notation. On a chart whose repeats outline the whole form, pass one IS the head and pass two is your chorus; on other charts a solo chorus is appended. A chords-only chart has no head, so the switch sits at OFF — the caption under Start tells you which way the take opens.",
+				"Switch Head on to hear the melody before your solos. Switch Outro on to hear it again after the last chorus. The chart follows the melody during either head and shows chord changes during solos. A chords-only tune starts directly on the changes.",
 			align: 'center'
 		}
 	},
@@ -47,7 +47,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Three modes',
 			description:
-				"Open Session options below the chart to change modes. Automatic licks (Suggest) names the lick for you at every insertion point — start here. Play for points lets you pick, scores you out of 100, and DOUBLES a window when it and the one before it both clear 90%. Play freely drops the windows entirely: just solo, and the app applauds the licks from your book it recognises.",
+				"Turn on Lick Practice and choose a mode above the chart. Automatic licks (Suggest) names the lick for you at every insertion point — start here. Play for points lets you pick, scores you out of 100, and DOUBLES a window when it and the one before it both clear 90%. Freestyle drops the windows entirely: just solo, and the app applauds the licks from your book it recognises.",
 			align: 'center'
 		}
 	},

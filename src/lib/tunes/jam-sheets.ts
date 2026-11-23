@@ -17,7 +17,7 @@ export function jamChartAt(plan: JamChart & {
 
 /** Resolve whole-form voltas into the actual chart for each pass. Internal
  * repeats still belong to the form and keep their written repeat structure. */
-export function jamSheets(tune: Tune, playHead = false): { returning: Tune; closing: Tune; soloStartBar: number; opening?: JamChart } {
+export function jamSheets(tune: Tune, playHead = false, playOutro = playHead): { returning: Tune; closing: Tune; soloStartBar: number; opening?: JamChart } {
 	const flat = flattenTune(tune, { expandRepeats: true });
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	if (!formRepeats) return { returning: tune, closing: tune, soloStartBar: 0 };
@@ -53,7 +53,7 @@ export function jamSheets(tune: Tune, playHead = false): { returning: Tune; clos
 	// A solo break in ending 2 completes the opening head. A Fine on the
 	// final sounding note of the shared body closes the out-head before
 	// either turnaround. The pickup still belongs only to the first pass.
-	if (playHead && tune.sections.at(-1)?.ending === 2 &&
+	if ((playHead || playOutro) && tune.sections.at(-1)?.ending === 2 &&
 		tune.sections.some(section => section.ending === 2 && section.directions?.some(d => d.text === 'Solo break'))) {
 		const closing = sheetFor(true, true);
 		const last = closing.sections.at(-1);
@@ -61,8 +61,8 @@ export function jamSheets(tune: Tune, playHead = false): { returning: Tune; clos
 		if (last && finalNote && last.directions?.some(d =>
 			d.text === 'Fine' && compareFractions(d.offset, finalNote.offset) === 0) &&
 			compareFractions(addFractions(finalNote.offset, finalNote.duration), multiplyFraction(tune.timeSignature, last.bars)) === 0) {
-			return { returning: sheetFor(false), closing, soloStartBar,
-				opening: { sheet: tune, flat: clearPickupBarHarmony(tune, flat) } };
+			return { returning: sheetFor(false), closing: playOutro ? closing : sheetFor(true), soloStartBar,
+				...(playHead && { opening: { sheet: tune, flat: clearPickupBarHarmony(tune, flat) } }) };
 		}
 	}
 	return { returning: sheetFor(false), closing: sheetFor(true), soloStartBar };

@@ -1027,7 +1027,7 @@ describe('merged session form follows pickup trimming and resolved closing passe
 
 	it.each([2, 6])('keeps a resolved %i-bar final solo a solo and covers its actual changed length', (closingBars) => {
 		const built = buildSessionPhrase({ flat: returning, timeSignature: [4, 4], playHead: false,
-			playOutro: true, choruses: 2, pickupBars: 1, closingFlat: closing(closingBars), closingPickupBars: 1 });
+			playOutro: false, choruses: 2, pickupBars: 1, closingFlat: closing(closingBars), closingPickupBars: 1 });
 		expect(built.outroStartBar).toBeNull();
 		expect(built.notes).toEqual([]);
 		expect(built.phraseBars).toBe(4 + closingBars);
@@ -1063,7 +1063,7 @@ describe('omitted solo sections retain the actual performed form', () => {
 		expect(flat.harmony.map(h => fractionToFloat(h.startOffset))).toEqual([0, 2, 4]);
 	});
 	it.each([true, false])('keeps noncontiguous A+C solos aligned with harmony and chart provenance (head=%s)', playHead => {
-		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, playOutro: playHead, choruses: 2 });
 		const head = [['head', 0, 'C'], ['head', 0, 'C'], ['head', 1, 'D'], ['head', 1, 'D'], ['head', 2, 'G'], ['head', 2, 'G']];
 		const solo = [['solo', 0, 'C'], ['solo', 0, 'C'], ['solo', 2, 'G'], ['solo', 2, 'G']];
 		const actual = Array.from({ length: built.phraseBars }, (_, bar) => {
@@ -1080,7 +1080,7 @@ describe('omitted solo sections retain the actual performed form', () => {
 		expect(performanceBarContext(built.performanceForm, built.phraseBars - 1)?.isFinalBar).toBe(true);
 	});
 	it.each([true, false])('creates no phantom solo when all sections are omitted (head=%s)', playHead => {
-		const built = buildSessionPhrase({ flat: { ...flat, omittedSoloSections: [0, 1, 2] }, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
+		const built = buildSessionPhrase({ flat: { ...flat, omittedSoloSections: [0, 1, 2] }, timeSignature: [4, 4], playHead, playOutro: playHead, choruses: 2 });
 		expect(built.performanceForm.totalBars).toBe(playHead ? 6 : 0);
 		expect(built.performanceForm.choruses.map(c => c.role)).toEqual(playHead ? ['head'] : []);
 		expect(built.performanceForm.totalBars).toBe(built.phraseBars);

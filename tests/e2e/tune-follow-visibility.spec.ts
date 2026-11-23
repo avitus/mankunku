@@ -1,3 +1,4 @@
+import { setTuneTempo } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
@@ -19,17 +20,16 @@ for (const width of [1280, 390]) for (const melody of [true, false]) for (const 
 		}]);
 		await stubCdnInstrumentSamples(page);
 		await page.goto('/tunes/follow-visibility');
-		if (width < 600) await page.getByRole('button', { name: 'Settings', exact: true }).click();
-		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-		await tempo.fill('240');
-		await tempo.press('Tab');
-		if (width < 600) await page.getByRole('button', { name: 'Close tune settings', exact: true }).click();
-		const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
-		await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+
+		await setTuneTempo(page, 240);
+
+		const toggle = page.getByRole('switch', { name: 'Show key centers', exact: true });
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
 		if (!keyCenters) await toggle.click();
 		if (keyCenters) await expect(page.locator('[data-key-center]').first()).toBeVisible();
 		else await expect(page.locator('[data-key-center]')).toHaveCount(0);
-		await page.getByRole('button', { name: 'Play tune', exact: true }).click();
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20_000 });
 		// Sample actual rendered chord ink every frame, through two complete
 		// desktop lines (four phone lines). Checking just the next downbeat

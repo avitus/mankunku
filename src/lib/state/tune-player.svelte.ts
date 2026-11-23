@@ -27,10 +27,20 @@ export class TunePlayer {
 	private previewTempo = $state<number | null>(null);
 	backing = $state(false);
 	melody = $state(true);
+	unaccompaniedSwing = $state<number | null>(null);
+	swingFor(style: BackingStyle): number {
+		return !this.backing && this.unaccompaniedSwing !== null
+			? this.unaccompaniedSwing : melodySwingForStyle(settings.swing, style);
+	}
+	toggleFeel(style: BackingStyle): void {
+		if (this.busy || this.backing) return;
+		this.unaccompaniedSwing = this.swingFor(style) > 0.5 ? 0.5 : settings.swing > 0.5 ? settings.swing : 2 / 3;
+	}
 	metronome = $state(false);
 	loop = $state(false); // Compact editor preview only.
 	soloChoruses = $state(1);
 	playHead = $state(true);
+	playOutro = $state(true);
 	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	showSoloChart = $state(false);
@@ -40,7 +50,9 @@ export class TunePlayer {
 		this.backing = savedTunePlayback('backing', settings.backingTrackEnabled);
 		this.melody = savedTunePlayback('melody', true);
 		this.metronome = savedTunePlayback('metronome', false);
-		this.playHead = savedTunePracticePreferences().playHead;
+		const form = savedTunePracticePreferences();
+		this.playHead = form.playHead;
+		this.playOutro = form.playOutro;
 	}
 	/** Stop the current take and remember whether the band should play. */
 	setBacking(enabled: boolean): void { this.stop(); this.backing = saveTunePlayback('backing', enabled); }
@@ -57,6 +69,11 @@ export class TunePlayer {
 		this.stop();
 		this.playHead = enabled;
 		saveTunePracticePreferences({ ...savedTunePracticePreferences(), playHead: enabled });
+	}
+	setPlayOutro(enabled: boolean): void {
+		this.stop();
+		this.playOutro = enabled;
+		saveTunePracticePreferences({ ...savedTunePracticePreferences(), playOutro: enabled });
 	}
 	playing = $state(false);
 	starting = $state(false);
@@ -125,7 +142,7 @@ export class TunePlayer {
 		const countInBars = countInBarsForTempo(tempo);
 		try {
 			const expanded = tuneToPhraseWithFlat(tune, { expandRepeats: true });
-			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses, this.playHead);
+			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses, this.playHead, this.playOutro);
 			const phrase = jam?.phrase ?? expanded.phrase;
 			const flat = jam?.flat ?? expanded.flat;
 			this.playback ??= await import('$lib/audio/playback');
@@ -144,7 +161,7 @@ export class TunePlayer {
 				return again;
 			};
 			await this.playback.playPhrase(phrase, {
-				tempo, swing: melodySwingForStyle(settings.swing, style),
+				tempo, swing: this.swingFor(style),
 				countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
 				backingTrackEnabled: backing, backingInstrument: settings.backingInstrument,
 				backingTrackVolume: settings.backingTrackVolume, backingStyle: style

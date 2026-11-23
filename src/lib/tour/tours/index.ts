@@ -22,7 +22,7 @@ export const TOURS: TourDefinition[] = [
 	{ id: 'licks', title: 'Your Licks', startsAt: '/licks', steps: licksTour },
 	{ id: 'tunes', title: 'Your Tunes', startsAt: '/tunes', steps: tunesTour },
 	{ id: 'tune-editor', title: 'The Tune Editor', startsAt: '/tunes/editor', steps: tuneEditorTour },
-	// The scored session lives at /tunes/<id>/practice — no static path to
+	// The scored session lives at /tunes/<id>?licks=1 — no static path to
 	// navigate to, so this tour starts where you reach it from and its steps
 	// are element-free (see tune-practice.ts).
 	{ id: 'tune-practice', title: 'Playing Over Tunes', startsAt: '/tunes', steps: tunePracticeTour }

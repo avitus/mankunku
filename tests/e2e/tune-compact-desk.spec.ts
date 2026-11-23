@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedStorage, seedTunes, SAMPLE_USER_TUNES } from './fixtures/storage';
 
@@ -18,8 +19,8 @@ test('recent tunes follow actual detail and practice visits, survive reload, and
 	await page.goto('/tunes/rhythm-changes');
 	await expect(page.getByRole('heading', { name: 'Rhythm Changes' })).toBeVisible();
 	await page.evaluate(() => document.fonts.ready);
-	await page.goto('/tunes/e2e-user-sheet-1/practice');
-	await expect(page.getByRole('button', { name: /^Start$/i })).toBeVisible();
+	await page.goto('/tunes/e2e-user-sheet-1?licks=1');
+	await expect(page.getByRole('button', { name: /^Play$/i })).toBeVisible();
 	await page.evaluate(() => document.fonts.ready);
 	await page.goto('/tunes');
 	await expect(recent(page).getByRole('link')).toHaveCount(2);
@@ -42,6 +43,7 @@ test('deleted recent tunes cannot displace available tunes or leave dead links',
 	await page.goto('/tunes');
 	await expect(recent(page).locator('h3')).toHaveText(['Rhythm Changes', 'Test Session Tune']);
 	await page.getByRole('link', { name: 'Open Test Session Tune' }).click();
+	await openTuneSettings(page);
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await page.getByRole('button', { name: 'Confirm Delete' }).click();
 	await expect(page).toHaveURL(/\/tunes$/);

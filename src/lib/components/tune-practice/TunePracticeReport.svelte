@@ -10,8 +10,8 @@
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import './tune-practice-report.css';
 
-	let { tune, returnHref, phrase, plan, results, picked, instrument, tempo, elapsed, clock, points = null, onretry }: {
-		tune: Tune; returnHref: string; phrase: Phrase; plan: InsertionPoint[]; results: InsertionResult[];
+	let { tune, onexit, phrase, plan, results, picked, instrument, tempo, elapsed, clock, points = null, onretry }: {
+		tune: Tune; onexit: () => void; phrase: Phrase; plan: InsertionPoint[]; results: InsertionResult[];
 		picked: Record<string, number>; instrument: InstrumentConfig; tempo: number; elapsed: string;
 		clock: ReportClock;
 		points?: { total: number; streak: number } | null;
@@ -114,5 +114,5 @@
 		<p>{#if total}{landed} of {total} insertion {total === 1 ? 'point' : 'points'} landed{:else}No matching licks in this take.{/if}{#if recovered} · {recovered} recovered{/if}{#if slipped} · {slipped} slipped{/if}{#if points} · {points.total} points · best streak {points.streak}{/if}</p>
 		{#if queued.length}<button class="tr-action" onclick={() => onretry(queued)}>Practice {queued.length} selected {queued.length === 1 ? 'spot' : 'spots'}</button>{:else if needsWork.length}<button class="tr-action" onclick={() => onretry(needsWork.map(s => s.id))}>Practice {needsWork.length} needs-work {needsWork.length === 1 ? 'spot' : 'spots'}</button>{/if}
 	</footer>
-	<div class="tr-exit"><button onclick={() => onretry([])}>Practice again</button><a href={returnHref}>Back to tune</a></div>
+	<div class="tr-exit"><button onclick={() => onretry([])}>Practice again</button><button onclick={onexit}>Back to tune</button></div>
 </div>

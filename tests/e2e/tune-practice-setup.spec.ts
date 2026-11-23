@@ -1,3 +1,4 @@
+import { openTuneSettings, setTuneTempo } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import type { Page } from '@playwright/test';
 import { SAINTS_USER_TUNE, seedOnboardedAnonymous, seedStorage, seedTunes, seedUserLicks } from './fixtures/storage';
@@ -23,26 +24,23 @@ async function seedKnownLick(page: Page): Promise<void> {
 	});
 }
 
-for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844 }]) {
+for (const viewport of [{ width: 1200, height: 900 }, { width: 1440, height: 1050 }, { width: 390, height: 844 }, { width: 320, height: 800 }]) {
 	test(`practice desk keeps the chart primary at ${viewport.width}px`, async ({ page }, info) => {
 		await page.setViewportSize(viewport);
 		await seedOnboardedAnonymous(page);
 		await seedTunes(page, [SAINTS_USER_TUNE]);
-		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await page.goto('/tunes/e2e-when-the-saints');
+		await expect(page.locator('.abcjs-staff').first()).toBeVisible();
+		await page.screenshot({ path: info.outputPath(`tune-${viewport.width}.png`), fullPage: true });
+		await page.getByRole('switch', { name: 'Lick Practice', exact: true }).click();
+		await expect(page).toHaveURL(/\?licks=1$/);
 		await expect(page.getByRole('heading', { name: SAINTS_USER_TUNE.title, exact: true })).toBeVisible();
 		await expect(page.locator('svg rect.range-marker').first()).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
-		await expect(page.getByRole('radiogroup', { name: 'Mode', exact: true })).toBeHidden();
-		await expect(page.getByRole('radiogroup', { name: 'Chart cues', exact: true })).toBeHidden();
-		await expect(page.getByRole('button', { name: /insert my licks|remove licks/i })).toHaveCount(0);
-		await expect(page.getByRole('spinbutton', { name: 'Tempo' })).toHaveValue('100');
-		const chart = await page.getByRole('region', { name: 'Practice chart' }).boundingBox();
-		const rail = await page.getByRole('complementary', { name: 'Practice settings' }).boundingBox();
-		expect(chart).not.toBeNull();
-		expect(rail).not.toBeNull();
-		expect(rail!.y + rail!.height).toBeLessThanOrEqual(chart!.y);
-		const start = await page.getByRole('button', { name:'Start', exact:true }).boundingBox();
-		expect(start!.y + start!.height).toBeLessThanOrEqual(chart!.y);
+		await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+		await expect(page.getByLabel('Practice mode')).toHaveValue('suggest');
+		const chart = await page.getByRole('region', { name: 'Tune chart' }).boundingBox();
+		const panel = await page.getByRole('region', { name: 'Session setup' }).boundingBox();
+		expect(panel!.y + panel!.height).toBeLessThanOrEqual(chart!.y);
 		if (viewport.width <= 800) {
 			// Two bars must engrave at a readable size, not shrink a desktop staff.
 			const staff = await page.locator('.abcjs-staff').first().boundingBox();
@@ -52,41 +50,24 @@ for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844
 		await page.screenshot({ path: info.outputPath(`tune-practice-${viewport.width}.png`), fullPage: true });
 
 		// Actual transposition and session tempo feed the same route callbacks.
-		await page.getByLabel('Key', { exact: true }).selectOption('G');
+		await openTuneSettings(page);
+		await page.getByLabel('Written key', { exact: true }).selectOption('G');
+		await page.locator('details.sd-advanced > summary').click();
 		await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^G6$/ }).first()).toBeVisible();
-		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-		await tempo.fill('135');
-		await tempo.press('Tab');
-		await expect(tempo).toHaveValue('135');
+		const tempo = page.getByRole('slider', { name: 'Tempo', exact: true });
+		await setTuneTempo(page, 135);
+
+		await expect(tempo).toHaveAttribute('aria-valuenow', '135');
 		expect(await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:settings') ?? '{}').tuneTempos['e2e-when-the-saints'])).toBe(135);
 
-		await page.locator('details.tp-options summary').click();
-		await expect(page.getByRole('radiogroup', { name: 'Mode', exact: true })).toBeVisible();
-		await expect(page.getByRole('radio', { name: 'Automatic licks', exact: true })).toBeChecked();
-		await expect(page.getByRole('radio', { name: 'Lick names', exact: true })).toBeChecked();
-		const options = page.locator('details.tp-options');
-		await expect(options.locator('.so-head')).toHaveCount(2);
-		await page.getByRole('radio', { name: 'Progressions', exact: true }).check();
-		await expect(page.locator('.td-reading-footer')).toContainText('Progression cues');
-		await page.getByRole('radio', { name: 'Play freely', exact: true }).check();
-		await expect(page.getByRole('radiogroup', { name: 'Chart cues' })).toHaveCount(0);
+		await page.getByLabel('Chart cues').selectOption('standard');
+		await page.getByLabel('Practice mode').selectOption('freestyle');
+		await expect(page.getByLabel('Chart cues')).toBeHidden();
 		await expect(page.locator('.tp-insertion-status')).toContainText('No insertion windows');
-		await page.getByRole('radio', { name: 'Automatic licks', exact: true }).check();
-		await expect(page.getByRole('radio', { name: 'Progressions', exact: true })).toBeChecked();
-		await page.getByRole('radio', { name: 'Lick names', exact: true }).check();
-		await expect(options).toBeVisible();
-		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-		await options.screenshot({ path: info.outputPath(`session-options-${viewport.width}.png`) });
-		await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).press('ArrowUp');
+		await page.getByLabel('Practice mode').selectOption('suggest');
+		await expect(page.getByLabel('Chart cues')).toHaveValue('standard');
+		await page.getByLabel('Choruses', { exact: true }).press('ArrowUp');
 		await expect(page.locator('.tp-insertion-status')).toContainText('6 insertion points');
-		await page.locator('details.tp-options summary').click();
-		await expect(page.locator('details.tp-options summary')).toContainText('2 solos');
-
-		await page.getByRole('button', { name: '⛶ Focus' }).click();
-		await expect(page.getByRole('complementary', { name: 'Practice settings' })).toBeHidden();
-		await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
-		await page.keyboard.press('Escape');
-		await expect(page.getByRole('complementary', { name: 'Practice settings' })).toBeVisible();
 	});
 }
 
@@ -94,32 +75,34 @@ for (const width of [1440, 390]) {
 	test(`automatically names a known lick before Start at ${width}px`, async ({ page }, info) => {
 		await page.setViewportSize({ width, height: 1000 });
 		await seedKnownLick(page);
-		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await page.goto('/tunes/e2e-when-the-saints?licks=1');
 		// The chart deliberately truncates long names to the band width on a phone;
 		// the setup list must retain the full name and written key at every width.
 		const inventory = page.getByRole('list', { name: 'Licks that fit this tune', exact: true });
 		const name = inventory.getByText('My Dominant Line', { exact: true });
 		await expect(name.first()).toBeVisible();
 		await expect(page.locator('svg text.range-marker-label').filter({ hasText: /My Dominant/ }).first()).toBeVisible();
-		await expect(page.getByRole('radiogroup', { name: 'Mode', exact: true })).toBeHidden();
+		await expect(page.getByLabel('Practice mode')).toBeVisible();
 		await expect(page.locator('.tp-insertion-status')).toContainText('with a matching lick from your book');
 		await page.screenshot({ path: info.outputPath(`named-lick-${width}.png`), fullPage: true });
 
 		// The displayed suggestions must react to the same readiness rules as Start.
-		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-		await tempo.fill('135');
-		await tempo.press('Tab');
+
+		await setTuneTempo(page, 135);
+
 		await expect(name).toBeVisible();
 		await expect(inventory).toContainText('Needs practice');
 		await expect(page.locator('svg text.range-marker-label').filter({ hasText: /My Dominant/ })).toHaveCount(0);
 		await expect(page.locator('.tp-insertion-status')).toContainText('No matching licks from your book are ready');
-		await tempo.fill('100');
-		await tempo.press('Tab');
+		await setTuneTempo(page, 100);
+
 		await expect(name.first()).toBeVisible();
-		await page.getByLabel('Key', { exact: true }).selectOption('E');
+		await openTuneSettings(page);
+		await page.getByLabel('Written key', { exact: true }).selectOption('E');
 		await expect(name).toBeVisible();
 		await expect(inventory).toContainText('Needs practice');
-		await page.getByLabel('Key', { exact: true }).selectOption('D');
+		await openTuneSettings(page);
+		await page.getByLabel('Written key', { exact: true }).selectOption('D');
 		await expect(name.first()).toBeVisible();
 	});
 }
@@ -130,24 +113,25 @@ test('Start carries the proposed lick into the existing playing chart by default
 	await seedKnownLick(page);
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
-	await page.goto('/tunes/e2e-when-the-saints/practice');
+	await page.goto('/tunes/e2e-when-the-saints?licks=1');
 	await expect(page.locator('svg text.range-marker-label').filter({ hasText: 'My Dominant Line · A' }).first()).toBeVisible();
-	await page.locator('details.tp-options summary').click();
-	await expect(page.getByRole('radio', { name: 'Lick names', exact: true })).toBeChecked();
-	await page.getByRole('switch', { name: 'Play head and outro' }).click();
-	await page.getByRole('button', { name: 'Start', exact: true }).click();
-	await expect(page.getByRole('button', { name: 'End', exact: true })).toBeVisible({ timeout: 45_000 });
+
+	await expect(page.getByLabel('Chart cues')).toHaveValue('guided');
+	await page.getByRole('switch', { name: 'Head' }).click();
+	await page.getByRole('switch', { name: 'Outro', exact: true }).click();
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 45_000 });
 	await expect(page.locator('[data-testid="tune-chord-chart"] [data-marker-id]').filter({ hasText: 'My Dominant Line · A' }).first()).toBeAttached({ timeout: 15_000 });
-	await page.getByRole('button', { name: 'End', exact: true }).click();
+	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible();
 });
 
 test('a tune without detected changes still offers the existing play-along path', async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [{ ...SAINTS_USER_TUNE, id: 'e2e-no-changes', sections: SAINTS_USER_TUNE.sections.map(section => ({ ...section, harmony: [] })) }]);
-	await page.goto('/tunes/e2e-no-changes/practice');
+	await page.goto('/tunes/e2e-no-changes?licks=1');
 	await expect(page.locator('.tp-insertion-status')).toContainText('No known progressions detected');
-	await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
 	await expect(page.locator('svg rect.range-marker')).toHaveCount(0);
 });
 
@@ -175,7 +159,7 @@ for (const width of [1440, 390]) {
 				['C', 'F'].map(key => [key, { passCount: 3, currentTempo: i === 3 ? 80 : 140, lastPracticedAt: 1 }])
 			)]))
 		});
-		await page.goto('/tunes/e2e-cadence-vocabulary/practice');
+		await page.goto('/tunes/e2e-cadence-vocabulary?licks=1');
 		const list = page.getByRole('list', { name: 'Licks that fit this tune', exact: true });
 		for (const name of names) await expect(list.getByText(name, { exact: true })).toBeVisible();
 		await expect(page.locator('.tp-guide')).toContainText('3 ready now · 1 need practice');
@@ -198,9 +182,9 @@ for (const width of [1440, 390]) {
 		await expect(labels.filter({ hasText: 'Major C' }).first()).toBeVisible();
 		await list.getByText('Major C', { exact: true }).click();
 		await expect(labels.filter({ hasText: 'Major C' })).toHaveCount(0);
-		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-		await tempo.fill('80');
-		await tempo.press('Tab');
+
+		await setTuneTempo(page, 80);
+
 		await expect(page.locator('.tp-guide')).toContainText('4 ready now · 0 need practice');
 		await expect(page.locator('body')).toHaveJSProperty('scrollWidth', width);
 	});

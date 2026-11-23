@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
@@ -23,18 +24,19 @@ for (const focus of [false, true]) {
 		);
 		await page.goto('/tunes/autumn-layout');
 		await expect.poll(signature).toEqual(Array(8).fill(4));
-		await page.goto('/tunes/autumn-layout/practice');
+		await page.goto('/tunes/autumn-layout?licks=1');
 		await expect.poll(signature).toEqual(Array(8).fill(4));
 		if (focus) {
-			await page.getByRole('button', { name: '⛶ Focus' }).click();
+			await openTuneSettings(page);
+			await page.getByRole('button', { name: 'Focus' }).click();
 			await expect.poll(signature).toEqual(Array(8).fill(4));
 		}
-		await page.getByRole('button', { name: 'Start', exact: true }).click();
-		await expect(page.getByRole('button', { name: 'End', exact: true })).toBeVisible({ timeout: 45_000 });
-		await expect(page.getByText('Head', { exact: true })).toBeVisible({ timeout: 30_000 });
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 45_000 });
+		await expect(page.locator('.practice-session').getByText('Head', { exact: true })).toBeVisible({ timeout: 30_000 });
 		// Playback reuses the same 32-bar chart for each pass.
 		await expect.poll(signature).toEqual(Array(8).fill(4));
 		await page.screenshot({ path: info.outputPath(`autumn-head-focus-${focus}.png`), fullPage: true });
-		await page.getByRole('button', { name: 'End', exact: true }).click();
+		await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	});
 }

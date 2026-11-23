@@ -103,6 +103,7 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		for (const playHead of [true, false]) {
 			initTunePractice(endings);
 			tunePractice.config.playHead = playHead;
+			tunePractice.config.playOutro = playHead;
 			tunePractice.config.choruses = 2;
 			const audio = startTunePracticeSession(endings, 480);
 			const minorWindows = tunePractice.plan.filter(ip => ip.progressionType === 'minor-vamp');
@@ -197,6 +198,20 @@ describe('setup proposes the same known licks as the playing session', () => {
 			mode: 'suggest', strictness: 'guided', tempo: 100,
 			concertKey: autumnLeaves.key, playHead: true, choruses: 2
 		});
+	});
+
+	it('carries the selected Points target from the preview into matching scored windows', () => {
+		tunePractice.config.mode = 'points';
+		tunePractice.config.targetLick = 'second-minor-lick';
+		const preview = previewSessionPlan(autumnLeaves, true, 2);
+		expect(preview.targetLicks).toContainEqual({ id: 'second-minor-lick', name: 'Another Minor Line' });
+		expect(preview.markers.some(marker => marker.lickName?.includes('Another Minor Line'))).toBe(true);
+		startTunePracticeSession(autumnLeaves, 480);
+		const eligible = tunePractice.plan.filter(point => point.suggestions.some(s => s.lickName === 'Another Minor Line'));
+		expect(eligible.length).toBeGreaterThan(0);
+		for (const point of eligible) {
+			expect(point.suggestions[tunePractice.pickedSuggestion[point.id]].lickName).toBe('Another Minor Line');
+		}
 	});
 
 	it.each([true, false])('previews automatic rotation and role windows without starting a session (head %s)', (playHead) => {
