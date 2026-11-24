@@ -328,7 +328,7 @@ const SINGLE_CHORD_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [1, 1] }  // E4 (3) — settle on the third
 		],
 		harmony: CMAJ_2BAR,
-		difficulty: { level: 25, pitchComplexity: 35, rhythmComplexity: 15, lengthBars: 2 },
+		difficulty: { level: 27, pitchComplexity: 35, rhythmComplexity: 15, lengthBars: 2 },
 		category: 'digital-patterns',
 		tags: ['major', '4th', '7th', 'sixths', 'intervals', 'descending'],
 		source: 'curated'
@@ -445,7 +445,7 @@ const SINGLE_CHORD_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }  // C4 — home
 		],
 		harmony: CMAJ_2BAR,
-		difficulty: { level: 31, pitchComplexity: 44, rhythmComplexity: 18, lengthBars: 2 },
+		difficulty: { level: 34, pitchComplexity: 44, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'digital-patterns',
 		tags: ['major', '4th', '7th', 'intervals', 'pedal-point'],
 		source: 'curated'

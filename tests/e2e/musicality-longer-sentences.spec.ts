@@ -11,7 +11,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.17 full Blues develops 
  requireRealtimeAudio(page);test.setTimeout(240_000);
  await observeListeningOutput(page);
  await seedOnboardedAnonymous(page);await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  // Pin the 0.17 audition recipe independently of the current release example.
  await page.getByTestId('listening-tune').selectOption('ls-mankunku-blues');

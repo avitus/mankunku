@@ -12,7 +12,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.16 full Blues with ${ke
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.addInitScript(()=>{const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{if(array instanceof Uint32Array&&array.length===1){array[0]=256;return array;}return random(array);}) as typeof crypto.getRandomValues;});
  await page.reload();

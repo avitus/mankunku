@@ -17,7 +17,7 @@ test('0.13 full Blues sounds all three phrase colors and shows their actual live
   }) as typeof crypto.getRandomValues;
  });
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-style').selectOption('swing');
  await page.getByTestId('listening-keyboard').selectOption('piano');
  await page.getByTestId('listening-tempo').fill('140');
