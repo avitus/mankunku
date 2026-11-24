@@ -17,6 +17,8 @@ test('plays a keyboard statement and its displaced snare answer across the Swing
  await page.getByTestId('listening-keyboard').selectOption(organ ? 'organ' : 'piano');
  await page.getByTestId('listening-displaced-answer').click();
  await expect(page.getByTestId('listening-style')).toHaveValue('swing');
+ await expect(page.getByTestId('listening-release-focus')).toContainText(organ
+  ? 'snare answers on the offbeats of three and four' : 'snare answers on two and the and of three');
  await page.getByTestId('listening-play').click();
  await expect(page.getByTestId('listening-status')).toHaveText('Playing', { timeout: 90_000 });
  await expect(page.locator('[data-testid="musician-piano"][data-bar-index="22"]')).toBeVisible({timeout:90000});
@@ -33,9 +35,11 @@ test('plays a keyboard statement and its displaced snare answer across the Swing
  expect(take.provenance.dispatches.every((d: RollingBackingDispatch) => d.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;
  const hits=generated.drumEvents.filter(e=>e.displacedAnswer?.bar===22 && Math.floor(e.absBeat/4)===24);
- expect(hits.map(e=>e.absBeat%4)).toEqual([1,2.5]);
+ const sourceOffsets = organ ? [1.5, 2.5] : [0, 1.5];
+ expect(hits.map(e=>e.absBeat%4)).toEqual(sourceOffsets.map(beat=>beat+1));
+ expect(hits[0].displacedAnswer?.offsets).toEqual(sourceOffsets);
  expect(hits.every(e=>e.drum==='snare' && e.displacedAnswer?.player==='piano')).toBe(true);
  expect(hits[1].velocity).toBeGreaterThan(hits[0].velocity);
- expect(generated.compEvents.filter(e=>Math.floor(e.absBeat/4)===22).map(e=>e.absBeat%4)).toEqual(expect.arrayContaining([0,1.5]));
+ expect(generated.compEvents.filter(e=>Math.floor(e.absBeat/4)===22).map(e=>e.absBeat%4)).toEqual(expect.arrayContaining(sourceOffsets));
  await info.attach('swing-displaced-answer', { path, contentType: 'application/json' });
 });

@@ -245,7 +245,13 @@
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
     <p><button class="release-example" data-testid="listening-displaced-answer" onclick={() => loadReleaseExample('displaced-answer')} disabled={busy}>Load 0.27 Swing call and answer ↗</button>
-     · S3, S38, S39. In Solo 1 bar 7, tap the keyboard on one and the swung and of two. Keep counting through bar 8. In bar 9 the snare plays the pair on two and the and of three.</p>
+     · S3, S38, S39.
+     {#if keyboard === 'organ'}
+      In Solo 1 bar 7, tap the organ on the swung offbeats of two and three. In bar 9 the snare answers on the offbeats of three and four.
+     {:else}
+      In Solo 1 bar 7, tap the piano on one and the swung and of two. In bar 9 the snare answers on two and the and of three.
+     {/if}
+     Keep counting through bar 8. The second note carries the accent.</p>
     <p><button class="release-example" data-testid="listening-rhythm-memory" onclick={() => loadReleaseExample('rhythm-memory')} disabled={busy}>Load 0.26 Swing rhythmic answers ↗</button>
      · S3, S38, S39. In Solo 2 listen for the ride on beats two and three of bar 3, the bass on two and four of bar 5, and the keyboard on the offbeats of bar 11. The musician cards identify the earlier player and bar.</p>
     <p><button class="release-example" data-testid="listening-ballad-third" onclick={() => loadReleaseExample('ballad-solo')} disabled={busy}>Load 0.25 Ballad solo ↗</button>
