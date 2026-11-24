@@ -83,7 +83,8 @@ describe('Ear Training console', () => {
 		const { body } = render(EarTrainingConsole, {props: {...base, elapsedMs: 0, phase: 'ready', quote: ''}});
 		expect(body).not.toContain('role="timer"');
 		expect(body).not.toContain('Last take');
-		expect(body).toContain('Score after your first take.');
+		expect(body).toContain('aria-label="Your score"');
+		expect(body).toContain('aria-label="Backing cancellation off"');
 		expect(body).not.toContain('89');
 	});
 

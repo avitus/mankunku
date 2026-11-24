@@ -1,0 +1,34 @@
+{
+  "swing/piano": {
+    "events": "c7263166b210cd72382d0ea36f441fa088faa85d3dad2840b410938d188f4ff6",
+    "fullBar": "82a3f2ddd8d805d2b0cba9173da441e2cd5cab4fd78fab2f3918ae9710ece7a0"
+  },
+  "swing/organ": {
+    "events": "cab80afeea73a69502e6feadb5411ddba889a47cb15e84336588ab45a9c8bbce",
+    "fullBar": "f0d2dfc308d6e63c85a58c3c00076737f33f16ccb3b9e77fc17ad6d640e21f81"
+  },
+  "straight/piano": {
+    "events": "016095516b495f5d8ecdb3d9ccc3d7b79ecf6417617c8de618d64cd2c2621b3b",
+    "fullBar": "43313a3e672e83827f1011f6d1f6d5e06c161c4c2065eda214a6ff7ed8b7bafa"
+  },
+  "straight/organ": {
+    "events": "a45797755ea4d2b340955fa580d130ac39eea3894ef7c9efd3654eb4652fd629",
+    "fullBar": "8a4eb79694cbabfc5847203cdf70cb0fa1fc6a612bbc4c9c8b60dcd76c84860c"
+  },
+  "bossa-nova/piano": {
+    "events": "f3aec435723df832d3c3f850fe6aabdcf26aa71be676147c9e25ad043d9d5faf",
+    "fullBar": "f909343630d4fcd992954cf774a93097ef67ec094af7034c0dd45b271290596f"
+  },
+  "bossa-nova/organ": {
+    "events": "cd7f30f32a1e688b4fef6908f683297cc16aa3334ce61eeff8d816cdbc047703",
+    "fullBar": "22531de9b0e5277c81d6a6da60aacf78dcb88fb45d1b2153688bf0e3c1a94bd7"
+  },
+  "ballad/piano": {
+    "events": "f521912c1e49c2c5aa7238a779eb6ed83875ce0a4aca4068629d343b3b80fad9",
+    "fullBar": "7fd109ad5ffc73750e58a2d7e6f2a83b28ac86e1e13267f2bb8aeaabe22c2a7e"
+  },
+  "ballad/organ": {
+    "events": "ef3cc9f936e0515976fd319f820e064d786b2d05849a19bfe5b64a98ee468de9",
+    "fullBar": "9c721f97f4ca4f892b765aa0e3e434a56b5f7224e678a7e4e67ff1e030fb5c94"
+  }
+}

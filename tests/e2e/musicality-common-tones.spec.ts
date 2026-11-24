@@ -22,7 +22,11 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
  if(choice==='initial')await page.addInitScript(chooseNextArc,seed);
  await page.goto('/musicality');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
- if(choice!=='initial')await page.getByTestId('listening-release-example').click();
+ if (choice !== 'initial') {
+  await page.getByTestId('listening-release-example').click();
+  await page.getByTestId('listening-style').selectOption('swing');
+  await page.getByTestId('listening-tempo').fill('140');
+ }
  if(choice===10){
   // Make the user-facing random-arc choice reproducible, without replacing
   // audio, transport time or generation. Restore randomness after this click.
@@ -31,11 +35,16 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
  }
  await expect(page.getByTestId('listening-tempo')).toHaveValue('140');
  await page.getByTestId('listening-play').click();
- await expect(page.getByTestId('listening-status')).toHaveText('Playing',{timeout:90_000});
- const evidence = await page.evaluate((keyboard)=>new Promise<{carry:number;breath:number;peaks:number[];pianoBars:Record<string,number>}>(resolve=>{
-  const data={carry:0,breath:0,peaks:[-60,-60,-60,-60],pianoBars:{} as Record<string,number>};
+ const status = page.getByTestId('listening-status');
+ await expect(status).toHaveText(/^(Playing|Unable to play)$/, { timeout: 90_000 });
+ if (await status.textContent() === 'Unable to play') throw new Error(await page.getByRole('alert').allTextContents().then(lines => lines.join(' · ')));
+ const evidence = await page.evaluate((keyboard)=>new Promise<{carry:number;breath:number;walkingTrio:boolean;peaks:number[];pianoBars:Record<string,number>}>(resolve=>{
+  const data={carry:0,breath:0,walkingTrio:false,peaks:[-60,-60,-60,-60],pianoBars:{} as Record<string,number>};
   const timer=setInterval(()=>{
    const card=document.querySelector('[data-testid="musician-piano"]')?.textContent??'';
+   if (card.includes('Offbeat chord accented between walking bass notes') &&
+    document.querySelector('[data-testid="musician-bass"]')?.textContent?.includes('Walking quarter held for') &&
+    document.querySelector('[data-testid="musician-drums"]')?.textContent?.includes('Ride backbeat accented')) data.walkingTrio = true;
    if(card.includes('Carry common tones into the next chord'))data.carry++;
    if(card.includes('Voice the new chord around held tones'))data.breath++;
    for(const [i,label] of ['Bass',keyboard==='organ'?'Organ':'Piano','Drums','Backing'].entries()){
@@ -58,6 +67,15 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
  expectEveryBarCommittedWithLead(take.playback,52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
  const generated=take.playback.generated as GeneratedBacking;
+ if (seed === 3) {
+  expect(evidence.walkingTrio).toBe(true);
+  for (const bar of [31,32,34]) {
+   const inBar = (e:{absBeat:number}) => Math.floor(e.absBeat/4) === bar-1;
+   expect(generated.bassEvents.some(e => inBar(e) && e.walkingGateBefore && e.duration < e.walkingGateBefore)).toBe(true);
+   expect(generated.compEvents.some(e => inBar(e) && e.walkingOffbeatLift && e.absBeat % 1 === .5)).toBe(true);
+   expect(generated.drumEvents.some(e => inBar(e) && e.walkingBackbeatLift && e.drum === 'ride' && e.absBeat % 2 === 1)).toBe(true);
+  }
+ }
  const carries=generated.compEvents.filter(e=>e.barLineSustain?.version===2);
  expect(carries.length).toBeGreaterThan(0);
  for(const held of carries){

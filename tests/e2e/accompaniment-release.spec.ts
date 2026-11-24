@@ -65,7 +65,8 @@ test(`normal ${style} ${keyboard} completes a whole Blues with continuous native
  if (await metronome.getAttribute('aria-checked') === 'true') await metronome.click();
  await expect(band.getByRole('switch', { name: 'Backing track', exact: true })).toBeChecked();
  await page.getByRole('button', { name: 'Play', exact: true }).click();
- await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 60_000 });
+ // Stop is available while samples load. Start the chorus budget on the sounding head.
+ await expect(page.locator('.td-status strong')).toHaveText(/^Head · Bar /, { timeout: 60_000 });
  await expect(page.getByText(/Solo 2/).first()).toBeVisible({ timeout: 50_000 });
  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 35_000 });
  const observed = await page.evaluate(() => {

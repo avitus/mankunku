@@ -717,8 +717,9 @@ test(`key centers follow the solo and respect the setup switch: ${style}, ${show
 	const chart = page.getByTestId('tune-chord-chart');
 	await expect(chart).toBeVisible({ timeout: 20_000 });
 	await expect(chart.locator('.solo-cues').first()).toBeVisible();
+	// Playback focus keeps the legend off the page while the solo chart carries the colors.
+	await expect(legend).toBeHidden();
 	if (showCenters) {
-		await expect(legend).toBeVisible();
 		const centers = chart.locator('.solo-harmony[data-key-center]');
 		await expect(centers.first()).toBeVisible();
 		await expect(centers.first()).toHaveAttribute('data-treatment', style === 'Full bar' ? 'full-bar' : 'top-strip');

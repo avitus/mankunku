@@ -17,7 +17,7 @@ test('0.12 gestures retained in current full Blues sounds all three gestures and
   }) as typeof crypto.getRandomValues;
  });
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-style').selectOption('swing');
  await page.getByTestId('listening-keyboard').selectOption('piano');
  await page.getByTestId('listening-tempo').fill('140');

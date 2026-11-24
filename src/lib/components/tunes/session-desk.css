@@ -123,3 +123,19 @@
 .sd-header .sd-advanced{margin-left:auto}
 .sd-page .le-panel.td-detail-chart{padding:8px}
 }
+
+.sd-setup, .unified-practice {
+  transition: opacity 160ms ease-out, display 160ms allow-discrete;
+}
+.sd-playing .sd-setup, .sd-page.sd-playing .unified-practice {
+  opacity:0;
+  display:none;
+}
+.sd-playing :is(.sd-title p, .tp-insertion-status, .tp-vocabulary, .key-center-guide) {display:none}
+.sd-playing .sd-header {flex-wrap:nowrap;margin-bottom:8px}
+.sd-playing .sd-title {flex:1;min-width:0;overflow-wrap:anywhere}
+.sd-playing .le-panel.td-detail-chart {margin-top:8px}
+.sd-page.sd-playing button.sd-play {min-width:0;min-height:44px;padding:0 14px;background:transparent;color:var(--sd-muted);border-color:var(--sd-line);box-shadow:none}
+@media (prefers-reduced-motion:reduce) {
+  .sd-setup, .unified-practice {transition:none}
+}

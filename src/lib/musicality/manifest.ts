@@ -326,7 +326,7 @@ const foundationAssessments: Record<string, string> = {
 	S28: "Completed density/rest observations can restrain future piano/drum commentary and bass ornament admission, or reserve a selective response during the same take. Missing or uncertain input retains a form-led accompaniment.",
 	S31: 'The planner assigns multi-bar phrase intentions and instrument roles before realization. A whole-performance energy target now biases phrase choices and restraint budgets while qualified solo evidence retains priority.',
 	S32: 'Coordinated notes share smooth phrase motion, player placement and smaller independent residuals. Bass/drum arrivals share an exact tick, and the lab exports phrase timing decisions.',
-	S33: 'Explicit-form performance arcs now shape shared energy through heads, solo build/peak/release and the ending. The listening desk opts into seeded solo waves that span chorus boundaries, with varied delays, crests and releases; replay keeps the captured arc and New energy arc chooses another. It plots the complete nominal contour with actual pass lengths and a live or silent-review cursor; Original shows form only. Eligible Coordinated listening-studio returning heads can reserve the two bars after the arrival for piano space; native comping then resumes when admitted. Smaller phrase movement feeds existing dynamic, density and color weights, with native style ceilings retained.',
+	S33: 'In 0.21.0 a plain four-quarter walking bass shares the current arc with the keyboard and ride. The bass changes note length, offbeat chords gain definition, and the ride leans on beats two and four. Explicit-form performance arcs now shape shared energy through heads, solo build/peak/release and the ending. The listening desk opts into seeded solo waves that span chorus boundaries, with varied delays, crests and releases; replay keeps the captured arc and New energy arc chooses another. It plots the complete nominal contour with actual pass lengths and a live or silent-review cursor; Original shows form only. Eligible Coordinated listening-studio returning heads can reserve the two bars after the arrival for piano space; native comping then resumes when admitted. Smaller phrase movement feeds existing dynamic, density and color weights, with native style ceilings retained.',
 	S37: 'Shared budgets and response/fill cooldowns now address simultaneous busyness and repeated reactions.',
 	S38: "Versioned JSON checkpoints retain ensemble cooldowns and arrivals, piano motif/voicing history, bass pitch history and accepted launches, drum phrase state and prior emitted piano onsets. Rolling realization resumes one absolute bar at a time across declared loops without resetting observation times or instrument history. Immutable renderer evidence is reused between state changes. Accepted rolling bars are armed on the native audio clock with owned cancellation, so a late UI callback cannot delay already committed notes; causal generation, exact musical events and deadline guards remain unchanged. Failed committed playback retains diagnostic evidence.",
 	S39: 'Piano and drum motifs now develop through scoped repetition, displacement, shortening, orchestration and space. Later cells must fit their current bar; withheld material has an explicit reason and does not rewrite its earlier source.',
@@ -367,7 +367,7 @@ const foundationRemaining: Record<string, string> = {
 
 const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> = {
 	D1: ['partial', 'Coordinated ride time varies skip placement and velocity within a remembered two-to-four-bar phrase.', 'Cymbal note-length control remains absent; the renderer still uses its existing sample articulation.'],
-	D7: ['implemented', 'Selected complete solo-peak phrases sustain bell timekeeping at higher energy, preserve quarter-note pulse and return to ride; consecutive bell phrases are excluded.', 'Scoped to explicit coordinated Swing/Straight. Short peaks, incomplete phrases, dense solo evidence at selection and quiet energy retain ordinary ride. Human listening acceptance remains pending.'],
+	D7: ['implemented', 'In 0.23.0 a Swing ride skip can catch a bass pickup on the bell. Selected complete solo-peak phrases sustain bell timekeeping at higher energy, preserve quarter-note pulse and return to ride; consecutive bell phrases are excluded.', 'Scoped to explicit coordinated Swing/Straight. Short peaks, incomplete phrases, dense solo evidence at selection and quiet energy retain ordinary ride. Human listening acceptance remains pending.'],
 	D4: ['implemented', 'The coordinated drummer retains a ride cell across two to four bars, with repetition, variation and release over its phrase.', 'Quarter-note time remains explicit. Broader ride textures, cross-phrase motif development and listening acceptance remain pending.'],
 	D23: ['implemented', 'A named snare Charleston cell is available as a commentary motif source, subject to the current bar’s allowance.', 'Its reprises can be withheld for space, another response or a setup; listening acceptance remains pending.'],
 	D24: ['implemented', 'An eighth-note displacement of the remembered snare Charleston produces its complementary and-of-1 / beat-3 rhythm as a complete commentary cell.', 'Available through motif displacement within the current phrase; a separate reverse-Charleston selection policy and listening acceptance remain pending.'],
@@ -382,17 +382,44 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'B13' || entry.id === 'P3') return { ...entry, status: entry.id === 'B13' ? 'partial' : 'implemented',
+  assessment: entry.id === 'B13' ? 'The Swing bass can open the first bar of a long dominant by dropping beat two, anticipating the third pulse and keeping beat four.'
+   : 'Alongside its existing Charleston figure, the Swing keyboard can play one and the swung and of two to catch an actual bass riff.',
+  scope: '0.23.0 adds interaction over long dominant sevenths in an explicit Swing solo form.',
+  remaining: 'Other omission patterns and full-tune listening feedback remain open.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), source('backing-rolling-piano'), test('backing-dominant-riff')] };
+ if (entry.id === 'B4' || entry.id === 'D13') return { ...entry, status: 'partial',
+  assessment: entry.id === 'B4'
+   ? 'A Ballad out-head can open the pulse to one sustained bass attack over a settled chord.'
+   : 'Over that held bass the Ballad drummer plays the ride on one and three, keeping the foot hat on two and four.',
+  scope: '0.22.0, unreserved bars in the returning Ballad head over one written harmony.',
+  remaining: 'Extending the device to other sections and human full-tune listening are pending.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), source('backing-drum-phrases'), test('backing-ballad-return')] };
+ if (entry.id === 'B34') return { ...entry, status: 'partial',
+  assessment: 'In 0.22.0 the Bossa bassist can lift a repeated pickup an octave on the and of two, then drop onto the low fifth on beat three.',
+  scope: 'Bossa solo build and peak over a stable bar of harmony.',
+  remaining: 'Other grooves and broader register choices remain open.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), test('backing-bossa-pickup')] };
+ const walkingAssessments: Record<string, string> = {
+  B47: 'The bass releases walking quarters earlier in relaxed passages, then lets them ring longer as the performance builds.',
+  P5: 'Over a bar of four walking quarters, an existing offbeat piano or organ chord can speak more strongly as the band builds.',
+  D5: 'The ride cymbal emphasizes beats two and four over plain walking time. The strength follows the arc across choruses.'
+ };
+ if (walkingAssessments[entry.id]) return { ...entry, status: 'implemented',
+  assessment: walkingAssessments[entry.id], scope: '0.21.0, ordinary Swing and Straight walking passages in a declared 4/4 form.',
+  remaining: 'Full-tune listening feedback on the balance of the three players is pending.',
+  evidence: [...entry.evidence, source('backing-rolling'), source('backing-rolling-piano'), source('backing-drum-phrases'), test('backing-performance-touch')] };
  const sentenceAssessments: Record<string,string> = {
   P12: '0.17.0 extends selected Swing/Straight keyboard motifs through an eight-bar solo sentence. A statement is retained only after it sounds, then returns, moves or answers against each current harmony. Protected arrivals may postpone the statement by up to two bars.',
-  P13: '0.17.0 develops the same accepted keyboard source across adjacent four-bar units with seeded repetition, displacement, answer and a shortened conclusion. Current response and support permissions still own each bar.',
+  P13: 'In 0.22.0 the Bossa keyboard can move its second chord behind an octave bass pickup, keeping the first chord in place. 0.17.0 develops the same accepted keyboard source across adjacent four-bar units with seeded repetition, displacement, answer and a shortened conclusion. Current response and support permissions still own each bar.',
   B30: '0.17.0 gives selected Swing/Straight solo passages one eight-bar register contour rather than restarting the aim after four bars. Legal chord targets, approaches and stepwise interior choices follow that longer direction; committed launches retain priority.',
   D4: '0.17.0 can retain a Swing/Straight ride phrase across eight bars of a solo section. Its middle is a continuation, with release at the sentence end; timekeeping and current commentary allowances remain protected.',
   D28: '0.17.0 carries a drum commentary motif through an eight-bar sentence with repetition, displacement, optional gaps and concluding orchestration. Internal four-bar fill permission does not prematurely end that sentence; authored sections, chorus endings and reserved setups retain priority.'
  };
  if(sentenceAssessments[entry.id]) return { ...entry, status:'partial', assessment:sentenceAssessments[entry.id],
   remaining:'Four- and eight-bar phrases vary by seed and stay inside authored sections/choruses. Broader phrase lengths, pedal and sample-tail control, general solo imitation and human full-tune listening acceptance remain pending. Bossa/Ballad retain native bass/drum rhythm; their keyboard top-note direction can span eight bars.',
-  scope:'Current Musicality uses these longer sentences app-wide. Load the 0.19 example for Mankunku Blues and common-tone keyboard connections through changing harmony; no microphone input is inferred.',
-  evidence:[...entry.evidence,source('backing-sentences'),source('backing-rolling-piano'),source('backing-rolling-bass'),source('backing-drum-phrases'),test('backing-longer-sentences')] };
+  scope:entry.id === 'P13' ? 'Swing and Straight develop the retained cell. Bossa can displace the second native chord in response to its bassist.' : 'Current Musicality uses these longer sentences app-wide. Load the 0.19 example for Mankunku Blues and common-tone keyboard connections through changing harmony; no microphone input is inferred.',
+  evidence:[...entry.evidence,source('backing-sentences'),source('backing-rolling-piano'),source('backing-rolling-bass'),source('backing-drum-phrases'),test('backing-longer-sentences'),...(entry.id==='P13' ? [test('backing-bossa-pickup')] : [])] };
 
  if(['B36','P32','D17'].includes(entry.id))return {
   ...entry,status:'partial',
@@ -447,11 +474,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
   assessment:entry.id==='B9'
    ? 'Musicality 0.12.0 occasionally repeats a root on the second walking pulse, retaining the final approach, note count, gates and dynamics. Actual repeated notes can be heard by the drummer.'
    :entry.id==='D77'
-    ? 'Musicality 0.12.0 can give the existing beat-three kick more weight after an actually emitted bass repeat on beats one/two. A simultaneous keyboard attack, reserved response, setup or busy solo evidence prevents the catch. No extra drum onset is added.'
+    ? 'Bossa 0.22.0 reinforces the upright’s octave pickup with the existing kick on the and of two. Musicality 0.12.0 can give the existing beat-three kick more weight after an actually emitted bass repeat on beats one/two. A simultaneous keyboard attack, reserved response, setup or busy solo evidence prevents the catch. No extra drum onset is added.'
     : 'Musicality 0.12.0 can lower an existing inner ninth to a flat ninth on the last keyboard attack before a declared dominant-to-tonic change. Defining tones, top voice, native attacks and gates remain intact; actual colored notes become the voice-leading memory. Conflicting bass notes veto the color.',
-  remaining: 'Occasional generated-event interaction, not microphone motif recognition. Bass/drum additions are Swing/Straight only; keyboard color also uses existing Bossa/Ballad attacks. Other altered colors, broader bass motifs and human listening acceptance remain pending.',
-  scope:'Explicit Coordinated 0.12.0 trio-conversation policy, independently fingerprinted. Omission retains complete 0.11 events, traces and checkpoints; Original generation is unchanged.',
-  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance')]
+  remaining: 'Occasional generated-event interaction, not microphone motif recognition. The 0.12 bass/drum additions are Swing/Straight only; keyboard color also uses existing Bossa/Ballad attacks. Other altered colors, broader bass motifs and human listening acceptance remain pending.',
+  scope:entry.id === 'D77' ? 'Swing and Straight kick response since 0.12.0. Bossa pickup response in solo builds and peaks since 0.22.0.' : 'Explicit Coordinated 0.12.0 trio-conversation policy, independently fingerprinted. Omission retains complete 0.11 events, traces and checkpoints; Original generation is unchanged.',
+  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance'),...(entry.id==='D77' ? [test('backing-bossa-pickup')] : [])]
  };
 
 	if (['B49','D37'].includes(entry.id)) return {
@@ -507,7 +534,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	if (drumUpdate) return {
 		...entry, status: drumUpdate[0], assessment: drumUpdate[1], remaining: drumUpdate[2],
 		scope: 'Coordinated swing/straight 4/4 listening-lab preview; current kit and complete cells within the performed harmony. Original practice generation is unchanged.',
-		evidence: [...entry.evidence, ...drumDevelopmentEvidence, ...(entry.id === 'D7' ? structuralTextureEvidence : [])]
+		evidence: [...entry.evidence, ...drumDevelopmentEvidence, ...(entry.id === 'D7' ? [...structuralTextureEvidence, test('backing-dominant-riff')] : [])]
 	};
 	if (entry.id === 'P15' || entry.id === 'D65') return {
 		...entry, status: 'partial',
@@ -527,10 +554,10 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'P14') return {
 		...entry, status: 'partial',
-		assessment: 'In 0.20.0, Swing and Straight organ simplify figures in quiet bars, and Ballad piano and organ can voice a new chord on beat three. Version 0.19.2 restored Swing and Straight piano support in quiet phrases. The preceding releases added longer piano gates and one-beat carries (0.19.1), shared chord tones through harmony changes (0.19), and sustain over unchanged bar-line harmony (0.18). Version 0.11.0 brought short-chord and held-answer contrast to Swing and Straight solo phrases. Version 0.7.0 established distinct piano and organ articulation, compact Bossa gates and slower Ballad pads.',
+		assessment: 'In 0.22.0, a Ballad keyboard can divide a sustained pad into two chords and take beat three when the bass holds. In 0.20.0, Swing and Straight organ simplify figures in quiet bars, and Ballad piano and organ can voice a new chord on beat three. Version 0.19.2 restored Swing and Straight piano support in quiet phrases. The preceding releases added longer piano gates and one-beat carries (0.19.1), shared chord tones through harmony changes (0.19), and sustain over unchanged bar-line harmony (0.18). Version 0.11.0 brought short-chord and held-answer contrast to Swing and Straight solo phrases. Version 0.7.0 established distinct piano and organ articulation, compact Bossa gates and slower Ballad pads.',
 		remaining: 'Broader pedal technique, sample release envelopes and organ registration remain open. Full-tune listening feedback on articulation and balance is pending.',
 		scope: 'Released 4/4 accompaniment in all four styles. Protected support, replies, arrivals and endings retain priority. Historical policies omit the new flag. Other meters currently use basic accompaniment.',
-		evidence: [...entry.evidence, source('backing-keyboard-sustain'), test('backing-piano-continuity'), test('backing-piano-blues-support'), test('backing-ensemble-continuity'), test('backing-0191-compatibility'), test('backing-019-compatibility'), test('backing-common-tones'), test('backing-018-compatibility'), test('backing-cross-bar'), test('backing-meter'), { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
+		evidence: [...entry.evidence, test('backing-ballad-return'), source('backing-keyboard-sustain'), test('backing-piano-continuity'), test('backing-piano-blues-support'), test('backing-ensemble-continuity'), test('backing-0191-compatibility'), test('backing-019-compatibility'), test('backing-common-tones'), test('backing-018-compatibility'), test('backing-cross-bar'), test('backing-meter'), { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
 	};
 	if (entry.id === 'P31' || entry.id === 'P35') return {
 		...entry, status: 'partial',

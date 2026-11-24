@@ -286,7 +286,7 @@ test.describe('ear-training: saved take', () => {
 		await expect(page.getByRole('button', { name: 'Pause practice', exact: true })).toBeEnabled();
 		await page.getByRole('button', { name: 'Pause practice', exact: true }).click();
 		await expect(quote).not.toHaveText('');
-		await expect(page.locator('[data-tour="score-display"]')).toContainText('Last take');
+		await expect(page.getByRole('region', { name: 'Last take score' })).toBeVisible();
 		const scoreBefore = await page.locator('[data-tour="score-display"]').textContent();
 		await page.getByRole('button', { name: 'Start practice', exact: true }).click();
 		await expect(quote).toHaveText('');

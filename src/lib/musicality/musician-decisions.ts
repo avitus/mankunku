@@ -802,5 +802,33 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	if (bass.some(event => event.dominantRiff)) {
+		bassCard.action = 'Break the walk on the and of two';
+		bassCard.detail = 'The upright plays one, the swung and of two, then steps back into the walk on four.';
+	}
+	if (piano.some(event => event.dominantRiff)) {
+		pianoCard.action = 'Catch the bass with a Charleston';
+		pianoCard.detail = 'Two chords pick out the bassist’s downbeat and swung pickup.';
+	}
+	if (drums.some(event => event.dominantRiff)) drumCard.action = 'Catch the offbeat on the ride bell';
+	if (bass.some(event => event.balladHeldBass)) {
+		bassCard.action = 'Hold the downbeat through beat three';
+		bassCard.detail = 'One bass note carries the harmony through this bar of the returning head.';
+	}
+	if (piano.some(event => event.balladReturnAnswer)) {
+		pianoCard.action = 'Take beat three over the held bass';
+		pianoCard.detail = 'The downbeat chord supplies the harmony. The second chord brings the half-note pulse back into focus.';
+	}
+	if (bass.some(event => event.bossaOctavePickup)) bassCard.evidence.push('Octave pickup on the and of two, low fifth on three');
+	const bossaReply = piano.find(event => event.bossaReplyFrom !== undefined);
+	if (bossaReply) pianoCard.evidence.push(`Answer the bass on ${bossaReply.absBeat % 4 === 2.5 ? 'the and of three' : 'beat four'}`);
+	if (drums.some(event => event.bossaPickupKick)) drumCard.evidence.push('Kick accents the bass pickup under the rim-click clave');
+	const walkingQuarter = bass.find(e => e.walkingGateBefore !== undefined && e.duration < e.walkingGateBefore);
+	if (walkingQuarter) bassCard.evidence.push(`Walking quarter held for ${Math.round(walkingQuarter.duration * 1000)} ms`);
+	const offbeat = piano.find(e => e.walkingOffbeatLift && e.absBeat % 1 === .5);
+	if (offbeat) pianoCard.evidence.push('Offbeat chord accented between walking bass notes');
+	if (drums.some(e => e.walkingBackbeatLift && e.drum === 'ride' && e.absBeat % 2 === 1)) {
+		drumCard.evidence.push('Ride backbeat accented over the walking bass');
+	}
 	return [bassCard, pianoCard, drumCard];
 }

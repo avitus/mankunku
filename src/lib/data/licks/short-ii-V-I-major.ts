@@ -38,7 +38,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 8], offset: [5, 8] }
 		],
 		harmony: SHORT_II_V_MAJOR,
-		difficulty: { level: 10, pitchComplexity: 8, rhythmComplexity: 12, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 8, rhythmComplexity: 12, lengthBars: 1 },
 		category: 'short-ii-V-I-major',
 		tags: ['short', 'arpeggio'],
 		source: 'curated'
@@ -57,7 +57,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: SHORT_II_V_MAJOR,
-		difficulty: { level: 8, pitchComplexity: 6, rhythmComplexity: 8, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 9, rhythmComplexity: 8, lengthBars: 1 },
 		category: 'short-ii-V-I-major',
 		tags: ['short', 'arpeggio'],
 		source: 'curated'
@@ -81,7 +81,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 8], offset: [7, 8] }
 		],
 		harmony: SHORT_II_V_MAJOR,
-		difficulty: { level: 25, pitchComplexity: 20, rhythmComplexity: 30, lengthBars: 1 },
+		difficulty: { level: 26, pitchComplexity: 23, rhythmComplexity: 30, lengthBars: 1 },
 		category: 'short-ii-V-I-major',
 		tags: ['short', 'scalar'],
 		source: 'curated'
@@ -104,7 +104,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 74, duration: [1, 8], offset: [7, 8] }
 		],
 		harmony: SHORT_II_V_MAJOR,
-		difficulty: { level: 25, pitchComplexity: 22, rhythmComplexity: 28, lengthBars: 1 },
+		difficulty: { level: 25, pitchComplexity: 25, rhythmComplexity: 28, lengthBars: 1 },
 		category: 'short-ii-V-I-major',
 		tags: ['short', 'scalar'],
 		source: 'curated'
@@ -128,7 +128,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 8], offset: [7, 8] }
 		],
 		harmony: SHORT_II_V_MAJOR,
-		difficulty: { level: 40, pitchComplexity: 42, rhythmComplexity: 30, lengthBars: 1 },
+		difficulty: { level: 42, pitchComplexity: 47, rhythmComplexity: 30, lengthBars: 1 },
 		category: 'short-ii-V-I-major',
 		tags: ['short', 'chromatic'],
 		source: 'curated'
@@ -151,7 +151,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 8], offset: [7, 8] }
 		],
 		harmony: SHORT_II_V_MAJOR,
-		difficulty: { level: 45, pitchComplexity: 48, rhythmComplexity: 30, lengthBars: 1 },
+		difficulty: { level: 49, pitchComplexity: 57, rhythmComplexity: 30, lengthBars: 1 },
 		category: 'short-ii-V-I-major',
 		tags: ['short', 'enclosure', 'chromatic'],
 		source: 'curated'

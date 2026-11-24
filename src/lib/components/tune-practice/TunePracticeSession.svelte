@@ -846,7 +846,7 @@
 <div class="practice-session">
 	{#if tunePractice.phase === 'setup'}
 		{#if retryUnavailable && retrySpots.length}<p role="alert">Selected spots no longer match these settings. Restore the previous setup or practice all spots.</p>{/if}
-		{#if retrySpots.length && tunePractice.config.mode !== 'freestyle'}
+		{#if !isLoading && retrySpots.length && tunePractice.config.mode !== 'freestyle'}
 			<div class="flex items-center justify-between gap-3 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm">
 				<span>{retrySpots.length} selected {retrySpots.length === 1 ? 'spot' : 'spots'} · full tune backing</span>
 				<button class="text-[var(--color-brass)]" onclick={() => retrySpots = []}>Practice all spots</button>

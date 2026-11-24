@@ -275,7 +275,16 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 		await page.waitForFunction(() => 'speakerGraphReady' in window);
 		await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-		await expect(page.getByRole('img', {name: 'Backing cancellation on'})).toBeVisible({timeout: 25_000});
+		const lamp = page.getByRole('img', { name: 'Backing cancellation on' });
+		await expect(lamp).toBeVisible({timeout: 25_000});
+		if (mode === 'lick-practice') {
+			const button = await page.getByRole('button', { name: 'End Session' }).boundingBox();
+			const light = await lamp.boundingBox();
+			if (!button || !light) throw new Error('Missing session control bounds');
+			expect(light.width).toBe(6);
+			expect(light.y - (button.y + button.height)).toBeCloseTo(12, 0);
+			expect(light.x + light.width / 2).toBeCloseTo(button.x + button.width / 2, 0);
+		}
 		expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 		await expect(
 			page
@@ -472,7 +481,7 @@ for (const failure of ['unrelated microphone', 'stalled worklet'])
 		await page.goto('/ear-training');
 		await page.getByRole('button', { name: 'Start practice' }).click();
 		await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
-		await expect(page.getByText('Last take', { exact: true })).toBeVisible({ timeout: 45_000 });
+		await expect(page.getByRole('region', { name: 'Last take score' })).toBeVisible({ timeout: 45_000 });
 	});
 
 test('turning backing off releases the calibration microphone; a completed negative check is remembered', async ({ page, browserName }) => {

@@ -30,7 +30,7 @@ export const MINOR_CHORD_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [3, 4] }  // Bb
 		],
 		harmony: MINOR_CHORD,
-		difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 5, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 10, rhythmComplexity: 5, lengthBars: 1 },
 		category: 'minor-chord',
 		tags: ['minor', 'arpeggio'],
 		source: 'curated'
@@ -52,7 +52,7 @@ export const MINOR_CHORD_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 8], offset: [7, 8] }  // C
 		],
 		harmony: MINOR_CHORD,
-		difficulty: { level: 14, pitchComplexity: 12, rhythmComplexity: 18, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 12, rhythmComplexity: 18, lengthBars: 1 },
 		category: 'minor-chord',
 		tags: ['minor', 'scalar'],
 		source: 'curated'
@@ -72,7 +72,7 @@ export const MINOR_CHORD_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }  // G
 		],
 		harmony: MINOR_CHORD,
-		difficulty: { level: 24, pitchComplexity: 22, rhythmComplexity: 20, lengthBars: 1 },
+		difficulty: { level: 24, pitchComplexity: 25, rhythmComplexity: 20, lengthBars: 1 },
 		category: 'minor-chord',
 		tags: ['minor', 'enclosure'],
 		source: 'curated'

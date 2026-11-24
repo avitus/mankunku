@@ -109,6 +109,8 @@ for (const practice of [false, true]) {
 			await page.screenshot({ path: info.outputPath(`outro-${width}.png`), fullPage: true });
 			if (practice) await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible({ timeout: 10_000 });
 			else await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 10_000 });
+			await expect(page.getByRole('region', { name: 'Session setup' })).toBeVisible();
+			await expect(page.locator('nav')).toBeVisible();
 		});
 	}
 }

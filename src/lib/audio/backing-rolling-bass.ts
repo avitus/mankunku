@@ -79,9 +79,57 @@ export function prepareRollingBass(score: RollingBackingDefinition): PreparedRol
 	return Object.freeze({ centers, segments, structuralFeels });
 }
 
+/** A dominant can be written as one long span or repeated across bar lines. */
+function beginsLongDominant(score: RollingBackingDefinition, bar: number): boolean {
+	const section = score.bars[bar];
+	const nextBar = score.bars[bar + 1];
+	if (!nextBar || nextBar.sectionIndex !== section.sectionIndex || nextBar.chorusIndex !== section.chorusIndex) return false;
+	const index = score.harmony.findIndex(s => fractionToFloat(s.startOffset) === bar);
+	const first = score.harmony[index];
+	if (first?.chord.quality !== '7') return false;
+	const matches = (s: typeof first | undefined) => s?.chord.root === first.chord.root && s.chord.quality === first.chord.quality;
+	if (!section.isSectionFirstBar && matches(score.harmony[index - 1])) return false;
+	let end = bar;
+	for (let i = index; end < bar + 2 && matches(score.harmony[i]); i++) {
+		const s = score.harmony[i];
+		if (fractionToFloat(s.startOffset) !== end) break;
+		end = fractionToFloat(s.startOffset) + fractionToFloat(s.duration);
+	}
+	return end >= bar + 2;
+}
+
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
  let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+	if (info.dominantRiffAllowed && result.memory.feel === 'four' && !result.delayedRootTrace &&
+		!previous?.pendingLaunch && !result.memory.pendingLaunch && !result.continuationTrace?.length &&
+		result.events.length === 4 && result.events.every((e, i) => e.absBeat === bar * 4 + i) &&
+		beginsLongDominant(score, bar) && createRng(seedFrom(score.phraseId, bar, score.bars[bar].pianoPresenceSeed ?? 0, 'dominant-riff')).chance(.75)) {
+		const [first, , third, last] = result.events;
+		const skip = bar * 4 + 1.5;
+		const tick = timing.place(skip, 'bass');
+		const secondsPerTick = 60 / score.tempo / score.ppq;
+		if (tick > parseInt(first.time) && tick < parseInt(last.time)) {
+			// The pitch history still ends on the same two notes. A three-attack
+			// riff supplies no four-quarter opening motif for the next bar.
+			return { ...result, memory: { ...result.memory, ...(score.phraseDialogueVersion ? { openingMotif: null } : {}) }, events: [
+				{ ...first, duration: Math.min(1.15 * 60 / score.tempo, (tick - parseInt(first.time)) * secondsPerTick) },
+				{ ...third, absBeat: skip, time: `${tick}i`, duration: Math.min(.65 * 60 / score.tempo, (parseInt(last.time) - tick) * secondsPerTick),
+					velocity: Math.min(115, third.velocity + 7), dominantRiff: true }, last
+			] };
+		}
+	}
+	// The first note takes the full bar only when the ordinary second pulse has
+	// no harmonic destination. Keep memory anchored to the note actually played.
+	if (info.balladHoldAllowed && !result.delayedRootTrace && !previous?.pendingLaunch && !result.memory.pendingLaunch &&
+		result.events.length === 2 && result.events[0].absBeat === bar * 4 && result.events[1].absBeat === bar * 4 + 2) {
+		const first = result.events[0];
+		const remainingBeats = (bar + 1) * 4 - parseInt(first.time) / score.ppq;
+		const priorMidi = previous?.previousMidi ?? null;
+		return { ...result, events: [{ ...first, duration: Math.min(3.55, remainingBeats) * 60 / score.tempo, balladHeldBass: true }],
+			memory: { ...result.memory, previousMidi: first.midi, previousPreviousMidi: priorMidi,
+				direction: priorMidi === null ? 0 : Math.sign(first.midi - priorMidi) } };
+	}
  if(score.trioConversationVersion && allowsTrioConversation(info) && result.memory.feel==='four' &&
   !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch &&
   !result.continuationTrace?.length && info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
@@ -235,7 +283,15 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 			event.time = `${tick}i`;
 			event.duration = Math.min(event.duration, ((bar + 1) * 4 * score.ppq - tick) * 60 / score.tempo / score.ppq);
 		}
-		const accepted = events.filter((event) => event.duration > 0);
+		let accepted = events.filter((event) => event.duration > 0);
+		if (info.bossaPickupAllowed && !delayedRoot) {
+			const pickup = accepted.find(event => event.absBeat === bar * 4 + 1.5);
+			const landing = accepted.find(event => event.absBeat === bar * 4 + 2);
+			if (pickup && landing && pickup.midi === landing.midi && pickup.midi + 12 <= 55) {
+				accepted = accepted.map(event => event === pickup
+					? { ...event, midi: event.midi + 12, bossaOctavePickup: true } : event);
+			}
+		}
 		const last = accepted.at(-1)?.midi ?? memory.previousMidi;
 		const before = accepted.at(-2)?.midi ?? memory.previousMidi;
 		return { events: accepted, trace: [], memory: { ...memory, previousMidi: last, previousPreviousMidi: before,

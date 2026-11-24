@@ -19,7 +19,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
   }) as typeof crypto.getRandomValues;
  }, seed);
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-style').selectOption('ballad');
  await page.getByTestId('listening-tempo').fill('80');

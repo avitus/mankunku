@@ -107,6 +107,32 @@ for (const width of [1440, 390]) {
 	});
 }
 
+test('focus starts while microphone access is pending and Escape restores setup', async ({ page }) => {
+	await seedKnownLick(page);
+	await page.setViewportSize({ width: 320, height: 800 });
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.addInitScript(() => {
+		MediaDevices.prototype.getUserMedia = () => new Promise<MediaStream>(() => {});
+	});
+	await page.goto('/tunes/e2e-when-the-saints?licks=1');
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
+	const title = page.getByRole('heading', { name: SAINTS_USER_TUNE.title, exact: true });
+	const stop = page.getByRole('button', { name: 'Stop', exact: true });
+	await expect(stop).toBeEnabled();
+	await expect(title).toBeVisible();
+	await expect(page.locator('.sd-setup')).toHaveCSS('display', 'none');
+	await expect(page.getByLabel('Practice mode')).toBeHidden();
+	await expect(page.locator('nav')).toBeHidden();
+	await expect(page.locator('.abcjs-staff').first()).toBeVisible();
+	expect((await title.boundingBox())!.x).toBeLessThan((await stop.boundingBox())!.x);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+	await expect(page.getByLabel('Practice mode')).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeVisible();
+	await expect(page.locator('nav')).toBeVisible();
+});
+
 test('Start carries the proposed lick into the existing playing chart by default', async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 		'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
@@ -121,6 +147,10 @@ test('Start carries the proposed lick into the existing playing chart by default
 	await page.getByRole('switch', { name: 'Outro', exact: true }).click();
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 45_000 });
+	await expect(page.getByRole('heading', { name: SAINTS_USER_TUNE.title, exact: true })).toBeVisible();
+	await expect(page.locator('nav')).toBeHidden();
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeHidden();
+	await expect(page.getByLabel('Practice mode')).toBeHidden();
 	await expect(page.locator('[data-testid="tune-chord-chart"] [data-marker-id]').filter({ hasText: 'My Dominant Line · A' }).first()).toBeAttached({ timeout: 15_000 });
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible();

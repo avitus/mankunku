@@ -1,11 +1,11 @@
 <script lang="ts">
-	import SpeakerLed from '$lib/components/practice/SpeakerLed.svelte';
 	import type { Snippet } from 'svelte';
+	import SpeakerLed from './SpeakerLed.svelte';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
 	import type { TuningAlert } from '$lib/scoring/tuning';
 	import { GRADE_LABELS } from '$lib/scoring/grades';
-	import { GRADE_COLORS, accuracyTier } from '$lib/ui/score-colors';
+	import { accuracyTier } from '$lib/ui/score-colors';
 	import { formatDuration } from '$lib/util/format-duration';
 	import type { Score } from '$lib/types/scoring';
 
@@ -41,10 +41,10 @@
 	const phaseLabel = $derived({ready: 'Ready', loading: 'Loading', listen: 'Listen', play: 'Play', next: 'Next', paused: 'Paused', error: 'Unavailable'}[phase]);
 </script>
 
-<!-- Approved MagicPath revision 460504190599458816. No demo controls or scores. -->
+<!-- Approved MagicPath revision 475789895378542592. No demo controls or scores. -->
 <div class="studio-desk ear-console" class:practising>
 	<header class="studio-page-heading">
-		<div class="ear-title"><h1>Ear training<span aria-hidden="true">.</span></h1><SpeakerLed /></div>
+		<h1>Ear training<span aria-hidden="true">.</span></h1>
 		<div class="ear-help" class:concealed={practising}>
 			{#if help}{@render help()}{/if}
 		</div>
@@ -59,7 +59,10 @@
 			</div>
 		</div>
 		<StudioPanel id="ear-response" number="01" title="Call & response" domain="ear-training">
-			<div class="phase" data-phase={phase} data-tour="status-text" role="status" aria-atomic="true"><i aria-hidden="true"></i>{phaseLabel}</div>
+			<div class="status-strip">
+				<div class="phase" data-phase={phase} data-tour="status-text" role="status" aria-atomic="true"><i aria-hidden="true"></i>{phaseLabel}</div>
+				<span class="cancellation"><SpeakerLed /></span>
+			</div>
 			<div class="transport-row">
 				<div class="transport">
 					<button type="button" data-tour="play-button" class="play-button" class:active={practising}
@@ -71,22 +74,20 @@
 					</button>
 					<span class="studio-label">{phase === 'loading' ? 'Loading' : practising ? 'Pause' : 'Start practice'}</span>
 				</div>
-				<div class="score studio-well" data-tour="score-display">
-					<span class="studio-label">{score ? 'Last take' : 'Your score'}</span>
+				<section class="score studio-well" data-tour="score-display" aria-label={score ? 'Last take score' : 'Your score'}>
 					{#if score}<span class="sr-only">{GRADE_LABELS[score.grade]}</span>{/if}
-					<div class="score-values">
-						<div class="overall" style:color={score ? GRADE_COLORS[score.grade] : 'var(--studio-text)'}>
-							<strong>{score ? pct(score.overall) : '—'}{#if score}<small>%</small>{/if}</strong><span>Overall</span>
+					<dl class="score-values">
+						<div class="overall" style:color={score ? accuracyTier(score.overall) : 'var(--studio-text)'}>
+							<dt>Overall</dt><dd>{score ? pct(score.overall) : '—'}{#if score}<small>%</small>{/if}</dd>
 						</div>
 						<div style:color={score ? accuracyTier(score.pitchAccuracy) : 'var(--studio-text)'}>
-							<strong>{score ? pct(score.pitchAccuracy) : '—'}{#if score}<small>%</small>{/if}</strong><span>Pitch</span>
+							<dt>Pitch</dt><dd>{score ? pct(score.pitchAccuracy) : '—'}{#if score}<small>%</small>{/if}</dd>
 						</div>
 						<div style:color={score ? accuracyTier(score.rhythmAccuracy) : 'var(--studio-text)'}>
-							<strong>{score ? pct(score.rhythmAccuracy) : '—'}{#if score}<small>%</small>{/if}</strong><span>Rhythm</span>
+							<dt>Rhythm</dt><dd>{score ? pct(score.rhythmAccuracy) : '—'}{#if score}<small>%</small>{/if}</dd>
 						</div>
-					</div>
-					<p class="empty-score" class:concealed={!!score}>Score after your first take.</p>
-				</div>
+					</dl>
+				</section>
 			</div>
 			<div class="feedback" role="status" aria-atomic="true">
 				{#if message}<p>{message}</p>{/if}
@@ -111,12 +112,12 @@
 </div>
 
 <style>
-	.ear-console { max-width: 1280px; margin: auto; }
-	.ear-title { display: flex; align-items: center; gap: 10px; }
+	.ear-console { max-width: 1000px; margin: auto; }
+	.studio-page-heading { margin-bottom: 24px; }
 	.studio-page-heading h1 { margin: 0; }
 	.studio-page-heading h1 span { color: var(--color-accent); }
 	.ear-help { display: flex; align-items: center; gap: 18px; }
-	.ear-workspace { max-width: 1000px; margin: auto; display: grid; gap: 20px; }
+	.ear-workspace { max-width: 1000px; margin: auto; display: grid; gap: 16px; }
 	.concealed { visibility: hidden; }
 	.tonality { display: flex; align-items: center; gap: 28px; padding: 20px 26px; }
 	.studio-label { color: var(--studio-muted); font-size: 10px; }
@@ -127,7 +128,9 @@
 	.scale p { font-size: 12px; color: var(--studio-muted); }
 	.session-time { margin-left: auto; text-align: right; min-width: 100px; }
 	.session-time [role='timer'] { display: block; font: 24px/1.2 var(--font-display); font-variant-numeric: tabular-nums; margin-top: 6px; }
-	.phase { position: absolute; right: 30px; top: 30px; display: flex; align-items: center; gap: 8px; min-width: 76px; color: var(--studio-muted); font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+	.status-strip { position: absolute; right: 30px; top: 22px; display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--studio-well); border: 1px solid color-mix(in srgb, var(--studio-text) 10%, transparent); border-radius: 4px; box-shadow: inset 0 2px 5px #0002; }
+	.cancellation { display: inline-flex; align-items: center; height: 14px; padding-inline-start: 8px; border-inline-start: 1px solid var(--studio-border); }
+	.phase { display: flex; align-items: center; gap: 8px; min-width: 72px; color: var(--studio-muted); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 	.phase i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 	.phase[data-phase='listen'] { color: color-mix(in srgb, var(--color-phase-listen) 55%, var(--studio-text)); }
 	.phase[data-phase='play'] { color: color-mix(in srgb, var(--color-phase-play) 55%, var(--studio-text)); }
@@ -138,13 +141,13 @@
 	.play-button:hover:not(:disabled) { filter: brightness(1.12); }
 	.play-button.active { background: linear-gradient(#ffffff15, transparent), var(--color-onair); }
 	.play-button:disabled { opacity: .5; cursor: not-allowed; }
-	.score { min-width: 0; padding: 18px 24px 15px; }
-	.score-values { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 22px; align-items: center; margin: 8px 0 3px; }
-	.score-values strong { display: block; font: 500 28px/1.15 var(--font-display); font-variant-numeric: tabular-nums; }
-	.score-values .overall strong { font-size: 46px; }
-	.score-values small { font: 13px Arial, Helvetica, sans-serif; color: var(--studio-muted); margin-left: 3px; }
-	.score-values span { display: block; font-size: 12px; color: var(--studio-muted); margin-top: 5px; }
-	.empty-score { min-height: 25px; padding-top: 10px; font-size: 11px; color: var(--studio-muted); }
+	.score { min-width: 0; padding: 20px 24px; border-color: color-mix(in srgb, var(--studio-text) 9%, transparent); box-shadow: none; }
+	.score-values { margin: 0; display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: clamp(8px, 2vw, 24px); }
+	.score-values dt { margin: 0 0 6px; font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--studio-muted); }
+	.score-values dd { margin: 0; font: 500 clamp(26px, 3vw, 36px)/1 var(--font-display); font-variant-numeric: tabular-nums; }
+	.score-values small { font-size: .52em; margin-left: 2px; }
+	.overall { border-inline-end: 1px solid color-mix(in srgb, var(--studio-text) 9%, transparent); }
+	.overall dd { font-size: clamp(30px, 3.5vw, 42px); }
 	.feedback { min-height: 32px; color: var(--studio-muted); text-align: center; font-size: 12px; }
 	.level-signal { display: block; font-size: 11px; }
 	.level-signal.is-up { color: var(--color-brass); }
@@ -154,7 +157,7 @@
 	.quote-slot figcaption { color: var(--studio-muted); font-size: 12px; margin-top: 8px; }
 	@media (max-width: 900px) {
 		.transport-row { grid-template-columns: 145px 1fr; gap: 20px; }
-		.phase { right: 24px; }
+		.status-strip { right: 24px; }
 	}
 	@media (max-width: 600px) {
 		.studio-page-heading { flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
@@ -165,13 +168,11 @@
 		.scale h2 { font-size: 20px; }
 		.session-time { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border-top: 1px solid var(--studio-border); padding-top: 10px; }
 		.session-time [role='timer'] { font: 14px Arial, Helvetica, sans-serif; margin: 0; }
-		.phase { right: 18px; font-size: 10px; min-width: 54px; top: 32px; }
+		.status-strip { position: static; width: fit-content; margin: 12px 0 18px; }
+		.session-time.concealed { display: none; }
 		.transport-row { grid-template-columns: 1fr; gap: 23px; margin: 28px auto 18px; }
 		.play-button { width: 88px; height: 88px; padding: 23px; }
-		.score { width: 100%; padding: 15px 18px; }
-		.score-values { gap: 16px; }
-		.score-values .overall strong { font-size: 40px; }
-		.score-values strong { font-size: 25px; }
+		.score { width: 100%; padding: 16px; }
 		.quote-slot { height: 192px; }
 		.quote-slot figure { padding: 12px 8px; }
 		.quote-slot blockquote { font-size: 16px; }

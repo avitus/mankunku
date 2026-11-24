@@ -43,7 +43,7 @@ export const V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }
 		],
 		harmony: V_I_MINOR,
-		difficulty: { level: 28, pitchComplexity: 28, rhythmComplexity: 22, lengthBars: 2 },
+		difficulty: { level: 28, pitchComplexity: 29, rhythmComplexity: 22, lengthBars: 2 },
 		category: 'V-I-minor',
 		tags: ['V-I', 'altered'],
 		source: 'curated'
@@ -68,7 +68,7 @@ export const V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 75, duration: [1, 2], offset: [3, 2] }
 		],
 		harmony: V_I_MINOR,
-		difficulty: { level: 35, pitchComplexity: 35, rhythmComplexity: 25, lengthBars: 2 },
+		difficulty: { level: 38, pitchComplexity: 39, rhythmComplexity: 25, lengthBars: 2 },
 		category: 'V-I-minor',
 		tags: ['V-I', 'arpeggio'],
 		source: 'curated'

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import SpeakerLed from '$lib/components/practice/SpeakerLed.svelte';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import { progressionColor } from '$lib/music/progression-display';
@@ -43,7 +42,6 @@
 				#{phraseNumber}
 			</span>
 			<h2 class="lick-title">{phraseName}</h2>
-			<SpeakerLed />
 		</div>
 		<div class="metadata mt-0.5 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
 			<span

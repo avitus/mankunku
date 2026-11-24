@@ -2,7 +2,41 @@
 
 The `musicality` branch develops the accompaniment as an ensemble. The target is the [original specification](/musicality#original-spec); the [implementation ledger](/musicality) records individual requirements, evidence and remaining work. A legal note sequence or passing test does not establish that a performance sounds musical.
 
-The [development log](https://github.com/avitus/mankunku/blob/main/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
+The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
+
+## Swing dominant riff — 0.23.0
+
+The bassist can use a Charleston on the first bar of a dominant seventh that lasts at least two bars within a section. A solo build or peak, four ordinary walking quarters and an open response slot are required. The decision is seeded per bar. The downbeat and fourth-beat approach stay in place. The third pitch arrives on the swung and of two and beat two is left open. The next bar remembers the actual last two pitches. Fresh soloist activity or rest, a committed bass approach, a setup and a reserved ending take priority.
+
+The keyboard can catch the bass with its existing Charleston figure when there is room for two chords and the previous bar carries no committed keyboard sustain. The drummer colors an existing ride skip on the bell, subject to the kit’s usual limb allocation. Each part reports its own accepted gesture. The released policy is fingerprinted for explicit Swing forms. In the fixed 96-bar Rhythm Changes example, compare the opening bridge at bars 17–24 with the solo bridge at bars 49–56, particularly G7, C7 and F7 at bars 51, 53 and 55.
+
+## Ballad returning head — 0.22.0
+
+In the released four-beat Ballad arrangement, the returning melody can change who supplies the half-note pulse. Over a full bar of one harmony, a bassist with two ordinary half-note attacks can sustain the first note for 3.55 beats. Its selected pitch and placement survive. The next decision remembers the sounding note. A delayed root, launch, reserved response, fresh soloist activity or rest, protected melody space, section ending or arranged accent takes priority.
+
+The other players use the accepted bass event. The drummer pares four ride strokes down to beats one and three, with the foot hat still on two and four. When the keyboard has room for two attacks and would otherwise play a single whole-bar pad, it voices the downbeat and articulates a second chord on beat three. A committed sustain or deliberate keyboard rest keeps its place. The Ballad option has its own score fingerprint. The Bossa example remains available under the same release number. The full-form regression compares both keyboards against the previous engine and restores checkpoints at the held notes.
+
+Choose **Load Ballad example** in the listening desk. In Mankunku Blues in F at 80 BPM, compare Solo 2 bars 7–8 with Head out bars 7–8 (performed bars 47–48). Listen for which instrument makes a fresh attack on beat three and whether the returning melody still has support.
+
+## Bossa pickup and answer — 0.22.0
+
+During a solo build or peak, a Bossa bassist can lift an existing and-of-two pickup an octave and land on the low fifth on beat three. This requires a single written harmony across the bar, an actual repeated pitch at those two attacks, and room in the upright register. Structural accents, setups, terminal reservations, chorus endings, reserved responses and fresh soloist activity or rest take precedence. The bassist records the accepted pitches in rolling memory.
+
+The drummer hears that pickup and reinforces the existing kick on the and of two. The rim-click clave, hat subdivision and drum onset grid keep their native pattern. When two keyboard attacks are already admitted and the preceding bar owns no held notes, the first chord stays in place. The second moves from the and of two to the and of three, or from the and of three to beat four. The keyboard resolves its voicing and articulation at the new beat before committing memory. A single supporting chord stays in place. The technique uses generated ensemble events and the declared form. A new energy arc can move the opportunities to another chorus.
+
+The Bossa-only policy has its own fingerprint in the shared prepared and rolling engine. Listening decisions and take exports identify the notes, chord displacement and kick that actually sounded. Load the Bossa example for Mankunku Blues in F, Bossa nova, 128 BPM, two solo choruses and arc seed 3. Compare performed bars 34 and 37. The open listening question is whether the two different keyboard answers give the solo lift while the clave stays easy to follow.
+
+## Walking pulse across the form — 0.21.0
+
+Swing and Straight can let the actual bass line guide the touch of all three players. A plain bar of four walking quarters qualifies. The current performance energy gives each quarter a gate of 0.58 to 0.85 beats, bounded by its existing release. A relaxed passage has more air between notes. A stronger solo passage has a more connected walk. Where the keyboard already plays an offbeat, its attack gains 4–14 MIDI velocity units. The existing ride cymbal on beats two and four gains 0.035–0.145 on its normalized velocity scale. A closed-hat passage or cushioned ride keeps its own dynamics. Pitches and onsets follow the existing arrangement.
+
+The drummer and keyboardist receive the walking decision only after the bassist has chosen the bar. Response ownership, dense-solo restraint, setups, launches and terminal reservations take priority. The seed determines how the energy wave runs across the choruses. The new policy is fingerprinted only for explicit Swing and Straight 4/4 performances. Bossa and Ballad keep their native 0.20 arrangements. The listening cards report the affected emitted notes and strokes under **Why this choice**.
+
+Load the 0.21.0 example and leave Mankunku Blues in F at 140 BPM with two solos. Listen first to the last bar of the opening head, then to Solo 2 bars 3–6. The four-bar intro makes Solo 2 bar 3 performed bar 31. Compare how long the bass speaks, where the keys put their weight between the pulses, and how the ride marks beats two and four as the solo builds.
+
+### Written full-band breaks on imported charts
+
+The PDF import worktree moved from `9623e33c` to the published 0.20 integration at `d95bebad`. Its uncommitted prepared-playback path now supplies contiguous planning harmony and then gates all three parts against the actual written spans. In 0.21, walking touch can only shorten a bass gate and change the velocity of existing keyboard and ride attacks. The remaining shared rolling work is to carry the written break spans and full form length into the arrangement input and fingerprint, including the cache key. Reserve silent beats before planning, bound earlier pitched gates and carried voices at break entry, and clamp an early re-entry attack to the written downbeat. A muted event must not seed phrase memory or appear on a musician card. Natural sample tails also need a listening check. The integration test should cover both passes of the opening head, a silent second ending, the first solo downbeat and the out-head's written G at Fine in prepared and rolling playback. This chart integration is pending in the import worktree.
 
 ## Keyboard support through quiet phrases and half-bar changes — 0.20.0
 
