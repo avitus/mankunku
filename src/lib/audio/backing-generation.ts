@@ -1,3 +1,4 @@
+import type { KeyboardMelodicAnswer } from './backing-keyboard-melodic-handoff';
 import type { HeardNote } from './backing-melodic-handoff';
 import type { InnerMotion } from './backing-inner-motion';
 import type { PhraseDialogue } from './backing-phrase-dialogue';
@@ -122,6 +123,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ readonly keyboardAnswer?: KeyboardMelodicAnswer;
 	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;

@@ -3,6 +3,7 @@ import type { BassEvent, CompEvent } from './backing-generation';
 
 export interface HeardNote { readonly beat: number; readonly midi: number }
 export interface MelodicMemory {
+ readonly bassCalls?: readonly (readonly HeardNote[])[];
  readonly keyboard: readonly HeardNote[];
  readonly lastAnswerBar: number | null;
 }
