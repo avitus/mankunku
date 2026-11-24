@@ -6,6 +6,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
 	import { goto } from '$app/navigation';
+	import SpeakerLed from '$lib/components/practice/SpeakerLed.svelte';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
@@ -2255,13 +2256,14 @@
 		</div>
 
 		<!-- Controls -->
-		<div class="flex justify-center gap-4">
+		<div class="grid justify-items-center gap-[12px]">
 			<button
 				onclick={handleEnd}
 				class="rounded-lg bg-[var(--color-bg-tertiary)] px-6 py-2 text-sm font-medium text-[var(--color-error-text)] hover:bg-[var(--color-bg-secondary)] transition-colors"
 			>
 				End Session
 			</button>
+			<SpeakerLed subtle />
 		</div>
 		</aside>
 		</div>

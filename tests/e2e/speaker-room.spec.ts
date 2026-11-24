@@ -206,7 +206,16 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
 		await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
 		await expect(page.getByText('Speaker bleed reduction active', { exact: true })).toBeVisible({timeout: 25_000});
-		if (mode === 'ear-training') await expect(page.getByRole('img', { name: 'Backing cancellation on' })).toBeVisible();
+		const lamp = page.getByRole('img', { name: 'Backing cancellation on' });
+		await expect(lamp).toBeVisible();
+		if (mode === 'lick-practice') {
+			const button = await page.getByRole('button', { name: 'End Session' }).boundingBox();
+			const light = await lamp.boundingBox();
+			if (!button || !light) throw new Error('Missing session control bounds');
+			expect(light.width).toBe(6);
+			expect(light.y - (button.y + button.height)).toBeCloseTo(12, 0);
+			expect(light.x + light.width / 2).toBeCloseTo(button.x + button.width / 2, 0);
+		}
 		expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 		await expect(
 			page
