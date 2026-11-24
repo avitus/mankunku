@@ -8,14 +8,14 @@ import {
 	type RoomSamples
 } from './room-filter';
 
-self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter; session?: RoomSession; learnOffset?: number; includeAudio?: boolean }>): void => {
+self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter; session?: RoomSession; learnOffset?: number; retryClosing?: boolean; includeAudio?: boolean }>): void => {
 	try {
 		if (data.filter) {
 			if (data.learnOffset !== undefined) {
 				self.postMessage({ session: learnRoomSession(data, data.filter, data.learnOffset, data.session) });
 				return;
 			}
-			const result = verifyRoom(data, data.filter, data.session);
+			const result = verifyRoom(data, data.filter, data.session, data.retryClosing);
 			if (data.includeAudio || result.check?.accepted) {
 				const { mic, left, right, rate } = data;
 				self.postMessage({ ...result, captureAudio: data.includeAudio, samples: { mic, left, right, rate } },

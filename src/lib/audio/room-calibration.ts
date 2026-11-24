@@ -7,6 +7,9 @@ import { loadWorklet } from './load-worklet';
 import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-profile';
 
 const duration = 5.6;
+const captureLead = 0.025;
+const verificationBudget = 0.4;
+const minimumListenCapture = 1;
 interface Measurement {
 	captureAudio?: boolean;
 	captureUntil?: number;
@@ -84,7 +87,8 @@ async function measure(
 					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve({ ...data, captureUntil });
 					worker.onerror = (event) =>
 						reject(new Error(event.message || 'Room estimation worker failed'));
-					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, includeAudio: captureUntil > 0 }, [
+					const retryClosing = deadline - ctx.currentTime < minimumListenCapture + captureLead + verificationBudget;
+					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, retryClosing, includeAudio: captureUntil > 0 }, [
 						input.buffer,
 						left.buffer,
 						right.buffer
@@ -359,9 +363,9 @@ export async function calibrateRoom(
 				// A sparse or ambiguous opening can fail while later music in the
 				// same demonstration verifies the model. Never sample into Play.
 				for (let attempt = 1; attempt <= 2; attempt++) {
-					const start = Math.ceil(Math.max(ctx.currentTime + 0.025, startTime + 0.04) * ctx.sampleRate);
-					const frames = Math.floor(Math.min(3, deadline - start / ctx.sampleRate - 0.4) * ctx.sampleRate);
-					if (frames < ctx.sampleRate) {
+					const start = Math.ceil(Math.max(ctx.currentTime + captureLead, startTime + 0.04) * ctx.sampleRate);
+					const frames = Math.floor(Math.min(3, deadline - start / ctx.sampleRate - verificationBudget) * ctx.sampleRate);
+					if (frames < minimumListenCapture * ctx.sampleRate) {
 						if (attempt === 1) {
 							report('listen', 'insufficient-time', cue);
 							bypass();

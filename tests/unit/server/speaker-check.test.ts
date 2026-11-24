@@ -12,9 +12,9 @@ describe('speaker monitoring', () => {
 	it('writes a numeric event, dropping user content and waveforms', async () => {
 		const log = vi.spyOn(console, 'info').mockImplementation(() => {});
 		try {
-			expect((await post({...metrics, phraseId: 'private-phrase', mic: 'private-audio'})).status).toBe(204);
+			expect((await post({...metrics, method: 'calibrated-gain', phraseId: 'private-phrase', mic: 'private-audio'})).status).toBe(204);
 			const line = JSON.parse(log.mock.calls[0][0]);
-			expect(line).toMatchObject({...metrics, event: 'speaker-check'});
+			expect(line).toMatchObject({...metrics, method: 'calibrated-gain', event: 'speaker-check'});
 			expect(line).not.toHaveProperty('phraseId');
 			expect(line).not.toHaveProperty('mic');
 		} finally { log.mockRestore(); }
