@@ -12,7 +12,8 @@ for (const keyboard of ['piano', 'organ'] as const) {
    tempo: 128, ppq: 192, beatsPerBar: 4, swing: .5, ensemble: {} };
   const options = releasedBackingOptions(keyboard, 3);
   const score = createRollingBacking(phrase.harmony, BACKING_STYLES['bossa-nova'], params, options);
-  const oldScore = createRollingBacking(phrase.harmony, BACKING_STYLES['bossa-nova'], params, { ...options, bossaPickup: undefined });
+  // The pre-pickup control predates melodic handoffs on the same Bossa offbeats.
+  const oldScore = createRollingBacking(phrase.harmony, BACKING_STYLES['bossa-nova'], params, { ...options, bossaPickup: undefined, nativeMelodicHandoff: undefined });
   let checkpoint: RollingBackingCheckpoint | undefined, oldCheckpoint: RollingBackingCheckpoint | undefined;
   const answers: number[] = [];
   const pickupBars: number[] = [];
