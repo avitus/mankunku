@@ -11,7 +11,7 @@ for (const keyboard of ['piano', 'organ'] as const) {
   const { phrase } = buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
   const params = { phraseId: phrase.id, sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm,
    tempo: 136, ppq: 192, beatsPerBar: 4, swing: .5, ensemble: {} };
-  const options = releasedBackingOptions(keyboard, 3);
+  const options = releasedBackingOptions(keyboard, 12);
   const style = BACKING_STYLES.straight;
   const score = createRollingBacking(phrase.harmony, style, params, options);
   const previous = { ...options, brokenTwo: undefined };
@@ -49,8 +49,8 @@ for (const keyboard of ['piano', 'organ'] as const) {
    cp = r.checkpoint;
   }
   expect(walkingSoloBars).toBeGreaterThanOrEqual(18);
-  expect(catches).toEqual([2, 6, 7, 11, 47, 48]);
-  const prepared = prepareReleasedArrangement(phrase.harmony, style, params, keyboard, 4, 3);
+  expect(catches).toEqual([6, 7, 46, 47]);
+  const prepared = prepareReleasedArrangement(phrase.harmony, style, params, keyboard, 4, 12);
   for (const n of catches) expect(prepared.bassEvents.some(e => e.absBeat === n * 4 - 1 && e.brokenTwo)).toBe(true);
  });
 }

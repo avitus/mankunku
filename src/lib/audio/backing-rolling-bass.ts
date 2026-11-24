@@ -103,8 +103,7 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
  let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
 	if (info.brokenTwoAllowed && result.memory.feel === 'two' && !result.delayedRootTrace &&
 		!previous?.pendingLaunch && !result.memory.pendingLaunch && result.events.length === 2 &&
-		result.events.every((event, i) => event.absBeat === bar * 4 + 2 * i) &&
-		createRng(seedFrom(score.phraseId, score.bars[bar].pianoPresenceSeed ?? 0, bar, 'broken-two')).chance(.65)) {
+		result.events.every((event, i) => event.absBeat === bar * 4 + 2 * i)) {
 		const [one, three] = result.events;
 		const beat = bar * 4 + 3;
 		const tick = timing.place(beat, 'bass');

@@ -474,7 +474,11 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		!definition.bars[bar].returningMelodySpace && !definition.bars[bar].isSectionFinalBar;
 	const riffWindow = definition.dominantRiffVersion === 1 && ['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '') &&
 		!ensemble.drums.allowFill && !definition.bars[bar].isSectionFinalBar;
-	const headWindow = definition.brokenTwoVersion === 1 && definition.bars[bar].phrase4?.barIndex !== 0 && ['head_in', 'head_return'].includes(ensemble.performanceEnergy?.phase ?? '') &&
+	const phrase = definition.bars[bar].phrase4;
+	const headWindow = definition.brokenTwoVersion === 1 && phrase?.lengthBars === 4 &&
+		(phrase.barIndex === 1 || phrase.barIndex === 2) &&
+		['head_in', 'head_return'].includes(ensemble.performanceEnergy?.phase ?? '') &&
+		createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar - phrase.barIndex, 'broken-two')).chance(.6) &&
 		!definition.bars[bar].returningMelodySpace && !definition.bars[bar].isSectionFinalBar && !ensemble.drums.allowFill;
 	const unreserved = (bossaWindow || balladWindow || riffWindow || headWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&

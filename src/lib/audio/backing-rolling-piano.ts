@@ -202,7 +202,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			transform = 'fallback'; shift = 0; reason = 'harmonic_support';
 		}
 		const bassFigure = bassEvents?.find(e => e.dominantRiff || e.brokenTwo);
-		if (bassFigure && budget >= 2 && hits.length && !backgroundHarmony &&
+		if (bassFigure && budget >= 2 && hits.length && (!bassFigure.brokenTwo || hits.length === 2) && !backgroundHarmony &&
 			!arrival && !memory.crossBarReleaseTick && !ensemble.piano.silenceReason && answerContext?.feedback.action !== 'yield') {
 			figure = figureById(score, bassFigure.brokenTwo ? 'two-and-four' : 'charleston');
 			hits = figure.hits[0].map(hit => ({ ...hit }));

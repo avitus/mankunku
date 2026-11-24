@@ -38,7 +38,7 @@ test('plays the broken two on both sides of the walking solos in the full Straig
  expectEveryBarCommittedWithLead(take, 52);
  expect(take.provenance.dispatches.every((d: RollingBackingDispatch) => d.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;
- for (const bar of [6, 7, 47, 48]) {
+ for (const bar of [6, 7, 46, 47]) {
   const start = (bar - 1) * 4;
   expect(generated.bassEvents.some(e => e.absBeat === start + 3 && e.brokenTwo)).toBe(true);
   for (const beat of [1, 3]) expect(generated.compEvents.some(e => e.absBeat === start + beat && e.brokenTwo)).toBe(true);
