@@ -38,7 +38,8 @@ export function prepareReleasedArrangement(harmony: HarmonicSegment[], style: St
  // literal solo span so the same steady-support and articulation policies apply.
  const performanceForm = params.performanceForm ?? buildPerformanceForm({ totalBars: bars,
   sectionMap: params.sectionMap ?? [], choruses: [{ role: 'solo', startBar: 0, endBarExclusive: bars }] });
- const score = createRollingBacking(preparedHarmony, style, { ...params, performanceForm, ensemble: {} }, { ...releasedBackingOptions(instrument, seed), preparedPlayback: true });
+ // A synthesized practice solo is useful for support, but it does not identify a tune’s solo chorus.
+ const score = createRollingBacking(preparedHarmony, style, { ...params, performanceForm, ensemble: {} }, { ...releasedBackingOptions(instrument, seed), ...(!params.performanceForm ? { dominantRiff: undefined } : {}), preparedPlayback: true });
  const generated: GeneratedBacking = { bassEvents: [], compEvents: [], drumEvents: [] };
  let checkpoint: RollingBackingCheckpoint | undefined;
  const planBars: NonNullable<GeneratedBacking['ensemblePlan']>['bars'][number][] = [];

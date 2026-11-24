@@ -92,6 +92,11 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+	readonly dominantRiff?: true;
+	readonly balladHeldBass?: true;
+	readonly bossaOctavePickup?: true;
+ /** Previous gate in seconds, when a walking quarter was shortened. */
+ readonly walkingGateBefore?: number;
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
@@ -110,6 +115,12 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+	readonly dominantRiff?: true;
+	readonly balladReturnAnswer?: true;
+	/** Original beat offset of the displaced Bossa chord. */
+	readonly bossaReplyFrom?: number;
+ /** MIDI velocity added to an offbeat over four walking pulses. */
+ readonly walkingOffbeatLift?: number;
  /** Committed cross-bar gate; omitted by every historical policy. */
  readonly barLineSustain?: { readonly version: 1 | 2; readonly releaseTick: number; readonly instrument: 'piano' | 'organ'; readonly originalDuration: number };
  readonly innerMotion?: InnerMotion;
@@ -126,6 +137,10 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly dominantRiff?: true;
+	readonly bossaPickupKick?: true;
+ /** Velocity added to this ride backbeat over four walking pulses. */
+ readonly walkingBackbeatLift?: number;
  readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
@@ -376,6 +391,11 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	readonly dominantRiffAllowed?: boolean;
+	readonly balladHoldAllowed?: boolean;
+	readonly bossaPickupAllowed?: boolean;
+	/** Released walking bar, from relaxed (0) to driving (1), after bass realization. */
+	readonly walkingTouch?: number;
 	sectionIndex?: number;
 	chorusIndex?: number;
 	/** True on the first bar of a section (always true on bar 0 of a mapped phrase). */

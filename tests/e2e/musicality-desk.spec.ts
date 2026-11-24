@@ -14,7 +14,7 @@ test('shows a real score beside factual band insights with a release and compact
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/musicality');
  await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
- await expect(page.getByTestId('listening-release-focus')).toContainText('Harmonic support');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('Bossa pickup and answer');
  await expect(page.getByTestId('musicality-engine-revision')).toHaveText(/^[a-f0-9]{8}$/);
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
@@ -153,8 +153,8 @@ test('loads the release example without autoplay and keeps the chosen keyboard',
  await page.getByTestId('listening-choruses').selectOption('1');
  await page.getByTestId('listening-release-example').click();
  await expect(page.getByTestId('listening-keyboard')).toHaveValue('organ');
- await expect(page.getByTestId('listening-style')).toHaveValue('swing');
- await expect(page.getByTestId('listening-tempo')).toHaveValue('140');
+ await expect(page.getByTestId('listening-style')).toHaveValue('bossa-nova');
+ await expect(page.getByTestId('listening-tempo')).toHaveValue('128');
  await expect(page.getByTestId('listening-tune')).toHaveValue('ls-mankunku-blues');
  await expect(page.getByTestId('listening-choruses')).toHaveValue('2');
  await expect(page.getByTestId('listening-stop')).toHaveCount(0);

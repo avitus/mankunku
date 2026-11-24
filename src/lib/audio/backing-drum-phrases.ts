@@ -36,7 +36,7 @@ export interface DrumPhraseDecision {
 	readonly ride: {
 		/** Selected phrase timekeeping voice; actual substitutions remain in hits. */
 		readonly voice?: 'ride' | 'ride-bell' | 'hihat';
-		readonly mode: RideMode | 'none';
+		readonly mode: RideMode | 'none' | 'half-notes';
 		readonly phase: 'statement' | 'repeat' | 'variation' | 'release' | 'single';
 		readonly skipOffsets: readonly number[];
 		readonly velocityScale: number;
@@ -299,9 +299,15 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const skipOffsets = phase === 'release' ? state.skips.slice(0, 1) : phase === 'variation' ? state.variedSkips : state.skips;
 	const velocityScale = phase === 'release' ? 0.94 : phase === 'variation' ? 1.04 : phase === 'repeat' ? 1.01 : 1;
 	const timeRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-time', bar));
+	const catchRiff = input.bassEvents?.some(e => e.dominantRiff && e.absBeat === bar * 4 + 1.5);
 	const ostinato: DrumHitSpec[] = [
-		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map((hit) => ({ ...hit,
-			drum: state.rideVoice ?? hit.drum, velocity: hit.velocity * velocityScale })),
+		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map(hit => {
+			const drum = state.rideVoice ?? hit.drum;
+			const velocity = hit.velocity * velocityScale;
+			return catchRiff && drum === 'ride' && hit.beatOffset === 1.5
+				? { ...hit, drum: 'ride-bell' as const, velocity: Math.min(1, velocity + .12), dominantRiff: true as const }
+				: { ...hit, drum, velocity };
+		}),
 		...hihatBar(4, timeRng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
 		...featherBar(4, timeRng, info.intensity)
 	].map((hit): DrumHitSpec => ({ ...hit, role: 'timekeeping' }))
@@ -567,6 +573,13 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
     softenedHits:bar.cushioning.softenedHits.map(h=>({before:tint(h.before),after:tint(h.after)}))}}:{})};
   freezeDrumPhraseTrace([bar]);
  }
+	const touch = input.info.walkingTouch;
+	if (touch !== undefined && !bar.cushioning && !input.compIsDrumReply && bar.ride.voice !== 'hihat') {
+		const lift = .035 + .11 * touch;
+		const hits = bar.hits.map(hit => hit.drum === 'ride' && hit.role === 'timekeeping' && hit.beatOffset % 2 === 1
+			? { ...hit, velocity: Math.min(1, hit.velocity + lift), walkingBackbeatLift: Math.min(lift, 1 - hit.velocity) } : hit);
+		bar = freezeDrumPhraseTrace([{ ...bar, hits }])[0];
+	}
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,
@@ -636,8 +649,16 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 	const raw = style.drumPattern({ ...input.info, ensemble: undefined, barIndex: input.barIndex, beatsPerBar: 4,
 		swing: style.defaultSwing, rng, fillRng: createRng(seedFrom(input.phraseId, input.tempo, 'drum-fill', input.barIndex)),
 		clavePhase: createRng(seedFrom(input.phraseId, input.tempo, 'clave', 0)).chance(0.5) ? '32' : '23' });
-	const time: DrumHitSpec[] = raw.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
+	const halfNoteRide = input.style === 'ballad' && input.bassEvents?.some(event => event.balladHeldBass);
+	const time: DrumHitSpec[] = raw.filter(hit => !halfNoteRide || hit.drum !== 'ride' || hit.beatOffset % 2 === 0)
+		.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
 		.map((hit) => ({ ...hit, role: 'timekeeping' }));
+	if (isBossa && input.bassEvents?.some(event => event.bossaOctavePickup && event.absBeat === input.barIndex * 4 + 1.5)) {
+		const pickupKick = time.find(hit => hit.drum === 'kick' && hit.beatOffset === 1.5);
+		if (pickupKick) {
+			time[time.indexOf(pickupKick)] = { ...pickupKick, velocity: pickupKick.velocity + .12, bossaPickupKick: true };
+		}
+	}
 	const canComment = !isBossa && ensemble.drums.maxCommentaryHits > 0 && !ensemble.coordinatedAccent &&
 		(ensemble.responseOwner === 'nobody' || ensemble.responseOwner === 'drums');
 	const previous = input.suppressPreviousPianoAnswer ? [] : memory?.previousCompOnsets ?? [];
@@ -664,7 +685,7 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 	const hits = [...time.filter(accepted), ...commentary];
 	const bar: DrumPhraseDecision = { version: 1, style: input.style, barIndex: input.barIndex,
 		phraseStartBar: input.phraseStartBar, phraseLength: input.phraseEndBarExclusive - input.phraseStartBar,
-		ride: { mode: isBossa ? 'none' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
+		ride: { mode: isBossa ? 'none' : halfNoteRide ? 'half-notes' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
 			onsets: hits.filter((hit) => hit.drum === 'ride').map((hit) => hit.beatOffset) },
 		commentary: { motifId: null, source: commentary.length ? answerOffset !== undefined ? 'piano' : 'vocabulary' : 'none',
 			sourceId: commentary.length ? answerOffset !== undefined ? 'previous-piano' : 'ballad-color' : null,
