@@ -19,7 +19,7 @@ import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import type { PerformanceForm } from '$lib/types/performance-form';
 import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent, EnsembleDevelopment, NativeBalladReplyDecision } from './backing-generation';
 import { buildBarInfos } from './backing-generation';
-import { developRhythm, displacedRhythm, validRhythmMemory, type RhythmMemory } from './backing-rhythm-memory';
+import { developRhythm, displacedRhythm, rhythmAnswerOpportunity, validRhythmMemory, type RhythmMemory } from './backing-rhythm-memory';
 import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext } from './performance-form';
 import { planPerformanceEnergy } from './performance-energy';
 import { prepareEnsembleBars, planEnsembleWindow, type EnsembleBarContext, type EnsembleMemory, type EnsemblePlan, type SoloFeature } from './ensemble-plan';
@@ -578,9 +578,11 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		!bass.memory.pendingLaunch && !['active','resting'].includes(window.plan.trace[0].soloEvidence) &&
 		!['active_soloist','dense_soloist','under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '') &&
 		ensemble.drums.maxCommentaryHits >= 2 && ['nobody','drums'].includes(ensemble.responseOwner);
+ const answerSeed = seedFrom(definition.phraseId, current.pianoPresenceSeed ?? 0);
+ const followsSolo = definition.performanceForm.choruses[current.chorusIndex - 1]?.role === 'solo';
  const realizeDrums = (pianoResult: typeof piano) => {
 	 const compOnsets = pianoResult.events.map(event => event.absBeat - bar*4);
-   const openSolo = definition.rideTripletVersion && solo && !pianoResult.answer && !bass.memory.pendingLaunch &&
+   const openSolo = definition.rideTripletVersion && solo && (!followsSolo || !rhythmAnswerOpportunity(answerSeed, bar)) && !pianoResult.answer && !bass.memory.pendingLaunch &&
     !['active','resting'].includes(window.plan.trace[0].soloEvidence);
 	 const planned = planDrumPhraseBar({
 		rideTripletSeed: openSolo ? current.pianoPresenceSeed ?? 0 : undefined,
@@ -719,10 +721,10 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 			!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
 		const displaced = drumEvents.find(event=>event.displacedAnswer)?.displacedAnswer;
 		const canAnswer = !displaced && piano.trace.carriedReleaseTick === undefined && !piano.trace.commonToneEntry &&
-			definition.performanceForm.choruses[current.chorusIndex-1]?.role === 'solo' &&
+			followsSolo &&
 			['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '');
 		const developed = developRhythm({ bass: bass.events, piano: piano.events, drums: drumEvents },
-			previous, bar, eligible, canAnswer, seedFrom(definition.phraseId, current.pianoPresenceSeed ?? 0));
+			previous, bar, eligible, canAnswer, answerSeed);
 		rhythmMemory = developed.memory;
 		bass = { ...bass, events: developed.parts.bass };
 		piano = { ...piano, events: developed.parts.piano };

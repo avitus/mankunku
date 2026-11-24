@@ -60,13 +60,19 @@ export function validRhythmMemory(memory: RhythmMemory | undefined, nextBar: num
   Object.entries(memory.lastAnswer).every(([key, value]) => players.some(p => p === key) && Number.isSafeInteger(value) && value >= 0 && value < nextBar);
 }
 
+/** Reserve the existing response draw before another device alters the available attacks. */
+export function rhythmAnswerOpportunity(seed: number, bar: number) {
+ const rng = createRng(seedFrom(seed, bar, 'rhythmic-answer'));
+ return rng.chance(.8) ? rng : undefined;
+}
+
 export function developRhythm(parts: Parts, previous: RhythmMemory | undefined, bar: number,
  eligible: boolean, canAnswer: boolean, seed: number): { parts: Parts; memory: RhythmMemory } {
  let cells = (previous?.cells ?? []).filter(cell => cell.bar >= bar-16);
  const lastAnswer = { ...previous?.lastAnswer };
  let speaker: RhythmPlayer | undefined;
- const rng = createRng(seedFrom(seed, bar, 'rhythmic-answer'));
- if (eligible && canAnswer && !Object.values(lastAnswer).includes(bar-1) && rng.chance(.8)) {
+ const rng = eligible && canAnswer && !Object.values(lastAnswer).includes(bar-1) ? rhythmAnswerOpportunity(seed, bar) : undefined;
+ if (rng) {
   // First find playable quotations. The number of strokes in a ride pattern
   // must not give the drummer more votes than the pianist.
   const options = players.flatMap(player => {
