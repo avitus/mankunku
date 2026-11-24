@@ -679,7 +679,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 			ensemble.responseOwner === 'nobody' && !piano.answer && !nativeReply && !bass.memory.pendingLaunch &&
 			!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
 			!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
-		const canAnswer = definition.performanceForm.choruses[current.chorusIndex-1]?.role === 'solo' &&
+		const canAnswer = piano.trace.carriedReleaseTick === undefined && !piano.trace.commonToneEntry &&
+			definition.performanceForm.choruses[current.chorusIndex-1]?.role === 'solo' &&
 			['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '');
 		const developed = developRhythm({ bass: bass.events, piano: piano.events, drums: drumEvents },
 			previous, bar, eligible, canAnswer, seedFrom(definition.phraseId, current.pianoPresenceSeed ?? 0));
