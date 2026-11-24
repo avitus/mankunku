@@ -106,6 +106,15 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await countSoundChecks(page);
 		if (mode === 'ear-training') {
 			await page.addInitScript(() => {
+				// Navigation ends this document. Observe the journal commit before
+				// leaving so both the timeout and the moved-mic clip can be exported.
+				const add = IDBObjectStore.prototype.add;
+				IDBObjectStore.prototype.add = function (value, ...args) {
+					if (this.name === 'checks' && value.stage === 'listen' && value.result !== 'active' && value.audioExample === 'saved') {
+						this.transaction.addEventListener('complete', () => { Object.assign(window, { savedRejection: value.result }); }, { once: true });
+					}
+					return add.call(this, value, ...args);
+				};
 				const post = Worker.prototype.postMessage;
 				Worker.prototype.postMessage = function (message, options) {
 					if (message?.learnOffset !== undefined) {
@@ -113,8 +122,12 @@ for (const mode of ['ear-training', 'lick-practice'])
 							if (data.session?.correction?.left?.length) sessionStorage.setItem('learnedCues', String(data.session.cues));
 						}, { once: true });
 					}
-					if (message?.filter && message.learnOffset === undefined && message.session)
+					if (message?.filter && message.learnOffset === undefined && message.session) {
 						sessionStorage.setItem('verifiedWithEarlierCues', String(message.session.cues));
+						// Withhold the reply on this cue to exercise the real scoring deadline
+						// and retention of an opted-in, fully captured Listen clip.
+						return;
+					}
 					return Reflect.apply(post, this, [message, options]);
 				};
 			});
@@ -340,6 +353,8 @@ for (const mode of ['ear-training', 'lick-practice'])
 			const play = page.locator('[data-tour="play-button"]');
 			if (await play.isVisible()) await play.click();
 			await expect.poll(() => page.evaluate(() => Number(sessionStorage.getItem('verifiedWithEarlierCues'))), {timeout: 20_000}).toBeGreaterThan(0);
+			await page.waitForFunction(() => (window as Window & { savedRejection?: string }).savedRejection === 'timeout');
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			await page.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
 
 			await expect(
@@ -349,23 +364,12 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.reload();
 			await page.locator('[data-tour="play-button"]').click();
 			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
-			// Navigation ends this document. Wait for the rejected clip's storage
-			// transaction to commit before leaving, just as the export requires.
-			await page.evaluate(() => {
-				const add = IDBObjectStore.prototype.add;
-				IDBObjectStore.prototype.add = function (value, ...args) {
-					if (this.name === 'checks' && value.stage === 'listen' && value.result !== 'active' && value.audioExample === 'saved') {
-						this.transaction.addEventListener('complete', () => { sessionStorage.setItem('rejectedClipSaved', 'true'); }, { once: true });
-					}
-					return add.call(this, value, ...args);
-				};
-			});
 			const rejected = page.waitForRequest(request => request.url().endsWith('/api/speaker-check') &&
 				request.postDataJSON()?.stage === 'listen' && request.postDataJSON()?.result !== 'active');
 			await page.waitForFunction(() => 'speakerGraphReady' in window);
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
 			await rejected;
-			await page.waitForFunction(() => sessionStorage.getItem('rejectedClipSaved') === 'true', undefined, {timeout: 25_000});
+			await page.waitForFunction(() => 'savedRejection' in window, undefined, {timeout: 25_000});
 			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 			await page.goto('/diagnostics');
@@ -380,13 +384,15 @@ for (const mode of ['ear-training', 'lick-practice'])
 			expect(report.examples.length).toBeGreaterThanOrEqual(2);
 			expect(report.examples).toHaveLength(report.checks.filter((row: {audioIncluded?: boolean}) => row.audioIncluded).length);
 			await expect(page.getByText(report.examples.length + ' audio examples ready to download.')).toBeVisible();
+			expect(report.examples).toContainEqual(expect.objectContaining({ event: expect.objectContaining({ result: 'timeout', audioExample: 'saved' }) }));
 			for (const clip of report.examples) {
 				expect(Buffer.from(clip.mic, 'base64').length).toBe(Math.round(clip.rate * clip.event.captureSeconds) * 4);
 				expect(clip.left.length).toBe(clip.mic.length);
 				expect(clip.right.length).toBe(clip.mic.length);
 				expect(clip.filter.left.length).toBeGreaterThan(0);
 				expect(clip.event.audioExample).toBe('saved');
-				expect(clip.event.check.validationGain).toEqual(expect.any(Number));
+				if (clip.event.result === 'timeout') expect(clip.event.check).toBeUndefined();
+				else expect(clip.event.check.validationGain).toEqual(expect.any(Number));
 			}
 			await page.getByRole('button', { name: 'Clear saved Listen audio' }).click();
 			await expect(page.getByText('Saved Listen audio cleared.')).toBeVisible();
