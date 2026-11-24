@@ -150,6 +150,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly rideTriplet?: true;
 	readonly displacedAnswer?: RhythmCell;
 	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;

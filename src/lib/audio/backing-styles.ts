@@ -123,6 +123,7 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+	readonly rideTriplet?: true;
 	readonly displacedAnswer?: import('./backing-rhythm-memory').RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;

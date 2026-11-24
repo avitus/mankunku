@@ -78,6 +78,7 @@ export interface DrumPhraseInput {
 
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
+	readonly rideTripletSeed?: number;
 	readonly displaced?: {readonly cell: import('./backing-rhythm-memory').RhythmCell; readonly shift: number};
  readonly longerSentences?: true;
 	readonly phraseCushioning?: true;
@@ -404,6 +405,35 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	return freezeDrumPhraseTrace([decision])[0];
 }
 
+/** D9: let the ride cross two walking beats, with beat three as the audible landing. */
+function playRideTriplet(input: DrumPhraseBarInput, bar: DrumPhraseDecision): DrumPhraseDecision {
+ const { info, barIndex, rideTripletSeed } = input;
+ const ensemble = info.ensemble!;
+ if (rideTripletSeed === undefined || !['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '') ||
+  ensemble.responseOwner !== 'nobody' || ensemble.coordinatedAccent || ensemble.setupFor || ensemble.terminalArrangement ||
+  ensemble.intent === 'leave_space' || ensemble.intent === 'release' || ensemble.drums.allowFill ||
+  ensemble.drums.silenceReason === 'soloist_dense' || info.isSectionFirstBar || info.isSectionFinalBar ||
+  info.isChorusFirstBar || info.isChorusFinalBar || bar.ride.voice !== 'ride' || bar.cushioning ||
+  bar.commentary.hits.some(hit => hit.beatOffset < 2) || bar.commentary.motifId || bar.phraseLength < 3) return bar;
+ const rng = createRng(seedFrom(input.phraseId, rideTripletSeed, bar.phraseStartBar, 'ride-triplet'));
+ if (barIndex !== bar.phraseStartBar + rng.pick([1, 2]) || !rng.chance(.7)) return bar;
+ const walking = input.bassEvents ?? [];
+ if (![0,1,2].every(offset => walking.some(e => e.absBeat === barIndex*4 + offset))) return bar;
+ const isRide = (hit: DrumHitSpec) => hit.drum === 'ride' && hit.role === 'timekeeping';
+ const entrance = bar.hits.find(hit => isRide(hit) && hit.beatOffset === 0);
+ if (!entrance || !bar.hits.some(hit => isRide(hit) && hit.beatOffset === 2) ||
+  bar.hits.some(hit => hit.beatOffset < 2 && (hit.dominantRiff || hit.conversation))) return bar;
+ const triplet: DrumHitSpec[] = [0, 2/3, 4/3].map((beatOffset, i) => ({
+  drum: 'ride', role: 'timekeeping', beatOffset, velocity: entrance.velocity * [1, .86, .94][i], rideTriplet: true
+ }));
+ if (triplet.some(hit => input.acceptsOnset && !input.acceptsOnset(barIndex*4 + hit.beatOffset, hit))) return bar;
+ const hits = [...triplet, ...bar.hits.filter(hit => !isRide(hit) || hit.beatOffset >= 2)];
+ return freezeDrumPhraseTrace([{ ...bar, hits, ride: { ...bar.ride,
+  skipOffsets: bar.ride.skipOffsets.filter(offset => offset >= 2),
+  onsets: hits.filter(hit => cymbal(hit.drum)).map(hit => hit.beatOffset).sort((a,b) => a-b)
+ } }])[0];
+}
+
 /** Restore deep immutability after a JSON checkpoint round trip. */
 export function freezeDrumPhraseMemory(memory: DrumPhraseMemory): DrumPhraseMemory {
 	Object.freeze(memory.previousCompOnsets);
@@ -587,6 +617,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
     softenedHits:bar.cushioning.softenedHits.map(h=>({before:tint(h.before),after:tint(h.after)}))}}:{})};
   freezeDrumPhraseTrace([bar]);
  }
+	bar = playRideTriplet(input, bar);
 	const touch = input.info.walkingTouch;
 	if (touch !== undefined && !bar.cushioning && !input.compIsDrumReply && bar.ride.voice !== 'hihat') {
 		const lift = .035 + .11 * touch;

@@ -46,6 +46,7 @@ export interface RollingBackingOptions {
  /** Let the kit displace a recently heard pitched rhythm during a solo. */
  readonly displacedRhythm?: true;
  readonly melodicHandoff?: true;
+ readonly rideTriplet?: true;
  readonly nativeMelodicHandoff?: true;
  readonly keyboardMelodicHandoff?: true;
  readonly rhythmMemory?: true;
@@ -139,6 +140,7 @@ export interface RollingBackingDefinition {
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
  readonly melodicHandoffVersion?: 1;
+ readonly rideTripletVersion?: 1;
  readonly nativeMelodicHandoffVersion?: 1;
  readonly keyboardMelodicHandoffVersion?: 1;
  readonly rhythmMemoryVersion?: 1;
@@ -290,6 +292,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const nativeHandoff = options.nativeMelodicHandoff && options.rhythmMemory && options.melodicHandoff && options.keyboardMelodicHandoff &&
   performanceEnergy && ['bossa-nova', 'ballad'].includes(style.coordinatedStyle!) && form.choruses.some(c => c.role === 'solo');
 	const versionedPolicies = {
+  ...(options.rideTriplet && performanceEnergy && style.coordinatedStyle === 'swing' && form.choruses.some(c => c.role === 'solo')
+   ? { rideTripletVersion: 1 as const } : {}),
   ...(nativeHandoff && { nativeMelodicHandoffVersion: 1 as const }),
   ...((displacement || nativeHandoff) && options.melodicHandoff && options.keyboardMelodicHandoff ? { keyboardMelodicHandoffVersion: 1 as const } : {}),
   ...((displacement || nativeHandoff) && options.melodicHandoff ? { melodicHandoffVersion: 1 as const } : {}),
@@ -576,14 +580,17 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		ensemble.drums.maxCommentaryHits >= 2 && ['nobody','drums'].includes(ensemble.responseOwner);
  const realizeDrums = (pianoResult: typeof piano) => {
 	 const compOnsets = pianoResult.events.map(event => event.absBeat - bar*4);
+   const openSolo = definition.rideTripletVersion && solo && !pianoResult.answer && !bass.memory.pendingLaunch &&
+    !['active','resting'].includes(window.plan.trace[0].soloEvidence);
 	 const planned = planDrumPhraseBar({
+		rideTripletSeed: openSolo ? current.pianoPresenceSeed ?? 0 : undefined,
 		displaced: offerAnswer && !pianoResult.answer && pianoResult.trace.carriedReleaseTick === undefined && !pianoResult.trace.commonToneEntry
 			? displacedRhythm(previous, bar, compOnsets, seedFrom(definition.phraseId,current.pianoPresenceSeed ?? 0)) : undefined,
   ...(definition.longerSentencesVersion ? { longerSentences: true as const } : {}),
 		...(definition.phraseColorsVersion ? { phraseColors: true as const, phraseColorSeed: definition.bars[bar].pianoPresenceSeed ?? 0 } : {}),
 		...(definition.phraseExpressionVersion ? { phraseExpression: true as const } : {}),
 		...(definition.trioConversationVersion ? { trioConversation: true as const } : {}),
-		...(definition.trioConversationVersion || definition.bossaPickupVersion || definition.balladReturnVersion || definition.dominantRiffVersion || definition.brokenTwoVersion || definition.balladThirdVersion ? { bassEvents: bass.events } : {}),
+		...(definition.rideTripletVersion || definition.trioConversationVersion || definition.bossaPickupVersion || definition.balladReturnVersion || definition.dominantRiffVersion || definition.brokenTwoVersion || definition.balladThirdVersion ? { bassEvents: bass.events } : {}),
 		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
 		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info: pianoResult.answer || pianoResult.trace.carriedReleaseTick !== undefined || (pianoResult.trace.commonToneEntry && ensemble.responseOwner === 'nobody') ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: drumSentence?.startBar ?? ensemble.phraseStartBar, phraseEndBarExclusive: drumSentence?.endBarExclusive ?? phraseEnd, harmonyEndBeat: definition.totalBars * 4,
@@ -615,7 +622,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const scheduleDrums = (result: ReturnType<typeof realizeDrums>): DrumEvent[] => result.bar.hits.map((hit) => {
 		const absBeat = bar * 4 + hit.beatOffset;
 		const tick = hit.role === 'accent' && hit.beatOffset === 0 ? timing.arrivalTick(bar) : timing.place(absBeat, (hit.ensembleColor?.kind === 'cross-stick' || hit.phraseDialogue?.kind === 'kick-answer') ? 'snare' : result.bar.ride.voice === 'hihat' && hit.drum === 'hihat' && hit.role === 'timekeeping' ? 'ride' : hit.drum);
-		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.displacedAnswer ? { displacedAnswer: hit.displacedAnswer } : {}), ...(hit.balladThird ? { balladThird: true as const } : {}), ...(hit.brokenTwo ? { brokenTwo: true as const } : {}), ...(hit.dominantRiff ? { dominantRiff: true as const } : {}), ...(hit.bossaPickupKick ? { bossaPickupKick: true as const } : {}), ...(hit.walkingBackbeatLift ? { walkingBackbeatLift: hit.walkingBackbeatLift } : {}), ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}), ...(hit.ensembleColor ? { ensembleColor: hit.ensembleColor } : {}), ...(hit.phraseDialogue ? { phraseDialogue: hit.phraseDialogue } : {}), ...(hit.innerMotion ? { innerMotion: hit.innerMotion } : {}) };
+		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.rideTriplet ? { rideTriplet: true as const } : {}), ...(hit.displacedAnswer ? { displacedAnswer: hit.displacedAnswer } : {}), ...(hit.balladThird ? { balladThird: true as const } : {}), ...(hit.brokenTwo ? { brokenTwo: true as const } : {}), ...(hit.dominantRiff ? { dominantRiff: true as const } : {}), ...(hit.bossaPickupKick ? { bossaPickupKick: true as const } : {}), ...(hit.walkingBackbeatLift ? { walkingBackbeatLift: hit.walkingBackbeatLift } : {}), ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}), ...(hit.ensembleColor ? { ensembleColor: hit.ensembleColor } : {}), ...(hit.phraseDialogue ? { phraseDialogue: hit.phraseDialogue } : {}), ...(hit.innerMotion ? { innerMotion: hit.innerMotion } : {}) };
 	});
 	let drums = realizeDrums(piano);
 	let drumEvents = scheduleDrums(drums);

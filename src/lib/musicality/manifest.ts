@@ -314,7 +314,7 @@ const foundationAssessments: Record<string, string> = {
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
 	S12: 'Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
-	S18: 'Selected complete solo-peak phrases sustain ride-bell color, with a return to ride and no consecutive bell phrases. Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
+	S18: '0.31.0 adds a short quarter-note triplet against walking bass in a Swing solo. Selected complete solo-peak phrases sustain ride-bell color, with a return to ride and no consecutive bell phrases. Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
 	S19: 'Coordinated mode uses a foot hi-hat on beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
 	S22: 'A remembered commentary rhythm can change between existing snare, cross-stick, kick and ride-bell voices; accepted gestures have explicit limb occupancy.',
@@ -345,7 +345,7 @@ const foundationRemaining: Record<string, string> = {
 	S16: "Rolling bass retains pitch history and accepted following-chorus launches while adapting ornament admission. Declared repeat seams can be launch targets; the final loop remains terminal. Broader trajectories and listening acceptance remain incomplete.",
 	S17: "Broader kit vocabulary, articulation lengths and musical acceptance remain incomplete. Rolling memory continues across declared loops; new motifs still follow phrase boundaries.",
 	S12: 'Further bass time devices, solo-density-led feel negotiation and human listening acceptance remain incomplete.',
-	S18: 'Bell color requires a complete eligible peak phrase; short peaks retain ride. Cymbal note-length control, deliberate metric/displacement devices and broader modern ride textures remain incomplete.',
+	S18: 'Bell color requires a complete eligible peak phrase; short peaks retain ride. Cymbal note-length control, other metric and displacement devices and broader modern ride textures remain incomplete.',
 	S19: 'Splash/barked hats, sustained hi-hat timekeeping textures and other vocabulary remain incomplete.',
 	S20: 'Live solo motif recognition, solo phrase-end detection, rolls and grace-note articulations remain incomplete.',
 	S22: 'Tom voices and a general orchestration/limb-transition model remain absent.',
@@ -382,6 +382,11 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'D9') return { ...entry, status: 'implemented',
+  assessment: 'In a selected Swing solo bar the ride plays three evenly spaced strokes across the first two walking beats and rejoins the bass on beat three.',
+  scope: '0.31.0, coordinated 4/4 Swing solos with a clear ride entrance and a walking bass pulse.',
+  remaining: 'Full-tune listening acceptance is pending. Other placements and longer cross-rhythms remain open.',
+  evidence: [...entry.evidence, source('backing-drum-phrases'), test('backing-ride-triplet')] };
  if (entry.id === 'B25') return { ...entry, status: 'partial',
   assessment: 'In 0.25.0 the Ballad bassist can keep the downbeat root and climb to the major or minor third on beat three.',
   scope: 'Unreserved solo builds and peaks over a full bar of one written chord in Ballad 4/4.',

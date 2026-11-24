@@ -33,14 +33,15 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'bossa-handoff' | 'ballad-handoff' | 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'ride-triplet' | 'bossa-handoff' | 'ballad-handoff' | 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
+  const rideTriplet = example === 'ride-triplet';
   const keyboardHandoff = example === 'keyboard-handoff';
   const melodic = example === 'melodic-handoff';
   const displaced = example === 'displaced-answer';
   const memory = example === 'rhythm-memory';
-  const exampleStyle = example === 'bossa-handoff' ? 'bossa-nova' : example === 'ballad-handoff' ? 'ballad' : keyboardHandoff || melodic || displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
-  const bridge = !keyboardHandoff && !melodic && !displaced && !memory && exampleStyle === 'swing';
+  const exampleStyle = example === 'bossa-handoff' ? 'bossa-nova' : example === 'ballad-handoff' ? 'ballad' : rideTriplet || keyboardHandoff || melodic || displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
+  const bridge = example === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
@@ -48,7 +49,7 @@
   tempo = example === 'bossa-handoff' ? 112 : example === 'ballad-handoff' ? 92 : keyboardHandoff ? 144 : melodic || displaced ? 128 : memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
-  energySeed = example === 'bossa-handoff' ? 7 : keyboardHandoff ? 57 : melodic ? 29 : memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
+  energySeed = rideTriplet ? 2 : example === 'bossa-handoff' ? 7 : keyboardHandoff ? 57 : melodic ? 29 : memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
  }
  function newEnergyArc() { clearTake(); energySeed = crypto.getRandomValues(new Uint32Array(1))[0]; }
  let monitorMix = $state(getBackingMix());
@@ -246,6 +247,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-ride-triplet" onclick={() => loadReleaseExample('ride-triplet')} disabled={busy}>Load 0.31 Swing ride triplets ↗</button>
+     · Tap four with the bass. In Solo 1 bar 2 and Solo 2 bar 3 (performed bars 18 and 31), the ride plays three even strokes across beats one and two. Listen for the ride and bass coming back together on three. S18/D9 · S48 phase 6.</p>
     <p><button class="release-example" data-testid="listening-bossa-handoff" onclick={() => loadReleaseExample('bossa-handoff')} disabled={busy}>Load 0.30 Bossa handoff ↗</button>
      · Solo 1, bars 2–5. Sing the bass B♭–F–C–C. The keyboard answers G–F–D–D, landing on the “and” of two. The clave keeps going underneath.</p>
     <p><button class="release-example" data-testid="listening-ballad-handoff" onclick={() => loadReleaseExample('ballad-handoff')} disabled={busy}>Load 0.30 Ballad handoff ↗</button>

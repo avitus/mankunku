@@ -863,6 +863,10 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		card.detail = `The ${source} played this spacing in bar ${cell.bar+1}. The ${cell.stressed === 0 ? 'first' : 'second'} note takes the accent.`;
 		card.evidence.push('S3 · S38 · S39');
 	}
+ if (drums.filter(event => event.rideTriplet && event.drum === 'ride').length === 3) {
+  drumCard.action = 'Play three across two';
+  drumCard.detail = 'Three evenly spaced ride strokes span beats one and two. The ride and upright meet again on three.';
+ }
 	const strokes = drums.filter(e => e.displacedAnswer);
 	const rhythmSource = strokes[0]?.displacedAnswer;
 	if (rhythmSource && strokes.length === 2) {
