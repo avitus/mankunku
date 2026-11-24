@@ -192,6 +192,9 @@
 	$effect(() => {
 		if (player.playing && baseId) recordRecentTune(baseId);
 	});
+	let manualFocus = $state(false);
+	const focused = $derived(manualFocus || busy);
+	$effect(() => { tuneDeskView.focus = focused; });
 	let printPreview = $state(false);
 	let settingsPanel = $state<HTMLDetailsElement>();
 	let chartWidth = $state(800);
@@ -226,10 +229,10 @@
 		player.restorePlaybackPreferences();
 		player.restoreSoloChoruses();
 		showKeyCenters = savedTuneDisplay('key-centers', true);
-		tuneDeskView.focus = savedTuneDisplay('focus', false);
+		manualFocus = savedTuneDisplay('focus', false);
 	});
 	/** Persist an explicit focus change; route teardown only clears the live view. */
-	function setFocus(enabled: boolean): void { tuneDeskView.focus = saveTuneDisplay('focus', enabled); }
+	function setFocus(enabled: boolean): void { manualFocus = saveTuneDisplay('focus', enabled); }
 	/** Stop playback and persist the selected written key in concert pitch. */
 	function selectWrittenKey(key: PitchClass): void {
 		playGeneration++;
@@ -274,7 +277,8 @@
 	function handleKeydown(event: KeyboardEvent): void {
 		if (printPreview || document.querySelector('dialog[open]')) return;
 		if (event.key === 'Escape') {
-			if (settingsPanel?.open) { settingsPanel.open = false; settingsPanel.querySelector('summary')?.focus(); }
+			if (busy) { void togglePlay(); }
+			else if (settingsPanel?.open) { settingsPanel.open = false; settingsPanel.querySelector('summary')?.focus(); }
 			else setFocus(false);
 			return;
 		}
@@ -339,33 +343,39 @@
 {#if printPreview && sheet}
 	<PrintableTune tune={sheet} instrument={getInstrument()} showCenters={showKeyCenters} onclose={() => printPreview = false} />
 {/if}
-<div hidden={printPreview && !!sheet} class="lick-editor tune-desk tune-detail studio-desk sd-page" class:td-focus={tuneDeskView.focus}>
-	{#if !tuneDeskView.focus}<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>{/if}
+<div hidden={printPreview && !!sheet} class="lick-editor tune-desk tune-detail studio-desk sd-page" class:td-focus={focused} class:sd-playing={busy}>
+	{#if !focused}<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>{/if}
 	{#if sheet && baseSheet}
 		<header class="sd-header">
 			<div class="sd-title"><h1>{baseSheet.title}</h1><p>{baseSheet.composer || 'Your arrangement'}{authorName ? ` · Shared by ${authorName}` : ''}</p></div>
 			<button class="sd-play" data-running={busy} disabled={changingMode || (practice && !practiceStatus?.ready)} onclick={togglePlay}>
-				<EditorIcon name={busy ? 'stop' : 'play'} size={15} />{player.starting || practiceStatus?.loading ? 'Loading…' : busy ? 'Stop' : 'Play'}
+				<EditorIcon name={busy ? 'stop' : 'play'} size={15} />{busy ? 'Stop' : 'Play'}
 			</button>
-			{#if sharedSheet}<button class="le-button le-save" onclick={handleAdopt} disabled={adopting}>{adopting ? 'Adding…' : 'Add to my book'}</button>{/if}
-			<details class="sd-advanced" bind:this={settingsPanel}><summary><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h18M3 17h18"/><g fill="var(--studio-well)"><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></g></svg>Tune settings</summary>
-				<div class="sd-drawer"><fieldset disabled={!!practiceStatus?.running || !!practiceStatus?.loading}>
-					{@render chartSettings('setup')}
-					<TuneBandControls {player} style={backingStyle} tuneId={baseSheet.id} personal={!isOwnSheet} onsave={saveBackingStyle} />
-					<div class="sd-actions">
-						{#if isOwnSheet}<button onclick={handleEdit}>Edit tune</button>{:else if isCurated}<button onclick={handleCopy}>Edit a copy</button>{/if}
-						<button onclick={() => { if (settingsPanel) settingsPanel.open = false; printPreview = true; }}>Print lead sheet</button>
-						<button onclick={() => { setFocus(!tuneDeskView.focus); if (settingsPanel) settingsPanel.open = false; }}>{tuneDeskView.focus ? 'Exit focus' : 'Focus'}</button>
-						{#if practice}
-							<TourTrigger tourId="tune-practice" steps={tunePracticeTour} label="How this works" hideIfSeen={false} /><HelpLink href="/docs/tune-practice" label="Tune practice docs" />
-						{/if}
-						{#if !practice}<label class="sd-switch">Loop <RockerSwitch compact label="Loop" checked={repeatSession} onChange={on => repeatSession = on} /></label>{/if}
-					</div>
-				</fieldset></div>
-			</details>
+			{#if !busy}
+				{#if sharedSheet}<button class="le-button le-save" onclick={handleAdopt} disabled={adopting}>{adopting ? 'Adding…' : 'Add to my book'}</button>{/if}
+				<details class="sd-advanced" bind:this={settingsPanel}><summary><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h18M3 17h18"/><g fill="var(--studio-well)"><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></g></svg>Tune settings</summary>
+					<div class="sd-drawer"><fieldset disabled={!!practiceStatus?.running || !!practiceStatus?.loading}>
+						{@render chartSettings('setup')}
+						<TuneBandControls {player} style={backingStyle} tuneId={baseSheet.id} personal={!isOwnSheet} onsave={saveBackingStyle} />
+						<div class="sd-actions">
+							{#if isOwnSheet}<button onclick={handleEdit}>Edit tune</button>{:else if isCurated}<button onclick={handleCopy}>Edit a copy</button>{/if}
+							<button onclick={() => { if (settingsPanel) settingsPanel.open = false; printPreview = true; }}>Print lead sheet</button>
+							<button onclick={() => { setFocus(!manualFocus); if (settingsPanel) settingsPanel.open = false; }}>{manualFocus ? 'Exit focus' : 'Focus'}</button>
+							{#if practice}
+								<TourTrigger tourId="tune-practice" steps={tunePracticeTour} label="How this works" hideIfSeen={false} /><HelpLink href="/docs/tune-practice" label="Tune practice docs" />
+							{/if}
+							{#if !practice}<label class="sd-switch">Loop <RockerSwitch compact label="Loop" checked={repeatSession} onChange={on => repeatSession = on} /></label>{/if}
+						</div>
+					</fieldset></div>
+				</details>
+			{/if}
 		</header>
-		{#if !tuneDeskView.focus}<TuneSessionDesk {player} {hasMelody} disabled={busy || changingMode} centers={showKeyCenters} {practice} canPractice={!!bookSheet}
-			oncenters={on => showKeyCenters = saveTuneDisplay('key-centers', on)} onpractice={setPractice} />{/if}
+		{#if !manualFocus}
+			<div class="sd-setup" inert={busy}>
+				<TuneSessionDesk {player} {hasMelody} disabled={busy || changingMode} centers={showKeyCenters} {practice} canPractice={!!bookSheet}
+					oncenters={on => showKeyCenters = saveTuneDisplay('key-centers', on)} onpractice={setPractice} />
+			</div>
+		{/if}
 		<section class="le-panel td-detail-chart" aria-label="Tune chart">
 			{#if practice && bookSheet}
 				{#key bookSheet.id}<TunePracticeSession bind:this={practiceSession} baseSheet={bookSheet} {player} {cacheVersion} {concertKey} {backingStyle} {showKeyCenters} onexit={() => setPractice(false)} />{/key}

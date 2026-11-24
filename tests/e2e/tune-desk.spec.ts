@@ -127,15 +127,17 @@ test('mobile controls fit, keep focus in the dialog and return it to Settings', 
 	await expect(page.locator('.sd-advanced > summary')).toBeFocused();
 });
 
-test('playing locks style changes and shows only a neutral current-bar highlight', async ({ page, browserName }) => {
+test('Play focuses the titled chart and Stop restores setup', async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 	await stubCdnInstrumentSamples(page);
 	await page.goto('/tunes/ls-rhythm-changes');
 	await page.getByRole('switch', { name: 'Backing track' }).click();
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });
-	await openTuneSettings(page);
-	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeDisabled();
+	await expect(page.getByRole('heading', { level: 1, name: /Rhythm Changes/i })).toBeVisible();
+	await expect(page.locator('nav')).toBeHidden();
+	await expect(page.locator('.sd-advanced')).toBeHidden();
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeHidden();
 	await expect(page.locator('.td-status')).toContainText('Head');
 	await expect(page.getByTestId('chart-scroll-viewport')).toHaveClass(/following/);
 	await expect(page.locator('svg .playhead-wash-subtle')).toBeVisible();
@@ -159,7 +161,7 @@ test('editor style changes update its preview and survive saving the tune', asyn
 	await expect(page.getByRole('heading', { name: 'Ballad', exact: true })).toBeVisible();
 });
 
-test('transposing a tune and editing a preview note stop the previous playback', async (
+test('Escape restores tune settings and editing a preview note stops editor playback', async (
 	{ page, browserName }: Pick<PlaywrightTestArgs & PlaywrightWorkerOptions, 'page' | 'browserName'>
 ): Promise<void> => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
@@ -168,6 +170,8 @@ test('transposing a tune and editing a preview note stop the previous playback',
 	await page.goto('/tunes/test-session-tune');
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });
+	await page.keyboard.press('Escape');
+	await expect(page.locator('nav')).toBeVisible();
 	await openTuneSettings(page);
 	await page.getByLabel('Written key', { exact: true }).selectOption('G');
 	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
