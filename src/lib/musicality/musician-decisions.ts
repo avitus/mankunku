@@ -872,5 +872,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		drumCard.detail = `Two snare strokes answer the ${player} in performed bar ${rhythmSource.bar+1}. The ${rhythmSource.stressed===0?'first':'second'} stroke carries the accent.`;
 		drumCard.evidence.push('S3 · S38 · S39 · D27–29');
 	}
+	const handoff = bass.filter(event => event.melodicSource);
+	const melody = handoff[0]?.melodicSource;
+	if (melody) {
+		const start = Math.floor(melody[0].beat / 4) + 1;
+		const end = Math.floor(melody[melody.length - 1].beat / 4) + 1;
+		bassCard.action = 'Answer the keyboard melody';
+		bassCard.detail = `The keyboard played ${melody.map(note => noteName(note.midi)).join('–')} in performed bars ${start}–${end}. The upright answers ${handoff.map(note => noteName(note.midi)).join('–')} over the written harmony.`;
+		bassCard.evidence.push('S3 · S38 · S39 · B31–32');
+	}
 	return [bassCard, pianoCard, drumCard];
 }

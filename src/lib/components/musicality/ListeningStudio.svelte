@@ -33,20 +33,21 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
+  const melodic = example === 'melodic-handoff';
   const displaced = example === 'displaced-answer';
   const memory = example === 'rhythm-memory';
-  const exampleStyle = displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
-  const bridge = !displaced && !memory && exampleStyle === 'swing';
+  const exampleStyle = melodic || displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
+  const bridge = !melodic && !displaced && !memory && exampleStyle === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
   style = exampleStyle;
-  tempo = displaced ? 128 : memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
+  tempo = melodic || displaced ? 128 : memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
-  energySeed = memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
+  energySeed = melodic ? 29 : memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
  }
  function newEnergyArc() { clearTake(); energySeed = crypto.getRandomValues(new Uint32Array(1))[0]; }
  let monitorMix = $state(getBackingMix());
@@ -244,6 +245,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-melodic-handoff" onclick={() => loadReleaseExample('melodic-handoff')} disabled={busy}>Load 0.28 Swing melodic handoff ↗</button>
+     · S3, S38, S39, B31–32. In Solo 2, follow the keyboard’s highest notes from beat four of bar 6 through bar 8. Sing “down, same, up.” In bar 9 the upright answers in four quarters, G–D–D–F.</p>
     <p><button class="release-example" data-testid="listening-displaced-answer" onclick={() => loadReleaseExample('displaced-answer')} disabled={busy}>Load 0.27 Swing call and answer ↗</button>
      · S3, S38, S39.
      {#if keyboard === 'organ'}

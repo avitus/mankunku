@@ -1,3 +1,4 @@
+import type { HeardNote } from './backing-melodic-handoff';
 import type { InnerMotion } from './backing-inner-motion';
 import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
@@ -94,6 +95,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 import type { RhythmCell } from './backing-rhythm-memory';
 
 export interface BassEvent {
+ readonly melodicSource?: readonly HeardNote[];
 	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;
