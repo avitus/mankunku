@@ -335,7 +335,7 @@ export function reconcileBeforeHydration(
  * deletion and the explicit "clear my data on this device" control. Does not
  * touch other users' buckets. Re-homes to the anon bucket.
  */
-export async function wipeUserData(uid: string): Promise<void> {
+export async function wipeUserData(uid: string): Promise<{ localCleanupComplete: boolean }> {
 	const wipingActiveUser = getActiveUid() === uid;
 	// Invalidate any in-flight writeback for the wiped user BEFORE re-homing, so
 	// a straggling sync/save that resolves after this can't re-persist the
@@ -347,19 +347,24 @@ export async function wipeUserData(uid: string): Promise<void> {
 		_generation++;
 		broadcastUserChanged('anon');
 	}
-	clearNamespace(uid);
+	let localCleanupComplete = clearNamespace(uid);
+	try {
+		const { clearSpeakerJournal } = await import('$lib/diagnostics/speaker-checks');
+		await clearSpeakerJournal(uid);
+	} catch {
+		localCleanupComplete = false;
+	}
 	try {
 		await clearAllRecordings(uid);
 	} catch {
-		/* IndexedDB errors must not block deletion */
+		localCleanupComplete = false;
 	}
+	if (!(await clearAllTunePdfs(uid))) localCleanupComplete = false;
 	try {
-		await clearAllTunePdfs(uid);
+		if (typeof caches !== 'undefined') await caches.delete(SUPABASE_RUNTIME_CACHE);
 	} catch {
-		/* IndexedDB errors must not block deletion */
-	}
-	if (typeof caches !== 'undefined') {
-		caches.delete(SUPABASE_RUNTIME_CACHE).catch(() => {});
+		localCleanupComplete = false;
 	}
 	if (wipingActiveUser) setActiveUid(null);
+	return { localCleanupComplete };
 }

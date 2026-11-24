@@ -7,6 +7,7 @@
  */
 
 import type { MicPermissionState } from '$lib/types/audio';
+import { recordSpeakerCheck } from '$lib/diagnostics/speaker-checks';
 import { initAudio } from './audio-context';
 import { releaseRoomGraph, roomCorrectionEnabled, roomStatus } from './room-scoring-state.svelte';
 
@@ -95,13 +96,19 @@ export function stopMicCapture(): void {
 
 /** Attach a matching saved profile for scored practice. */
 export async function preparePracticeRoom(current: MicCapture, backing = false): Promise<void> {
-	if (!roomCorrectionEnabled(backing)) return;
+	if (!roomCorrectionEnabled(backing)) {
+		void recordSpeakerCheck({ at: new Date().toISOString(), stage: 'practice', result: 'disabled', rate: current.context.sampleRate });
+		return;
+	}
 	try {
 		const { calibrateRoom } = await import('./room-calibration');
 		if (capture === current) await calibrateRoom(current, { mode: 'practice' });
 	} catch (error) {
 		console.warn('Speaker calibration unavailable', error);
-		if (capture === current) roomStatus.text = 'Room check unavailable · scoring the original microphone';
+		if (capture === current) {
+			roomStatus.active = false;
+			void recordSpeakerCheck({ at: new Date().toISOString(), stage: 'practice', result: 'unavailable', rate: current.context.sampleRate });
+		}
 	}
 }
 

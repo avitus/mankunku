@@ -1,4 +1,5 @@
 import FFT from 'fft.js';
+import { fitRoomCorrection } from './room-refinement';
 
 /** Original microphone and stereo output captured on a shared sample clock. */
 export interface RoomSamples {
@@ -17,10 +18,19 @@ export interface RoomFilter {
 /** Alignment and level fitted in Listen, with independent validation of the predicted reduction. */
 export interface RoomTimingCheck {
 	transientReduction: number;
+	broadbandOffset: number;
+	validationGain: number;
+	micRms: number;
+	predictedRms: number;
 	offset: number;
 	gain: number;
 	reduction: number;
 	accepted: boolean;
+	failure: 'timing' | 'reduction' | 'level' | 'attacks' | null;
+	/** Earlier verified Listen cues contributed this many observations to the active response. */
+	sessionCues?: number;
+	/** The saved calibration's result before a correction passed independent validation. */
+	initial?: Pick<RoomTimingCheck, 'reduction' | 'transientReduction' | 'validationGain' | 'failure'>;
 }
 
 const powerOfTwo = (length: number): number => 2 ** Math.ceil(Math.log2(length));
@@ -40,7 +50,9 @@ function spectrum(fft: FFT, samples: ArrayLike<number>): Float64Array<ArrayBuffe
 function inverse(fft: FFT, bins: Float64Array): Float32Array<ArrayBuffer> {
 	const out = complex(fft);
 	fft.inverseTransform(out, bins);
-	return Float32Array.from({ length: fft.size }, (_, i) => out[2 * i]);
+	const samples = new Float32Array(fft.size);
+	for (let i = 0; i < samples.length; i++) samples[i] = out[2 * i];
+	return samples;
 }
 
 /** PHAT correlation locates the direct arrival even with coloured calibration music. */
@@ -195,8 +207,7 @@ export function validateRoom(samples: RoomSamples, filter: RoomFilter, start: nu
 
 /** Align a frozen prediction on quiet Listen audio. Only the first half chooses
  * the delay. An independent second half must also benefit from subtraction. */
-export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomTimingCheck | null {
-	const predicted = predictRoom(filter, samples.left, samples.right);
+export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array = predictRoom(filter, samples.left, samples.right)): RoomTimingCheck | null {
 	const start = filter.left.length;
 	const middle = Math.floor((start + predicted.length) / 2);
 	const n = middle - start;
@@ -232,22 +243,52 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 		}
 		if (lag < limit) power += predicted[from - lag - 1] ** 2 - predicted[to - lag - 1] ** 2;
 	}
-	// A speaker level or microphone gain change scales both frozen paths.
-	// Fit one bounded level on the timing half; assess it on unseen audio.
-	let calibrationPower = 0,
-		calibrationDot = 0;
-	for (let i = start + limit; i < middle - limit; i++) {
-		const echo = predicted[i - offset];
-		calibrationDot += samples.mic[i] * echo;
-		calibrationPower += echo * echo;
+	// A pitched cue can put the broadband peak a few samples away from its
+	// attacks. Resolve that local ambiguity on the fitting half alone. Give
+	// waveform and first-difference errors equal weight after normalization.
+	const broadbandOffset = offset;
+	const radius = Math.ceil(samples.rate * 0.00035);
+	let micPower = 0, micChangePower = 0;
+	for (let i = from + 1; i < to; i++) {
+		micPower += samples.mic[i] ** 2;
+		micChangePower += (samples.mic[i] - samples.mic[i - 1]) ** 2;
 	}
-	const gain = Math.max(0.6, Math.min(1.6, calibrationDot / (calibrationPower + 1e-15)));
+	let gain = 1, bestError = Infinity;
+	for (let lag = Math.max(-limit, broadbandOffset - radius); lag <= Math.min(limit, broadbandOffset + radius); lag++) {
+		let echoPower = 0, echoDot = 0, changePower = 0, changeDot = 0;
+		for (let i = from + 1; i < to; i++) {
+			const echo = predicted[i - lag];
+			const change = echo - predicted[i - lag - 1];
+			echoPower += echo * echo;
+			echoDot += echo * samples.mic[i];
+			changePower += change * change;
+			changeDot += change * (samples.mic[i] - samples.mic[i - 1]);
+		}
+		const level = Math.max(0.6, Math.min(1.6, echoDot / (echoPower + 1e-15)));
+		// Omit the microphone energy term, identical for every lag.
+		const error = level * (level * echoPower - 2 * echoDot) / (micPower + 1e-15)
+			+ level * (level * changePower - 2 * changeDot) / (micChangePower + 1e-15);
+		if (error < bestError) {
+			bestError = error;
+			offset = lag;
+			gain = level;
+		}
+	}
+	return validateAlignment(samples, filter, predicted, broadbandOffset, offset, gain);
+}
+
+function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array,
+	broadbandOffset: number, offset: number, gain: number, opening: boolean = false): RoomTimingCheck {
+	const middle = Math.floor((filter.left.length + predicted.length) / 2);
+	const limit = Math.round(samples.rate * 0.02);
 	let transientBefore = 0, transientAfter = 0;
 	let before = 0,
 		error = 0,
 		estimated = 0,
 		dot = 0;
-	for (let i = middle + limit; i < predicted.length - limit; i++) {
+	const from = (opening ? filter.left.length : middle) + limit;
+	const to = (opening ? middle : predicted.length) - limit;
+	for (let i = from; i < to; i++) {
 		const observed = samples.mic[i],
 			echo = gain * predicted[i - offset];
 		before += observed * observed;
@@ -263,12 +304,115 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter): RoomT
 	}
 	const reduction = 10 * Math.log10((before + 1e-15) / (error + 1e-15));
 	const validationGain = dot / (estimated + 1e-15);
+	const transientReduction = 10 * Math.log10((transientBefore + 1e-15) / (transientAfter + 1e-15));
+	const firstTap = filter.left.findIndex((value, i) => value !== 0 || filter.right[i] !== 0);
+	let failure: RoomTimingCheck['failure'] = null;
+	if (firstTap < 0 || firstTap + offset < 0 || Math.max(Math.abs(broadbandOffset), Math.abs(offset)) >= limit) failure = 'timing';
+	else if (!(reduction >= 3)) failure = 'reduction';
+	else if (!(validationGain >= 0.75 && validationGain <= 1.25)) failure = 'level';
+	else if (!(transientReduction >= 1)) failure = 'attacks';
 	return {
-		transientReduction: 10 * Math.log10((transientBefore + 1e-15) / (transientAfter + 1e-15)),
+		transientReduction,
+		broadbandOffset,
+		validationGain,
+		micRms: Math.sqrt(before / (to - from)),
+		predictedRms: Math.sqrt(estimated / (to - from)),
 		offset,
 		gain,
 		reduction,
-		accepted:
-			Math.abs(offset) < limit && reduction >= 3 && validationGain >= 0.75 && validationGain <= 1.25
+		accepted: failure === null,
+		failure
 	};
+}
+
+/** A graph-local average of corrections measured against the saved response at its original level. */
+export interface RoomSession {
+	correction: RoomFilter;
+	cues: number;
+}
+
+/** Called after an accepted Listen has finished scoring verification. Learn only from
+ * that demonstration, using its verified clock offset. Play never enters this fit. */
+export function learnRoomSession(samples: RoomSamples, filter: RoomFilter, offset: number, previous?: RoomSession): RoomSession | undefined {
+	const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
+	if (first < 0) return;
+	const guard = Math.round(samples.rate * 0.02);
+	const delta = fitRoomCorrection(samples, predictRoom(filter, samples.left, samples.right),
+		first, filter.left.length - first, offset, 1, filter.left.length + guard, samples.mic.length - guard);
+	if (!delta) return;
+	const cues = (previous?.cues ?? 0) + 1;
+	// Average the first four estimates, then give the latest cue one quarter of the weight.
+	// Short captures can estimate fewer taps. Keep the earlier tail in that case.
+	if (previous) {
+		for (const side of ['left', 'right'] as const) {
+			const old = previous.correction[side];
+			const update = delta[side];
+			const mean = new Float32Array(Math.max(old.length, update.length));
+			mean.set(old);
+			for (let i = 0; i < update.length; i++) mean[i] += (update[i] - mean[i]) / Math.min(cues, 4);
+			delta[side] = mean;
+		}
+	}
+	return { cues, correction: delta };
+}
+
+/** Reuse the correction buffer for the candidate prediction, shifting causal taps in place. */
+function addSavedPrediction(extra: Float32Array, saved: Float32Array, first: number): void {
+	for (let i = saved.length - 1; i >= first; i--) extra[i] = saved[i] + extra[i - first];
+	extra.set(saved.subarray(0, first));
+}
+
+/** On the same held-out samples used by the gate, keep calibration the primary predictor. */
+function correctionWithinRoom(saved: Float32Array, combined: Float32Array, length: number, rate: number, offset: number): boolean {
+	const guard = Math.round(rate * 0.02);
+	const middle = Math.floor((length + saved.length) / 2);
+	let roomPower = 0, correctionPower = 0;
+	for (let i = middle + guard - offset; i < saved.length - guard - offset; i++) {
+		roomPower += saved[i] ** 2;
+		correctionPower += (combined[i] - saved[i]) ** 2;
+	}
+	return correctionPower < roomPower;
+}
+
+/** Verify the saved response first. A cue-local correction can rescue a
+ * recognizable return only if it also passes every gate on unheard audio. */
+export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: RoomSession): { check: RoomTimingCheck | null; correction?: RoomFilter } {
+	const predicted = predictRoom(filter, samples.left, samples.right);
+	const initial = checkRoomTiming(samples, filter, predicted);
+	if (!initial || !initial.failure || initial.failure === 'timing') return { check: initial };
+	const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
+	const { reduction, transientReduction, validationGain, failure } = initial;
+	const original = { reduction, transientReduction, validationGain, failure };
+	if (session) {
+		const learned = predictRoom(session.correction, samples.left, samples.right);
+		addSavedPrediction(learned, predicted, first);
+		const aligned = checkRoomTiming(samples, filter, learned);
+		// Both predictions must locate the same physical return. A musical pitch
+		// alone can correlate at a different cycle even when the speakers moved.
+		if (aligned && aligned.failure !== 'timing' && Math.abs(aligned.offset - initial.offset) <= samples.rate * 0.001) {
+			let check = aligned;
+			// A loud opening note can bias the fitted gain. The level learned on
+			// previous cues is an independent candidate: require both halves to pass at unity.
+			if (aligned.failure === 'level' && validateAlignment(samples, filter, learned,
+				aligned.broadbandOffset, aligned.offset, 1, true).accepted) {
+				check = validateAlignment(samples, filter, learned, aligned.broadbandOffset, aligned.offset, 1);
+			}
+			if (check.accepted && correctionWithinRoom(predicted, learned, filter.left.length, samples.rate, check.offset)) {
+				return { check: { ...check, initial: original, sessionCues: session.cues }, correction: session.correction };
+			}
+		}
+	}
+	if (initial.reduction < 1) return { check: initial };
+	const guard = Math.round(samples.rate * 0.02);
+	const middle = Math.floor((filter.left.length + predicted.length) / 2);
+	const correction = fitRoomCorrection(samples, predicted, first, filter.left.length - first,
+		initial.offset, initial.gain, filter.left.length + guard, middle - guard);
+	if (!correction) return { check: initial };
+	const combined = predictRoom(correction, samples.left, samples.right);
+	addSavedPrediction(combined, predicted, first);
+	if (!correctionWithinRoom(predicted, combined, filter.left.length, samples.rate, initial.offset)) return { check: initial };
+	const check = validateAlignment(samples, filter, combined, initial.broadbandOffset, initial.offset, initial.gain);
+	if (check.failure) return { check: initial };
+	check.initial = original;
+	return { check, correction };
 }

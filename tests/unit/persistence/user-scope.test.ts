@@ -12,6 +12,7 @@
  *   - `namespace.ts` — active-uid resolution.
  */
 
+import { IDBFactory } from 'fake-indexeddb';
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import {
 	reconcileActiveUser,
@@ -133,13 +134,36 @@ describe('reconcileActiveUser', () => {
 });
 
 describe('wipeUserData', () => {
+	beforeEach(() => {
+		vi.stubGlobal('indexedDB', new IDBFactory());
+	});
+
+	it('reports a PDF cleanup failure even when the other stores were cleared', async () => {
+		setActiveUid('user-A');
+		const open = indexedDB.open.bind(indexedDB);
+		vi.spyOn(indexedDB, 'open').mockImplementation((name, version) => {
+			if (name.includes('tune-pdfs')) throw new Error('PDF store unavailable');
+			return open(name, version);
+		});
+		expect((await wipeUserData('user-A')).localCleanupComplete).toBe(false);
+		expect(getActiveUidOrNull()).toBeNull();
+	});
+
+	it('reports incomplete erasure if namespaced data could not be removed', async () => {
+		setActiveUid('user-A');
+		local.setItem('mankunku:u:user-A:progress', '{}');
+		vi.spyOn(local, 'removeItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+		expect((await wipeUserData('user-A')).localCleanupComplete).toBe(false);
+		expect(getActiveUidOrNull()).toBeNull();
+	});
+
 	it('erases the active user bucket, invalidates in-flight writebacks, and re-homes to anon', async () => {
 		setActiveUid('user-A');
 		local.setItem('mankunku:u:user-A:progress', '{"a":1}');
 		local.setItem('mankunku:u:user-B:progress', '{"b":1}');
 		const genBefore = getScopeGeneration();
 
-		await wipeUserData('user-A');
+		expect((await wipeUserData('user-A')).localCleanupComplete).toBe(true);
 
 		// Generation bumps BEFORE the wipe so a straggling sync cannot re-persist
 		// the deleted state (or copy it into the anon bucket).

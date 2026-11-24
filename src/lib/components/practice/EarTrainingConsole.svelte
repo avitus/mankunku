@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SpeakerLed from '$lib/components/practice/SpeakerLed.svelte';
 	import type { Snippet } from 'svelte';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
@@ -43,7 +44,7 @@
 <!-- Approved MagicPath revision 460504190599458816. No demo controls or scores. -->
 <div class="studio-desk ear-console" class:practising>
 	<header class="studio-page-heading">
-		<h1>Ear training<span aria-hidden="true">.</span></h1>
+		<div class="ear-title"><h1>Ear training<span aria-hidden="true">.</span></h1><SpeakerLed /></div>
 		<div class="ear-help" class:concealed={practising}>
 			{#if help}{@render help()}{/if}
 		</div>
@@ -111,6 +112,7 @@
 
 <style>
 	.ear-console { max-width: 1280px; margin: auto; }
+	.ear-title { display: flex; align-items: center; gap: 10px; }
 	.studio-page-heading h1 { margin: 0; }
 	.studio-page-heading h1 span { color: var(--color-accent); }
 	.ear-help { display: flex; align-items: center; gap: 18px; }
