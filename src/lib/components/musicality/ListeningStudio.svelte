@@ -33,18 +33,19 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
-  const exampleStyle = example === 'ballad-solo' ? 'ballad' : example;
-  const bridge = exampleStyle === 'swing';
+  const memory = example === 'rhythm-memory';
+  const exampleStyle = memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
+  const bridge = !memory && exampleStyle === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
   style = exampleStyle;
-  tempo = example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
+  tempo = memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
-  energySeed = exampleStyle === 'straight' ? 12 : 3;
+  energySeed = memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
  }
  function newEnergyArc() { clearTake(); energySeed = crypto.getRandomValues(new Uint32Array(1))[0]; }
  let monitorMix = $state(getBackingMix());
@@ -242,6 +243,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-rhythm-memory" onclick={() => loadReleaseExample('rhythm-memory')} disabled={busy}>Load 0.26 Swing rhythmic answers ↗</button>
+     · S3, S38, S39. In Solo 2 listen for the ride on beats two and three of bar 3, the bass on two and four of bar 5, and the keyboard on the offbeats of bar 11. The musician cards identify the earlier player and bar.</p>
     <p><button class="release-example" data-testid="listening-ballad-third" onclick={() => loadReleaseExample('ballad-solo')} disabled={busy}>Load 0.25 Ballad solo ↗</button>
      · Solo 1, bars 5–6. Hear the upright rise to the third with a soft rim click on beat three, then the short keyboard answer on four. Listen again in Solo 2, bar 2.</p>
     <p><button class="release-example" data-testid="listening-broken-two" onclick={() => loadReleaseExample('straight')} disabled={busy} title="Load Mankunku Blues in F at 136 BPM with two solos. Keeps your keyboard and mix.">Load 0.24 Straight Blues ↗</button>

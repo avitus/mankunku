@@ -8,7 +8,7 @@ import { allowsTrioConversation } from './backing-trio-conversation';
 import { prepareCoordinatedVoicings } from './coordinated-voicing';
 import { nativeBalladReplyEnabled, captureNativeBalladColor, proposeNativeBalladReply, advanceNativeBalladReplyMemory, validateNativeBalladReply, type NativeBalladReplyMemory } from './backing-ballad-reply';
 import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
-import { BACKING_STYLES } from './backing-styles';
+import { BACKING_STYLES, type DrumHitSpec, type StyleDefinition } from './backing-styles';
 /** Pure append-only, one-bar realization for the finite coordinated listening lab. */
 import type { HarmonicSegment } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
@@ -16,12 +16,12 @@ import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import type { PerformanceForm } from '$lib/types/performance-form';
 import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent, EnsembleDevelopment, NativeBalladReplyDecision } from './backing-generation';
 import { buildBarInfos } from './backing-generation';
+import { developRhythm, validRhythmMemory, type RhythmMemory } from './backing-rhythm-memory';
 import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext } from './performance-form';
 import { planPerformanceEnergy } from './performance-energy';
 import { prepareEnsembleBars, planEnsembleWindow, type EnsembleBarContext, type EnsembleMemory, type EnsemblePlan, type SoloFeature } from './ensemble-plan';
 import { describeEnsemblePhraseTiming, restoreEnsembleTiming, type EnsemblePhraseTimingTrace } from './ensemble-timing';
 import type { BackingStyle } from '$lib/types/instruments';
-import type { StyleDefinition } from './backing-styles';
 import { fractionToFloat } from '$lib/music/intervals';
 import { createRng, seedFrom } from './generation-rng';
 import { realizeRollingPiano, realizeRollingBalladReply, type RollingPianoMemory } from './backing-rolling-piano';
@@ -41,6 +41,7 @@ export interface RollingBackingOptions {
  /** Trade the half-note pulse when a Ballad returns to its melody. */
  readonly balladReturn?: true;
  /** Share a Charleston rhythm over a long dominant during a Swing solo. */
+ readonly rhythmMemory?: true;
  readonly balladThird?: true;
  readonly brokenTwo?: true;
  readonly dominantRiff?: true;
@@ -129,6 +130,7 @@ export interface RollingBackingDefinition {
  readonly harmonicSupportVersion?: 1;
  readonly performanceTouchVersion?: 1;
  readonly balladReturnVersion?: 1;
+ readonly rhythmMemoryVersion?: 1;
  readonly balladThirdVersion?: 1;
  readonly brokenTwoVersion?: 1;
  readonly dominantRiffVersion?: 1;
@@ -167,6 +169,7 @@ export interface RollingBackingCheckpoint {
 	readonly pianoAnswer?: PianoAnswerMemory;
 	readonly pianoRecovery?: PianoRecoveryMemory;
 	readonly nativeBalladReply?: NativeBalladReplyMemory;
+	readonly rhythmMemory?: RhythmMemory;
 }
 
 export interface RollingBackingBar extends RollingBarIdentity {
@@ -271,6 +274,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+  ...(options.rhythmMemory && performanceEnergy && form.choruses.some((c,i) => c.role === 'solo' && form.choruses[i-1]?.role === 'solo') ? { rhythmMemoryVersion: 1 as const } : {}),
   ...(options.balladThird && performanceEnergy && style.coordinatedStyle === 'ballad' ? { balladThirdVersion: 1 as const } : {}),
   ...(options.brokenTwo && performanceEnergy && style.coordinatedStyle === 'straight' ? { brokenTwoVersion: 1 as const } : {}),
   ...(options.dominantRiff && performanceEnergy && style.coordinatedStyle === 'swing' ? { dominantRiffVersion: 1 as const } : {}),
@@ -349,6 +353,7 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		checkpoint.nextBar !== checkpoint.ensemble?.nextBar || checkpoint.nextBar !== checkpoint.drums?.nextBar || !checkpoint.piano || !checkpoint.bass || !checkpoint.timing) invalid();
 	const { checkpointId: identity, ...contents } = checkpoint;
 	if (identity !== checkpointId(contents)) invalid();
+	if (score.rhythmMemoryVersion ? !validRhythmMemory(checkpoint.rhythmMemory, checkpoint.nextBar) : checkpoint.rhythmMemory !== undefined) invalid();
 	const presence = checkpoint.pianoPresence;
 	if (score.pianoPresenceVersion ? !presence || presence.version !== 1 || !Number.isInteger(presence.silentBars) || presence.silentBars < 0 || presence.silentBars > checkpoint.nextBar ||
 		(presence.lastSoundingEndTick !== null && (!Number.isFinite(presence.lastSoundingEndTick) || presence.lastSoundingEndTick <= 0 || presence.lastSoundingEndTick > (checkpoint.nextBar * 4 + (score.keyboardSustainVersion ? 1 : 0)) * score.ppq + 0.00001)) : presence !== undefined) invalid();
@@ -663,8 +668,36 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
     ...(v.decision.keyboardArticulation?{keyboardArticulation:{...v.decision.keyboardArticulation,durationSeconds:event.duration,durationBeats:event.duration*definition.tempo/60}}:{})}}))) };
  }
 
+	let rhythmMemory: RhythmMemory | undefined;
+	if (definition.rhythmMemoryVersion) {
+		const current = definition.bars[bar];
+		const solo = current.role === 'solo';
+		const previous = solo && bar > 0 && current.loopIndex === definition.bars[bar-1].loopIndex &&
+			definition.bars[bar-1].role === 'solo' ? checkpoint?.rhythmMemory : undefined;
+		const eligible = solo && !terminalAccepted && !recovery && !drums.bar.cushioning && !ensemble.setupFor && !ensemble.coordinatedAccent &&
+			!ensemble.terminalArrangement && !current.isChorusFinalBar && !ensemble.drums.allowFill &&
+			ensemble.responseOwner === 'nobody' && !piano.answer && !nativeReply && !bass.memory.pendingLaunch &&
+			!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
+			!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
+		const canAnswer = definition.performanceForm.choruses[current.chorusIndex-1]?.role === 'solo' &&
+			['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '');
+		const developed = developRhythm({ bass: bass.events, piano: piano.events, drums: drumEvents },
+			previous, bar, eligible, canAnswer, seedFrom(definition.phraseId, current.pianoPresenceSeed ?? 0));
+		rhythmMemory = developed.memory;
+		bass = { ...bass, events: developed.parts.bass };
+		piano = { ...piano, events: developed.parts.piano };
+		if (developed.parts.drums !== drumEvents) {
+			drumEvents = developed.parts.drums;
+			const shade = (hit: DrumHitSpec) => {
+				const answer = drumEvents.find(e => e.rhythmAnswer && e.drum === hit.drum && e.absBeat === bar*4+hit.beatOffset);
+				return answer ? { ...hit, velocity: answer.velocity } : hit;
+			};
+			drums = { ...drums, bar: freezeDrumPhraseTrace([{ ...drums.bar, hits: drums.bar.hits.map(shade),
+				commentary: { ...drums.bar.commentary, hits: drums.bar.commentary.hits.map(shade) } }])[0] };
+		}
+	}
 	const contents: Omit<RollingBackingCheckpoint, 'checkpointId'> = { version: 1, sessionId: definition.sessionId, fingerprint: definition.fingerprint,
-		nextBar: bar + 1, ...(definition.pianoPresenceVersion ? { pianoPresence: { version: 1 as const, silentBars: piano.events.length ? 0 : (checkpoint?.pianoPresence?.silentBars ?? 0) + 1,
+		nextBar: bar + 1, ...(rhythmMemory ? { rhythmMemory } : {}), ...(definition.pianoPresenceVersion ? { pianoPresence: { version: 1 as const, silentBars: piano.events.length ? 0 : (checkpoint?.pianoPresence?.silentBars ?? 0) + 1,
 			lastSoundingEndTick: piano.events.length ? Math.max(...piano.events.map(event => parseInt(event.time, 10) + event.duration * definition.tempo / 60 * definition.ppq)) : checkpoint?.pianoPresence?.lastSoundingEndTick ?? null } } : {}), ...(nativeBalladReplyEnabled(definition) ? { nativeBalladReply: advanceNativeBalladReplyMemory(definition, bar,
 			checkpoint?.nativeBalladReply, terminalAccepted ? null : captureNativeBalladColor(info, drums.bar, drumEvents), !!nativeReply) } : {}), ...(answerPolicy ? { pianoRecovery: { version: 1 as const, previousAnswer: piano.answer ? { barIndex: bar, attack: { ...piano.answer.attack, notes: [...piano.answer.attack.notes] } } : null }, pianoAnswer: { version: 1 as const, lastAnswerBar: piano.answer ? bar : checkpoint?.pianoAnswer?.lastAnswerBar ?? null } } : {}), ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace,
 		...(feedback ? { feedback: { version: 1 as const, previousDrumStatement: captureDrumStatement(drums.bar, drumEvents),

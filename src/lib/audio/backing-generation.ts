@@ -91,7 +91,10 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 
 // ── Event shapes ─────────────────────────────────────────────
 
+import type { RhythmCell } from './backing-rhythm-memory';
+
 export interface BassEvent {
+	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
@@ -117,6 +120,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
@@ -141,6 +145,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;

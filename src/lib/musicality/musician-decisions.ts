@@ -854,5 +854,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	if (drums.some(e => e.walkingBackbeatLift && e.drum === 'ride' && e.absBeat % 2 === 1)) {
 		drumCard.evidence.push('Ride backbeat accented over the walking bass');
 	}
+	for (const [card, events] of [[bassCard, bass], [pianoCard, piano], [drumCard, drums]] as const) {
+		const marked = events.filter(e => e.rhythmAnswer).sort((a,b) => a.absBeat-b.absBeat);
+		const cell = marked[0]?.rhythmAnswer;
+		if (!cell || marked.length !== 2) continue;
+		const source = cell.player === 'piano' ? 'keyboard' : cell.player;
+		card.action = `Answer the ${source} rhythm`;
+		card.detail = `The ${source} played this spacing in bar ${cell.bar+1}. The ${cell.stressed === 0 ? 'first' : 'second'} note takes the accent.`;
+		card.evidence.push('S3 · S38 · S39');
+	}
 	return [bassCard, pianoCard, drumCard];
 }
