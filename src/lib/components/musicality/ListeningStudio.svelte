@@ -33,22 +33,22 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'bossa-handoff' | 'ballad-handoff' | 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
   const keyboardHandoff = example === 'keyboard-handoff';
   const melodic = example === 'melodic-handoff';
   const displaced = example === 'displaced-answer';
   const memory = example === 'rhythm-memory';
-  const exampleStyle = keyboardHandoff || melodic || displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
+  const exampleStyle = example === 'bossa-handoff' ? 'bossa-nova' : example === 'ballad-handoff' ? 'ballad' : keyboardHandoff || melodic || displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
   const bridge = !keyboardHandoff && !melodic && !displaced && !memory && exampleStyle === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
   style = exampleStyle;
-  tempo = keyboardHandoff ? 144 : melodic || displaced ? 128 : memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
+  tempo = example === 'bossa-handoff' ? 112 : example === 'ballad-handoff' ? 92 : keyboardHandoff ? 144 : melodic || displaced ? 128 : memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
-  energySeed = keyboardHandoff ? 57 : melodic ? 29 : memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
+  energySeed = example === 'bossa-handoff' ? 7 : keyboardHandoff ? 57 : melodic ? 29 : memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
  }
  function newEnergyArc() { clearTake(); energySeed = crypto.getRandomValues(new Uint32Array(1))[0]; }
  let monitorMix = $state(getBackingMix());
@@ -246,6 +246,10 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-bossa-handoff" onclick={() => loadReleaseExample('bossa-handoff')} disabled={busy}>Load 0.30 Bossa handoff ↗</button>
+     · Solo 1, bars 2–5. Sing the bass B♭–F–C–C. The keyboard answers G–F–D–D, landing on the “and” of two. The clave keeps going underneath.</p>
+    <p><button class="release-example" data-testid="listening-ballad-handoff" onclick={() => loadReleaseExample('ballad-handoff')} disabled={busy}>Load 0.30 Ballad handoff ↗</button>
+     · Solo 2, bars 4–9. Follow the keyboard up, down, up, down. On beat three of bar 7 the bass takes over, one note every two beats. Both examples use S3, S38, S39 and B31–32.</p>
     <p><button class="release-example" data-testid="listening-keyboard-handoff" onclick={() => loadReleaseExample('keyboard-handoff')} disabled={busy}>Load 0.29 Bass call and keyboard answer ↗</button>
      · S3, S38, S39, B31–32. In Solo 1, hear the bass pick up on beat four of bar 1 and walk E–F–E♭–D–E. Follow the keyboard’s top notes in bars 3–5: A–B♭–A–A♭–B♭.</p>
     <p><button class="release-example" data-testid="listening-melodic-handoff" onclick={() => loadReleaseExample('melodic-handoff')} disabled={busy}>Load 0.28 Swing melodic handoff ↗</button>

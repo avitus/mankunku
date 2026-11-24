@@ -1,8 +1,7 @@
 /** S3/S38/S39, B31–32. Complete an upper-voice echo on already budgeted chord attacks. */
 import type { BassEvent, CompEvent, CoordinatedPianoVoicing } from './backing-generation';
-import type { HeardNote } from './backing-melodic-handoff';
+import { harmonyAt, melodicSources, type HeardNote } from './backing-melodic-handoff';
 import type { HarmonicSegment } from '$lib/types/music';
-import { fractionToFloat } from '$lib/music/intervals';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
 
 export interface KeyboardMelodicAnswer {
@@ -10,24 +9,24 @@ export interface KeyboardMelodicAnswer {
  readonly reply: readonly HeardNote[];
 }
 
-export function bassCall(events: readonly BassEvent[]): HeardNote[] | undefined {
- if (events.length < 4 || events.length > 5 || events.some(e => e.melodicSource || e.rhythmAnswer) ||
-     new Set(events.map(e => e.midi)).size < 3) return;
+export function bassCall(events: readonly BassEvent[], native = false): HeardNote[] | undefined {
+ if (events.length < (native ? 1 : 4) || events.length > 5 || events.some(e => e.melodicSource || e.rhythmAnswer) ||
+     (!native && new Set(events.map(e => e.midi)).size < 3)) return;
  return events.map(({ absBeat, midi }) => ({ beat: absBeat, midi }));
 }
 
-export function validBassCalls(calls: readonly (readonly HeardNote[])[] | undefined, nextBar: number): boolean {
+export function validBassCalls(calls: readonly (readonly HeardNote[])[] | undefined, nextBar: number, native = false): boolean {
  return Array.isArray(calls) && calls.length <= 4 && calls.every((call, i) =>
-  Array.isArray(call) && (call.length === 4 || call.length === 5) && call.every((note: HeardNote,j:number) =>
+  Array.isArray(call) && (call.length >= (native ? 1 : 4) && call.length <= 5) && call.every((note: HeardNote,j:number) =>
    note && Number.isFinite(note.beat) && note.beat >= (nextBar-4)*4 && note.beat >= 0 && note.beat < nextBar*4 &&
    Math.floor(note.beat/4) === Math.floor(call[0].beat/4) && (!j || note.beat > call[j-1].beat) &&
    Number.isInteger(note.midi) && note.midi >= 0 && note.midi <= 127) &&
   (!i || call[0].beat > calls[i-1].at(-1)!.beat));
 }
 
-export function keyboardAnswerPrefix(source: readonly HeardNote[], keyboard: readonly HeardNote[], remaining: number, firstBeat: number) {
+export function keyboardAnswerPrefix(source: readonly HeardNote[], keyboard: readonly HeardNote[], remaining: number, firstBeat: number, native = false) {
  const length = source.length - remaining;
- if (length < 2 || remaining < 1 || remaining > 2 || keyboard.length < length) return;
+ if (length < (native ? 1 : 2) || remaining < 1 || remaining > (native ? 4 : 2) || keyboard.length < length) return;
  const prefix = keyboard.slice(-length);
  const gap = prefix[0].beat - source.at(-1)!.beat;
  if (gap <= 0 || gap > 4 || firstBeat - prefix.at(-1)!.beat > 4 || firstBeat <= prefix.at(-1)!.beat) return;
@@ -39,13 +38,6 @@ export function keyboardAnswerPrefix(source: readonly HeardNote[], keyboard: rea
  return prefix;
 }
 
-function harmonyAt(harmony: readonly HarmonicSegment[], beat: number) {
- return harmony.find(segment => {
-  const start = fractionToFloat(segment.startOffset)*4;
-  return beat >= start && beat < start + fractionToFloat(segment.duration)*4;
- })?.chord;
-}
-
 export function finishKeyboardAnswer(input: {
  calls: readonly (readonly HeardNote[])[];
  keyboard: readonly HeardNote[];
@@ -54,25 +46,18 @@ export function finishKeyboardAnswer(input: {
  harmony: readonly HarmonicSegment[];
  previous?: CoordinatedVoicingMemory;
  register: number;
+ native?: boolean;
 }) {
  const { events, trace, harmony } = input;
- if (!input.previous || !events.length || events.length > 2 || events.length !== trace.length ||
+ if (!input.previous || !events.length || events.length > (input.native ? 4 : 2) || events.length !== trace.length ||
      events.some((e,i) => e.barLineSustain || e.absBeat !== trace[i].absBeat || e.time !== trace[i].time ||
        trace[i].arrivalId || trace[i].decision.keyboardSuspension || trace[i].decision.chromaticInner ||
        trace[i].decision.fourthStack || trace[i].decision.spreadVoicing || trace[i].decision.upperStructure || trace[i].decision.keyboardColor)) return;
- // A phrase may begin on any walking attack, including a pickup across the barline.
+ // A phrase may begin on any bass attack, including a pickup across the barline.
  const heard = input.calls.flat();
- const sources: HeardNote[][] = [];
- for (let end = heard.length; end >= 4; end--) {
-  for (const size of [5, 4]) {
-   if (end < size) continue;
-   const source = heard.slice(end-size, end);
-   if (new Set(source.map(note => note.midi)).size >= 3 &&
-       source.every((note,i) => i === 0 || note.beat - source[i-1].beat <= 1.5)) sources.push(source);
-  }
- }
+ const sources = melodicSources(heard, input.native ? 2.5 : 1.5);
  for (const source of sources) {
-  const prefix = keyboardAnswerPrefix(source, input.keyboard, events.length, events[0].absBeat);
+  const prefix = keyboardAnswerPrefix(source, input.keyboard, events.length, events[0].absBeat, input.native);
   if (!prefix || prefix.at(-1)!.midi !== input.previous.notes.at(-1)) continue;
   const reply = [...prefix];
   let previous = input.previous;
@@ -87,7 +72,7 @@ export function finishKeyboardAnswer(input: {
    const step = source[index].midi - source[index-1].midi;
    // A player may change inversion or voicing family to put a melody on top.
    // Keep the chord attack, voice count, register and harmonic movement bounded.
-   const families = [native.requestedFamily, 'rootless-a', 'rootless-b', 'shell', 'drop2'] as const;
+   const families = input.native && native.keyboardTexture ? [native.requestedFamily] : [native.requestedFamily, 'rootless-a', 'rootless-b', 'shell', 'drop2'] as const;
    const choices = [...new Set(families)].map(family => resolveCoordinatedVoicing({
     chord, previous, family, registerMidi: input.register, rootlessTexture: native.rootlessTexture?.request,
     spacing: native.spacing?.request, melodicStep: { anchor, step }

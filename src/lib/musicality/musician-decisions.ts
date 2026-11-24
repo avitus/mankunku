@@ -878,7 +878,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		const start = Math.floor(melody[0].beat / 4) + 1;
 		const end = Math.floor(melody[melody.length - 1].beat / 4) + 1;
 		bassCard.action = 'Answer the keyboard melody';
-		bassCard.detail = `The keyboard played ${melody.map(note => noteName(note.midi)).join('–')} in performed bars ${start}–${end}. The upright answers ${handoff.map(note => noteName(note.midi)).join('–')} over the written harmony.`;
+		bassCard.detail = `The keyboard played ${melody.map(note => noteName(note.midi)).join('–')} in performed bars ${start}–${end}. The upright answers ${(handoff[0].melodicReply ?? handoff).map(note => noteName(note.midi)).join('–')} over the written harmony.`;
 		bassCard.evidence.push('S3 · S38 · S39 · B31–32');
 	}
 	const keyboardAnswer = piano.find(event => event.keyboardAnswer)?.keyboardAnswer;

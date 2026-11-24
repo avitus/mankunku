@@ -96,6 +96,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 import type { RhythmCell } from './backing-rhythm-memory';
 
 export interface BassEvent {
+ readonly melodicReply?: readonly HeardNote[];
  readonly melodicSource?: readonly HeardNote[];
 	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
