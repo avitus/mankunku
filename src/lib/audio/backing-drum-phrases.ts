@@ -45,7 +45,7 @@ export interface DrumPhraseDecision {
 	};
 	readonly commentary: {
 		readonly motifId: string | null;
-		readonly source: 'vocabulary' | 'piano' | 'none';
+		readonly source: 'vocabulary' | 'piano' | 'bass' | 'none';
 		readonly sourceId: string | null;
 		readonly sourceBar: number | null;
 		readonly sourceOffsets: readonly number[];
@@ -102,6 +102,7 @@ export interface DrumPhraseBarInput {
 	readonly harmonyEndBeat: number;
 	/** Only attacks accepted for emission in this bar, never candidate rhythms. */
 	readonly compOnsets?: readonly number[];
+	readonly balladAnswerOnFour?: boolean;
 	/** A committed answer remains actual evidence, not a new independent statement. */
 	readonly compIsDrumReply?: true;
 	/** Scoped native caller knows the preceding actual piano attack was itself a reply. */
@@ -673,6 +674,11 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		: raw.filter((hit) => ['snare', 'crossstick'].includes(hit.drum) &&
 			(hit.beatOffset !== 3.5 || ensemble.drums.allowFill) && !(input.compOnsets ?? []).includes(hit.beatOffset))
 			.slice(0, ensemble.drums.maxCommentaryHits).map((hit) => ({ ...hit, role: 'commentary' }));
+	// Leave the chord attack clear. The rim catches the rising bass inside the held pad.
+	if (canComment && input.bassEvents?.some(event => event.balladThird) &&
+		input.balladAnswerOnFour && !input.compOnsets?.includes(2) && answerOffset === undefined) {
+		commentary = [{ drum: 'crossstick', beatOffset: 2, velocity: .32, role: 'commentary', balladThird: true }];
+	}
 	// Form arrivals use the existing soft kick, never introduce a swing crash into bossa/ballad.
 	if (ensemble.coordinatedAccent) {
 		const kick = time.find((hit) => hit.drum === 'kick' && hit.beatOffset === 0);
@@ -685,15 +691,19 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		(!input.acceptsOnset || input.acceptsOnset(input.barIndex * 4 + hit.beatOffset, hit));
 	commentary = commentary.filter(accepted);
 	const hits = [...time.filter(accepted), ...commentary];
+	const caughtThird = commentary.some(hit => hit.balladThird);
+	const pianoAnswer = commentary.length > 0 && answerOffset !== undefined;
+	const source: DrumPhraseDecision['commentary']['source'] = caughtThird ? 'bass' : pianoAnswer ? 'piano'
+		: commentary.length ? 'vocabulary' : 'none';
 	const bar: DrumPhraseDecision = { version: 1, style: input.style, barIndex: input.barIndex,
 		phraseStartBar: input.phraseStartBar, phraseLength: input.phraseEndBarExclusive - input.phraseStartBar,
 		ride: { mode: isBossa ? 'none' : halfNoteRide ? 'half-notes' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
 			onsets: hits.filter((hit) => hit.drum === 'ride').map((hit) => hit.beatOffset) },
-		commentary: { motifId: null, source: commentary.length ? answerOffset !== undefined ? 'piano' : 'vocabulary' : 'none',
-			sourceId: commentary.length ? answerOffset !== undefined ? 'previous-piano' : 'ballad-color' : null,
-			sourceBar: commentary.length && answerOffset !== undefined ? input.barIndex - 1 : null,
-			sourceOffsets: commentary.length && answerOffset !== undefined ? [answerOffset] : [],
-			transform: commentary.length ? answerOffset !== undefined ? 'answer' : 'fallback' : 'space', displacementBeats: 0, hits: commentary,
+		commentary: { motifId: null, source,
+			sourceId: caughtThird ? 'bass-third' : pianoAnswer ? 'previous-piano' : commentary.length ? 'ballad-color' : null,
+			sourceBar: caughtThird ? input.barIndex : pianoAnswer ? input.barIndex - 1 : null,
+			sourceOffsets: caughtThird ? [2] : pianoAnswer ? [answerOffset] : [],
+			transform: caughtThird || pianoAnswer ? 'answer' : commentary.length ? 'fallback' : 'space', displacementBeats: 0, hits: commentary,
 			...(!commentary.length ? { reason: isBossa ? 'native_groove' as const : ensemble.coordinatedAccent ? 'arrival_reserved' as const
 				: ensemble.responseOwner !== 'nobody' && ensemble.responseOwner !== 'drums' ? 'response_reserved' as const
 				: !canComment ? 'ensemble_silence' as const : 'not_selected' as const } : {}) }, hits };

@@ -802,6 +802,18 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	if (bass.some(event => event.balladThird)) {
+		bassCard.action = 'Rise to the third';
+		bassCard.detail = 'The upright starts on the root and steps up to the chord’s third on beat three.';
+	}
+	if (piano.some(event => event.balladThird)) {
+		pianoCard.action = 'Hold the chord, then answer on four';
+		pianoCard.detail = 'The downbeat harmony rings over the bass change before the short reply.';
+	}
+	if (drums.some(event => event.balladThird)) {
+		drumCard.action = 'Catch the bass with the rim';
+		drumCard.detail = 'One soft cross-stick marks beat three while the ride continues in quarters.';
+	}
 	if (bass.some(event => event.brokenTwo)) {
 		bassCard.action = 'Give beat four a second pluck';
 		bassCard.detail = 'The upright holds one, then plays the same pitch on three and a lighter four.';

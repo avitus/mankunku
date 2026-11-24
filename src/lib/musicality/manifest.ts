@@ -382,6 +382,11 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'B25') return { ...entry, status: 'partial',
+  assessment: 'In 0.25.0 the Ballad bassist can keep the downbeat root and climb to the major or minor third on beat three.',
+  scope: 'Unreserved solo builds and peaks over a full bar of one written chord in Ballad 4/4.',
+  remaining: 'Further root–third figures and listening feedback are open.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), test('backing-ballad-third')] };
  const brokenTwo = {
   B3: 'On selected Straight head bars the bassist shortens beat three and rearticulates its pitch more softly on four.',
   P2: 'Piano or organ can answer a broken two with short chords on two and four when both attacks are available.',
@@ -429,7 +434,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
  if(sentenceAssessments[entry.id]) return { ...entry, status:'partial', assessment:sentenceAssessments[entry.id],
   remaining:'Four- and eight-bar phrases vary by seed and stay inside authored sections/choruses. Broader phrase lengths, pedal and sample-tail control, general solo imitation and human full-tune listening acceptance remain pending. Bossa/Ballad retain native bass/drum rhythm; their keyboard top-note direction can span eight bars.',
   scope:entry.id === 'P13' ? 'Swing and Straight develop the retained cell. Bossa can displace the second native chord in response to its bassist.' : 'Current Musicality uses these longer sentences app-wide. Load the 0.19 example for Mankunku Blues and common-tone keyboard connections through changing harmony; no microphone input is inferred.',
-  evidence:[...entry.evidence,source('backing-sentences'),source('backing-rolling-piano'),source('backing-rolling-bass'),source('backing-drum-phrases'),test('backing-longer-sentences'),...(entry.id==='P13' ? [test('backing-bossa-pickup')] : [])] };
+  evidence:[...entry.evidence,source('backing-sentences'),source('backing-rolling-piano'),source('backing-rolling-bass'),source('backing-drum-phrases'),test('backing-longer-sentences'),...(entry.id==='P13' ? [test('backing-bossa-pickup'), test('backing-ballad-third')] : [])] };
 
  if(['B36','P32','D17'].includes(entry.id))return {
   ...entry,status:'partial',
@@ -484,11 +489,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
   assessment:entry.id==='B9'
    ? 'Musicality 0.12.0 occasionally repeats a root on the second walking pulse, retaining the final approach, note count, gates and dynamics. Actual repeated notes can be heard by the drummer.'
    :entry.id==='D77'
-    ? 'Bossa 0.22.0 reinforces the upright’s octave pickup with the existing kick on the and of two. Musicality 0.12.0 can give the existing beat-three kick more weight after an actually emitted bass repeat on beats one/two. A simultaneous keyboard attack, reserved response, setup or busy solo evidence prevents the catch. No extra drum onset is added.'
+    ? 'In 0.25.0 a Ballad cross-stick catches the bassist’s third while the keyboard holds. Bossa 0.22.0 reinforces the upright’s octave pickup with the existing kick on the and of two. Musicality 0.12.0 can give the existing beat-three kick more weight after an actually emitted bass repeat on beats one/two. A simultaneous keyboard attack, reserved response, setup or busy solo evidence prevents the catch. No extra drum onset is added.'
     : 'Musicality 0.12.0 can lower an existing inner ninth to a flat ninth on the last keyboard attack before a declared dominant-to-tonic change. Defining tones, top voice, native attacks and gates remain intact; actual colored notes become the voice-leading memory. Conflicting bass notes veto the color.',
   remaining: 'Occasional generated-event interaction, not microphone motif recognition. The 0.12 bass/drum additions are Swing/Straight only; keyboard color also uses existing Bossa/Ballad attacks. Other altered colors, broader bass motifs and human listening acceptance remain pending.',
-  scope:entry.id === 'D77' ? 'Swing and Straight kick response since 0.12.0. Bossa pickup response in solo builds and peaks since 0.22.0.' : 'Explicit Coordinated 0.12.0 trio-conversation policy, independently fingerprinted. Omission retains complete 0.11 events, traces and checkpoints; Original generation is unchanged.',
-  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance'),...(entry.id==='D77' ? [test('backing-bossa-pickup')] : [])]
+  scope:entry.id === 'D77' ? 'Swing and Straight kick response since 0.12.0. Bossa pickup response since 0.22.0 and Ballad rim catch since 0.25.0.' : 'Explicit Coordinated 0.12.0 trio-conversation policy, independently fingerprinted. Omission retains complete 0.11 events, traces and checkpoints; Original generation is unchanged.',
+  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance'),...(entry.id==='D77' ? [test('backing-bossa-pickup'), test('backing-ballad-third')] : [])]
  };
 
 	if (['B49','D37'].includes(entry.id)) return {
@@ -564,10 +569,10 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'P14') return {
 		...entry, status: 'partial',
-		assessment: 'In 0.22.0, a Ballad keyboard can divide a sustained pad into two chords and take beat three when the bass holds. In 0.20.0, Swing and Straight organ simplify figures in quiet bars, and Ballad piano and organ can voice a new chord on beat three. Version 0.19.2 restored Swing and Straight piano support in quiet phrases. The preceding releases added longer piano gates and one-beat carries (0.19.1), shared chord tones through harmony changes (0.19), and sustain over unchanged bar-line harmony (0.18). Version 0.11.0 brought short-chord and held-answer contrast to Swing and Straight solo phrases. Version 0.7.0 established distinct piano and organ articulation, compact Bossa gates and slower Ballad pads.',
+		assessment: 'In 0.25.0 the Ballad keyboard holds through the bass third and answers briefly on four. In 0.22.0, a Ballad keyboard can divide a sustained pad into two chords and take beat three when the bass holds. In 0.20.0, Swing and Straight organ simplify figures in quiet bars, and Ballad piano and organ can voice a new chord on beat three. Version 0.19.2 restored Swing and Straight piano support in quiet phrases. The preceding releases added longer piano gates and one-beat carries (0.19.1), shared chord tones through harmony changes (0.19), and sustain over unchanged bar-line harmony (0.18). Version 0.11.0 brought short-chord and held-answer contrast to Swing and Straight solo phrases. Version 0.7.0 established distinct piano and organ articulation, compact Bossa gates and slower Ballad pads.',
 		remaining: 'Broader pedal technique, sample release envelopes and organ registration remain open. Full-tune listening feedback on articulation and balance is pending.',
 		scope: 'Released 4/4 accompaniment in all four styles. Protected support, replies, arrivals and endings retain priority. Historical policies omit the new flag. Other meters currently use basic accompaniment.',
-		evidence: [...entry.evidence, test('backing-ballad-return'), source('backing-keyboard-sustain'), test('backing-piano-continuity'), test('backing-piano-blues-support'), test('backing-ensemble-continuity'), test('backing-0191-compatibility'), test('backing-019-compatibility'), test('backing-common-tones'), test('backing-018-compatibility'), test('backing-cross-bar'), test('backing-meter'), { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
+		evidence: [...entry.evidence, test('backing-ballad-third'), test('backing-ballad-return'), source('backing-keyboard-sustain'), test('backing-piano-continuity'), test('backing-piano-blues-support'), test('backing-ensemble-continuity'), test('backing-0191-compatibility'), test('backing-019-compatibility'), test('backing-common-tones'), test('backing-018-compatibility'), test('backing-cross-bar'), test('backing-meter'), { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
 	};
 	if (entry.id === 'P31' || entry.id === 'P35') return {
 		...entry, status: 'partial',

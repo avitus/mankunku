@@ -92,6 +92,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly balladHeldBass?: true;
@@ -116,6 +117,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly balladReturnAnswer?: true;
@@ -139,6 +141,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly bossaPickupKick?: true;
@@ -394,6 +397,7 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	readonly balladThirdAllowed?: boolean;
 	readonly brokenTwoAllowed?: boolean;
 	readonly dominantRiffAllowed?: boolean;
 	readonly balladHoldAllowed?: boolean;

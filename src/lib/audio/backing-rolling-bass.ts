@@ -101,6 +101,18 @@ function beginsLongDominant(score: RollingBackingDefinition, bar: number): boole
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
  let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+	if (info.balladThirdAllowed && !result.delayedRootTrace && !previous?.pendingLaunch && !result.memory.pendingLaunch &&
+		result.memory.segmentIndex !== null && result.events.length === 2) {
+		const chord = score.harmony[result.memory.segmentIndex].chord;
+		const [one, three] = result.events;
+		const third = chordToneIntervalsForBass(chord.quality).third;
+		const midi = one.midi + third;
+		if (!chord.bass && (third === 3 || third === 4) && pc(one.midi) === pitchClassToNumber(chord.root) &&
+			one.absBeat === bar * 4 && three.absBeat === bar * 4 + 2 && midi <= 55 && midi !== three.midi) {
+			result = { ...result, events: [one, { ...three, midi, balladThird: true }],
+				memory: { ...result.memory, previousMidi: midi, previousPreviousMidi: one.midi, direction: 1 } };
+		}
+	}
 	if (info.brokenTwoAllowed && result.memory.feel === 'two' && !result.delayedRootTrace &&
 		!previous?.pendingLaunch && !result.memory.pendingLaunch && result.events.length === 2 &&
 		result.events.every((event, i) => event.absBeat === bar * 4 + 2 * i)) {

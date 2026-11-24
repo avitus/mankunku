@@ -33,14 +33,15 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(exampleStyle: 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
+  const exampleStyle = example === 'ballad-solo' ? 'ballad' : example;
   const bridge = exampleStyle === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
   style = exampleStyle;
-  tempo = bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
+  tempo = example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
   energySeed = exampleStyle === 'straight' ? 12 : 3;
@@ -241,6 +242,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-ballad-third" onclick={() => loadReleaseExample('ballad-solo')} disabled={busy}>Load 0.25 Ballad solo ↗</button>
+     · Solo 1, bars 5–6. Hear the upright rise to the third with a soft rim click on beat three, then the short keyboard answer on four. Listen again in Solo 2, bar 2.</p>
     <p><button class="release-example" data-testid="listening-broken-two" onclick={() => loadReleaseExample('straight')} disabled={busy} title="Load Mankunku Blues in F at 136 BPM with two solos. Keeps your keyboard and mix.">Load 0.24 Straight Blues ↗</button>
      · Head in, bars 6–7 of 16 (Blues bars 2–3). Count the light kick on one and three, chords on two and four, and the extra bass pluck on four. Compare Solo 1, then Head out, bars 6–7.</p>
     <p><button class="release-example" data-testid="listening-swing-bridge" onclick={() => loadReleaseExample('swing')} disabled={busy} title="Load Rhythm Changes in B-flat at 176 BPM with one solo. Clears the take and notes, keeps your keyboard and mix.">Load 0.23 Swing bridge ↗</button>

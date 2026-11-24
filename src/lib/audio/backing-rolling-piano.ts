@@ -115,6 +115,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	let shift = 0;
 	let bossaReplyFrom: number | undefined;
 	let balladReturnAnswer = false;
+	let balladLateAnswer = false;
 	let reason: CompMotifDecision['reason'];
 	let development: KeyboardDevelopment | undefined;
 	let answerFigureId: string | undefined;
@@ -231,6 +232,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				bossaReplyFrom = second.beatOffset;
 				realized = [first, { ...second, beatOffset: second.beatOffset === 1.5 ? 2.5 : 3 }];
 			}
+		}
+		if (bassEvents?.some(event => event.balladThird) && budget >= 2 && !nativeLatePad && !backgroundHarmony &&
+			!memory.crossBarReleaseTick && !ensemble.piano.silenceReason && realized[0]?.beatOffset === 0 &&
+			(realized.length === 1 || (realized.length === 2 && realized[1].beatOffset === 2))) {
+			const pad = realized[0];
+			realized = [{ ...pad, durationBeats: 2.8 }, { ...pad, beatOffset: 3, durationBeats: .55, velocity: pad.velocity + 5 }];
+			balladLateAnswer = true;
 		}
 		if (bassEvents?.some(event => event.balladHeldBass) && budget >= 2 && !nativeLatePad &&
 			!backgroundHarmony && !memory.crossBarReleaseTick && !ensemble.piano.silenceReason &&
@@ -377,6 +385,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: Math.min(127, hit.velocity + lift),
 			...(reason === 'bass_broken_two' ? { brokenTwo: true as const } : {}),
 			...(reason === 'bass_charleston' ? { dominantRiff: true as const } : {}),
+			...(balladLateAnswer && hit.beatOffset === 3 ? { balladThird: true as const } : {}),
 			...(balladReturnAnswer && hit.beatOffset === 2 ? { balladReturnAnswer: true as const } : {}),
 			...(bossaReplyFrom !== undefined && hit === realized[1] ? { bossaReplyFrom } : {}),
 			...(lift ? { walkingOffbeatLift: Math.min(lift, 127 - hit.velocity) } : {}) } };

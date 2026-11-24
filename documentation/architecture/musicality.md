@@ -4,6 +4,12 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Ballad solo exchange — 0.25.0
+
+The upright can state the third of a stable written chord during a solo build or peak. A seeded bar decision requires a root already sounding on beat one and an ordinary second half-note. The bass changes only that second pitch, and commits its actual pitch history. Slash chords, suspended thirds, split harmony, delayed roots, setup bars, response reservations and fresh soloist evidence keep priority.
+
+Piano or organ may respond to that accepted note when a native downbeat pad and two available attacks allow. It holds past beat three and answers on four with a short gate. When that reply is actually present and the drummer has commentary room, one cross-stick catches the bass on three. The ride and pedal hat continue. The dedicated Ballad policy is fingerprinted for replay and used by both rolling and authored prepared playback. The 0.22 returning-head gesture has its own eligibility.
+
 ## Straight head in two — 0.24.0
 
 The released Straight 4/4 arrangement can break an existing two-feel during the opening or returning head. A seeded draw gives the middle pair of a complete four-bar phrase the opportunity. Each bar needs stable harmony, an open response slot and two actual bass attacks. The bassist shortens beat three and plucks its pitch again on four. Rolling pitch history and the last pulse advance to the rearticulation. Other players hear that accepted event. Piano or organ can select the existing two-and-four cell when its ordinary part already contains two attacks. The kick takes one and three, subject to the usual limb arbitration. Walking solo choruses, protected melody space, written changes inside a bar, and reserved responses keep their own figures. The option is fingerprinted for Straight and shared by authored prepared playback and the listening desk.

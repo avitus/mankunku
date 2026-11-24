@@ -123,6 +123,7 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+	readonly balladThird?: true;
 	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly bossaPickupKick?: true;
