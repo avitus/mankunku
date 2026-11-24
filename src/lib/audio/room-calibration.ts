@@ -128,13 +128,17 @@ export async function calibrateRoom(
 		!ctx.audioWorklet ||
 		ctx.sampleRate > 96000
 	) {
-		if (!soundCheck) roomStatus.text = fallback;
+		if (!soundCheck) {
+			roomStatus.active = false;
+			roomStatus.text = fallback;
+		}
 		return;
 	}
 	const setup = roomSetup(track, ctx);
 	const snapshot = readProfile();
 	const filter = soundCheck ? undefined : restoreProfile(snapshot, setup, ctx.sampleRate);
 	if (!soundCheck && !filter) {
+		roomStatus.active = false;
 		roomStatus.text = filter === null ? rejected : 'Using original microphone · calibrate speakers in Settings';
 		return;
 	}
@@ -162,7 +166,10 @@ export async function calibrateRoom(
 	function bypass(status: string): void {
 		clearTimeout(expiry);
 		if (inverse) inverse.gain.value = 0;
-		if (!soundCheck) roomStatus.text = status;
+		if (!soundCheck) {
+			roomStatus.active = false;
+			roomStatus.text = status;
+		}
 	}
 	function invalidate(): void {
 		sound?.stop();
@@ -259,6 +266,7 @@ export async function calibrateRoom(
 		function enable(gain: number): void {
 			clearTimeout(expiry);
 			inverse!.gain.value = -gain;
+			roomStatus.active = true;
 			roomStatus.text = active;
 			expiry = setTimeout(() => bypass('Room check expired · scoring the original microphone'), 300_000);
 		}
@@ -313,6 +321,7 @@ export async function calibrateRoom(
 			}
 		};
 		roomChecks.set(source, { measure: verifyListen, cancel: () => listen?.abort() });
+		roomStatus.active = false;
 		roomStatus.text = 'Using original microphone until Listen verifies saved calibration';
 	} catch (error) {
 		if (!life.signal.aborted) {

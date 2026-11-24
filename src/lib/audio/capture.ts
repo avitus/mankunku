@@ -101,7 +101,10 @@ export async function preparePracticeRoom(current: MicCapture, backing = false):
 		if (capture === current) await calibrateRoom(current, { mode: 'practice' });
 	} catch (error) {
 		console.warn('Speaker calibration unavailable', error);
-		if (capture === current) roomStatus.text = 'Room check unavailable · scoring the original microphone';
+		if (capture === current) {
+			roomStatus.active = false;
+			roomStatus.text = 'Room check unavailable · scoring the original microphone';
+		}
 	}
 }
 

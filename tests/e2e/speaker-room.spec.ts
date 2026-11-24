@@ -206,6 +206,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
 		await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
 		await expect(page.getByText('Speaker bleed reduction active', { exact: true })).toBeVisible({timeout: 25_000});
+		if (mode === 'ear-training') await expect(page.getByRole('img', { name: 'Backing cancellation on' })).toBeVisible();
 		expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 		await expect(
 			page
@@ -352,7 +353,7 @@ for (const failure of ['unrelated microphone', 'stalled worklet'])
 		await page.getByRole('button', { name: 'Start practice' }).click();
 		await expect(page.getByText(stalled ? 'Using original microphone · calibrate speakers in Settings' :
 			'Room check did not pass · scoring the original microphone')).toBeVisible();
-		await expect(page.getByText('Last take', { exact: true })).toBeVisible({ timeout: 45_000 });
+		await expect(page.getByRole('region', { name: 'Last take score' })).toBeVisible({ timeout: 45_000 });
 	});
 
 test('turning backing off releases the calibration microphone; a completed negative check is remembered', async ({ page, browserName }) => {

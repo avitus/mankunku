@@ -96,7 +96,7 @@ for (const mode of ['ear-training', 'lick-practice']) test(`${mode}: keeps micro
 	// The score is revealed after replay but before its metadata write commits.
 	// Poll the persisted source marker before asserting authoritative notes.
 	if (mode === 'ear-training') {
-		await expect(page.getByText('Last take', { exact: true })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Last take score' })).toBeVisible();
 		await expect.poll(async () => (await readTake())?.scoreSource).toBe('replay');
 	}
 	const take = (await readTake())!;

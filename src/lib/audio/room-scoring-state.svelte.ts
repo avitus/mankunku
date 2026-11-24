@@ -1,6 +1,6 @@
 const key = 'mankunku.speaker-room-correction.v1';
 let temporaryPreference: boolean | undefined;
-export const roomStatus = $state({ text: '' });
+export const roomStatus = $state({ text: '', active: false });
 /** Explicit browser preference. Backing enables correction by default. */
 export function roomPreference(): boolean | undefined {
 	if (temporaryPreference !== undefined) return temporaryPreference;
@@ -39,5 +39,6 @@ export function releaseRoomGraph(source: MediaStreamAudioSourceNode): void {
 	cleanups.delete(source);
 	roomInputs.delete(source);
 	roomChecks.delete(source);
+	roomStatus.active = false;
 	roomStatus.text = '';
 }

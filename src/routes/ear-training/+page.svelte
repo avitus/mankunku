@@ -1045,7 +1045,7 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
-{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
+{#if roomStatus.text}<p class="sr-only" role="status">{roomStatus.text}</p>{/if}
 <EarTrainingConsole
 	{writtenKey}
 	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}
