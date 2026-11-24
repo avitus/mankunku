@@ -87,7 +87,10 @@ async function measure(
 					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve({ ...data, captureUntil });
 					worker.onerror = (event) =>
 						reject(new Error(event.message || 'Room estimation worker failed'));
-					const retryClosing = deadline - ctx.currentTime < minimumListenCapture + captureLead + verificationBudget;
+					// A fresh capture needs time for this worker to finish as well as
+					// its own capture lead, acquisition and verification.
+					const freshRetryBudget = verificationBudget + captureLead + minimumListenCapture + verificationBudget;
+					const retryClosing = deadline - ctx.currentTime < freshRetryBudget;
 					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, retryClosing, includeAudio: captureUntil > 0 }, [
 						input.buffer,
 						left.buffer,
