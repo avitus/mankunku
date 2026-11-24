@@ -190,3 +190,48 @@ it('bypasses a learned correction more powerful than the saved speaker response 
 	expect(result.check).toMatchObject({accepted: false, failure: 'level'});
 	expect(result.correction).toBeUndefined();
 });
+
+it.each([1.81, 2.41])('verifies a closing fit against the opening of a %s-second Listen capture', (seconds) => {
+	const rate = 12000;
+	let seed = 132;
+	const left = Float32Array.from({length: Math.round(seconds * rate)}, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	});
+	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const right = new Float32Array(left.length);
+	const split = Math.min(Math.floor((1 + left.length) / 2), left.length - rate);
+	function recording(openingLevel: number): RoomSamples {
+		return {rate, left, right, mic: Float32Array.from(left, (v, i) => 1.35 * (i < split ? openingLevel * v : v))};
+	}
+	// The quieter opening underestimates the closing level. The closing fit
+	// still removes the speaker on the quieter opening within the level guard.
+	const short = recording(0.77);
+	expect(verifyRoom(short, filter).check?.accepted).toBe(false);
+	expect(verifyRoom(short, filter, undefined, true).check).toMatchObject({
+		accepted: true, closingStartSeconds: split / rate
+	});
+	// The ending alone is identical, but this opening disagrees with its gain.
+	const inconsistent = recording(0.4);
+	expect(verifyRoom(inconsistent, filter, undefined, true).check).toMatchObject({
+		accepted: false, closingStartSeconds: split / rate
+	});
+});
+
+it('uses the calibrated gain when the opening biases the level estimate and both halves improve', () => {
+	const rate = 12000;
+	let seed = 71;
+	const left = Float32Array.from({length: rate * 2}, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	});
+	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const mic = Float32Array.from(left, (v, i) => i < rate ? 1.45 * v : v);
+	const samples = {rate, left, right: new Float32Array(left.length), mic};
+	expect(verifyRoom(samples, filter).check).toMatchObject({
+		accepted: true, calibratedGain: true, gain: 1, initial: { failure: 'level' }
+	});
+	// The same perfect ending cannot rescue an opening where subtraction adds energy.
+	for (let i = 0; i < rate; i++) mic[i] = 0.2 * left[i];
+	expect(verifyRoom(samples, filter, undefined, true).check?.accepted).toBe(false);
+});

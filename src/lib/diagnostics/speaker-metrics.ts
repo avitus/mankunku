@@ -15,12 +15,12 @@ const errors: ReadonlyMap<string, string> = new Map([
 const measurements = [
 	'rate', 'cueNumber', 'attempt', 'listenSeconds', 'captureSeconds', 'startSeconds',
 	'calibratedDelaySamples', 'calibrationReductionDb', 'offset', 'broadbandOffset', 'gain',
-	'validationGain', 'reduction', 'transientReduction', 'micRms', 'predictedRms', 'sessionCues',
+	'validationGain', 'reduction', 'transientReduction', 'micRms', 'predictedRms', 'sessionCues', 'closingStartSeconds',
 	'initialReduction', 'initialTransientReduction', 'initialValidationGain'
 ] as const;
 const surfaces = new Set(['ear-training', 'lick-practice', 'settings']);
 const stages = new Set(['sound-check', 'listen', 'practice']);
-const methods = new Set(['saved', 'cue', 'session']);
+const methods = new Set(['saved', 'calibrated-gain', 'cue', 'session']);
 const failures = new Set(['timing', 'reduction', 'level', 'attacks']);
 
 type SpeakerMetrics = Partial<Record<typeof measurements[number], number>> & {
@@ -60,7 +60,7 @@ export function summarizeSpeakerCheck(event: SpeakerCheck, session: string, surf
 	return speakerMetrics({
 		...event, ...check, session, surface, clientVersion,
 		result: results.has(event.result) ? event.result : errors.get(event.result) ?? 'measurement-error',
-		method: check?.accepted ? (check.sessionCues ? 'session' : check.initial ? 'cue' : 'saved') : undefined,
+		method: check?.accepted ? (check.calibratedGain ? 'calibrated-gain' : check.sessionCues ? 'session' : check.initial ? 'cue' : 'saved') : undefined,
 		initialFailure: check?.initial?.failure, initialReduction: check?.initial?.reduction,
 		initialTransientReduction: check?.initial?.transientReduction, initialValidationGain: check?.initial?.validationGain
 	});

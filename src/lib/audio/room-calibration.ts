@@ -7,7 +7,11 @@ import { loadWorklet } from './load-worklet';
 import { readProfile, restoreProfile, roomSetup, saveProfile } from './room-profile';
 
 const duration = 5.6;
+const captureLead = 0.025;
+const verificationBudget = 0.4;
+const minimumListenCapture = 1;
 interface Measurement {
+	timedOut?: boolean;
 	captureAudio?: boolean;
 	captureUntil?: number;
 	correction?: RoomFilter;
@@ -71,20 +75,28 @@ async function measure(
 		return await new Promise<Measurement>((resolve, reject) => {
 			interrupt = () => reject(new Error('Room measurement interrupted'));
 			signal.addEventListener('abort', interrupt, { once: true });
-			timer = setTimeout(
-				() => reject(new Error('Room measurement timed out')),
-				Math.max(0, deadline - ctx.currentTime) * 1000
-			);
+			// Load the verifier while the worklet is still collecting Listen audio.
+			const verifier = new Worker(new URL('./room-calibration-worker.ts', import.meta.url), { type: 'module' });
+			worker = verifier;
+			let clip: RoomSamples | undefined;
+			verifier.onmessage = ({ data }) => {
+				if (data.error) reject(new Error(data.error));
+				else resolve(clip ? { ...data, samples: clip, captureAudio: true, captureUntil } : data);
+			};
+			verifier.onerror = (event) => reject(new Error(event.message || 'Room estimation worker failed'));
+			timer = setTimeout(() => {
+				if (clip) resolve({ timedOut: true, samples: clip, captureAudio: true, captureUntil });
+				else reject(new Error('Room measurement timed out'));
+			}, Math.max(0, deadline - ctx.currentTime) * 1000);
 			capture.onprocessorerror = () => reject(new Error('Room capture processor failed'));
 			capture.port.onmessage = ({ data: [input, left, right] }) => {
 				try {
-					worker = new Worker(new URL('./room-calibration-worker.ts', import.meta.url), {
-						type: 'module'
-					});
-					worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve({ ...data, captureUntil });
-					worker.onerror = (event) =>
-						reject(new Error(event.message || 'Room estimation worker failed'));
-					worker.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, includeAudio: captureUntil > 0 }, [
+					if (captureUntil > 0) clip = { mic: input, left, right, rate: ctx.sampleRate };
+					// A fresh capture needs time for this worker to finish as well as
+					// its own capture lead, acquisition and verification.
+					const freshRetryBudget = verificationBudget + captureLead + minimumListenCapture + verificationBudget;
+					const retryClosing = deadline - ctx.currentTime < freshRetryBudget;
+					verifier.postMessage({ mic: input, left, right, rate: ctx.sampleRate, filter, session, retryClosing, callerRetainedAudio: !!clip }, clip ? [] : [
 						input.buffer,
 						left.buffer,
 						right.buffer
@@ -359,9 +371,9 @@ export async function calibrateRoom(
 				// A sparse or ambiguous opening can fail while later music in the
 				// same demonstration verifies the model. Never sample into Play.
 				for (let attempt = 1; attempt <= 2; attempt++) {
-					const start = Math.ceil(Math.max(ctx.currentTime + 0.025, startTime + 0.04) * ctx.sampleRate);
-					const frames = Math.floor(Math.min(3, deadline - start / ctx.sampleRate - 0.4) * ctx.sampleRate);
-					if (frames < ctx.sampleRate) {
+					const start = Math.ceil(Math.max(ctx.currentTime + captureLead, startTime + 0.04) * ctx.sampleRate);
+					const frames = Math.floor(Math.min(3, deadline - start / ctx.sampleRate - verificationBudget) * ctx.sampleRate);
+					if (frames < minimumListenCapture * ctx.sampleRate) {
 						if (attempt === 1) {
 							report('listen', 'insufficient-time', cue);
 							bypass();
@@ -369,7 +381,7 @@ export async function calibrateRoom(
 						return;
 					}
 					const previous = session;
-					const { check, samples, correction, captureAudio, captureUntil } = await measure(
+					const { check, samples, correction, captureAudio, captureUntil, timedOut } = await measure(
 						ctx,
 						mic,
 						reference,
@@ -388,7 +400,7 @@ export async function calibrateRoom(
 						void recordSpeakerCheck(event, captureAudio && samples && filter ? { event, samples, filter, session: previous, captureUntil } : undefined, journal);
 					}
 					if (ctx.currentTime >= deadline || !check) {
-						log(check ? 'deadline' : 'insufficient-samples');
+						log(timedOut ? 'timeout' : check ? 'deadline' : 'insufficient-samples');
 						bypass();
 						return;
 					}

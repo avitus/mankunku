@@ -29,10 +29,17 @@ export interface RoomTimingCheck {
 	failure: 'timing' | 'reduction' | 'level' | 'attacks' | null;
 	/** Earlier verified Listen cues contributed this many observations to the active response. */
 	sessionCues?: number;
+	/** Start of the closing window in this capture, when a second fit was attempted. */
+	closingStartSeconds?: number;
+	/** The saved calibration level verified after the level fitted on Listen failed. */
+	calibratedGain?: true;
 	/** The saved calibration's result before a correction passed independent validation. */
 	initial?: Pick<RoomTimingCheck, 'reduction' | 'transientReduction' | 'validationGain' | 'failure'>;
 }
 
+const minimumReductionDb = 3;
+const minimumTransientReductionDb = 1;
+const minimumFitSeconds = 0.22;
 const powerOfTwo = (length: number): number => 2 ** Math.ceil(Math.log2(length));
 const complex = (fft: FFT): Float64Array<ArrayBuffer> => new Float64Array(2 * fft.size);
 
@@ -211,7 +218,7 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predic
 	const start = filter.left.length;
 	const middle = Math.floor((start + predicted.length) / 2);
 	const n = middle - start;
-	if (n < samples.rate * 0.22) return null;
+	if (n < samples.rate * minimumFitSeconds) return null;
 	const fft = new FFT(powerOfTwo(2 * n));
 	const x = spectrum(fft, predicted.subarray(start, middle));
 	// Every candidate delay must explain the same microphone samples. Correlating
@@ -278,7 +285,7 @@ export function checkRoomTiming(samples: RoomSamples, filter: RoomFilter, predic
 }
 
 function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array,
-	broadbandOffset: number, offset: number, gain: number, opening: boolean = false): RoomTimingCheck {
+	broadbandOffset: number, offset: number, gain: number, openingEnd?: number): RoomTimingCheck {
 	const middle = Math.floor((filter.left.length + predicted.length) / 2);
 	const limit = Math.round(samples.rate * 0.02);
 	let transientBefore = 0, transientAfter = 0;
@@ -286,8 +293,8 @@ function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: 
 		error = 0,
 		estimated = 0,
 		dot = 0;
-	const from = (opening ? filter.left.length : middle) + limit;
-	const to = (opening ? middle : predicted.length) - limit;
+	const from = (openingEnd === undefined ? middle : filter.left.length) + limit;
+	const to = (openingEnd ?? predicted.length) - limit;
 	for (let i = from; i < to; i++) {
 		const observed = samples.mic[i],
 			echo = gain * predicted[i - offset];
@@ -308,9 +315,9 @@ function validateAlignment(samples: RoomSamples, filter: RoomFilter, predicted: 
 	const firstTap = filter.left.findIndex((value, i) => value !== 0 || filter.right[i] !== 0);
 	let failure: RoomTimingCheck['failure'] = null;
 	if (firstTap < 0 || firstTap + offset < 0 || Math.max(Math.abs(broadbandOffset), Math.abs(offset)) >= limit) failure = 'timing';
-	else if (!(reduction >= 3)) failure = 'reduction';
+	else if (!(reduction >= minimumReductionDb)) failure = 'reduction';
 	else if (!(validationGain >= 0.75 && validationGain <= 1.25)) failure = 'level';
-	else if (!(transientReduction >= 1)) failure = 'attacks';
+	else if (!(transientReduction >= minimumTransientReductionDb)) failure = 'attacks';
 	return {
 		transientReduction,
 		broadbandOffset,
@@ -363,26 +370,33 @@ function addSavedPrediction(extra: Float32Array, saved: Float32Array, first: num
 }
 
 /** On the same held-out samples used by the gate, keep calibration the primary predictor. */
-function correctionWithinRoom(saved: Float32Array, combined: Float32Array, length: number, rate: number, offset: number): boolean {
+function correctionWithinRoom(saved: Float32Array, combined: Float32Array, length: number, rate: number, offset: number, openingEnd?: number): boolean {
 	const guard = Math.round(rate * 0.02);
 	const middle = Math.floor((length + saved.length) / 2);
 	let roomPower = 0, correctionPower = 0;
-	for (let i = middle + guard - offset; i < saved.length - guard - offset; i++) {
+	const from = (openingEnd === undefined ? middle : length) + guard - offset;
+	const to = (openingEnd ?? saved.length) - guard - offset;
+	for (let i = from; i < to; i++) {
 		roomPower += saved[i] ** 2;
 		correctionPower += (combined[i] - saved[i]) ** 2;
 	}
 	return correctionPower < roomPower;
 }
 
+interface RoomVerification {
+	check: RoomTimingCheck | null;
+	correction?: RoomFilter;
+}
+
 /** Verify the saved response first. A cue-local correction can rescue a
  * recognizable return only if it also passes every gate on unheard audio. */
-export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: RoomSession): { check: RoomTimingCheck | null; correction?: RoomFilter } {
-	const predicted = predictRoom(filter, samples.left, samples.right);
+function verifyPrediction(samples: RoomSamples, filter: RoomFilter, predicted: Float32Array, session?: RoomSession): RoomVerification {
 	const initial = checkRoomTiming(samples, filter, predicted);
 	if (!initial || !initial.failure || initial.failure === 'timing') return { check: initial };
 	const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
 	const { reduction, transientReduction, validationGain, failure } = initial;
 	const original = { reduction, transientReduction, validationGain, failure };
+	const middle = Math.floor((filter.left.length + predicted.length) / 2);
 	if (session) {
 		const learned = predictRoom(session.correction, samples.left, samples.right);
 		addSavedPrediction(learned, predicted, first);
@@ -394,7 +408,7 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 			// A loud opening note can bias the fitted gain. The level learned on
 			// previous cues is an independent candidate: require both halves to pass at unity.
 			if (aligned.failure === 'level' && validateAlignment(samples, filter, learned,
-				aligned.broadbandOffset, aligned.offset, 1, true).accepted) {
+				aligned.broadbandOffset, aligned.offset, 1, middle).accepted) {
 				check = validateAlignment(samples, filter, learned, aligned.broadbandOffset, aligned.offset, 1);
 			}
 			if (check.accepted && correctionWithinRoom(predicted, learned, filter.left.length, samples.rate, check.offset)) {
@@ -404,7 +418,6 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 	}
 	if (initial.reduction < 1) return { check: initial };
 	const guard = Math.round(samples.rate * 0.02);
-	const middle = Math.floor((filter.left.length + predicted.length) / 2);
 	const correction = fitRoomCorrection(samples, predicted, first, filter.left.length - first,
 		initial.offset, initial.gain, filter.left.length + guard, middle - guard);
 	if (!correction) return { check: initial };
@@ -415,4 +428,54 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 	if (check.failure) return { check: initial };
 	check.initial = original;
 	return { check, correction };
+}
+
+/** Check the full cue first. When there is no time for another capture, a
+ * closing-window candidate must also pass on the independent opening. */
+export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: RoomSession, retryClosing = false): RoomVerification {
+	const predicted = predictRoom(filter, samples.left, samples.right);
+	const full = verifyPrediction(samples, filter, predicted, session);
+	const original = full.check;
+	if (!original?.failure || original.failure === 'timing') return full;
+
+	// One loud note can bias the level fitted on the opening. The calibration's
+	// own gain was fixed before this cue. Require it to suppress both energy
+	// and attacks on the opening, then pass every gate on the held-out ending.
+	const middle = Math.floor((filter.left.length + predicted.length) / 2);
+	if (original.gain !== 1) {
+		const calibrated = validateAlignment(samples, filter, predicted, original.broadbandOffset, original.offset, 1);
+		if (calibrated.accepted) {
+			const opening = validateAlignment(samples, filter, predicted, original.broadbandOffset, original.offset, 1, middle);
+			if (opening.reduction >= minimumReductionDb && opening.transientReduction >= minimumTransientReductionDb) {
+				const { reduction, transientReduction, validationGain, failure } = original;
+				return { check: { ...calibrated, calibratedGain: true, initial: { reduction, transientReduction, validationGain, failure } } };
+			}
+		}
+	}
+	if (!retryClosing) return full;
+
+	// Reserve at least one second for the closing fit and validation, and
+	// enough independent opening audio after convolution warm-up and lag guards.
+	const split = Math.min(middle, predicted.length - samples.rate);
+	if (split - filter.left.length - 2 * Math.round(samples.rate * 0.02) < samples.rate * minimumFitSeconds) return full;
+	const closing = {
+		rate: samples.rate, mic: samples.mic.subarray(split),
+		left: samples.left.subarray(split), right: samples.right.subarray(split)
+	};
+	const retry = verifyPrediction(closing, filter, predicted.subarray(split), session);
+	const closingStartSeconds = split / samples.rate;
+	original.closingStartSeconds = closingStartSeconds;
+	const check = retry.check;
+	if (!check?.accepted || Math.abs(check.offset - original.offset) > samples.rate * 0.001) return full;
+
+	let combined = predicted;
+	if (retry.correction) {
+		combined = predictRoom(retry.correction, samples.left, samples.right);
+		const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
+		addSavedPrediction(combined, predicted, first);
+		if (!correctionWithinRoom(predicted, combined, filter.left.length, samples.rate, check.offset, split)) return full;
+	}
+	if (!validateAlignment(samples, filter, combined, check.broadbandOffset, check.offset, check.gain, split).accepted) return full;
+	check.closingStartSeconds = closingStartSeconds;
+	return retry;
 }
