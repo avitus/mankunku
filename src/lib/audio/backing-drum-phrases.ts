@@ -299,6 +299,7 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const skipOffsets = phase === 'release' ? state.skips.slice(0, 1) : phase === 'variation' ? state.variedSkips : state.skips;
 	const velocityScale = phase === 'release' ? 0.94 : phase === 'variation' ? 1.04 : phase === 'repeat' ? 1.01 : 1;
 	const timeRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-time', bar));
+	const brokenTwo = input.bassEvents?.some(e => e.brokenTwo);
 	const catchRiff = input.bassEvents?.some(e => e.dominantRiff && e.absBeat === bar * 4 + 1.5);
 	const ostinato: DrumHitSpec[] = [
 		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map(hit => {
@@ -309,7 +310,8 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 				: { ...hit, drum, velocity };
 		}),
 		...hihatBar(4, timeRng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
-		...featherBar(4, timeRng, info.intensity)
+		...(brokenTwo ? [0, 2].map(beatOffset => ({ drum: 'kick' as const, beatOffset,
+			velocity: beatOffset === 0 ? .26 : .22, brokenTwo: true as const })) : featherBar(4, timeRng, info.intensity))
 	].map((hit): DrumHitSpec => ({ ...hit, role: 'timekeeping' }))
 		.filter((hit) => hit.beatOffset < extent && accepts(hit));
 	const commentaryRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-commentary', bar));

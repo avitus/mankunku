@@ -802,6 +802,18 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	if (bass.some(event => event.brokenTwo)) {
+		bassCard.action = 'Give beat four a second pluck';
+		bassCard.detail = 'The upright holds one, then plays the same pitch on three and a lighter four.';
+	}
+	if (piano.some(event => event.brokenTwo)) {
+		pianoCard.action = 'Answer on two and four';
+		pianoCard.detail = 'Short chords answer the downbeat and meet the upright’s second pluck on four.';
+	}
+	if (drums.some(event => event.brokenTwo)) {
+		drumCard.action = 'Feather the two-beat pulse';
+		drumCard.detail = 'A light kick marks the bass foundation underneath the keyboard backbeats.';
+	}
 	if (bass.some(event => event.dominantRiff)) {
 		bassCard.action = 'Break the walk on the and of two';
 		bassCard.detail = 'The upright plays one, the swung and of two, then steps back into the walk on four.';

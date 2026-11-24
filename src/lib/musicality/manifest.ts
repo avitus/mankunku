@@ -382,6 +382,16 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ const brokenTwo = {
+  B3: 'On selected Straight head bars the bassist shortens beat three and rearticulates its pitch more softly on four.',
+  P2: 'Piano or organ can answer a broken two with short chords on two and four when both attacks are available.',
+  D39: 'The kick can feather one and three under the broken two while the hands and pedal hat retain their own parts.'
+ };
+ if (entry.id === 'B3' || entry.id === 'P2' || entry.id === 'D39') return { ...entry,
+  status: entry.id === 'P2' ? 'implemented' : 'partial', assessment: brokenTwo[entry.id],
+  scope: '0.24.0, declared Straight 4/4 heads with a two-beat bass foundation over a full bar of one harmony.',
+  remaining: 'Further broken-two variations and full-performance listening feedback remain open.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), source('backing-rolling-piano'), source('backing-drum-phrases'), test('backing-broken-two')] };
  if (entry.id === 'B13' || entry.id === 'P3') return { ...entry, status: entry.id === 'B13' ? 'partial' : 'implemented',
   assessment: entry.id === 'B13' ? 'The Swing bass can open the first bar of a long dominant by dropping beat two, anticipating the third pulse and keeping beat four.'
    : 'Alongside its existing Charleston figure, the Swing keyboard can play one and the swung and of two to catch an actual bass riff.',

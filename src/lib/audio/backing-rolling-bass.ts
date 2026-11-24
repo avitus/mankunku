@@ -101,6 +101,24 @@ function beginsLongDominant(score: RollingBackingDefinition, bar: number): boole
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
  let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+	if (info.brokenTwoAllowed && result.memory.feel === 'two' && !result.delayedRootTrace &&
+		!previous?.pendingLaunch && !result.memory.pendingLaunch && result.events.length === 2 &&
+		result.events.every((event, i) => event.absBeat === bar * 4 + 2 * i) &&
+		createRng(seedFrom(score.phraseId, score.bars[bar].pianoPresenceSeed ?? 0, bar, 'broken-two')).chance(.65)) {
+		const [one, three] = result.events;
+		const beat = bar * 4 + 3;
+		const tick = timing.place(beat, 'bass');
+		const secondsPerTick = 60 / score.tempo / score.ppq;
+		const available = (bar + 1) * 4 * score.ppq - tick;
+		if (tick > parseInt(three.time) && available > 0) {
+			const four = { ...three, absBeat: beat, time: `${tick}i`, brokenTwo: true as const,
+				duration: Math.min(.65 * score.ppq, available) * secondsPerTick, velocity: three.velocity - 8 };
+			result = { ...result, events: [one,
+				{ ...three, duration: Math.min(three.duration, (tick - parseInt(three.time)) * secondsPerTick * .8) }, four],
+				memory: { ...result.memory, previousPreviousMidi: three.midi, direction: 0,
+					...(score.bassScalarContinuation ? { scalarHistory: { pulse: { absBeat: beat, midi: four.midi, time: four.time }, ornamentAfterPulse: false } } : {}) } };
+		}
+	}
 	if (info.dominantRiffAllowed && result.memory.feel === 'four' && !result.delayedRootTrace &&
 		!previous?.pendingLaunch && !result.memory.pendingLaunch && !result.continuationTrace?.length &&
 		result.events.length === 4 && result.events.every((e, i) => e.absBeat === bar * 4 + i) &&

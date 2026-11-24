@@ -14,7 +14,7 @@ for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
    const { phrase } = buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
    const params = { phraseId: phrase.id, sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm,
     tempo: 140, ppq: 192, beatsPerBar: 4, swing: .62, ensemble: {} };
-   const options = { ...releasedBackingOptions(keyboard, 3), dominantRiff: undefined, balladReturn: undefined, bossaPickup: undefined };
+   const options = { ...releasedBackingOptions(keyboard, 3), brokenTwo: undefined, dominantRiff: undefined, balladReturn: undefined, bossaPickup: undefined };
    const current = createRollingBacking(phrase.harmony, BACKING_STYLES[style], params, options);
    const old = createRollingBacking(phrase.harmony, BACKING_STYLES[style], params, { ...options, performanceTouch: undefined });
    const oldHash = createHash('sha256');

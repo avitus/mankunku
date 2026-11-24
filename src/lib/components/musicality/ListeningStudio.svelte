@@ -33,14 +33,14 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(exampleStyle: 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(exampleStyle: 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
   const bridge = exampleStyle === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
   style = exampleStyle;
-  tempo = bridge ? 176 : exampleStyle === 'ballad' ? 80 : 128;
+  tempo = bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
   energySeed = 3;
@@ -241,6 +241,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-broken-two" onclick={() => loadReleaseExample('straight')} disabled={busy} title="Load Mankunku Blues in F at 136 BPM with two solos. Keeps your keyboard and mix.">Load 0.24 Straight Blues ↗</button>
+     · Head in, bars 6–7 of 16 (Blues bars 2–3). Count the light kick on one and three, chords on two and four, and the extra bass pluck on four. Compare Solo 1, then Head out, bars 7–8.</p>
     <p><button class="release-example" data-testid="listening-swing-bridge" onclick={() => loadReleaseExample('swing')} disabled={busy} title="Load Rhythm Changes in B-flat at 176 BPM with one solo. Clears the take and notes, keeps your keyboard and mix.">Load 0.23 Swing bridge ↗</button>
      · Solo bars 19, 21 and 23. Listen for bass and keys on one and the swung and of two, with a bell on the second attack.</p>
     <p><button class="release-example" data-testid="listening-ballad-example" onclick={() => loadReleaseExample('ballad')} disabled={busy} title="Load Mankunku Blues in F at 80 BPM with two solos. Clears the take and notes, keeps your keyboard and mix.">Load Ballad example ↗</button>

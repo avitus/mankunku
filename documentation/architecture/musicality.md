@@ -4,6 +4,10 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](https://github.com/avitus/mankunku/blob/musicality/documentation/contributing/musicality-progress.md) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Straight head in two — 0.24.0
+
+The released Straight 4/4 arrangement can break an existing two-feel during the opening or returning head. A seeded draw selects stable, unreserved bars after the first bar of each four-bar phrase with two actual bass attacks. The bassist shortens beat three and plucks its pitch again on four. Rolling pitch history and the last pulse advance to the rearticulation. Other players hear that accepted event. Piano or organ can select the existing two-and-four cell when two attacks fit. The kick takes one and three, subject to the usual limb arbitration. Walking solo choruses, protected melody space, written changes inside a bar, and reserved responses keep their own figures. The option is fingerprinted for Straight and shared by authored prepared playback and the listening desk.
+
 ## Swing dominant riff — 0.23.0
 
 The bassist can use a Charleston on the first bar of a dominant seventh that lasts at least two bars within a section. A solo build or peak, four ordinary walking quarters and an open response slot are required. The decision is seeded per bar. The downbeat and fourth-beat approach stay in place. The third pitch arrives on the swung and of two and beat two is left open. The next bar remembers the actual last two pitches. Fresh soloist activity or rest, a committed bass approach, a setup and a reserved ending take priority.

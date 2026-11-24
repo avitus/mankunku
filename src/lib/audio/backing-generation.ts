@@ -92,6 +92,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly balladHeldBass?: true;
 	readonly bossaOctavePickup?: true;
@@ -115,6 +116,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly balladReturnAnswer?: true;
 	/** Original beat offset of the displaced Bossa chord. */
@@ -137,6 +139,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly bossaPickupKick?: true;
  /** Velocity added to this ride backbeat over four walking pulses. */
@@ -391,6 +394,7 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	readonly brokenTwoAllowed?: boolean;
 	readonly dominantRiffAllowed?: boolean;
 	readonly balladHoldAllowed?: boolean;
 	readonly bossaPickupAllowed?: boolean;
