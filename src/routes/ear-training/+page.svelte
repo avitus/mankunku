@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
-	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
+	import { roomChecks } from '$lib/audio/room-scoring-state.svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
@@ -452,10 +452,12 @@
 	}
 
 	function demonstrationOptions(resolveAtMelodyEnd: boolean) {
+		const verify = micCapture && roomChecks.get(micCapture.source)?.measure;
+		const phraseId = session.phrase?.id;
 		return {
 			resolveAtMelodyEnd,
 			tongueRepeats: settings.instrumentId.endsWith('-sax'),
-			onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
+			onDemonstration: verify ? (start: number, seconds: number) => verify(start, seconds, phraseId) : undefined
 		};
 	}
 
@@ -1045,7 +1047,6 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
-{#if roomStatus.text}<p class="sr-only" role="status">{roomStatus.text}</p>{/if}
 <EarTrainingConsole
 	{writtenKey}
 	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}

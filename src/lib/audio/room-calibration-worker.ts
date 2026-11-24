@@ -1,15 +1,26 @@
 import {
 	fitRoom,
+	learnRoomSession,
 	validateRoom,
-	checkRoomTiming,
+	verifyRoom,
 	type RoomFilter,
+	type RoomSession,
 	type RoomSamples
 } from './room-filter';
 
-self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter }>): void => {
+self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter; session?: RoomSession; learnOffset?: number; retryClosing?: boolean; callerRetainedAudio?: boolean }>): void => {
 	try {
 		if (data.filter) {
-			self.postMessage({ check: checkRoomTiming(data, data.filter) });
+			if (data.learnOffset !== undefined) {
+				self.postMessage({ session: learnRoomSession(data, data.filter, data.learnOffset, data.session) });
+				return;
+			}
+			const result = verifyRoom(data, data.filter, data.session, data.retryClosing);
+			if (!data.callerRetainedAudio && result.check?.accepted) {
+				const { mic, left, right, rate } = data;
+				self.postMessage({ ...result, samples: { mic, left, right, rate } },
+					{ transfer: [mic.buffer, left.buffer, right.buffer] });
+			} else self.postMessage(result);
 			return;
 		}
 		// A silent Master gives us no speaker signal to test against. In
@@ -37,6 +48,6 @@ self.onmessage = ({ data }: MessageEvent<RoomSamples & { filter?: RoomFilter }>)
 			self.postMessage({ reduction });
 		}
 	} catch {
-		self.postMessage({ error: true });
+		self.postMessage({ error: 'Room estimation failed' });
 	}
 };

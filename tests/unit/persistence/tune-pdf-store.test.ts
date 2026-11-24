@@ -164,6 +164,8 @@ describe('legacy lead-sheet PDF database migration', () => {
 			]);
 			expect(restored).not.toBe('timeout');
 			expect((restored as Blob).size).toBe(64);
+			expect(await clearAllTunePdfs()).toBe(false);
+			expect(await getTunePdf('sheet-blocked')).toBeNull();
 		} finally {
 			holdOpen.close();
 		}
