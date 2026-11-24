@@ -145,6 +145,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly displacedAnswer?: RhythmCell;
 	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;
 	readonly brokenTwo?: true;

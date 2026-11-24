@@ -863,5 +863,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		card.detail = `The ${source} played this spacing in bar ${cell.bar+1}. The ${cell.stressed === 0 ? 'first' : 'second'} note takes the accent.`;
 		card.evidence.push('S3 · S38 · S39');
 	}
+	const strokes = drums.filter(e => e.displacedAnswer);
+	const rhythmSource = strokes[0]?.displacedAnswer;
+	if (rhythmSource && strokes.length === 2) {
+		const player = rhythmSource.player === 'bass' ? 'bass' : 'keyboard';
+		const later = strokes[0].absBeat % 4 > rhythmSource.offsets[0];
+		drumCard.action = `Move the ${player} rhythm one beat ${later ? 'later' : 'earlier'}`;
+		drumCard.detail = `Two snare strokes answer the ${player} in performed bar ${rhythmSource.bar+1}. The ${rhythmSource.stressed===0?'first':'second'} stroke carries the accent.`;
+		drumCard.evidence.push('S3 · S38 · S39 · D27–29');
+	}
 	return [bassCard, pianoCard, drumCard];
 }

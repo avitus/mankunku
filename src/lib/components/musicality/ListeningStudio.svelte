@@ -33,16 +33,17 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
+  const displaced = example === 'displaced-answer';
   const memory = example === 'rhythm-memory';
-  const exampleStyle = memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
-  const bridge = !memory && exampleStyle === 'swing';
+  const exampleStyle = displaced || memory ? 'swing' : example === 'ballad-solo' ? 'ballad' : example;
+  const bridge = !displaced && !memory && exampleStyle === 'swing';
   const tune = LISTENING_TUNES.find(tune => tune.title === (bridge ? 'Rhythm Changes' : 'Mankunku Blues'))!;
   tuneId = tune.id;
   key = tune.key;
   style = exampleStyle;
-  tempo = memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
+  tempo = displaced ? 128 : memory ? 144 : example === 'ballad-solo' ? 92 : bridge ? 176 : exampleStyle === 'straight' ? 136 : exampleStyle === 'ballad' ? 80 : 128;
   solos = bridge ? 1 : 2;
   ending = 'continue';
   energySeed = memory ? 14 : exampleStyle === 'straight' ? 12 : 3;
@@ -243,6 +244,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-displaced-answer" onclick={() => loadReleaseExample('displaced-answer')} disabled={busy}>Load 0.27 Swing call and answer ↗</button>
+     · S3, S38, S39. In Solo 1 bar 7, tap the keyboard on one and the swung and of two. Keep counting through bar 8. In bar 9 the snare plays the pair on two and the and of three.</p>
     <p><button class="release-example" data-testid="listening-rhythm-memory" onclick={() => loadReleaseExample('rhythm-memory')} disabled={busy}>Load 0.26 Swing rhythmic answers ↗</button>
      · S3, S38, S39. In Solo 2 listen for the ride on beats two and three of bar 3, the bass on two and four of bar 5, and the keyboard on the offbeats of bar 11. The musician cards identify the earlier player and bar.</p>
     <p><button class="release-example" data-testid="listening-ballad-third" onclick={() => loadReleaseExample('ballad-solo')} disabled={busy}>Load 0.25 Ballad solo ↗</button>

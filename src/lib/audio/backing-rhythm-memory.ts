@@ -112,3 +112,23 @@ export function developRhythm(parts: Parts, previous: RhythmMemory | undefined, 
  }
  return { parts, memory: { cells, lastAnswer } };
 }
+
+/** S38 short-term memory and S39 displacement. A whole-beat shift keeps the
+ * original swing subdivision; an occupied keyboard attack rules out the pair. */
+export function displacedRhythm(previous: RhythmMemory | undefined, bar: number,
+ occupied: readonly number[], seed: number): { cell: RhythmCell; shift: number } | undefined {
+ if (!previous || bar - (previous.lastAnswer.drums ?? -Infinity) <= 4 ||
+     Object.values(previous.lastAnswer).includes(bar - 1)) return;
+ const rng = createRng(seedFrom(seed, bar, 'displaced-rhythm'));
+ const options = previous.cells.flatMap(cell => {
+  const age = bar - cell.bar;
+  if (cell.player === 'drums' || age < 1 || age > 2) return [];
+  const weight = (age === 1 ? 2 : 1) * (cell.offsets.some(offset => !Number.isInteger(offset)) ? 2 : 1);
+  const playable = [-1, 1].filter(shift => cell.offsets.every(offset => {
+   const beat = offset + shift;
+   return beat >= 0 && beat < 4 && !occupied.includes(beat);
+  }));
+  return playable.map(shift => ({ value: { cell, shift }, weight }));
+ });
+ if (options.length && rng.chance(.8)) return rng.weighted(options);
+}
