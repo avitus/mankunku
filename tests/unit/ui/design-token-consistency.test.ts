@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import compiledAppCss from '../../../src/app.css?inline';
 
 /**
  * Static sweeps over src/ that pin the design-token contract from app.css:
@@ -8,7 +9,7 @@ import { join, relative } from 'node:path';
  * 1. Every `var(--color-*)` reference resolves to a token defined in app.css.
  *    An undefined token fails silently in CSS (the property computes to
  *    nothing), so a typo like --color-bg-primary ships a broken hover.
- *    The same sweep runs for `var(--font-*)`.
+ *    Font references are checked against the compiled stylesheet, including Tailwind.
  * 2. Solid colored fills (accent/success/error, incl. hover: variants) on
  *    text-bearing elements carry an explicit `text-white`. Without it the
  *    label inherits var(--color-text), which flips to near-black in light
@@ -25,13 +26,29 @@ function walk(dir: string, out: string[] = []): string[] {
 	for (const entry of readdirSync(dir)) {
 		const path = join(dir, entry);
 		if (statSync(path).isDirectory()) walk(path, out);
-		else if (/\.(svelte|ts)$/.test(entry)) out.push(path);
+		else if (/\.(css|svelte|ts)$/.test(entry)) out.push(path);
 	}
 	return out;
 }
 
 const files = walk(SRC);
 const rel = (path: string): string => relative(SRC, path);
+
+// Vite resolves the same stylesheet imports and Tailwind theme as the app.
+const fontDeclarations = compiledAppCss
+	.replace(/\/\*[\s\S]*?\*\//g, '')
+	.matchAll(/[;{]\s*(--font-[\w-]+)\s*:/g);
+const definedFonts = new Set(
+	Array.from(fontDeclarations, (match) => match[1])
+);
+
+function undefinedFonts(source: string): Set<string> {
+	const missing = new Set<string>();
+	for (const [, token] of source.matchAll(/var\(\s*(--font-[\w-]+)\s*[,)]/g)) {
+		if (!definedFonts.has(token)) missing.add(token);
+	}
+	return missing;
+}
 
 /** All class="…" attribute values in a Svelte file, including multi-line
  * attributes and embedded {ternary} expressions (inner quotes are single). */
@@ -45,7 +62,7 @@ describe('design token consistency', () => {
 			[...APP_CSS.matchAll(/(--color-[a-z0-9-]+)\s*:/g)].map((m) => m[1])
 		);
 		const undefinedUses = new Map<string, string[]>();
-		for (const file of files) {
+		for (const file of files.filter((file) => !file.endsWith('.css'))) {
 			const source = readFileSync(file, 'utf8');
 			for (const m of source.matchAll(/var\((--color-[a-z0-9-]+)\)/g)) {
 				if (!defined.has(m[1])) {
@@ -60,30 +77,24 @@ describe('design token consistency', () => {
 		).toEqual([]);
 	});
 
-	it('every var(--font-*) referenced in src/ is defined in app.css', () => {
-		// Same failure mode as the colour sweep, one property over: an
-		// undefined font token leaves `font-family: var(--font-display), Georgia`
-		// resolving to Georgia, so every knob readout quietly lost Fraunces.
-		// The pattern accepts a comma as well as the closing paren, because a
-		// reference with an inline fallback — `var(--font-x, Georgia)` — is the
-		// exact shape that hides the slip.
-		const defined = new Set(
-			[...APP_CSS.matchAll(/(--font-[a-z0-9-]+)\s*:/g)].map((m) => m[1])
-		);
-		const undefinedUses = new Map<string, string[]>();
+	it('every referenced font token is defined in the app stylesheet or its imports', () => {
+		const violations: string[] = [];
 		for (const file of files) {
-			const source = readFileSync(file, 'utf8');
-			for (const m of source.matchAll(/var\(\s*(--font-[a-z0-9-]+)\s*[,)]/g)) {
-				if (!defined.has(m[1])) {
-					const users = undefinedUses.get(m[1]) ?? [];
-					if (!users.includes(rel(file))) users.push(rel(file));
-					undefinedUses.set(m[1], users);
-				}
+			for (const token of undefinedFonts(readFileSync(file, 'utf8'))) {
+				violations.push(`${token} (${rel(file)})`);
 			}
 		}
-		expect(
-			[...undefinedUses.entries()].map(([token, users]) => `${token} (${users.join(', ')})`)
-		).toEqual([]);
+		expect(violations).toEqual([]);
+	});
+
+	it('accepts local and imported fonts and reports unknown fonts even with a fallback', () => {
+		const source = `
+			h1 { font-family: var(--font-display); }
+			p { font-family: var(--font-sans); }
+			b { font-family: var(--font-snsa); }
+			i { font-family: var(--font-dispaly, Georgia); }
+		`;
+		expect([...undefinedFonts(source)]).toEqual(['--font-snsa', '--font-dispaly']);
 	});
 
 	it('solid colored fills on text-bearing elements set explicit white text', () => {
