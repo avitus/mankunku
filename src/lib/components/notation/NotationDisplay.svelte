@@ -1034,7 +1034,7 @@
 		};
 
 		if (style === 'beat-line') {
-			add(rect(x0, band.staffBottom + sp * .5, w * beatProgress, 2));
+			add(rect(x0, band.staffBottom + sp * .5, w, 2));
 			return;
 		}
 		if (style === 'under-bar') {
@@ -1608,6 +1608,7 @@
 </script>
 
 <div
+	style:--notation-beat-progress={playheadStyle === 'beat-line' ? beatProgress : undefined}
 	class="notation-container {frameless ? 'frameless' : 'rounded-lg p-4'}"
 	class:chart-practice={variant === 'practice'}
 	class:editable={!!onSelect}
@@ -2019,6 +2020,11 @@
 		fill-opacity: 0.1;
 	}
 	/* Current-bar playhead colors. drawPlayhead sets the geometry. */
+	.notation-container :global(svg .playhead-beat-line) {
+		transform-box: fill-box;
+		transform-origin: left center;
+		transform: scaleX(var(--notation-beat-progress, 1));
+	}
 	.notation-container :global(svg .playhead-under-bar) {
 		fill: var(--color-brass);
 		fill-opacity: 0.9;

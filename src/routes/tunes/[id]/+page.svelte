@@ -245,9 +245,10 @@
 		if (baseId) saveTuneKey(baseId, writtenKeyToConcert(key, getInstrument()));
 	}
 	const keyCenters = $derived(displayedSheet ? tuneKeyCenters(displayedSheet, getInstrument(), { solo: showChordChart }) : null);
+	const activeBar = $derived(player.chartBar === null ? null : Math.floor(player.chartBar));
 	const markers: RangeMarker[] = $derived([
 		...(showKeyCenters ? keyCenters?.markers ?? [] : []),
-		...(player.chartBar === null ? [] : [{ id: 'tune-playhead', startBar: Math.floor(player.chartBar), endBarExclusive: Math.floor(player.chartBar) + 1, status: 'playhead' as const }])
+		...(activeBar === null ? [] : [{ id: 'tune-playhead', startBar: activeBar, endBarExclusive: activeBar + 1, status: 'playhead' as const }])
 	]);
 
 	/** Own tunes carry their style; shared/curated charts keep a personal account preference. */
