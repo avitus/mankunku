@@ -353,6 +353,7 @@ interface PitchReading {
   analysisWindowSeconds?: number; // Actual buffer length / sample rate; legacy exports omit it
   warmup?: boolean;      // Captured during the octave-stabilizer warmup window
   octaveUp?: boolean;    // Frame's spectrum looks like a 2nd-harmonic (octave-up) lock
+  maskedOddRank?: number; // (3f + 5f) / (2f + 4f) magnitudes for an ambiguous octave-low pick
   twelfthUp?: boolean;   // Frame's spectrum looks like a 3rd-harmonic (twelfth-up) lock
   weak?: true;           // Sub-threshold frame (clarity in [WEAK_CLARITY_FLOOR, threshold)) — side channel only
 }

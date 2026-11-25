@@ -19,6 +19,7 @@ import {
 	type FrameOptions,
 	type PitchReading
 } from './pitch-frame';
+import { resolveRepeatedOctaveAttacks } from './repeated-octave-attacks';
 import {
 	createOnsetState,
 	processOnsetFrame
@@ -142,7 +143,7 @@ export async function replaySamples(
 	}
 
 	return {
-		readings,
+		readings: resolveRepeatedOctaveAttacks(readings),
 		weakReadings,
 		onsets,
 		duration: totalSamples / sampleRate,

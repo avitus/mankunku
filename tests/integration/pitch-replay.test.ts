@@ -2259,7 +2259,7 @@ async function replayEarTrainingTake(
 	file: string,
 	transportSeconds: number,
 	tempo: number,
-	opts: { live?: boolean } = {}
+	opts: { live?: boolean; bleedOnsets?: number[] } = {}
 ) {
 	const wav = loadWavFixture(file);
 	const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
@@ -2290,7 +2290,7 @@ async function replayEarTrainingTake(
 	// "0.25–0.40 s grid drift" the notes chased for a month. With the stamp
 	// used as exported, the clicks in every fixture sit 0.077–0.101 s after
 	// the grid: Tone's 0.1 s lookahead less the recorder's start delay.
-	const bleedOnsets = getMetronomeBleedOnsets(transportSeconds, tempo, trimmed.duration);
+	const bleedOnsets = opts.bleedOnsets ?? getMetronomeBleedOnsets(transportSeconds, tempo, trimmed.duration);
 	const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
 	const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
 	const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
@@ -5146,5 +5146,44 @@ describe('pitch replay regression: 2026-11-15 soft swung-eighth repeats (concert
 				expect(score.overall).toBeGreaterThan(0.93);
 			});
 		}
+	});
+});
+
+// Both written Ds (concert C4) start with a short 132 Hz pick. The stronger
+// odd partials fade as each attack settles at 264 Hz. The tongue takes the
+// band floor from 0.15 to 0.04 and back above 0.14, all within this pitch class.
+describe('pitch replay regression: Climb to Five — written D repeat (2026-11-25)', () => {
+	const fixture = 'recordings/2026-11-25-climb-to-five';
+	const path = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures', fixture + '.json');
+	const take = JSON.parse(readFileSync(path, 'utf8'));
+	const { tempo, transportSeconds, swing, backingBleedOnsets } = take.context;
+	const score = (detected: DetectedNote[], readings: PitchReading[]) => runScorePipeline({
+		detected, readings, phrase: take.phrase, tempo, transportSeconds, swing
+	}).chosen;
+
+	it('reproduces the saved 2/4 score from the original readings', () => {
+		const { readings, rawWorkletOnsets, weakReadings } = take.detection;
+		const base = resolveOnsets(rawWorkletOnsets, readings);
+		const attacks = findReArticulations(readings, base, backingBleedOnsets);
+		const detected = segmentNotes(readings, [...base, ...attacks].sort((a, b) => a - b),
+			take.audio.duration, undefined, undefined, undefined, rawWorkletOnsets, backingBleedOnsets, attacks, weakReadings);
+		expect(detected.map(note => note.midi)).toEqual([58, 48, 62]);
+		expect(detected).toEqual(take.scoring.savedDetectedNotes);
+		expect(score(detected, readings)).toEqual(take.scoring.savedScore);
+	});
+
+	it.each([false, true])('scores both concert Cs from the WAV (live clock %s)', async (live) => {
+		const { trimmed, articulationOnsets, detected } = await replayEarTrainingTake(
+			fixture + '.wav', transportSeconds, tempo, { live, bleedOnsets: backingBleedOnsets }
+		);
+		expect(trimmed.offset).toBeCloseTo(take.audio.captureTrimSeconds + (live ? 4096 / 44100 : 0), 4);
+		expect(detected.map(note => note.midi)).toEqual([58, 60, 60, 62]);
+		expect(articulationOnsets).toHaveLength(1);
+		expect(articulationOnsets[0]).toBeCloseTo(1.38, 2);
+		// Above the bleed filter's unconditional keep threshold, even with matching backing pitches.
+		expect(detected.every(note => note.clarity >= 0.92)).toBe(true);
+		const result = score(detected, trimmed.readings);
+		expect(result).toMatchObject({ notesHit: 4, extrasCharged: 0, pitchAccuracy: 1 });
+		expect(result.overall).toBeCloseTo(live ? 0.9820 : 0.9949, 4);
 	});
 });

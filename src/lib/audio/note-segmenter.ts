@@ -3289,6 +3289,8 @@ function findReArticulationsInSegment(
 		}
 	}
 
+	const envelopeRecovery = new Map<PitchReading, number>();
+
 	// Envelope dip-recover pass (see the ENV_DIP_RATIO block comment). Uses
 	// the per-reading rmsMin sub-window floor, so it only runs on readings
 	// that carry it (2026-07-25+); older diagnostic JSON skips this pass.
@@ -3385,6 +3387,7 @@ function findReArticulationsInSegment(
 			const onsetTime = stable[recoveryIdx].time - RE_ARTICULATION_ATTACK_LATENCY;
 			if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 				onsets.push(onsetTime);
+				for (let k = e; k <= recoveryIdx; k++) envelopeRecovery.set(stable[k], onsetTime);
 				// The timestamp is the recovery of the dip. By then the tone
 				// may already be steady; retain the observed reed reset.
 				if (onReedReset && reedReset && bandFloorDips(stable, e, j) && bandFloorRecovers(stable, e, j)) onReedReset(onsetTime);
@@ -3545,6 +3548,15 @@ function findReArticulationsInSegment(
 		}
 
 		const onsetTime = stable[recoveryIdx].time - RE_ARTICULATION_ATTACK_LATENCY;
+		// Both measures can see one tongue at different stages of recovery.
+		// Use the confirmed envelope attack if the two timestamps would be
+		// counted separately and both troughs belong to that very dip.
+		const envelopeOnset = envelopeRecovery.get(stable[rmsMinIdx]);
+		if (envelopeOnset !== undefined && envelopeRecovery.get(stable[clarityMinIdx]) === envelopeOnset &&
+			Math.abs(onsetTime - envelopeOnset) > RE_ARTICULATION_MIN_INTERVAL) {
+			i = recoveryIdx + 1;
+			continue;
+		}
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 			onsets.push(onsetTime);
 		}

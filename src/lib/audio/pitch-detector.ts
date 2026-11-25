@@ -15,6 +15,7 @@ import {
 	type OctaveStabilizer,
 	type PitchReading
 } from './pitch-frame';
+import { resolveRepeatedOctaveAttacks } from './repeated-octave-attacks';
 
 export type { PitchReading } from './pitch-frame';
 
@@ -135,7 +136,7 @@ export async function createPitchDetector(
 				animFrameId = null;
 			}
 		},
-		getReadings: () => readings,
+		getReadings: () => resolveRepeatedOctaveAttacks(readings),
 		getWeakReadings: () => weakReadings,
 		/** Empty the confident and the weak streams without stopping. */
 		clear() {
