@@ -6,7 +6,7 @@
 	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { page } from '$app/state';
 	import { goto, onNavigate } from '$app/navigation';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
 	import TuneBandControls from '$lib/components/tunes/TuneBandControls.svelte';
 	import { TunePlayer } from '$lib/state/tune-player.svelte';
@@ -180,11 +180,18 @@
 		tuneId: () => baseSheet?.id,
 		save: (tuneId, tempo) => saveTuneTempo(tuneId, tempo, supabase ?? undefined)
 	}, () => baseSheet?.style);
-	// A same-tune link or history navigation can enter practice while the desk is playing.
+	// Reset playback on navigation. An auth refresh can replace page.params
+	// while the musician is still playing the same tune.
 	onNavigate(({ from, to }) => {
-		if (from?.url.searchParams.get('licks') !== '1' && to?.url.searchParams.get('licks') === '1') {
+		const changingTune = from?.params?.id !== to?.params?.id;
+		const enteringPractice = from?.url.searchParams.get('licks') !== '1' && to?.url.searchParams.get('licks') === '1';
+		if (changingTune || enteringPractice) {
 			playGeneration++;
 			player.stop();
+		}
+		if (changingTune) {
+			player.unaccompaniedSwing = null;
+			if (settingsPanel) settingsPanel.open = false;
 		}
 	});
 	const busy = $derived(player.busy || !!practiceStatus?.running || !!practiceStatus?.loading);
@@ -198,15 +205,6 @@
 	let printPreview = $state(false);
 	let settingsPanel = $state<HTMLDetailsElement>();
 	let chartWidth = $state(800);
-	$effect(() => {
-		page.params.id;
-		untrack(() => {
-			playGeneration++;
-			player.stop();
-			player.unaccompaniedSwing = null;
-			if (settingsPanel) settingsPanel.open = false;
-		});
-	});
 	const tuneStyle = $derived(baseSheet ? tuneBackingStyle(baseSheet, isOwnSheet ? {} : settings.tuneBackingStyles) : 'swing');
 	const backingStyle = $derived.by(() => {
 		void cacheVersion;

@@ -23,7 +23,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from 'vite';
-import type { BrowserContext, Route } from '@playwright/test';
+import type { BrowserContext, Page, Route } from '@playwright/test';
 import type { E2ETestUser } from './auth';
 
 /** Fallback when no PUBLIC_SUPABASE_URL is discoverable (the deployed project). */
@@ -170,6 +170,15 @@ function makeSession(user: E2ETestUser): Row {
 		expires_at: nowSec + 3600,
 		user: makeUserObject(user, nowIso)
 	};
+}
+
+/** Deliver the same auth notification a second tab sends after renewing its session. */
+export async function broadcastTokenRefresh(page: Page, user: E2ETestUser): Promise<void> {
+	await page.evaluate(({ key, session }) => {
+		const channel = new BroadcastChannel(key);
+		channel.postMessage({ event: 'TOKEN_REFRESHED', session });
+		channel.close();
+	}, { key: `sb-${PROJECT_REF}-auth-token`, session: makeSession(user) });
 }
 
 /**

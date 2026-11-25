@@ -1,7 +1,8 @@
 import { openTuneSettings, setTuneTempo } from './fixtures/tune-setup';
-import { test, expect } from './fixtures/test';
+import { test, expect } from './fixtures/auth';
 import type { PlaywrightTestArgs, PlaywrightWorkerOptions } from '@playwright/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
+import { broadcastTokenRefresh, createStubCloud, installStubCloud } from './fixtures/stub-cloud';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
 
 test.beforeEach(async ({ page }) => {
@@ -146,6 +147,29 @@ test('Play focuses the titled chart and Stop restores setup', async ({ page, bro
 	await openTuneSettings(page);
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeEnabled();
 	await expect(page.locator('.sd-play')).toHaveText('Play');
+});
+
+test('a sign-in refresh during the head keeps the same chorus playing', async ({ page, browserName, baseURL, testUser }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
+	test.setTimeout(60_000);
+	await installStubCloud(page.context(), createStubCloud(), testUser, baseURL!);
+	await seedOnboardedAnonymous(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/ls-rhythm-changes');
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
+	const status = page.locator('.td-status strong');
+	await expect(status).toHaveText('Head · Bar 2', { timeout: 30_000 });
+
+	const refreshed = page.waitForResponse(response =>
+		new URL(response.url()).pathname === '/tunes/ls-rhythm-changes/__data.json' && response.ok()
+	);
+	await broadcastTokenRefresh(page, testUser);
+	await (await refreshed).finished();
+
+	await expect(status).toHaveText(/Head · Bar [3-9]$/, { timeout: 10_000 });
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeHidden();
+	await page.getByRole('button', { name: 'Stop', exact: true }).click();
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeVisible();
 });
 
 test('editor style changes update its preview and survive saving the tune', async ({ page }) => {
