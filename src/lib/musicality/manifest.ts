@@ -382,6 +382,11 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'P8') return { ...entry, status: 'implemented',
+  assessment: 'In Straight solos the keyboard can continue a heard dotted-quarter pair over the bar line. Four chord attacks keep the same three-eighth spacing.',
+  scope: '0.34.0, two existing keyboard attacks per bar in an unreserved 4/4 solo passage.',
+  remaining: 'Other styles, longer groupings and full-tune listening acceptance remain open.',
+  evidence: [...entry.evidence, source('backing-rolling-piano'), test('backing-dotted-quarter')] };
  if (entry.id === 'B7') return { ...entry, status: 'implemented',
   assessment: 'In a Bossa head the upright can play the destination root on the and of four before a written dominant resolution.',
   scope: '0.33.0, existing straight-eighth pickups in unreserved coordinated 4/4 Bossa heads.',

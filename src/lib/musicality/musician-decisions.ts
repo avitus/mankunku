@@ -904,5 +904,16 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		pianoCard.detail = `The upright played ${source.map(note => noteName(note.midi)).join('–')} in performed bars ${first}–${last}. The keyboard answers ${reply.map(note => noteName(note.midi)).join('–')} in the top voice.`;
 		pianoCard.evidence.push('S3 · S38 · S39 · B31–32');
 	}
+	if (motif?.reason === 'dotted_quarter') {
+		const pair = generated.compEvents.filter(event => {
+			const bar = Math.floor(event.absBeat / beatsPerBar);
+			return bar === barIndex - 1 || bar === barIndex;
+		});
+		if (pair.length === 4 && pair.every((event, i) => !i || event.absBeat - pair[i - 1].absBeat === 1.5)) {
+			pianoCard.action = 'Carry the rhythm across the bar line';
+			pianoCard.detail = 'Four chord attacks, each three eighth notes apart. Tap four underneath them.';
+			pianoCard.evidence.push('S6 · P8');
+		}
+	}
 	return [bassCard, pianoCard, drumCard];
 }

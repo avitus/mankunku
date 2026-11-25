@@ -46,6 +46,7 @@ export interface RollingBackingOptions {
  /** Let the kit displace a recently heard pitched rhythm during a solo. */
  readonly displacedRhythm?: true;
  readonly melodicHandoff?: true;
+ readonly dottedQuarterComp?: true;
  readonly eighthAnticipation?: true;
  readonly quarterAnticipation?: true;
  readonly rideTriplet?: true;
@@ -142,6 +143,7 @@ export interface RollingBackingDefinition {
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
  readonly melodicHandoffVersion?: 1;
+ readonly dottedQuarterCompVersion?: 1;
  readonly eighthAnticipationVersion?: 1;
  readonly quarterAnticipationVersion?: 1;
  readonly rideTripletVersion?: 1;
@@ -296,6 +298,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const nativeHandoff = options.nativeMelodicHandoff && options.rhythmMemory && options.melodicHandoff && options.keyboardMelodicHandoff &&
   performanceEnergy && ['bossa-nova', 'ballad'].includes(style.coordinatedStyle!) && form.choruses.some(c => c.role === 'solo');
 	const versionedPolicies = {
+  ...(options.dottedQuarterComp && keyboardVariety && style.coordinatedStyle === 'straight' && form.choruses.some(c => c.role === 'solo')
+   ? { dottedQuarterCompVersion: 1 as const } : {}),
   ...(options.eighthAnticipation && performanceEnergy && style.coordinatedStyle === 'bossa-nova' && form.choruses.some(c => c.role === 'head')
    ? { eighthAnticipationVersion: 1 as const } : {}),
   ...(options.quarterAnticipation && performanceEnergy && style.coordinatedStyle === 'swing' && form.choruses.some(c => c.role === 'head')
@@ -541,7 +545,14 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
 	const openHarmony = (balladWindow || bossaWindow || headWindow || thirdWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
 			fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration) >= bar + 1);
-	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy,
+	const source = checkpoint?.drums.previousCompOnsets;
+	const dottedQuarterSource = definition.dottedQuarterCompVersion && source?.length === 2 && source[1] >= 2.5 && source[1] - source[0] === 1.5 &&
+		definition.bars[bar].role === 'solo' && phrase && phrase.barIndex > 0 && !definition.bars[bar].isSectionFirstBar && !definition.bars[bar].isSectionFinalBar &&
+		ensemble.responseOwner === 'nobody' && !ensemble.setupFor && !ensemble.coordinatedAccent && !ensemble.terminalArrangement &&
+		!ensemble.drums.allowFill && !['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
+		createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'dotted-quarter-comp')).chance(.65)
+		? source[1] : undefined;
+	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy, dottedQuarterSource,
 		eighthAnticipationAllowed: eighthWindow && unreserved,
 		anticipationAllowed: anticipationWindow && unreserved,
 		balladThirdAllowed: thirdWindow && openHarmony, brokenTwoAllowed: headWindow && openHarmony, bossaPickupAllowed: bossaWindow && openHarmony, balladHoldAllowed: balladWindow && openHarmony, dominantRiffAllowed: riffWindow && unreserved };

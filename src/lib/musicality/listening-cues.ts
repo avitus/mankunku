@@ -3,6 +3,7 @@
 function cue(first: number, note: string, last = first) { return { first, last, note }; }
 export type ListeningCue = ReturnType<typeof cue>;
 export const listeningGuides = {
+ 'dotted-quarter': [cue(51, 'Keys: two, and of three.'), cue(52, 'Keep counting: one, and of two.'), cue(54, 'Keys: and of two, four.'), cue(55, 'Across one: and of one, three.')],
  'eighth-anticipation': [cue(18, 'Bass G, then G on one.'), cue(22, 'Bass E, then E on one.'), cue(78, 'Bass C before one.')],
  'quarter-anticipation': [cue(3, 'Bass C on four.'), cue(23, 'Bass A on four.'), cue(92, 'Bass D before D minor.')],
  'ride-triplet': [cue(18, 'Three ride strokes over two beats.'), cue(31, 'The ride triplet returns.')],

@@ -411,6 +411,8 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	/** Last onset of the preceding bar’s eligible dotted-quarter pair, in beats from its bar line. */
+	readonly dottedQuarterSource?: number;
 	readonly balladThirdAllowed?: boolean;
 	readonly eighthAnticipationAllowed?: boolean;
 	readonly anticipationAllowed?: boolean;

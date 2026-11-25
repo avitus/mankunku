@@ -202,6 +202,21 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			figure = figureById(score, 'pad-whole'); hits = figure.hits[0].map(hit => ({ ...hit }));
 			transform = 'fallback'; shift = 0; reason = 'harmonic_support';
 		}
+		// Continue two heard attacks at the same spacing, using a complete native
+		// two-chord figure. The last onset may fall too early to cross the line.
+		if (info.dottedQuarterSource !== undefined && hits.length === 2 && budget >= 2 && !motifOverride && transform !== 'statement' &&
+			!backgroundHarmony && !memory.crossBarReleaseTick && !arrival && !ensemble.piano.silenceReason &&
+			answerContext?.feedback.action !== 'yield') {
+			const first = info.dottedQuarterSource + 1.5 - 4;
+			const continuation = keyboardFigures(score).find(candidate => fits(candidate) && candidate.hits[0].length === 2 &&
+				candidate.hits[0][0].b === first && candidate.hits[0][1].b === first + 1.5);
+			if (continuation && (hits[0].b !== first || hits[1].b !== first + 1.5)) {
+				figure = continuation;
+				hits = figure.hits[0].map(hit => ({ ...hit }));
+				transform = 'fallback'; shift = 0; development = undefined; answerFigureId = undefined;
+				reason = 'dotted_quarter';
+			}
+		}
 		const bassFigure = bassEvents?.find(e => e.dominantRiff || e.brokenTwo);
 		if (bassFigure && budget >= 2 && hits.length && (!bassFigure.brokenTwo || hits.length === 2) && !backgroundHarmony &&
 			!arrival && !memory.crossBarReleaseTick && !ensemble.piano.silenceReason && answerContext?.feedback.action !== 'yield') {
@@ -304,6 +319,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
   if(motif.sourceBar===bar)motif={startBar:phraseStart,sourceId:null,shift:0,repeat:false};
  }
 	const bassCatch = reason === 'bass_charleston' || reason === 'bass_broken_two';
+	const independentCell = bassCatch || reason === 'dotted_quarter';
 	let proposal = !commonTones && !bassCatch && reason !== 'cross_bar_breath' && !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
 		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
@@ -466,6 +482,6 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(score.keyboardSuspensionsVersion && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(commonTones && carry && events.length ? {commonToneEntry:{releaseTick:carry,heldNotes:[...commonTones],time:events[0].time,notes:[...events[0].notes]}} : {}), ...(canBreathe && carry && !answer && events.length && events.every(e=>parseInt(e.time,10)>=carry) ? {carriedReleaseTick:carry} : {}), ...(rhythmicSentence && !bassCatch && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: !commonTones && !bassCatch && reason !== 'cross_bar_breath' && reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: commonTones || answer || arrival || reason === 'cross_bar_breath' ? null : bassCatch || reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, ...(commonTones && carry && events.length ? {commonToneEntry:{releaseTick:carry,heldNotes:[...commonTones],time:events[0].time,notes:[...events[0].notes]}} : {}), ...(canBreathe && carry && !answer && events.length && events.every(e=>parseInt(e.time,10)>=carry) ? {carriedReleaseTick:carry} : {}), ...(rhythmicSentence && !independentCell && motif.sourceId && motif.sourceBar !== undefined ? { sentenceSourceBar: motif.sourceBar } : {}), motifId: !commonTones && !independentCell && reason !== 'cross_bar_breath' && reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: commonTones || answer || arrival || reason === 'cross_bar_breath' ? null : independentCell || reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }
