@@ -1,5 +1,6 @@
 <script lang="ts">
  import { onDestroy, onMount, untrack } from 'svelte';
+ import { listeningGuides, type ListeningExample } from '$lib/musicality/listening-cues';
  import ListeningScore from './ListeningScore.svelte';
  import ListeningMixer from './ListeningMixer.svelte';
  import type { BackingMixLevels } from '$lib/audio/backing-mix';
@@ -34,15 +35,18 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'quarter-anticipation' | 'ride-triplet' | 'bossa-handoff' | 'ballad-handoff' | 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ let selectedExample = $state<ListeningExample | null>(null);
+ function loadReleaseExample(example: ListeningExample) {
   clearTake();
-  if (example === 'quarter-anticipation') {
-   tuneId = 'scenario-fly-me-to-the-moon';
-   key = 'C';
-   style = 'swing';
+  selectedExample = example;
+  if (example === 'quarter-anticipation' || example === 'eighth-anticipation') {
+   const bossa = example === 'eighth-anticipation';
+   tuneId = bossa ? 'scenario-all-the-things-you-are' : 'scenario-fly-me-to-the-moon';
+   key = bossa ? 'Ab' : 'C';
+   style = bossa ? 'bossa-nova' : 'swing';
    tempo = 144;
    solos = 1;
-   energySeed = 7;
+   energySeed = bossa ? 0 : 7;
    ending = 'continue';
    return;
   }
@@ -125,6 +129,13 @@
  const reviewExtent = $derived(takeSession ? getListeningReviewExtent(snapshot, takeSession.bars.length) : null);
  const selectedReviewBar = $derived(busy ? pinnedBarIndex : selectListeningReviewBar(reviewBarIndex ?? pinnedBarIndex, reviewExtent));
  const displayBarIndex = $derived(selectedReviewBar ?? snapshot.barIndex);
+ const cues = $derived(selectedExample ? listeningGuides[selectedExample] : []);
+ const performedBar = $derived((displayBarIndex ?? -1) + 1);
+ const nextCue = $derived(cues.find(cue => cue.last >= performedBar));
+ const cueBar = $derived(nextCue && shownSession?.bars[nextCue.first - 1]);
+ const cueDistance = $derived(nextCue ? nextCue.first - performedBar : 0);
+ const cueHeading = $derived(!performedBar ? 'Listen for' : cueDistance <= 0 ? (selectedReviewBar !== null ? 'Marked passage' : 'Listen here')
+  : cueDistance <= 4 ? `In ${cueDistance} ${cueDistance === 1 ? 'bar' : 'bars'}` : 'Up next');
  const reviewValue = $derived(selectedReviewBar ?? reviewExtent?.lastBarIndex ?? 0);
  const reviewValueBar = $derived(shownSession?.bars[reviewValue]);
  const reviewValueText = $derived(reviewValueBar ? `Bar ${reviewValue+1} · ${passName(reviewValueBar.context.chorusIndex)} · ${reviewValueBar.sectionLabel}` : '');
@@ -147,7 +158,7 @@
  const performanceArc = $derived(decisionGenerated && displayBarIndex !== null ? describePerformanceArc(decisionGenerated,{barIndex:displayBarIndex,ppq:decisionPpq,beatsPerBar:4,style:decisionStyle,orchestration:decisionMode}) : null);
  const position = $derived(bar ? `${passName(bar.context.chorusIndex)} · ${bar.sectionLabel} · Bar ${bar.context.barInChorus+1} of ${bar.context.barsInChorus}` : 'Ready to listen');
  function passName(index:number):string { return index === 0 ? 'Head in' : index === (shownSession?.phrase.performanceForm.choruses.length ?? 0)-1 ? 'Head out' : `Solo ${index}`; }
- function clearTake() { pinnedBarIndex=null;feedbackMessage='';feedbackError='';verdict='unsure';reviewBarIndex=null;player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined,outputSignal:undefined};takeSession=null;takeSource=null;marks=[];note=''; }
+ function clearTake() { selectedExample=null;pinnedBarIndex=null;feedbackMessage='';feedbackError='';verdict='unsure';reviewBarIndex=null;player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined,outputSignal:undefined};takeSession=null;takeSource=null;marks=[];note=''; }
  function changeArrangement() { ending='continue';clearTake(); }
  function changeTune() {
   const source = scenario?.tune ?? (isCuratedTuneId(tuneId) ? LISTENING_TUNES.find(t=>t.id===tuneId) : selectedBookEntry?.tune as Partial<Tune> | undefined);
@@ -233,6 +244,14 @@
  onDestroy(()=>{book.dispose();player.dispose();});
 </script>
 
+{#snippet cueCard()}
+  {#if nextCue && cueBar}
+   <aside class="listen-ahead" data-testid="listening-cue" aria-label="Listening cue">
+    <small>{cueHeading} · {passName(cueBar.context.chorusIndex)} · Bar {cueBar.context.barInChorus + 1}{nextCue.last > nextCue.first ? `–${cueBar.context.barInChorus + 1 + nextCue.last - nextCue.first}` : ''}</small>
+    <strong>{nextCue.note}</strong>
+   </aside>
+  {/if}
+{/snippet}
 <header class="tune-heading"><div><span class="eyebrow">Musicality <span class="release" data-testid="musicality-release">{CURRENT_MUSICALITY_RELEASE.version} · <span data-testid="musicality-engine-revision" title="Accompaniment engine revision">{CURRENT_MUSICALITY_RELEASE.engineRevision.slice(0, 8)}</span> · Pending listening</span></span><h1>{shownSession?.tune.title ?? 'Choose a tune'}</h1></div> <label class="tune">Tune<select data-testid="listening-tune" bind:value={tuneId} onchange={changeTune} disabled={busy}><optgroup label="Built-in">{#each LISTENING_TUNES as tune}<option value={tune.id}>{tune.title}</option>{/each}</optgroup><optgroup label="Test scenarios">{#each LISTENING_SCENARIOS as entry}<option value={entry.tune.id}>{entry.tune.title}</option>{/each}</optgroup>{#if shownBookEntries.length}<optgroup label="Your tune book">{#each shownBookEntries as tune}<option value={tune.id}>{takeSource?.id===tune.id ? takeSource.title : tune.title}</option>{/each}</optgroup>{/if}</select></label></header>
 
 {#if !admission.ok && !busy}<p data-testid="listening-unavailable" role="status" class="error">{admission.reason}</p>{/if}
@@ -247,8 +266,9 @@
  <label>Key<select data-testid="listening-key" bind:value={key} onchange={clearTake} disabled={busy}>{#each PITCH_CLASSES as pitch}<option value={pitch}>{pitch.replace('b','♭').replace('#','♯')}</option>{/each}</select></label>
  <label>Tempo<input data-testid="listening-tempo" type="number" min="40" max="240" step="1" bind:value={tempo} onchange={clearTake} disabled={busy} /></label>
  <label>Solo choruses<select data-testid="listening-choruses" bind:value={solos} onchange={clearTake} disabled={busy}>{#each [1,2,3,4] as count}<option value={count} disabled={!!scenario && count > scenario.maxSolos}>{count}</option>{/each}</select></label>
-</section><div class="arrangement-row"><span class="engine-caption">Musicality {CURRENT_MUSICALITY_RELEASE.version}</span></div>
-   {#if shownSession}<ListeningScore session={shownSession} barIndex={displayBarIndex} />{/if}
+</section><div class="arrangement-row"><span class="engine-caption">Musicality {CURRENT_MUSICALITY_RELEASE.version}</span><button class="release-example" data-testid="listening-eighth-anticipation" onclick={() => loadReleaseExample('eighth-anticipation')} disabled={busy}>Load 0.33 Bossa listening guide ↗</button></div>
+   <div class="mobile-cue">{@render cueCard()}</div>
+   {#if shownSession}<ListeningScore session={shownSession} barIndex={displayBarIndex} {cues} />{/if}
    <section class="transport" aria-label="Playback">
     {#if busy}<button class="play" data-testid="listening-stop" onclick={()=>player.stop()}>■ Stop</button>{:else}<button class="play" data-testid="listening-play" onclick={play} disabled={!admission.ok||!!endingUnavailable||!Number.isFinite(tempo)||tempo<40||tempo>240}>{snapshot.generated ? '↻ Replay take' : '▶ Listen'}</button>{/if}
     <div class="transport-status" data-testid="listening-position" data-bar-index={displayBarIndex ?? ''} data-start-audio-time={snapshot.startAudioTime ?? ''}><strong data-testid="listening-status" role="status">{snapshot.status === 'loading' ? 'Loading the band…' : snapshot.status === 'playing' ? snapshot.ending ? 'Letting the last chord ring' : 'Playing' : snapshot.status === 'completed' ? 'Take complete' : snapshot.status === 'stopped' ? 'Stopped' : snapshot.status === 'error' ? 'Unable to play' : 'Ready to listen'}</strong><small>{shownSession ? `${shownSession.bars.length} bars` : 'Arrangement unavailable'} · Rhythm section only</small>{#if bar}<small>{selectedReviewBar!==null?'Reviewing · ':''}{position}</small>{/if}</div>
@@ -261,6 +281,7 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>{scenario?.description ?? 'Play the melody yourself.'}</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p>0.33 · All the Things You Are · S12/B7. Count “four-and-one” through the marked cadences. The upright arrives on “and” and plays the same note on one.</p>
     <p><button class="release-example" data-testid="listening-quarter-anticipation" onclick={() => loadReleaseExample('quarter-anticipation')} disabled={busy}>Load 0.32 Fly Me to the Moon ↗</button>
      · Count one and three with the upright. In head-in bar 3 it adds a low C on four, then plays C again when the chart reaches Cmaj7. Listen for A in head-in bar 23 and D in head-out bar 28 (performed bar 92). S12/B6.</p>
     <p><button class="release-example" data-testid="listening-ride-triplet" onclick={() => loadReleaseExample('ride-triplet')} disabled={busy}>Load 0.31 Swing ride triplets ↗</button>
@@ -304,6 +325,7 @@
   <p class="book-note">{#if library.error}{library.error} {:else if unreadableBookEntries}Some saved charts are unreadable. {:else if libraryLoaded && !bookEntries.length}Add a saved chart to listen beyond the built-in tunes. {:else}Saved charts are available from your tune book. {/if}<a href="/tunes">Open Tunes ↗</a></p>
  </div>
  <section class="players" aria-labelledby="players-title">
+  <div class="desktop-cue">{@render cueCard()}</div>
   <div class="intention"><div class="intention-heading"><span class="eyebrow" id="players-title">The shared intention</span>{#if selectedReviewBar!==null}<button data-testid="listening-follow" onclick={follow}>Follow music ↗</button>{:else}<button data-testid="listening-pin" onclick={pin} disabled={snapshot.barIndex===null||!busy}>Pin this bar</button>{/if}</div>{#if performanceArc}<p class="performance-arc" data-testid="listening-performance-arc" data-bar-index={displayBarIndex} data-phase={performanceArc.phase}><span class="arc-label">Planned arc · </span>{performanceArc.label}</p>{:else}<p>{snapshot.generated?'Follow the scheduled notes and the space between them.':'The band’s decisions appear as the tune plays.'}</p>{/if}{#if shownSession}<ListeningArc seed={snapshot.params?.performanceEnergySeed ?? energySeed} form={shownSession.phrase.performanceForm} orchestration={snapshot.params?.orchestration ?? mode} barIndex={displayBarIndex} reviewing={selectedReviewBar !== null} />{/if}<div class="beat-indicator" aria-hidden="true">{#each [0,1,2,3] as beat}<i class:active={snapshot.status==='playing'&&selectedReviewBar===null&&!snapshot.ending&&Math.floor(snapshot.elapsedBeats%4)===beat}></i>{/each}<span>{selectedReviewBar!==null?'Pinned · scheduled evidence':snapshot.status==='playing'?'Current sounding bar':'Ready when you are'}</span></div></div>
   {#if mode === 'coordinated'}<div class="energy-choice"><button onclick={newEnergyArc} disabled={busy} data-testid="listening-new-arc">New energy arc ↗</button><small>Clears the current take and notes.</small></div>{/if}
   <div class="musicians">{#each ['bass','piano','drums'] as name,i}{@const decision=decisions.find(d=>d.instrument===name)}<article class={name} data-testid={`musician-${name}`} data-bar-index={displayBarIndex ?? ''}><div class="player-title"><h3><span aria-hidden="true">{['♩','▥','◌'][i]}</span>{name==='bass'?'Bass':name==='piano'?keyboardLabel:'Drums'}</h3><small>{decision?.role ?? 'Ready'}</small></div><h4>{decision?.action ?? 'Waiting for the first bar'}</h4>{#if decision}<p>{decision.detail}</p>{/if}{#if decision}<details class="evidence"><summary>{decision.eventCount} scheduled {decision.eventCount===1?'event':'events'} · Why this choice</summary><ul>{#each decision.evidence as evidence}<li>{evidence}</li>{/each}</ul></details>{/if}</article>{/each}</div>
@@ -315,6 +337,12 @@
 <footer><span>Musicality {CURRENT_MUSICALITY_RELEASE.version} · Listening review pending</span><a href="/docs/architecture/musicality">Architecture & roadmap ↗</a></footer>
 
 <style>
+ .mobile-cue { display: none; }
+ @media(max-width:800px) { .mobile-cue { display: block; } .desktop-cue { display: none; } }
+ .listen-ahead { margin-bottom: .85rem; padding: .65rem .85rem; border-left: 3px solid #e2bd77; background: #26303a; color: #f5edde; }
+ .listen-ahead small { display: block; margin-bottom: .2rem; font-size: .7rem; color: #e2bd77; }
+ .listen-ahead strong { font-size: .95rem; }
+
  .release-example{color:#d5ad6c;text-decoration:underline;text-underline-offset:3px;margin-left:.35rem}.release-example:disabled{opacity:.5}
  .energy-choice{margin-bottom:1rem}.energy-choice button{font-size:.68rem;color:#d5ad6c;padding:.3rem 0}.energy-choice small{display:block;font-size:.6rem;line-height:1.6;color:#9aaabc;margin-top:.35rem}
  .tune-heading .tune{width:220px;flex-shrink:0}.engine-caption{font-size:.6rem;color:#a8b7c9}.ending-row{display:flex;justify-content:flex-end;margin-top:.6rem;gap:1rem;flex-wrap:wrap}.ending-row label{display:flex;align-items:center;gap:.5rem}.ending-row select{width:auto;margin-top:0;padding:.35rem .5rem;font-size:.65rem}.review-actions{display:flex;align-items:center;gap:.7rem;border-block:1px solid #46566b;padding:.5rem 0;margin-top:1rem}.review-actions>span{font-size:.62rem;color:#91a1b4}.review-actions .saved-toggle{margin-left:auto;padding:.4rem 0}.mark-quick{border:1px solid #7d7566;padding:.5rem .7rem;border-radius:3px;color:#e0c69e;font-size:.7rem}.tune-heading{display:flex;justify-content:space-between;align-items:end;gap:1rem;margin:1.8rem 0 1.5rem}.eyebrow{font-size:.6rem;letter-spacing:.12em;color:#d5ad6c;text-transform:uppercase}.tune-heading h1{font:400 clamp(1.7rem,3vw,2.1rem)/1.3 var(--font-display);letter-spacing:-.035em;margin:.5rem 0 0}.tune-meta{color:#9aaabc;font-size:.72rem;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;justify-content:flex-end}.release{border-left:1px solid #46566b;padding-left:.7rem;margin-left:.7rem;font-size:.55rem;color:#9aaabc;letter-spacing:0;text-transform:none;white-space:nowrap}

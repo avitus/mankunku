@@ -1,11 +1,12 @@
 <script lang="ts">
-	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import { listeningScoreBar, listeningScoreBars } from '$lib/musicality/listening-score';
 	import type { ListeningTuneSession } from '$lib/musicality/listening-tunes';
 
-	let { session, barIndex, follow = false }: {
+	let { session, barIndex, follow = false, cues = [] }: {
 		session: ListeningTuneSession;
 		barIndex: number | null;
+		cues?: readonly import('$lib/musicality/listening-cues').ListeningCue[];
 		/** Clip and follow the active staff instead of showing the complete chart. */
 		follow?: boolean;
 	} = $props();
@@ -17,10 +18,29 @@
 	}
 	const scoreMap = $derived(listeningScoreBars(session));
 	const notationBar = $derived(listeningScoreBar(scoreMap, barIndex));
-	const markers = $derived(notationBar === null ? [] : [{
-		id: 'listening-playhead', startBar: notationBar, endBarExclusive: notationBar + 1,
-		status: 'playhead' as const
-	}]);
+	// The same written bar can occur in multiple passes (or twice within a repeat).
+ // Resolve every performed bar separately and give the current occurrence priority.
+ const cueMarkers = $derived.by(() => {
+  const occurrence = barIndex ?? (cues[0]?.first ?? 1) - 1;
+  const pass = session.bars[occurrence]?.context.chorusIndex;
+  const byWrittenBar = new Map<number, RangeMarker>();
+  for (const cue of cues) {
+   for (let number = cue.first; number <= cue.last; number++) {
+    const index = number - 1;
+    const written = listeningScoreBar(scoreMap, index);
+    if (written === null || session.bars[index]?.context.chorusIndex !== pass) continue;
+    if (barIndex !== null && scoreMap[barIndex] === written && index !== barIndex) continue;
+    byWrittenBar.set(written, {
+     id: `listening-cue-${number}`, startBar: written, endBarExclusive: written + 1,
+     status: index === barIndex ? 'active' : 'upcoming', color: '#e2bd77', label: cue.note
+    });
+   }
+  }
+  return [...byWrittenBar.values()];
+ });
+ const markers = $derived<RangeMarker[]>(notationBar === null ? cueMarkers : [...cueMarkers, {
+  id: 'listening-playhead', startBar: notationBar, endBarExclusive: notationBar + 1, status: 'playhead'
+ }]);
 </script>
 
 <div class="listening-score" data-testid="listening-score" data-key={session.tune.key} data-notation-bar={notationBar ?? ''}

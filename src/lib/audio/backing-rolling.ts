@@ -46,6 +46,7 @@ export interface RollingBackingOptions {
  /** Let the kit displace a recently heard pitched rhythm during a solo. */
  readonly displacedRhythm?: true;
  readonly melodicHandoff?: true;
+ readonly eighthAnticipation?: true;
  readonly quarterAnticipation?: true;
  readonly rideTriplet?: true;
  readonly nativeMelodicHandoff?: true;
@@ -141,6 +142,7 @@ export interface RollingBackingDefinition {
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
  readonly melodicHandoffVersion?: 1;
+ readonly eighthAnticipationVersion?: 1;
  readonly quarterAnticipationVersion?: 1;
  readonly rideTripletVersion?: 1;
  readonly nativeMelodicHandoffVersion?: 1;
@@ -294,6 +296,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const nativeHandoff = options.nativeMelodicHandoff && options.rhythmMemory && options.melodicHandoff && options.keyboardMelodicHandoff &&
   performanceEnergy && ['bossa-nova', 'ballad'].includes(style.coordinatedStyle!) && form.choruses.some(c => c.role === 'solo');
 	const versionedPolicies = {
+  ...(options.eighthAnticipation && performanceEnergy && style.coordinatedStyle === 'bossa-nova' && form.choruses.some(c => c.role === 'head')
+   ? { eighthAnticipationVersion: 1 as const } : {}),
   ...(options.quarterAnticipation && performanceEnergy && style.coordinatedStyle === 'swing' && form.choruses.some(c => c.role === 'head')
    ? { quarterAnticipationVersion: 1 as const } : {}),
   ...(options.rideTriplet && performanceEnergy && style.coordinatedStyle === 'swing' && form.choruses.some(c => c.role === 'solo')
@@ -526,7 +530,11 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		!definition.bars[bar].isSectionFinalBar && !ensemble.drums.allowFill && ensemble.bass.keepPulse &&
 		!['leave_space','release'].includes(ensemble.phraseIntent) &&
 		createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'quarter-anticipation')).chance(.55);
-	const unreserved = (anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
+	const eighthWindow = definition.eighthAnticipationVersion === 1 && definition.bars[bar].role === 'head' &&
+  !definition.bars[bar].returningMelodySpace && !ensemble.drums.allowFill && ensemble.bass.keepPulse &&
+  !['leave_space', 'release'].includes(ensemble.phraseIntent) &&
+  createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'bossa-anticipation')).chance(.45);
+ const unreserved = (eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&
 		!ensemble.terminalArrangement && !definition.bars[bar].isChorusFinalBar &&
 		!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
@@ -534,6 +542,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const openHarmony = (balladWindow || bossaWindow || headWindow || thirdWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
 			fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration) >= bar + 1);
 	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy,
+		eighthAnticipationAllowed: eighthWindow && unreserved,
 		anticipationAllowed: anticipationWindow && unreserved,
 		balladThirdAllowed: thirdWindow && openHarmony, brokenTwoAllowed: headWindow && openHarmony, bossaPickupAllowed: bossaWindow && openHarmony, balladHoldAllowed: balladWindow && openHarmony, dominantRiffAllowed: riffWindow && unreserved };
 	const phraseEnd = ensemble.phraseStartBar + definition.bars[bar].phrase4!.lengthBars;

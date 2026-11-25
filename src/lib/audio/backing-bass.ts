@@ -819,9 +819,10 @@ export function generateBossaBass(
 
 	const events: BassEvent[] = [];
 	const onsetsByBar = new Map<number, number[]>();
-	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
+	const push = (absBeat: number, midi: number, duration: number, velocity: number, anticipatedRoot?: BassEvent['eighthAnticipatedRoot']): void => {
 		const bar = Math.floor(absBeat / beatsPerBar);
 		events.push({
+			...(anticipatedRoot && { eighthAnticipatedRoot: anticipatedRoot }),
 			time: `${params.ensembleTiming?.place(absBeat, 'bass') ?? placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
 			midi: Math.max(BASS_LOW, Math.min(BASS_HIGH, midi)),
 			duration,
@@ -904,7 +905,19 @@ export function generateBossaBass(
 					{ value: fifthFor(nextRootMidi, nextSeg), weight: 1 }
 				]);
 			}
-			push(barStart + 3.5, pickup, beatDuration * 0.35, rng.int(58, 65));
+			const velocity = rng.int(58, 65);
+			// B7 colors an existing pickup at a written V resolution. Leave splits,
+			// inversions and all other native approaches to the ordinary line.
+			if (barInfos[bar].eighthAnticipationAllowed && nextSeg.startBeats === barStart + beatsPerBar &&
+				segAt0 === segAt2 && segAt0.startBeats + segAt0.totalBeats === nextSeg.startBeats &&
+				segAt2.quality.startsWith('7') && (segAt2.rootPc - nextSeg.rootPc + 12) % 12 === 7) {
+				const chord = harmony[segments.indexOf(nextSeg)].chord;
+				if (!chord.bass && !harmony[segments.indexOf(segAt2)].chord.bass) {
+					push(barStart + 3.5, rootFor(nextSeg), beatDuration * .42, velocity + 6, chord.root);
+					continue;
+				}
+			}
+			push(barStart + 3.5, pickup, beatDuration * .35, velocity);
 		}
 	}
 
