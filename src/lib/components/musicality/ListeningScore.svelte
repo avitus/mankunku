@@ -32,7 +32,7 @@
     if (barIndex !== null && scoreMap[barIndex] === written && index !== barIndex) continue;
     byWrittenBar.set(written, {
      id: `listening-cue-${number}`, startBar: written, endBarExclusive: written + 1,
-     status: index === barIndex ? 'active' : 'upcoming', color: '#e2bd77', label: cue.note
+     status: index === barIndex ? 'active' : 'upcoming', color: '#e2bd77', label: cue.note, labelBelowSystem: true
     });
    }
   }
@@ -49,7 +49,7 @@
 	<div class="score-scroll" data-testid="listening-score-scroll" tabindex="0" onkeydown={scrollWithArrow}
 		role="region" aria-label="Scrollable score. Use arrow keys to move across the music.">
 		<div class="score-sheet" data-testid="listening-score-sheet">
-			<NotationDisplay tune={session.tune} tuneOptions={{ omitMasthead: true }}
+			<NotationDisplay tune={session.tune} tuneOptions={{ omitMasthead: true, staffSeparation: cues.length ? 100 : undefined }}
 				frameless variant="practice" rangeMarkers={markers} playheadStyle="box"
 				autoScrollPlayhead={follow} />
 		</div>
@@ -69,6 +69,13 @@
 		border: 1px solid #52617555;
 		border-radius: 3px;
 	}
+ .score-sheet :global(rect[data-marker-id^="listening-cue-"]) {
+  fill-opacity: .16;
+  stroke: #e2bd77;
+  stroke-opacity: .75;
+  stroke-width: 1;
+ }
+ .score-sheet :global(rect.marker-active[data-marker-id^="listening-cue-"]) { fill-opacity: .27; }
 	.score-scroll {
 		width: 100%;
 		max-width: 100%;

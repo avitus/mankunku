@@ -84,6 +84,8 @@
 		label?: string;
 		/** Explicit musical start for a label when coverage wraps to earlier chart bars. */
 		labelBar?: number;
+  /** Place listening annotations beneath the lowest ink across this system. */
+  labelBelowSystem?: boolean;
 		/**
 		 * Progression identity colour (a CSS colour, e.g. a `var(--prog-*)` ref).
 		 * When set it tints the band + label to the matched progression's hue for
@@ -746,7 +748,8 @@
 							: marker.label;
 					const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
 					el.setAttribute('x', (labelX + band.spacing * 0.6).toFixed(2));
-					el.setAttribute('y', (band.staffBottom + band.spacing * 1.9).toFixed(2));
+					const labelBase = marker.labelBelowSystem ? band.bottom : band.staffBottom;
+					el.setAttribute('y', (labelBase + band.spacing * 1.9).toFixed(2));
 					el.setAttribute('font-size', fontSize.toFixed(2));
 					el.setAttribute('class', `range-marker range-marker-label marker-label-${marker.status}`);
 					el.setAttribute('data-marker-id', marker.id);
