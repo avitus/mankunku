@@ -7,6 +7,16 @@ import { observeListeningOutput, expectAudibleListeningOutput } from './fixtures
 import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 import type { RollingBackingDispatch } from '../../src/lib/audio/backing-rolling-renderer';
 
+test('shows the complete keyboard count under each marked bar', async ({ page }, info) => {
+ await seedOnboardedAnonymous(page);
+ await page.goto('/musicality');
+ await page.getByTestId('listening-dotted-quarter').click();
+ for (const [bar, label] of [[51, 'Keys: 2, 3-and'], [52, '1, 2-and'], [54, 'Keys: 2-and, 4'], [55, '1-and, 3']] as const) {
+  await expect(page.locator(`text[data-marker-id="listening-cue-${bar}"]`)).toHaveText(label);
+ }
+ await page.getByTestId('listening-score').screenshot({path: info.outputPath('full-counts.png')});
+});
+
 test('marks and plays both cross-bar keyboard groupings in the full Straight take', async ({ page }, info) => {
  requireRealtimeAudio(page);
  test.setTimeout(300_000);
