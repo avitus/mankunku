@@ -11,7 +11,7 @@ export interface MelodicMemory {
 }
 interface ChordWindow { readonly start: number; readonly length: number; readonly chordPcs: readonly number[] }
 
-export function melodicSources(heard: readonly HeardNote[], maxGap: number) {
+export function melodicSources(heard: readonly HeardNote[], maxGap: number): HeardNote[][] {
  const sources: HeardNote[][] = [];
  for (let end = heard.length; end >= 4; end--) {
   for (const size of [5, 4]) {
@@ -24,7 +24,7 @@ export function melodicSources(heard: readonly HeardNote[], maxGap: number) {
  return sources;
 }
 
-export function harmonyAt(harmony: readonly HarmonicSegment[], beat: number) {
+export function harmonyAt(harmony: readonly HarmonicSegment[], beat: number): HarmonicSegment['chord'] | undefined {
  return harmony.find(segment => {
   const start = fractionToFloat(segment.startOffset)*4;
   return beat >= start && beat < start + fractionToFloat(segment.duration)*4;
@@ -71,11 +71,11 @@ export function fitBassAnswer(source: readonly HeardNote[], walk: readonly BassE
 }
 
 /** Choose a complete, recognizable sequence before altering any pitch. */
-export function fitContour(source: readonly HeardNote[], ordinary: readonly number[], choices: readonly (readonly number[])[], requireVariation = false) {
+export function fitContour(source: readonly HeardNote[], ordinary: readonly number[], choices: readonly (readonly number[])[], requireVariation = false): number[] | undefined {
  const steps = source.slice(1).map((note, i) => note.midi - source[i].midi);
  let best: number[] | undefined;
  let bestCost = Infinity;
- function visit(pitches: number[], cost: number) {
+ function visit(pitches: number[], cost: number): void {
   const i = pitches.length;
   if (cost >= bestCost) return;
   if (i === ordinary.length) {

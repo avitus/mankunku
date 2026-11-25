@@ -334,9 +334,12 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	let setupId: string | undefined;
 	const allowance = ensemble.drums.maxCommentaryHits;
 	const proposal = !state.motif && !ensemble.drums.allowFill ? input.displaced : undefined;
-	const answerHits: DrumHitSpec[] = proposal ? proposal.cell.offsets.map((beat, index) => ({
+	const cell = proposal && Object.freeze({
+		...proposal.cell, offsets: Object.freeze([...proposal.cell.offsets] as const)
+	});
+	const answerHits: DrumHitSpec[] = proposal && cell ? cell.offsets.map((beat, index) => ({
 		drum: 'snare', role: 'commentary', beatOffset: beat + proposal.shift,
-		velocity: index === proposal.cell.stressed ? .56 : .34, displacedAnswer: proposal.cell
+		velocity: index === cell.stressed ? .56 : .34, displacedAnswer: cell
 	})) : [];
 	if (arrival) reason = 'arrival_reserved';
 	else if (allowance === 0) reason = 'ensemble_silence';

@@ -1,10 +1,19 @@
 import type { BassEvent, CompEvent, DrumEvent } from '$lib/audio/backing-generation';
+import { validRhythmMemory } from '$lib/audio/backing-rhythm-memory';
 import { it, expect } from 'vitest';
 import { MANKUNKU_BLUES } from '$lib/data/tunes';
 import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import { releasedBackingOptions } from '$lib/audio/backing-release';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
+
+it('restores a numeric downbeat and rejects a decoded null offset', () => {
+ const cell = { player: 'bass', bar: 0, stressed: 1 };
+ for (const offset of [0, null]) {
+  const decoded = JSON.parse(JSON.stringify({ cells: [{ ...cell, offsets: [offset, 1] }], lastAnswer: {} }));
+  expect(validRhythmMemory(decoded, 1)).toBe(offset === 0);
+ }
+});
 
 it('develops actually played two-attack cells on all three instruments across a full solo form (S3, S38, S39)', () => {
  const { phrase } = buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });

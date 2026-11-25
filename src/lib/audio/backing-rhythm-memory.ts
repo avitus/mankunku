@@ -55,7 +55,7 @@ export function validRhythmMemory(memory: RhythmMemory | undefined, nextBar: num
  if (!memory || !Array.isArray(memory.cells) || memory.cells.length > 48 || (!memory.lastAnswer || typeof memory.lastAnswer !== 'object' || Array.isArray(memory.lastAnswer))) return false;
  return memory.cells.every((c: RhythmCell) => c && players.includes(c.player) && Number.isSafeInteger(c.bar) &&
   c.bar >= Math.max(0, nextBar-16) && c.bar < nextBar && Array.isArray(c.offsets) && c.offsets.length === 2 &&
-  c.offsets.every(n => Number.isInteger(n*2) && n >= 0 && n < 4) && c.offsets[1] > c.offsets[0] &&
+  c.offsets.every(n => typeof n === 'number' && Number.isInteger(n*2) && n >= 0 && n < 4) && c.offsets[1] > c.offsets[0] &&
   (c.stressed === 0 || c.stressed === 1)) &&
   Object.entries(memory.lastAnswer).every(([key, value]) => players.some(p => p === key) && Number.isSafeInteger(value) && value >= 0 && value < nextBar);
 }

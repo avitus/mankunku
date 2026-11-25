@@ -141,13 +141,13 @@ export interface RollingBackingDefinition {
  readonly performanceTouchVersion?: 1;
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
- readonly melodicHandoffVersion?: 1;
+ readonly melodicHandoffVersion?: 2;
  readonly eighthAnticipationVersion?: 1;
  readonly quarterAnticipationVersion?: 1;
  readonly rideTripletVersion?: 1;
  readonly nativeMelodicHandoffVersion?: 1;
  readonly keyboardMelodicHandoffVersion?: 1;
- readonly rhythmMemoryVersion?: 1;
+ readonly rhythmMemoryVersion?: 2;
  readonly balladThirdVersion?: 1;
  readonly brokenTwoVersion?: 1;
  readonly dominantRiffVersion?: 1;
@@ -304,9 +304,9 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
    ? { rideTripletVersion: 1 as const } : {}),
   ...(nativeHandoff && { nativeMelodicHandoffVersion: 1 as const }),
   ...((displacement || nativeHandoff) && options.melodicHandoff && options.keyboardMelodicHandoff ? { keyboardMelodicHandoffVersion: 1 as const } : {}),
-  ...((displacement || nativeHandoff) && options.melodicHandoff ? { melodicHandoffVersion: 1 as const } : {}),
+  ...((displacement || nativeHandoff) && options.melodicHandoff ? { melodicHandoffVersion: 2 as const } : {}),
   ...(displacement ? { displacedRhythmVersion: 1 as const } : {}),
-  ...(options.rhythmMemory && performanceEnergy && (displacement || nativeHandoff || form.choruses.some((c,i) => c.role === 'solo' && form.choruses[i-1]?.role === 'solo')) ? { rhythmMemoryVersion: 1 as const } : {}),
+  ...(options.rhythmMemory && performanceEnergy && (displacement || nativeHandoff || form.choruses.some((c,i) => c.role === 'solo' && form.choruses[i-1]?.role === 'solo')) ? { rhythmMemoryVersion: 2 as const } : {}),
   ...(options.balladThird && performanceEnergy && style.coordinatedStyle === 'ballad' ? { balladThirdVersion: 1 as const } : {}),
   ...(options.brokenTwo && performanceEnergy && style.coordinatedStyle === 'straight' ? { brokenTwoVersion: 1 as const } : {}),
   ...(options.dominantRiff && performanceEnergy && style.coordinatedStyle === 'swing' ? { dominantRiffVersion: 1 as const } : {}),
@@ -734,7 +734,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	let melodicMemory: MelodicMemory | undefined;
 	let rhythmMemory: RhythmMemory | undefined;
 	if (definition.rhythmMemoryVersion) {
-		const eligible = solo && !terminalAccepted && !recovery && !drums.bar.cushioning && !ensemble.setupFor && !ensemble.coordinatedAccent &&
+		const eligible = solo && !terminalAccepted && recovery?.action !== 'space' && !drums.bar.cushioning && !ensemble.setupFor && !ensemble.coordinatedAccent &&
 			!ensemble.terminalArrangement && !current.isChorusFinalBar && !ensemble.drums.allowFill &&
 			ensemble.responseOwner === 'nobody' && !piano.answer && !nativeReply && !bass.memory.pendingLaunch &&
 			!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
@@ -781,7 +781,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 					velocity: event.velocity < 50 ? 67 : event.velocity }));
 				const pulses = events.filter(event => Number.isInteger(event.absBeat));
 				const penultimate = pulses.at(-2)!;
-				bass = { ...bass, events, memory: { ...bass.memory, previousPreviousMidi: penultimate.midi,
+				bass = { ...bass, events, memory: { ...bass.memory, openingMotif: null, previousPreviousMidi: penultimate.midi,
 					direction: Math.sign(pulses.at(-1)!.midi - penultimate.midi) } };
 				// A performed answer cannot become a fresh source for another motif.
 				rhythmMemory = { ...rhythmMemory, cells: rhythmMemory.cells.filter(cell => cell.player !== 'bass' || cell.bar !== bar) };

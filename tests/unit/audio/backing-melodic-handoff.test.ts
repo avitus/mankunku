@@ -45,6 +45,7 @@ it.each([
   if (bar === 36) {
    heardAnswer = true;
    expect(hits.map(e => e.midi)).toEqual(notes);
+   expect(actual.checkpoint.bass.openingMotif).toBeNull();
    expect(prior.bassEvents.map(e => e.midi)).not.toEqual(notes);
    expect(hits.map(e => [e.time, e.duration])).toEqual(prior.bassEvents.map(e => [e.time, e.duration]));
    for (const note of hits[0].melodicSource!) expect(played.get(note.beat)).toBe(note.midi);

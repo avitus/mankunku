@@ -9,13 +9,13 @@ export interface KeyboardMelodicAnswer {
  readonly reply: readonly HeardNote[];
 }
 
-export function bassCall(events: readonly BassEvent[], native = false): HeardNote[] | undefined {
+export function bassCall(events: readonly BassEvent[], native: boolean = false): HeardNote[] | undefined {
  if (events.length < (native ? 1 : 4) || events.length > 5 || events.some(e => e.melodicSource || e.rhythmAnswer) ||
      (!native && new Set(events.map(e => e.midi)).size < 3)) return;
  return events.map(({ absBeat, midi }) => ({ beat: absBeat, midi }));
 }
 
-export function validBassCalls(calls: readonly (readonly HeardNote[])[] | undefined, nextBar: number, native = false): boolean {
+export function validBassCalls(calls: readonly (readonly HeardNote[])[] | undefined, nextBar: number, native: boolean = false): boolean {
  return Array.isArray(calls) && calls.length <= 4 && calls.every((call, i) =>
   Array.isArray(call) && (call.length >= (native ? 1 : 4) && call.length <= 5) && call.every((note: HeardNote,j:number) =>
    note && Number.isFinite(note.beat) && note.beat >= (nextBar-4)*4 && note.beat >= 0 && note.beat < nextBar*4 &&
@@ -24,7 +24,7 @@ export function validBassCalls(calls: readonly (readonly HeardNote[])[] | undefi
   (!i || call[0].beat > calls[i-1].at(-1)!.beat));
 }
 
-export function keyboardAnswerPrefix(source: readonly HeardNote[], keyboard: readonly HeardNote[], remaining: number, firstBeat: number, native = false) {
+export function keyboardAnswerPrefix(source: readonly HeardNote[], keyboard: readonly HeardNote[], remaining: number, firstBeat: number, native: boolean = false): HeardNote[] | undefined {
  const length = source.length - remaining;
  if (length < (native ? 1 : 2) || remaining < 1 || remaining > (native ? 4 : 2) || keyboard.length < length) return;
  const prefix = keyboard.slice(-length);
@@ -38,6 +38,12 @@ export function keyboardAnswerPrefix(source: readonly HeardNote[], keyboard: rea
  return prefix;
 }
 
+interface KeyboardAnswerResult {
+ events: CompEvent[];
+ trace: CoordinatedPianoVoicing[];
+ voicing: CoordinatedVoicingMemory;
+}
+
 export function finishKeyboardAnswer(input: {
  calls: readonly (readonly HeardNote[])[];
  keyboard: readonly HeardNote[];
@@ -47,7 +53,7 @@ export function finishKeyboardAnswer(input: {
  previous?: CoordinatedVoicingMemory;
  register: number;
  native?: boolean;
-}) {
+}): KeyboardAnswerResult | undefined {
  const { events, trace, harmony } = input;
  if (!input.previous || !events.length || events.length > (input.native ? 4 : 2) || events.length !== trace.length ||
      events.some((e,i) => e.barLineSustain || e.absBeat !== trace[i].absBeat || e.time !== trace[i].time ||

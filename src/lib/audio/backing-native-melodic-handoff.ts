@@ -5,12 +5,12 @@ import { pitchClassToNumber } from './voicings';
 import type { BassEvent } from './backing-generation';
 import { fitContour, harmonyAt, melodicSources, type HeardNote } from './backing-melodic-handoff';
 
-function sameChord(a: HarmonicSegment['chord'] | undefined, b: HarmonicSegment['chord'] | undefined) {
+function sameChord(a: HarmonicSegment['chord'] | undefined, b: HarmonicSegment['chord'] | undefined): boolean {
  return !!a && !!b && a.root === b.root && a.quality === b.quality && a.bass === b.bass;
 }
 
 export function finishNativeBassAnswer(style: 'ballad' | 'bossa-nova', keyboard: readonly HeardNote[],
- priorBass: readonly HeardNote[], events: readonly BassEvent[], harmony: readonly HarmonicSegment[]) {
+ priorBass: readonly HeardNote[], events: readonly BassEvent[], harmony: readonly HarmonicSegment[]): { reply: HeardNote[]; events: BassEvent[] } | undefined {
  if (!events.length || events.some(e => e.bossaOctavePickup || e.balladThird || e.balladHeldBass || e.rhythmAnswer)) return;
  const candidates = events.map(event => {
   const beat = event.absBeat;
