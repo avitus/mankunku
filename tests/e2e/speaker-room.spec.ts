@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/test';
 import { SEEDED_PROGRESS } from './fixtures/lick-practice-seeds';
-import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SAMPLE_USER_LICKS, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 /** Count actual starts of the stereo calibration signal across page loads. */
@@ -17,6 +18,60 @@ async function countSoundChecks(page: Page): Promise<void> {
 		};
 	});
 }
+
+test('the Settings sound check reaches the speaker output before any music has played', async ({ page, browserName }) => {
+	test.skip(browserName !== 'chromium', 'Uses the native speaker graph in Chromium');
+	test.setTimeout(45_000);
+	await seedOnboardedAnonymous(page);
+	await page.addInitScript(() => {
+		// Stand in for the physical output jack. The microphone hears only connections
+		// that actually reach the destination, including their disconnections.
+		let speaker: DelayNode | undefined;
+		for (const method of ['connect', 'disconnect'] as const) {
+			AudioNode.prototype[method] = new Proxy(AudioNode.prototype[method], {
+				apply(target, source, args) {
+					const context = source.context;
+					if (args[0] instanceof AudioDestinationNode && context instanceof AudioContext) {
+						speaker ??= context.createDelay();
+						if (context === speaker.context) args[0] = speaker;
+					}
+					return Reflect.apply(target, source, args);
+				}
+			}) as typeof AudioNode.prototype.connect & typeof AudioNode.prototype.disconnect;
+		}
+		MediaDevices.prototype.getUserMedia = async () => {
+			if (!speaker || !(speaker.context instanceof AudioContext)) throw new Error('Missing speaker output');
+			const ctx = speaker.context;
+			const mic = ctx.createMediaStreamDestination();
+			// A newly opened duplex device adjusts its buffering before latency settles.
+			speaker.delayTime.setValueAtTime(0.070, ctx.currentTime);
+			speaker.delayTime.setValueAtTime(0.071, ctx.currentTime + 1.2);
+			speaker.delayTime.setValueAtTime(0.072, ctx.currentTime + 2.4);
+			speaker.connect(mic);
+			return mic.stream;
+		};
+	});
+	await countSoundChecks(page);
+	await page.goto('/settings');
+	await page.getByRole('switch', { name: 'Speaker bleed reduction' }).click();
+	const check = page.getByRole('button', { name: 'Start speaker sound check' });
+	const master = page.getByRole('slider', { name: 'Master volume' });
+	await master.press('Home');
+	await check.click();
+	await expect(page.getByText(/Master is muted/)).toBeVisible();
+	expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBeNull();
+	await master.press('End');
+	await check.click();
+	await expect(page.getByText('Speaker calibration saved on this device.')).toBeVisible({timeout: 20_000});
+	const savedProfile = () => page.evaluate(() => localStorage.getItem('mankunku.speaker-room-profile.v1'));
+	const profile = await savedProfile();
+	expect(profile).toBeTruthy();
+	// Simulate a silent playback failure on retry while Master is still up.
+	await page.evaluate(() => { AudioBufferSourceNode.prototype.start = () => {}; });
+	await check.click();
+	await expect(page.getByText(/sound check produced no output/i)).toBeVisible({timeout: 20_000});
+	expect(await savedProfile()).toBe(profile);
+});
 
 test('Play with backing and no calibration starts the phrase on both attempts without a sound check', async ({ page, browserName }) => {
 	test.skip(browserName !== 'chromium', 'Measures the native speaker graph in Chromium');
@@ -49,8 +104,55 @@ for (const mode of ['ear-training', 'lick-practice'])
 		test.setTimeout(100_000);
 		await seedOnboardedAnonymous(page);
 		await countSoundChecks(page);
+		if (mode === 'ear-training') {
+			await page.addInitScript(() => {
+				// Navigation ends this document. Observe the journal commit before
+				// leaving so both the timeout and the moved-mic clip can be exported.
+				const add = IDBObjectStore.prototype.add;
+				IDBObjectStore.prototype.add = function (value, ...args) {
+					if (this.name === 'checks' && value.stage === 'listen' && value.result !== 'active' && value.audioExample === 'saved') {
+						this.transaction.addEventListener('complete', () => { Object.assign(window, { savedRejection: value.result }); }, { once: true });
+					}
+					return add.call(this, value, ...args);
+				};
+				const post = Worker.prototype.postMessage;
+				Worker.prototype.postMessage = function (message, options) {
+					if (message?.learnOffset !== undefined) {
+						this.addEventListener('message', ({ data }) => {
+							if (data.session?.correction?.left?.length) sessionStorage.setItem('learnedCues', String(data.session.cues));
+						}, { once: true });
+					}
+					if (message?.filter && message.learnOffset === undefined && message.session) {
+						sessionStorage.setItem('verifiedWithEarlierCues', String(message.session.cues));
+						// Withhold the reply on this cue to exercise the real scoring deadline
+						// and retention of an opted-in, fully captured Listen clip.
+						return;
+					}
+					return Reflect.apply(post, this, [message, options]);
+				};
+			});
+		}
 		if (mode === 'lick-practice') {
-			await seedUserLicks(page);
+			// Leave time for two independent Listen windows. The first has no
+			// speaker return; the next must recover before this same lick's Play.
+			const licks = structuredClone(SAMPLE_USER_LICKS);
+			const lick = licks[0] as {
+				notes: { pitch: number; duration: number[]; offset: number[] }[];
+				difficulty: { lengthBars: number };
+			};
+			lick.difficulty.lengthBars = 3;
+			lick.notes.push({ pitch: 67, duration: [1, 4], offset: [2, 1] });
+			await seedUserLicks(page, licks);
+			await page.addInitScript(() => {
+				const post = Worker.prototype.postMessage;
+				Worker.prototype.postMessage = function (message, options) {
+					if (message?.filter && message.mic instanceof Float32Array && !sessionStorage.getItem('quietListen')) {
+						message.mic.fill(0);
+						sessionStorage.setItem('quietListen', 'true');
+					}
+					return Reflect.apply(post, this, [message, options]);
+				};
+			});
 			const progress = structuredClone(SEEDED_PROGRESS);
 			progress['lick-practice-progress']['e2e-user-lick-bebop'].C.currentTempo = 100;
 			await seedStorage(page, {
@@ -81,6 +183,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 						const paths = speakerPaths;
 						speakerPaths = undefined;
 						physicalMaster.connect(paths);
+						Object.assign(window, { speakerGraphReady: true });
 					}
 					return (original as (...args: unknown[]) => AudioNode).call(this, to, ...args);
 				} as typeof original;
@@ -103,7 +206,16 @@ for (const mode of ['ear-training', 'lick-practice'])
 						gain.gain.value = 0.35;
 						split.connect(delay, ch);
 						delay.connect(gain);
-						gain.connect(dest);
+						if (channels === 2 && location.pathname !== '/settings') {
+							// The bass still matches calibration, but the room now returns
+							// quieter attacks. Exercise the corrected native convolver pair.
+							const shelf = ctx.createBiquadFilter();
+							shelf.type = 'highshelf';
+							shelf.frequency.value = 1800;
+							shelf.gain.value = -9;
+							gain.connect(shelf);
+							shelf.connect(dest);
+						} else gain.connect(dest);
 					}
 					const controls = window as unknown as { startBand: () => void; playNote: () => void };
 					function tone(hz: number, destination: AudioNode): void {
@@ -139,6 +251,17 @@ for (const mode of ['ear-training', 'lick-practice'])
 			},
 			mode === 'ear-training' ? 1 : 2
 		);
+		if (mode === 'ear-training') {
+			await page.goto('/diagnostics');
+			await expect(page.getByText('No Listen audio saved.', { exact: false })).toBeVisible();
+			// Enable in a separate tab, as when Settings or practice opens from a chat link.
+			const diagnosticsTab = await page.context().newPage();
+			await diagnosticsTab.goto('/diagnostics');
+			await diagnosticsTab.locator('[data-hydrated="true"]').waitFor({state: 'attached'});
+			await diagnosticsTab.getByRole('button', { name: 'Capture Listen audio and open Ear Training' }).click();
+			await expect(diagnosticsTab).toHaveURL(/\/ear-training$/);
+			await diagnosticsTab.close();
+		}
 		await page.goto('/settings');
 		await page.getByRole('switch', { name: 'Backing track', exact: true }).click();
 		const startCheck = page.getByRole('button', { name: 'Start speaker sound check' });
@@ -149,9 +272,19 @@ for (const mode of ['ear-training', 'lick-practice'])
 		await page.goto('/' + mode);
 		if (mode === 'ear-training') await page.locator('[data-tour="play-button"]').click();
 		else await page.getByRole('button', { name: /start daily practice/i }).click();
-		await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
+		await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
+		await page.waitForFunction(() => 'speakerGraphReady' in window);
 		await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-		await expect(page.getByText('Speaker bleed reduction active', { exact: true })).toBeVisible({timeout: 25_000});
+		const lamp = page.getByRole('img', { name: 'Backing cancellation on' });
+		await expect(lamp).toBeVisible({timeout: 25_000});
+		if (mode === 'lick-practice') {
+			const button = await page.getByRole('button', { name: 'End Session' }).boundingBox();
+			const light = await lamp.boundingBox();
+			if (!button || !light) throw new Error('Missing session control bounds');
+			expect(light.width).toBe(6);
+			expect(light.y - (button.y + button.height)).toBeCloseTo(12, 0);
+			expect(light.x + light.width / 2).toBeCloseTo(button.x + button.width / 2, 0);
+		}
 		expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
 		await expect(
 			page
@@ -212,19 +345,70 @@ for (const mode of ['ear-training', 'lick-practice'])
 		expect(result.mixedSax).toBeGreaterThan(0.015);
 		expect(result.mixedBleed).toBeGreaterThan(0.008);
 		expect(result.bleed).toBeLessThan(0.015);
+		if (mode === 'lick-practice') {
+			await page.goto('/diagnostics');
+			const [download] = await Promise.all([
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download measurements only' }).click()
+			]);
+			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
+			expect(report.checks).toContainEqual(expect.objectContaining({ stage: 'listen', result: 'active', attempt: 2, audioExample: 'capture-off', check: expect.objectContaining({ initial: expect.objectContaining({ failure: expect.any(String) }) }) }));
+			expect(report.examples).toEqual([]);
+		}
 		if (mode === 'ear-training') {
+			await expect.poll(() => page.evaluate(() => Number(sessionStorage.getItem('learnedCues')))).toBeGreaterThan(0);
+			// Restart practice on the same mic to verify the next Listen gets the candidate.
+			const pause = page.getByRole('button', {name: 'Pause practice'});
+			if (await pause.isVisible()) await pause.click();
+			const play = page.locator('[data-tour="play-button"]');
+			if (await play.isVisible()) await play.click();
+			await expect.poll(() => page.evaluate(() => Number(sessionStorage.getItem('verifiedWithEarlierCues'))), {timeout: 20_000}).toBeGreaterThan(0);
+			await page.waitForFunction(() => (window as Window & { savedRejection?: string }).savedRejection === 'timeout');
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			await page.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')));
 
 			await expect(
-				page.getByText('Room check unavailable · scoring the original microphone')
+				page.getByRole('img', {name: 'Backing cancellation off'})
 			).toBeVisible();
 			await page.evaluate(() => sessionStorage.setItem('moved', 'true'));
 			await page.reload();
 			await page.locator('[data-tour="play-button"]').click();
-			await expect(page.getByText('Using original microphone until Listen verifies saved calibration')).toBeVisible();
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
+			const rejected = page.waitForRequest(request => request.url().endsWith('/api/speaker-check') &&
+				request.postDataJSON()?.stage === 'listen' && request.postDataJSON()?.result !== 'active');
+			await page.waitForFunction(() => 'speakerGraphReady' in window);
 			await page.evaluate(() => (window as unknown as { startBand: () => void }).startBand());
-			await expect(page.getByText('Saved speaker check did not pass · scoring the original microphone')).toBeVisible({timeout: 25_000});
+			await rejected;
+			await page.waitForFunction(() => 'savedRejection' in window, undefined, {timeout: 25_000});
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('1');
+			await page.goto('/diagnostics');
+			const [download] = await Promise.all([
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download speaker report' }).click()
+			]);
+			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
+			expect(report.checks).toEqual(expect.arrayContaining([
+				expect.objectContaining({ stage: 'sound-check', result: 'saved', calibrationReductionDb: expect.any(Number) }),
+				expect.objectContaining({ stage: 'listen', result: 'active', phraseId: expect.any(String) })
+			]));
+			expect(report.examples.length).toBeGreaterThanOrEqual(2);
+			expect(report.examples).toHaveLength(report.checks.filter((row: {audioIncluded?: boolean}) => row.audioIncluded).length);
+			await expect(page.getByText(report.examples.length + ' audio examples ready to download.')).toBeVisible();
+			expect(report.examples).toContainEqual(expect.objectContaining({ event: expect.objectContaining({ result: 'timeout', audioExample: 'saved' }) }));
+			for (const clip of report.examples) {
+				expect(Buffer.from(clip.mic, 'base64').length).toBe(Math.round(clip.rate * clip.event.captureSeconds) * 4);
+				expect(clip.left.length).toBe(clip.mic.length);
+				expect(clip.right.length).toBe(clip.mic.length);
+				expect(clip.filter.left.length).toBeGreaterThan(0);
+				expect(clip.event.audioExample).toBe('saved');
+				if (clip.event.result === 'timeout') expect(clip.event.check).toBeUndefined();
+				else expect(clip.event.check.validationGain).toEqual(expect.any(Number));
+			}
+			await page.getByRole('button', { name: 'Clear saved Listen audio' }).click();
+			await expect(page.getByText('Saved Listen audio cleared.')).toBeVisible();
+			const [cleared] = await Promise.all([
+				page.waitForEvent('download'), page.getByRole('button', { name: 'Download measurements only' }).click()
+			]);
+			expect(JSON.parse(readFileSync(await cleared.path(), 'utf8')).examples).toEqual([]);
 			await page.goto('/settings');
 			await startCheck.click();
 			await expect(page.getByText('Speaker calibration saved on this device.')).toBeVisible({timeout: 20_000});
@@ -232,7 +416,7 @@ for (const mode of ['ear-training', 'lick-practice'])
 			await page.evaluate(() => sessionStorage.setItem('micId', 'new-microphone'));
 			await page.goto('/ear-training');
 			await page.getByRole('button', { name: 'Start practice' }).click();
-			await expect(page.getByText('Using original microphone · calibrate speakers in Settings')).toBeVisible();
+			await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
 			await expect(page.locator('[data-phase="listen"]')).toBeVisible({ timeout: 30_000 });
 			expect(await page.evaluate(() => sessionStorage.getItem('probeCount'))).toBe('2');
 		}
@@ -293,12 +477,11 @@ for (const failure of ['unrelated microphone', 'stalled worklet'])
 		await startCheck.click();
 		const stalled = failure === 'stalled worklet';
 		await expect(page.getByText(stalled ? 'Calibration unavailable. You can retry here.' :
-			'No reliable speaker return. Practice will use the original microphone.')).toBeVisible({ timeout: 20_000 });
+			'The microphone could not match the test hiss.')).toBeVisible({ timeout: 20_000 });
 		await page.goto('/ear-training');
 		await page.getByRole('button', { name: 'Start practice' }).click();
-		await expect(page.getByText(stalled ? 'Using original microphone · calibrate speakers in Settings' :
-			'Room check did not pass · scoring the original microphone')).toBeVisible();
-		await expect(page.getByText('Last take', { exact: true })).toBeVisible({ timeout: 45_000 });
+		await expect(page.getByRole('img', {name: 'Backing cancellation off'})).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Last take score' })).toBeVisible({ timeout: 45_000 });
 	});
 
 test('turning backing off releases the calibration microphone; a completed negative check is remembered', async ({ page, browserName }) => {
@@ -319,7 +502,7 @@ test('turning backing off releases the calibration microphone; a completed negat
 	await expect.poll(tracks).toEqual(['ended']);
 	await backing.click();
 	await startCheck.click();
-	await expect(page.getByText('No reliable speaker return. Practice will use the original microphone.')).toBeVisible({timeout: 20_000});
+	await expect(page.getByText('The microphone could not match the test hiss.')).toBeVisible({timeout: 20_000});
 	await expect.poll(tracks).toEqual(['ended', 'ended']);
 	await backing.click();
 	await backing.click();

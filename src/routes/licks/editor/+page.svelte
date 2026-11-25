@@ -351,7 +351,7 @@
 		isPlaying = true;
 		playbackError = '';
 		try {
-			if (!playbackModule.isInstrumentLoaded()) {
+			if (!playbackModule.isInstrumentLoaded(settings.instrumentId)) {
 				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 			}
 			if (run !== playbackRun) return;

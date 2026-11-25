@@ -1037,6 +1037,18 @@ describe('tuneToAbc — articulations', () => {
 });
 
 describe('tuneToAbc — triplets', () => {
+	it('prints three sixteenth-note triplets under a single bracket', () => {
+		const abc = tuneToAbc(sheet({ sections: [section({
+			bars: 1,
+			notes: [
+				{ pitch: 60, duration: [1, 24], offset: [0, 24] },
+				{ pitch: 62, duration: [1, 24], offset: [1, 24] },
+				{ pitch: 60, duration: [1, 24], offset: [2, 24] }
+			]
+		})] }));
+		expect(abc).toContain('(3C/2D/2C/2');
+	});
+
 	it('groups three contiguous triplet eighths as a (3 group on base durations', () => {
 		const abc = tuneToAbc(
 			sheet({
@@ -1362,5 +1374,42 @@ describe('chord symbols — the glyph pass prints what the ABC spelled (2026-09-
 		for (const c of chords) expect(drawn[c], c).toBe(writtenRoot(c));
 		expect(Object.values(drawn)).not.toContain('A♭');
 		expect(Object.values(drawn)).not.toContain('D♭');
+	});
+});
+
+describe('printed scan layout', () => {
+	it('prints a direction from the omitted prefix on the first pickup spacer', () => {
+		const tune = sheet({ sections: [section({ bars: 1, pickupLength: [1, 4],
+			harmony: [], notes: [{ offset: [3, 4], duration: [1, 4], pitch: 60 }],
+			directions: [{ offset: [0, 1], text: 'Solo break' }]
+		})] });
+		expect(tuneToAbc(tune)).toContain('"^Solo break"x2');
+	});
+
+	it('makes room for a dashed instruction without splitting the printed whole rest', () => {
+		const tune = sheet({ sections: [section({
+			bars: 1, notes: [{ pitch: null, offset: [0, 1], duration: [1, 1] }],
+			directions: [{ offset: [0, 1], text: 'Solo break', extendsToBarline: true }]
+		})] });
+		const { abc, chordSlotAnchors } = tuneToAbcWithMap(tune);
+		expect(abc).toMatch(/\[V:M\].*z8/);
+		expect(abc).toContain('"^Solo break"x2 x2 x2 x2');
+		expect(chordSlotAnchors).toHaveLength(1);
+	});
+
+	it('honors the regular source grid while allowing a narrower screen', () => {
+		const tune = sheet({ sections: [section({ bars: 6, printedBarsPerLine: 3 })] });
+		const systems = (width: number) => tuneToAbc(tune, undefined, { barsPerLine: width }).split('\n')
+			.filter(line => line.startsWith('[V:M]'));
+		expect(systems(4)).toHaveLength(2);
+		expect(systems(2)).toHaveLength(3);
+	});
+
+	it('separates neighbors with individual flags and keeps an observed beam over a beat division', () => {
+		const notes: Note[] = [60, 62, 64, 65, 67, 69, 71, 72].map((pitch, i) => ({
+			pitch, duration: [1, 8], offset: [i, 8],
+			...(i === 1 ? { beamFromPrevious: 'break' } : i === 4 ? { beamFromPrevious: 'join' } : {})
+		}));
+		expect(tuneToAbc(sheet({ sections: [section({ bars: 1, notes })] }))).toContain('C DEFGABc');
 	});
 });

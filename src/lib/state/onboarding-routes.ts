@@ -24,13 +24,13 @@ function matchesRoutePrefix(pathname: string, prefix: string): boolean {
 	return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-export function isOnboardingRoute(pathname: string): boolean {
+export function isOnboardingRoute(pathname: string, lickPractice = false): boolean {
 	return (
 		ONBOARDING_ROUTE_PREFIXES.some((prefix: string): boolean =>
 			matchesRoutePrefix(pathname, prefix)
 		) ||
 		// Tune practice is a scored mic surface too, but lives under the
 		// otherwise-browsable /tunes tree, so it can't ride a prefix.
-		/^\/tunes\/[^/]+\/practice(?:\/|$)/.test(pathname)
+		(lickPractice && /^\/tunes\/[^/]+\/?$/.test(pathname))
 	);
 }

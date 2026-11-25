@@ -7,6 +7,7 @@
  */
 
 import type { MicPermissionState } from '$lib/types/audio';
+import { recordSpeakerCheck } from '$lib/diagnostics/speaker-checks';
 import { initAudio } from './audio-context';
 import { releaseRoomGraph, roomCorrectionEnabled, roomStatus } from './room-scoring-state.svelte';
 
@@ -78,29 +79,36 @@ export async function openMicrophone(signal?: AbortSignal): Promise<MicCapture> 
 	}
 }
 
-/**
- * Stop microphone capture and release resources.
- */
+/** Release the exact microphone graph opened by its owner. */
+export function closeMicrophone(current: MicCapture): void {
+	for (const track of current.stream.getTracks()) track.stop();
+	releaseRoomGraph(current.source);
+	current.source.disconnect();
+}
+
+/** Stop the shared capture used by the current recording surface. */
 export function stopMicCapture(): void {
 	if (!capture) return;
-
-	releaseRoomGraph(capture.source);
-	capture.source.disconnect();
-	for (const track of capture.stream.getTracks()) {
-		track.stop();
-	}
+	const current = capture;
 	capture = null;
+	closeMicrophone(current);
 }
 
 /** Attach a matching saved profile for scored practice. */
 export async function preparePracticeRoom(current: MicCapture, backing = false): Promise<void> {
-	if (!roomCorrectionEnabled(backing)) return;
+	if (!roomCorrectionEnabled(backing)) {
+		void recordSpeakerCheck({ at: new Date().toISOString(), stage: 'practice', result: 'disabled', rate: current.context.sampleRate });
+		return;
+	}
 	try {
 		const { calibrateRoom } = await import('./room-calibration');
 		if (capture === current) await calibrateRoom(current, { mode: 'practice' });
 	} catch (error) {
 		console.warn('Speaker calibration unavailable', error);
-		if (capture === current) roomStatus.text = 'Room check unavailable · scoring the original microphone';
+		if (capture === current) {
+			roomStatus.active = false;
+			void recordSpeakerCheck({ at: new Date().toISOString(), stage: 'practice', result: 'unavailable', rate: current.context.sampleRate });
+		}
 	}
 }
 

@@ -1,11 +1,11 @@
 /**
- * Major Pentatonic first lines — 40 short lines for levels 1-3.
+ * Major Pentatonic first lines — 40 short lines for levels 1-6.
  *
  * Major Pentatonic is the one scale open from the start, and at levels 1-3 its
  * ear-training pool held four or five two-note cells (2026-10-07), so a new
  * player looped the same handful. These fill those levels: two-note steps at
- * level 1, the major third and three-note lines at level 2, four-note turns at
- * level 3. Every line differs from every other curated phrase, and no two of
+ * level 1, the major third and three-note lines at levels 2–3, four-note turns at
+ * levels 5–6. Every line differs from every other curated phrase, and no two of
  * the four-note lines share a shape in any key (the editor's Steal check).
  *
  * RHYTHM: even half notes on the beat, because that is all the difficulty
@@ -190,7 +190,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 		tags: ['major-pentatonic', 'beginner', 'interval', 'descending', 'resolution'],
 		source: 'curated'
 	},
-	// ── Level 2: the major third, and three-note steps and neighbors ─
+	// ── Levels 2–3: the major third, and three-note steps and neighbors ─
 	{
 		id: 'pfl-011',
 		name: 'Third Drops to Root',
@@ -361,7 +361,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 1] }   // C4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 3, pitchComplexity: 5, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -377,7 +377,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 1] }   // G4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 3, pitchComplexity: 5, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -393,7 +393,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 1] }   // E4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 3, pitchComplexity: 5, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -409,12 +409,12 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 1] }   // C4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 3, pitchComplexity: 5, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor'],
 		source: 'curated'
 	},
-	// ── Level 3: four-note turns within a fourth ─────────────────────
+	// ── Levels 5–6: four-note turns within a fourth ─────────────────────
 	{
 		id: 'pfl-025',
 		name: 'Climb and Turn Back',
@@ -427,7 +427,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 62, duration: [1, 2], offset: [3, 2] }   // D4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'turn'],
 		source: 'curated'
@@ -444,7 +444,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 62, duration: [1, 2], offset: [3, 2] }   // D4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'turn'],
 		source: 'curated'
@@ -461,7 +461,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }   // C4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'resolution'],
 		source: 'curated'
@@ -478,7 +478,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }   // C4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 6, pitchComplexity: 9, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor', 'resolution'],
 		source: 'curated'
@@ -495,7 +495,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [3, 2] }   // G4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'turn'],
 		source: 'curated'
@@ -512,7 +512,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [3, 2] }   // G4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'turn'],
 		source: 'curated'
@@ -529,7 +529,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [3, 2] }   // A4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'turn'],
 		source: 'curated'
@@ -546,7 +546,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [3, 2] }   // A4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'stepwise', 'turn'],
 		source: 'curated'
@@ -563,7 +563,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [3, 2] }   // E4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor', 'descending'],
 		source: 'curated'
@@ -580,7 +580,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 62, duration: [1, 2], offset: [3, 2] }   // D4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'skip', 'descending'],
 		source: 'curated'
@@ -597,7 +597,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }   // C4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'skip', 'resolution'],
 		source: 'curated'
@@ -614,7 +614,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }   // C4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor', 'resolution'],
 		source: 'curated'
@@ -631,7 +631,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [3, 2] }   // C5
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'neighbor', 'ascending', 'resolution'],
 		source: 'curated'
@@ -648,7 +648,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [3, 2] }   // A4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'skip', 'ascending'],
 		source: 'curated'
@@ -665,7 +665,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [3, 2] }   // E4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'skip', 'ascending'],
 		source: 'curated'
@@ -682,7 +682,7 @@ export const PENTATONIC_FIRST_LINES: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [3, 2] }   // A4
 		],
 		harmony: CMAJ_PENT_2BAR,
-		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 6, pitchComplexity: 9, rhythmComplexity: 1, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'beginner', 'leap', 'turn'],
 		source: 'curated'

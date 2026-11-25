@@ -79,10 +79,16 @@ export async function replayFromAudioBuffer(
 	buffer: AudioBufferLike,
 	opts: ReplayOptions = {}
 ): Promise<ReplayResult> {
-	const Pitchy = await loadPitchy();
+	return replaySamples(buffer.getChannelData(0), buffer.sampleRate, opts);
+}
 
-	const sampleRate = buffer.sampleRate;
-	const channel = buffer.getChannelData(0);
+/** Replay one decoded channel, including PCM transferred to an analysis worker. */
+export async function replaySamples(
+	channel: Float32Array,
+	sampleRate: number,
+	opts: ReplayOptions = {}
+): Promise<ReplayResult> {
+	const Pitchy = await loadPitchy();
 	const totalSamples = channel.length;
 
 	const fftSize = opts.fftSize ?? 4096;
@@ -139,7 +145,7 @@ export async function replayFromAudioBuffer(
 		readings,
 		weakReadings,
 		onsets,
-		duration: buffer.duration,
+		duration: totalSamples / sampleRate,
 		sampleRate
 	};
 }

@@ -151,7 +151,7 @@
 	// Onboarding auto-triggers only on the mic-driven practice surfaces —
 	// the route rule and its rationale live in state/onboarding-routes.ts,
 	// where a table-driven test pins the prefix boundaries.
-	const onboardingRoute = $derived.by(() => isOnboardingRoute(page.url?.pathname ?? '/'));
+	const onboardingRoute = $derived.by(() => isOnboardingRoute(page.url?.pathname ?? '/', page.route.id === '/tunes/[id]' && page.url.searchParams.get('licks') === '1'));
 
 	// The overlay may only mount AFTER hydration: `settings.onboardingComplete`
 	// comes from localStorage, which the server can't read, so consulting it

@@ -43,7 +43,7 @@ Microphone → Separate untrimmed capture/detector ─────→ Scoring
 | Recorded microphone | Fixed 0.4 (about −8 dB) in the listening recording; separate scoring capture bypasses this trim. |
 | Backing WAV export | The shared band graph and −1 dBFS sample ceiling, before listening Master, with no peak normalization. |
 
-The main controls store amplitudes from 0 to 1. Every volume dial uses the same 60 dB logarithmic travel with exact mute at the bottom; 0 dB always means unity gain. Advanced instrument changes can alter how hard the band hits its compressor; the post-compressor Backing control cannot. Drum-voice faders leave musical velocity and layer selection intact. Count-off is independent of Backing, kit and cross-stick balance.
+The main controls store amplitudes from 0 to 1. Every volume dial uses a piecewise dB scale with −12 dB at halfway, −60 dB at the first step and exact mute at the bottom; 0 dB always means unity gain. Advanced instrument changes can alter how hard the band hits its compressor; the post-compressor Backing control cannot. Drum-voice faders leave musical velocity and layer selection intact. Count-off is independent of Backing, kit and cross-stick balance.
 
 Existing main volume settings retain their amplitudes. Advanced mixes migrate from `backing-mix-levels-v2` to `backing-mix-levels-v3`: old drum-voice values are squared, the retired band Master is folded into bass/comp/drums, values are capped at 3, and mutes remain zero. Historical clipping and compression cannot be reproduced exactly. The new reference intentionally brings previously quieter practice and lab paths up to the former tune level.
 

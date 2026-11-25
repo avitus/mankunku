@@ -158,6 +158,16 @@ it('resolves cheap headers first, then starts music reads concurrently with the 
 });
 
 import { omrNormalized } from '$lib/tunes/import/omr-transcription';
+it('adds partial opening-header credits to the transcription heading', async () => {
+	const empty = { keySignature: null, timeSignature: null, bars: [], warnings: [] };
+	const run = await runContextualTranscriptions({ count: 1, attempts: 1,
+		initialContext: { fifths: null, clef: null, timeSignature: [4, 4] },
+		readContext: async () => ({ ...empty, heading: { composer: 'Printed credit' } }),
+		transcribe: async () => ({ ...empty, heading: { title: 'Opening title', style: 'Swing' } })
+	});
+	expect(run.results[0]?.heading).toEqual({ title: 'Opening title', style: 'Swing', composer: 'Printed credit' });
+});
+
 it('retains decoder truncation warnings at the file boundary even when counts happen to align', () => {
 	const normalized = omrNormalized({
 		normalized: doc(4),

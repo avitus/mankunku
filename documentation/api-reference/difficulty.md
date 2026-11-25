@@ -117,9 +117,10 @@ Static difficulty calculator for a finished lick. Used when persisting curated a
 
 Compute a `{ level, pitchComplexity, rhythmComplexity, lengthBars }` summary (all values clamped to 1–100 except `lengthBars`). Scores four dimensions and combines them:
 
-**Pitch complexity (raw 0–~65):**
+**Pitch complexity (raw points):**
 - **Note count** (≤ 25 pts) — 2 notes ≈ trivial, ≥ 14 demanding
 - **Intervals** (≤ 30 pts) — average + max interval + share of leaps > P5
+- **Direction changes** — one raw point per reversal between rising and falling pitches, worth 1.5 pitch points before rounding. Repeats and rests preserve the previous direction.
 - **Chromaticism** (≤ 25 pts) — share of non-diatonic pitch classes + length of chromatic runs
 - **Range** (≤ 10 pts) — pitch spread in semitones
 
@@ -130,7 +131,7 @@ Compute a `{ level, pitchComplexity, rhythmComplexity, lengthBars }` summary (al
 - **Variety** (≤ 15 pts) — distinct duration values
 - **Rests** (≤ 5 pts)
 
-Raw sub-scores are multiplied by a **1.5× scaling factor** to stretch into the usable 1–70 range so the adaptive system has room to progress. Overall level is weighted 55% pitch / 45% rhythm.
+Raw sub-scores are multiplied by a **1.5× scaling factor** to stretch into the usable 1–70 range so the adaptive system has room to progress. Overall level is weighted 60% pitch / 40% rhythm.
 
 ### `effectiveDifficultyLevel(phrase): number`
 

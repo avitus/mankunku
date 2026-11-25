@@ -77,6 +77,8 @@ export async function seedStorage(
  * `defaultSettings` in src/lib/state/settings.svelte.ts.
  */
 export const SETTINGS_ONBOARDED = {
+	leadSheetHighlight: 'chord-stroke',
+	soloHighlight: 'full-bar',
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
 	masterVolume: 0.8,

@@ -6,15 +6,21 @@ test.describe('settings persistence', () => {
 		await seedOnboardedAnonymous(page);
 	});
 
-	test('explains per-lick tempo and opens the actual practice setup', async ({ page }) => {
+	test('groups tune defaults, tours and history in the settings column', async ({ page }) => {
 		await page.goto('/settings');
-		const card = page.getByRole('region', { name: 'The session starts over there.' });
-		await expect(card).toContainText('Each new lick starts at 60 BPM');
-		await expect(card).toContainText('tempos adapt with your scores');
-		await expect(card).toContainText('Choose your session, progression, duration, backing style, and mode');
-		await card.getByRole('link', { name: 'Go to Lick Practice' }).click();
-		await expect(page).toHaveURL(/\/lick-practice$/);
-		await expect(page.getByRole('slider', { name: /tempo/i })).toHaveCount(0);
+		const sections = page.locator('.settings-main-bank > section');
+		await expect(sections.locator('.studio-panel-heading h2')).toHaveText([
+			'Your instrument', 'Rhythm & band', 'Key center highlighting', 'Ear Training', 'Help & data'
+		]);
+		await expect(page.getByRole('complementary', { name: 'Your setup' })).toHaveCount(0);
+		const help = page.getByRole('region', { name: 'Help & data' });
+		await expect(help.getByRole('link', { name: 'User guide' })).toHaveAttribute('href', '/docs');
+		await help.getByText('Guided tours', { exact: true }).click();
+		await expect(help.getByRole('button', { name: 'Reset tour history' })).toBeVisible();
+		await help.getByText('Practice history', { exact: true }).click();
+		await help.getByRole('button', { name: 'Reset practice history' }).click();
+		await help.getByRole('button', { name: 'Cancel' }).click();
+		await expect(help.getByRole('button', { name: 'Reset practice history' })).toBeVisible();
 	});
 
 	test('theme toggle persists across reload', async ({
@@ -181,9 +187,6 @@ test('console keyboard controls update the real setup and persist', async ({
 	await expect(
 		instruments.getByRole('radio', { name: /Trumpet/ })
 	).toHaveAttribute('aria-checked', 'true');
-	await expect(
-		page.getByRole('complementary', { name: 'Your setup' })
-	).toContainText('Trumpet');
 	await instruments.getByRole('radio', { name: /Trumpet/ }).press('Home');
 	await expect(
 		instruments.getByRole('radio', { name: /Concert Pitch/ })
@@ -200,9 +203,7 @@ test('console keyboard controls update the real setup and persist', async ({
 	await tempo.press('ArrowDown');
 	await expect(tempo).toHaveAttribute('aria-valuenow', '60');
 	await tempo.press('PageUp');
-	await expect(
-		page.getByRole('complementary', { name: 'Your setup' })
-	).toContainText('110 BPM');
+	await expect(tempo).toHaveAttribute('aria-valuenow', '110');
 	const swing = page.getByRole('slider', { name: 'Swing feel' });
 	await swing.press('Home');
 	await expect(swing).toContainText('50%');
@@ -212,9 +213,6 @@ test('console keyboard controls update the real setup and persist', async ({
 	await swing.press('ArrowDown');
 	await expect(swing).toHaveAttribute('aria-valuenow', '0.79');
 	await expect(swing).toHaveAttribute('aria-valuetext', '79%');
-	await expect(
-		page.getByRole('complementary', { name: 'Your setup' })
-	).toContainText('79%');
 	const metro = page.getByRole('switch', { name: 'Metronome', exact: true });
 	const level = page.getByRole('slider', { name: 'Click and count-in volume' });
 	const rhythm = page.getByRole('region', { name: 'Rhythm & band' });

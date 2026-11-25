@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { quarterBeatsPerBar } from '$lib/tunes/meter';
 	import { precedingCycleRow } from '$lib/ui/key-stack-layout';
 	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
-	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
+	import { roomChecks } from '$lib/audio/room-scoring-state.svelte';
 	import { goto } from '$app/navigation';
+	import SpeakerLed from '$lib/components/practice/SpeakerLed.svelte';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
@@ -25,6 +27,8 @@
 		getHandoffPreviewKey,
 		getFocusProjectionRows,
 		isFocusTake,
+		usesDeepRetryQueue,
+		queuedRetryRow,
 		buildLickSuperPhrase,
 		getKeyBars,
 		getDemoBars,
@@ -49,11 +53,9 @@
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import {
 		getActiveSubstitution,
-		getTransitionCadenceChords,
 		PROGRESSION_TEMPLATES,
 		progressionMode
 	} from '$lib/data/progressions';
-	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import {
 		resolveNextCycleStart,
 		planCycleWindows,
@@ -71,7 +73,7 @@
 		type PhaseCue,
 		type PhaseSegment
 	} from '$lib/state/lick-practice-phase';
-	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
+	import { buildTurnaroundBarEvents, transitionCueStabs, type BackingHit } from '$lib/audio/turnaround-bar';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type {
 		PlannedKey,
@@ -211,7 +213,7 @@
 	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let nextCycleKey = $state<PlannedKey | null>(null);
-	// The focus takes still to come, drawn under the current one (display only).
+	// Future focus takes or scored retries, drawn beneath the scheduled rows.
 	let projectedRows = $state<PlannedKey[]>([]);
 	let precedingKey = $state<PlannedKey | null>(null);
 	// Audio must be queued during lookahead, but the chart must retain the
@@ -298,16 +300,11 @@
 	// the session-length estimate reads them — the estimate and the scheduler
 	// must never hold separate copies of this layout.
 	//
-	// Single-lick deep practice has no rest at all: cycles join over ONE bar
-	// of full rhythm-section turnaround (ii-V into the next head key), so the
-	// band never stops and the user keeps playing. The bar doubles as the
-	// scheduling lead for the next cycle's audio.
+	// The final score resolves the next entrance. Read the audible clock for
+	// any cycle that can join its successor without a turnaround.
 	const TURNAROUND_BARS = 1;
-	// A focused drill keeps its musical pulse through retries and tempo steps.
-	// Any sheet preparation is already part of the next cycle's own plan.
-	const turnaroundBars = $derived(
-		lickPractice.ramp && lickPractice.config.practiceMode === 'continuous' ? 0 : TURNAROUND_BARS
-	);
+	const canJoinCycles = $derived(usesDeepRetryQueue() ||
+		(!!lickPractice.ramp && lickPractice.config.practiceMode === 'continuous'));
 
 	/**
 	 * Recording window — captures the state needed to score a single key's
@@ -322,6 +319,7 @@
 		phrase: Phrase;
 		schedule: BackingTrackSchedule | null;
 		recordingTransportSeconds: number;
+		metronomeGridOriginSeconds?: number;
 		micStartTime: number;
 		readingsStartCount: number;
 		/** Same as `readingsStartCount`, for the detector's weak-reading stream. */
@@ -359,12 +357,8 @@
 		return getCurrentKey();
 	});
 
-	// Ring props fork by mode. Single-lick renders the STABLE session key set
-	// with session-long latest results — `plan[0].keys` shrinks as keys
-	// master out and reorders worst-first every cycle, which would make dots
-	// jump and vanish; `sessionKeys`/`latestKeyResults` don't. The current
-	// key is then matched by key (currentKeyIndex indexes the rotation, not
-	// the ring).
+	// The Deep ring keeps its full circle as the queue shrinks. It shows the
+	// latest score at this tempo and locates the active dot by pitch class.
 	const ringKeys = $derived(
 		lickPractice.mode === 'single-lick' ? lickPractice.sessionKeys : (currentItem?.keys ?? [])
 	);
@@ -623,7 +617,7 @@
 		// rejection unhandled: unwind, clear the rows as the mic path does, and
 		// let the setup banner say why — as tune practice does at the same spot.
 		try {
-			if (!playback.isInstrumentLoaded()) {
+			if (!playback.isInstrumentLoaded(settings.instrumentId)) {
 				await playback.loadInstrument(
 					settings.instrumentId,
 					settings.masterVolume,
@@ -687,12 +681,11 @@
 		const mode = lickPractice.config.practiceMode;
 		// A joined focused cycle has no demo. Other cycles may embed a demo
 		// (or a call per key in C&R), so retain their melody.
-		const skipMelody = boundaryTime !== undefined;
+		const skipMelody = boundaryTime !== undefined && mode === 'continuous';
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
-		const beatsPerBar = superPhrase.timeSignature[0];
-		const ticksPerBar = beatsPerBar * ppq;
+		const ticksPerBar = quarterBeatsPerBar(superPhrase.timeSignature) * ppq;
 		const keyBars = getKeyBars();
 		// Per-lick cycle length in bars — equals the progression's bar count
 		// for licks that fit, longer for licks with extension. Drives demo
@@ -847,13 +840,14 @@
 		const lickEndTick = windows.cycleEndTick;
 
 		// The display reads its position off this same plan every frame.
+		const ticksPerPrintedBeat = transport.PPQ * 4 / (getPhraseFor(lickIdx, 0)?.timeSignature[1] ?? 4);
 		const nextLayout: CyclePositionArgs = {
 			audioStartTick,
 			demoBars,
 			keyBars,
 			ticksPerBar,
-			ticksPerBeat: transport.PPQ,
-			loopBeats: lickBars * Math.round(ticksPerBar / transport.PPQ),
+			ticksPerBeat: ticksPerPrintedBeat,
+			loopBeats: lickBars * ticksPerBar / ticksPerPrintedBeat,
 			windows
 		};
 
@@ -867,17 +861,18 @@
 			ticksPerBar,
 			countInBars,
 			trailingBars:
-				lickPractice.mode === 'single-lick' ? turnaroundBars : INTER_LICK_REST_BARS
+				lickPractice.mode === 'single-lick' ? (canJoinCycles ? 0 : TURNAROUND_BARS) : INTER_LICK_REST_BARS
 		});
 		const roomCheck = micCapture && roomChecks.get(micCapture.source)?.measure;
 		if (roomCheck) {
+			const phraseId = getPhraseFor(lickIdx, 0)?.id;
 			for (const segment of nextTimeline) {
 				if (segment.phase !== 'listen') continue;
 				const seconds = (segment.endTick - segment.startTick) * 60 / (transport.PPQ * lickPractice.currentTempo);
 				if (boundaryTime !== undefined && segment.startTick === audioStartTick) {
-					roomCheck(boundaryTime, seconds);
+					roomCheck(boundaryTime, seconds, phraseId);
 				} else {
-					const event = transport.scheduleOnce(time => roomCheck(time, seconds), `${segment.startTick}i`);
+					const event = transport.scheduleOnce(time => roomCheck(time, seconds, phraseId), `${segment.startTick}i`);
 					scheduledEventIds.push(event);
 				}
 			}
@@ -947,10 +942,13 @@
 		// same frame it appears. The pre-computed nextLickStartTick is passed
 		// through so scheduleNextPhrase can land the audio on the correct bar
 		// boundary regardless of when the callback fires.
-		const nextLickStartTick = lickEndTick + INTER_LICK_REST_BARS * ticksPerBar;
+		const nextMeter = getPhraseFor(lickIdx + 1, 0)?.timeSignature;
+		const nextBarTicks = nextMeter ? quarterBeatsPerBar(nextMeter) * transport.PPQ : ticksPerBar;
+		const nextLickStartTick = lickEndTick + SCORE_HOLD_BARS * ticksPerBar +
+			(INTER_LICK_REST_BARS - SCORE_HOLD_BARS) * nextBarTicks;
 
 		const restId = transport.scheduleOnce(() => {
-			handleLickComplete(nextLickStartTick, ticksPerBar);
+			handleLickComplete(nextLickStartTick, nextBarTicks);
 		}, `${lickEndTick + SCORE_HOLD_BARS * ticksPerBar}i`);
 		scheduledEventIds.push(restId);
 	}
@@ -986,8 +984,8 @@
 
 	/**
 	 * Score the final key, resolve the next rotation/tempo, then queue its
-	 * audio and windows. Focused drills join on this downbeat using Tone's
-	 * audio lookahead; other drills retain their one-bar turnaround. A late
+	 * audio and windows. Previewed retries can join on this downbeat using
+	 * Tone's audio lookahead. Other entrances get a turnaround bar. A late
 	 * callback falls back to a future bar to avoid clipping the entrance.
 	 */
 	function handleSingleLickCycleBoundary(lickEndTick: number, ticksPerBar: number, time: number): void {
@@ -997,17 +995,9 @@
 		if (lastBoundaryTick === lickEndTick) return;
 		lastBoundaryTick = lickEndTick;
 
-		// Bookkeeping first: drops mastered keys, sorts survivors worst-first
-		// from the rolling scores (including the attempt just recorded), sets
-		// demoNextCycle, and bumps tempo + refills on a full clear. The next
-		// cycle's layout and the turnaround's target key both depend on it.
-		advanceSingleLickRound();
-
-		// Tone dispatches this callback ahead of audible time. The focused
-		// drill uses that lead to join at the SAME downbeat. Only an actually
-		// late callback needs recovery time; the normal path adds no beats.
+		const joinDownbeat = advanceSingleLickRound();
 		const transport = toneModule.getTransport();
-		const seamless = turnaroundBars === 0 && time - toneModule.immediate() >= 0.015;
+		const seamless = joinDownbeat && time - toneModule.immediate() >= 0.015;
 		const nextStartTick = seamless ? lickEndTick : resolveNextCycleStart(
 			lickEndTick + TURNAROUND_BARS * ticksPerBar,
 			transport.ticks,
@@ -1040,6 +1030,8 @@
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
+		const meter = getCurrentPhrase()?.timeSignature;
+		if (!meter) return;
 		const events = buildTurnaroundBarEvents({
 			progressionType: item.progressionType,
 			targetKey: nextKey,
@@ -1048,7 +1040,8 @@
 			tempo: lickPractice.currentTempo,
 			swing: effectiveSwing,
 			ppq,
-			beatsPerBar: Math.round(ticksPerBar / ppq)
+			beatsPerBar: meter[0],
+			denominator: meter[1]
 		});
 
 		const barStartTick = nextLickStartTick - ticksPerBar;
@@ -1089,36 +1082,16 @@
 		if (!item || !nextKey) return;
 
 		const transport = toneModule.getTransport();
-		const ppq = transport.PPQ;
-		const beatsPerBar = Math.round(ticksPerBar / ppq);
-		// startLick has already set the new lick's BPM synchronously, so
-		// beat lengths match the metronome through the cue bar.
-		const beatSec = 60 / lickPractice.currentTempo;
-		const voicings = voiceLead(
-			getTransitionCadenceChords(item.progressionType, nextKey),
-			shellVoicing,
-			54
-		);
-		if (voicings.length < 2 || voicings.some(v => v.length === 0)) return;
-
-		const iiBeat = 1;
-		const vBeat = beatsPerBar - 1;
-		// Degenerate meters (2/4) can't fit two hits — keep just the V.
-		const stabs =
-			vBeat > iiBeat
-				? [
-						{ beat: iiBeat, notes: voicings[0], duration: (vBeat - iiBeat) * beatSec * 0.9 },
-						{ beat: vBeat, notes: voicings[1], duration: beatSec * 0.9 }
-					]
-				: [{ beat: iiBeat, notes: voicings[1], duration: beatSec * 0.9 }];
-
+		const meter = plannedKeysForLick[0]?.phrase.timeSignature ?? getCurrentPhrase()?.timeSignature;
+		if (!meter) return;
+		const stabs = transitionCueStabs(item.progressionType, nextKey, meter, transport.PPQ, lickPractice.currentTempo);
 		const cueBarStartTick = nextLickStartTick - ticksPerBar;
 		for (const stab of stabs) {
 			const id = transport.scheduleOnce((time: number) => {
 				backingTrack?.playTransitionChords([
 					{ notes: stab.notes, time, duration: stab.duration }
 				]);
-			}, `${cueBarStartTick + stab.beat * ppq}i`);
+			}, `${cueBarStartTick + stab.tickOffset}i`);
 			scheduledEventIds.push(id);
 		}
 	}
@@ -1142,16 +1115,15 @@
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
 	function startBeatTracking() {
-		const ppq = toneModule!.getTransport().PPQ;
 		/** Paint the chart position and phase cue from the active transport clock. */
 		function tick() {
 			if (!isSessionRunning) return;
 			if (toneModule) {
 				const transport = toneModule.getTransport();
-				// The focused drill has no gap to absorb the scheduler's lookahead.
+				// Joined cycles have no gap to absorb the scheduler's lookahead.
 				// Read the audible clock so its cue cannot run past the current
 				// window before Tone has dispatched the boundary callback.
-				const ticks = turnaroundBars === 0
+				const ticks = canJoinCycles
 					? transport.getTicksAtTime(toneModule.immediate())
 					: transport.ticks;
 				if (pendingCycleDisplay && ticks >= pendingCycleDisplay.startTick) {
@@ -1182,7 +1154,7 @@
 				// Listen/play cue. Re-read every frame (so the countdown lands
 				// on the beat) but only committed when a rendered field moves —
 				// a fresh object each frame would re-render the bar at 60fps.
-				const nextCue = phaseCueAt(ticks, phaseTimeline, ppq);
+				const nextCue = phaseCueAt(ticks, phaseTimeline, cycleLayout?.ticksPerBeat ?? 0);
 				if (
 					nextCue.phase !== phaseCue.phase ||
 					nextCue.next !== phaseCue.next ||
@@ -1242,7 +1214,7 @@
 		keyIdx: number,
 		finalPass: boolean,
 		passes: number,
-		_transportTime: number
+		transportTime: number
 	) {
 		if (!playback || !backingTrack || !pitchDetector) return;
 
@@ -1276,6 +1248,9 @@
 			phrase,
 			schedule: schedule ?? null,
 			recordingTransportSeconds: transportSecondsAtOpen,
+			// Each recording window opens on a scheduled downbeat. A preceding meter
+			// or tempo change can place that beat off the original transport grid.
+			metronomeGridOriginSeconds: playback.getTransportClockAt(transportTime)?.secondsAtContextTime,
 			micStartTime: micCapture?.context.currentTime ?? 0,
 			readingsStartCount: readings.length,
 			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
@@ -1368,6 +1343,7 @@
 			recordingTransportSeconds: window.recordingTransportSeconds,
 			tempo: lickPractice.currentTempo,
 			metronomeDenominator: window.phrase.timeSignature[1],
+			metronomeGridOriginSeconds: window.metronomeGridOriginSeconds,
 			recordingDuration
 		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
@@ -1456,6 +1432,15 @@
 			if (window.finalPass) {
 				try {
 					recordKeyAttempt(score, window.sessionId);
+					// The last window immediately builds the actual next stack.
+					// Earlier misses are visible while the remaining keys play.
+					if (usesDeepRetryQueue() && window.keyIndex < windowItem.keys.length - 1) {
+						const rows = pendingCycleDisplay?.rows ?? plannedKeysForLick;
+						const row = rows.find(row => row.key === window.key);
+						const retry = row && queuedRetryRow(row);
+						if (retry && pendingCycleDisplay) pendingCycleDisplay.projected.push(retry);
+						else if (retry) projectedRows = [...projectedRows, retry];
+					}
 				} catch (err) {
 					console.warn('[lick-practice] recordKeyAttempt failed:', err);
 				}
@@ -1558,6 +1543,7 @@
 						bleedFilterLog: bleedLogForSave,
 						transportSeconds: windowForSave.recordingTransportSeconds,
 						metronomeEnabled: metronomeForSave,
+						metronomeGridOriginSeconds: windowForSave.metronomeGridOriginSeconds,
 						backingBleedOnsets: backingOnsetsForSave,
 						captureTiming: captureTimingForSave,
 						supabase: supabaseForSave ?? undefined,
@@ -2179,7 +2165,7 @@
 		{/if}
 
 		<!-- Lick header -->
-		{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
+
 		<LickHeader
 			daily={isDailyPractice()}
 			phraseNumber={currentItem.phraseNumber}
@@ -2271,13 +2257,14 @@
 		</div>
 
 		<!-- Controls -->
-		<div class="flex justify-center gap-4">
+		<div class="grid justify-items-center gap-[12px]">
 			<button
 				onclick={handleEnd}
 				class="rounded-lg bg-[var(--color-bg-tertiary)] px-6 py-2 text-sm font-medium text-[var(--color-error-text)] hover:bg-[var(--color-bg-secondary)] transition-colors"
 			>
 				End Session
 			</button>
+			<SpeakerLed subtle />
 		</div>
 		</aside>
 		</div>

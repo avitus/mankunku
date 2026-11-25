@@ -25,7 +25,6 @@ for (const keyboard of ['piano', 'organ'] as const) {
    await expect(page.getByTestId('musician-drums')).toContainText('Kick accents the bass pickup');
   }
   await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 90_000 });
-  await expectAudibleListeningOutput(page);
   await page.locator('details.take-notes > summary').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
   const path = (await download.path())!;
@@ -33,6 +32,7 @@ for (const keyboard of ['piano', 'organ'] as const) {
   await info.attach('full-bossa-take', { path, contentType: 'application/json' });
   expectEveryBarCommittedWithLead(take.playback, 52);
   const generated: GeneratedBacking = take.playback.generated;
+  await expectAudibleListeningOutput(page, generated);
   for (const index of [33, 36]) {
    const pulse = index * 4;
    const pickup = generated.bassEvents.find(e => e.absBeat === pulse + 1.5 && e.bossaOctavePickup)!;

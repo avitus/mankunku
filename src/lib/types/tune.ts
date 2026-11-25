@@ -23,7 +23,29 @@ export type TuneSource =
 	| 'imported-pdf'
 	| string;
 
+/** Printed performance instruction at a section-local whole-note offset. */
+export interface TuneDirection {
+	offset: Fraction;
+	text: 'N.C.' | 'Fine' | 'Solo break';
+	/** The printed instruction has a dashed continuation to the end of its measure. */
+	extendsToBarline?: boolean;
+}
+
+/** Dimensions of a short, open-ended volta in staff spaces. */
+export interface PrintedEndingBracket {
+	width: number;
+	height: number;
+}
+
 export interface TuneSection {
+	printedEndingBracket?: PrintedEndingBracket;
+	/** Printed repeat signs with wings extending beyond both outside staff lines. */
+	repeatWings?: 'start' | 'end' | 'both';
+	/** Number of full bars per printed staff in the source part when its layout is regular. */
+	printedBarsPerLine?: number;
+	/** The printed second ending starts at the margin of a fresh staff. */
+	endingAtLeftMargin?: boolean;
+	directions?: TuneDirection[];
 	/** Override solo omission. By default, solo choruses skip sections labelled Intro. */
 	omitFromSolos?: boolean;
 	/** Section label shown on the chart: 'A', 'B', 'Intro', 'Coda', … */

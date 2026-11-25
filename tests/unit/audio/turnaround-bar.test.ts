@@ -11,11 +11,20 @@ import { describe, it, expect } from 'vitest';
 import {
 	turnaroundHarmony,
 	buildTurnaroundBarEvents,
+	transitionCueStabs,
 	type TurnaroundEvent
 } from '$lib/audio/turnaround-bar';
 import { fractionToFloat } from '$lib/music/intervals';
 
 const PPQ = 480;
+
+it('places and releases the transition chords in printed beats of the incoming lick', () => {
+ const stabs = (meter: [number, number]) => transitionCueStabs('ii-V-I-major', 'C', meter, PPQ, 120)
+  .map(({ tickOffset, duration }) => [tickOffset, duration]);
+ expect(stabs([6, 8])).toEqual([[240, 0.9], [1200, 0.225]]);
+ expect(stabs([4, 4])).toEqual([[480, 0.9], [1440, 0.45]]);
+ expect(stabs([2, 4])).toEqual([[480, 0.45]]);
+});
 
 function build(
 	overrides: Partial<Parameters<typeof buildTurnaroundBarEvents>[0]> = {}

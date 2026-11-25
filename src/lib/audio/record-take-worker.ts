@@ -1,13 +1,10 @@
-import { replayFromAudioBuffer } from './replay';
+import { replaySamples } from './replay';
 import { transcribeTakeWithKey } from './record-transcription';
 
 self.onmessage = async ({ data }) => {
 	const { samples, sampleRate, anchorOffset, tempo } = data;
 	try {
-		const replay = await replayFromAudioBuffer({
-			length: samples.length, duration: samples.length / sampleRate, sampleRate,
-			numberOfChannels: 1, getChannelData: () => samples
-		}, { windowAnchor: 'end' });
+		const replay = await replaySamples(samples, sampleRate, { windowAnchor: 'end' });
 		const result = transcribeTakeWithKey({
 			pcm: { samples, sampleRate },
 			readings: replay.readings, weakReadings: replay.weakReadings, workletOnsets: replay.onsets, anchorOffset, tempo

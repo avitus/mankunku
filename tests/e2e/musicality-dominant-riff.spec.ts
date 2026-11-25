@@ -30,7 +30,6 @@ test('plays the Swing bridge Charleston through a full Rhythm Changes performanc
   }
  }
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 80_000 });
- await expectAudibleListeningOutput(page);
  await page.locator('details.take-notes > summary').click();
  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
  const path = (await download.path())!;
@@ -38,6 +37,7 @@ test('plays the Swing bridge Charleston through a full Rhythm Changes performanc
  expectEveryBarCommittedWithLead(take, 96);
  expect(take.provenance.dispatches.every((dispatch: RollingBackingDispatch) => dispatch.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;
+ await expectAudibleListeningOutput(page, generated);
  for (const index of [50, 52, 54]) {
   const beatOne = index * 4;
   expect(generated.bassEvents.filter(e => Math.floor(e.absBeat / 4) === index).map(e => e.absBeat - beatOne)).toEqual([0, 1.5, 3]);

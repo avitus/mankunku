@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
-	import { roomChecks, roomStatus } from '$lib/audio/room-scoring-state.svelte';
+	import { roomChecks } from '$lib/audio/room-scoring-state.svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
@@ -8,7 +8,8 @@
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { selectEarTrainingLicks, transposeEarTrainingLick } from '$lib/phrases/ear-training-pool';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
-	import { setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
+	import { getAudioContext, setMasterVolume, getProgramGain } from '$lib/audio/audio-context';
+	import { replayTakeInWorker } from '$lib/audio/replay-take';
 	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
@@ -450,6 +451,16 @@
 		};
 	}
 
+	function demonstrationOptions(resolveAtMelodyEnd: boolean) {
+		const verify = micCapture && roomChecks.get(micCapture.source)?.measure;
+		const phraseId = session.phrase?.id;
+		return {
+			resolveAtMelodyEnd,
+			tongueRepeats: settings.instrumentId.endsWith('-sax'),
+			onDemonstration: verify ? (start: number, seconds: number) => verify(start, seconds, phraseId) : undefined
+		};
+	}
+
 	/** Start a practice run with fresh tuning evidence and exclusive audio setup. */
 	async function handlePlay() {
 		if (starting) return;
@@ -475,15 +486,16 @@
 			await ensureMicCapture(generation);
 			if (!currentRun(generation)) return;
 
-			if (!playback.isInstrumentLoaded()) {
+			const backing = settings.backingTrackEnabled ? settings.backingInstrument : undefined;
+			if (!playback.isInstrumentLoaded(settings.instrumentId, 'ear-training')) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, settings.backingInstrument);
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing, 'ear-training');
 				if (!currentRun(generation)) return;
 				session.isLoadingInstrument = false;
-			} else {
+			} else if (backing) {
 				// Ensure backing instrument matches current setting (idempotent)
-				await loadBackingInstruments(settings.backingInstrument);
+				await loadBackingInstruments(backing);
 				if (!currentRun(generation)) return;
 			}
 
@@ -497,10 +509,7 @@
 			// bars past a short melody and let the user's echo start before
 			// the mic is live). Without a mic there's no handoff, so keep the
 			// bar-aligned stop.
-			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, {
-				resolveAtMelodyEnd: hasMic,
-				onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
-			});
+			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, demonstrationOptions(hasMic));
 
 			if (!currentRun(generation)) return;
 			if (hasMic) {
@@ -888,10 +897,7 @@
 		session.lastScore = null;
 		try {
 			session.engineState = 'playing';
-			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), {
-				resolveAtMelodyEnd: true,
-				onDemonstration: micCapture ? roomChecks.get(micCapture.source)?.measure : undefined
-			});
+			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), demonstrationOptions(true));
 			if (looping && currentRun(generation)) await enterAwaitingInput(generation);
 		} catch (err) {
 			if (!currentRun(generation)) return;
@@ -920,10 +926,7 @@
 		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
 		rescoreId: number = latestRescoreId
 	): Promise<boolean> {
-		const { replayFromBlob } = await import('$lib/audio/replay');
-		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
-		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
-		const rawReplay = await replayFromBlob(blob, ctx);
+		const rawReplay = await replayTakeInWorker(blob, await getAudioContext());
 		// Same trim the live path applied, re-derived from the blob rather than
 		// carried across — `transportSeconds` describes the blob's first sample,
 		// so the offset has to be added back on top of it here.
@@ -959,6 +962,7 @@
 			metronomeEnabled,
 			recordingTransportSeconds: trimmedTransportSeconds,
 			tempo,
+			metronomeGridOriginSeconds: baseMetadata?.metronomeGridOriginSeconds,
 			metronomeDenominator: baseMetadata ? baseMetadata.metronomeDenominator ?? 4 : phrase.timeSignature[1],
 			recordingDuration: replay.duration
 		});
@@ -1043,7 +1047,6 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
-{#if roomStatus.text}<p class="text-center text-sm" role="status">{roomStatus.text}</p>{/if}
 <EarTrainingConsole
 	{writtenKey}
 	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}

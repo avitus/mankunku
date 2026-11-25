@@ -6,7 +6,7 @@
 	import { TunePlayer } from '$lib/state/tune-player.svelte';
 	import { tuneBackingStyle } from '$lib/tunes/backing-style';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
-	const localPlayer = new TunePlayer();
+	const localPlayer = new TunePlayer(undefined, () => tune.style);
 	let { tune, player = localPlayer, style, compact = false, onsettings }: {
 		tune: Tune; player?: TunePlayer; style?: BackingStyle; compact?: boolean; onsettings?: () => void;
 	} = $props();

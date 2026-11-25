@@ -3,6 +3,7 @@ import { earTrainingNoteLimit, selectEarTrainingLicks, transposeEarTrainingLick 
 import type { Phrase, PitchClass } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { ALL_CURATED_LICKS } from '$lib/data/licks';
+import { calculateDifficulty } from '$lib/difficulty/calculate';
 import { SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 import { melodyFitsScale } from '$lib/tonality/scale-compatibility';
 
@@ -221,8 +222,16 @@ describe.each([
  * four phrases at level 1 and five at levels 2-3, all of them two-note cells,
  * so a new player looped the same handful.
  */
+it('unlocks Misty Motif in Mixolydian at its contour-adjusted level', () => {
+	const misty = ALL_CURATED_LICKS.find(lick => lick.id === 'ballad-002')!;
+	expect(misty.difficulty).toEqual({ level: 30, pitchComplexity: 39, rhythmComplexity: 17, lengthBars: 2 });
+	expect(calculateDifficulty(misty)).toEqual(misty.difficulty);
+	expect(selectEarTrainingLicks([misty], 29, 'mixolydian')).toEqual([]);
+	expect(selectEarTrainingLicks([misty], 30, 'mixolydian')).toEqual([misty]);
+});
+
 describe('Major Pentatonic gives a new player more than a handful of phrases (2026-10-07)', () => {
-	it.each([[1, 12], [2, 24], [3, 36]])('at level %i, at least %i phrases', (level, floor) => {
+	it.each([[1, 12], [2, 24], [3, 29], [6, 36]])('at level %i, at least %i phrases', (level, floor) => {
 		expect(selectEarTrainingLicks(ALL_CURATED_LICKS, level, 'major-pentatonic').length).toBeGreaterThanOrEqual(floor);
 	});
 });

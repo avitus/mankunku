@@ -36,12 +36,8 @@ for (const style of ['swing', 'straight'] as const) {
 	test(`${style} keeps the piano out while the actual drum phrase returns after its reply`, async ({ page }) => {
 		test.setTimeout(55_000);
 		await seedTunes(page, [WHEN_THE_SAINTS]);
-		// The same Saints-in-G take as the piano reply above. Under the released
-		// accompaniment the bar after a reply is already planned silent (phrase
-		// resolution), so the recovery has nothing to withhold: none of 12,960
-		// scanned takes produced the older "Leave a breath" space, and the card
-		// must not claim one.
-		await setup(page, 6);
+		// The bar after this reply already has a silent piano part.
+		await setup(page, 14);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('G');
 		await page.getByTestId('listening-style').selectOption(style);

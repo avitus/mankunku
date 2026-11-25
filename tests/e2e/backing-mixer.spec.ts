@@ -34,14 +34,14 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 				() => JSON.parse(localStorage.getItem('backing-mix-levels-v3') ?? '{}').bass
 			);
 		})
-		.toBeCloseTo(3 * 10 ** (-24/20));
+		.toBeCloseTo(3 * 10 ** (-9.6 / 20));
 
 	// Hydration is proven now; a plain fill suffices for the kick.
 	await page.getByTestId('mix-kick').fill('0.8');
 	const stored = await page.evaluate(() =>
 		JSON.parse(localStorage.getItem('backing-mix-levels-v3') ?? '{}')
 	);
-	expect(stored.kick).toBeCloseTo(3 * 10 ** (-12/20));
+	expect(stored.kick).toBeCloseTo(3 * 10 ** (-4.8 / 20));
 
 	// Reload: the tuned values come back on the sliders.
 	await page.reload();
@@ -50,7 +50,7 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 
 	// Reset returns the sliders and the stored mix to defaults.
 	await page.getByRole('button', { name: 'Reset to defaults' }).click();
-	await expect(page.getByTestId('mix-bass')).toHaveValue('0.84');
+	await expect(page.getByTestId('mix-bass')).toHaveValue('0.6');
 	const reset = await page.evaluate(() =>
 		JSON.parse(localStorage.getItem('backing-mix-levels-v3') ?? '{}')
 	);

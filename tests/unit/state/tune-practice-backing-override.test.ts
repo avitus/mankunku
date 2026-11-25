@@ -142,7 +142,7 @@ describe('remembered tune playback preferences', () => {
  */
 describe('tune-practice route reads the captured session setting', () => {
 	const route = readFileSync(
-		join(__dirname, '../../../src/routes/tunes/[id]/practice/+page.svelte'),
+		join(__dirname, '../../../src/lib/components/tune-practice/TunePracticeSession.svelte'),
 		'utf8'
 	);
 
@@ -162,7 +162,7 @@ describe('tune-practice route reads the captured session setting', () => {
 
 
 it('uses the same raised band and unity melody for Tunes + Licks', () => {
-	const route = readFileSync(join(__dirname, '../../../src/routes/tunes/[id]/practice/+page.svelte'), 'utf8');
+	const route = readFileSync(join(__dirname, '../../../src/lib/components/tune-practice/TunePracticeSession.svelte'), 'utf8');
 	expect(route).not.toContain('backingOutputLevel:');
 	expect(route).not.toContain('melodyLevel:');
 });

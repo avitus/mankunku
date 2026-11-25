@@ -65,7 +65,8 @@ import type {
 	FocusRampSummary
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
-import { addFractions } from '$lib/music/intervals';
+import { addFractions, multiplyFraction } from '$lib/music/intervals';
+import { quarterBeatsPerBar } from '$lib/tunes/meter';
 import {
 	planLickKeys,
 	planUnlockedKeys,
@@ -301,15 +302,15 @@ export const lickPractice = $state<{
 	/**
 	 * Single-lick mode: should the next cycle open with the app playing the
 	 * lick in the head (worst) key? True for the first cycle of every session;
-	 * afterwards true only while the head key's rolling score is below
-	 * proficient (continuous mode), except focused drills, which demo only
+	 * afterwards true only for an immediate same-key retry whose rolling
+	 * score is below proficient in continuous mode. Focused drills demo only
 	 * at the session opening. Tricks: true only for a round whose
 	 * example STYLE is new to the session (`trickRoundIntroducesStyle`) —
 	 * enclosures demo once, triad pairs once per style.
 	 */
 	demoNextCycle: boolean;
 	/**
-	 * Single-lick mode: latest result per key across the WHOLE session —
+	 * Latest result per key at the current Deep tempo (session-wide for tricks) —
 	 * survives the round boundary that clears `keyResults`, so the
 	 * KeyProgressRing keeps its dots through the continuous flow.
 	 */
@@ -317,7 +318,7 @@ export const lickPractice = $state<{
 	/**
 	 * Single-lick mode: the full unlocked circle in stable circle-of-4ths
 	 * order — the ring's anchor. `plan[0].keys` shrinks as keys master out
-	 * and reorders worst-first every cycle; this doesn't (it only grows when
+	 * and can reorder on a refill; this doesn't (it only grows when
 	 * a refill picks up a newly unlocked key).
 	 */
 	sessionKeys: PitchClass[];
@@ -601,7 +602,7 @@ function timingSpecForItem(item: LickPracticePlanItem): LickTimingSpec | null {
 			mode: lickPractice.config.practiceMode,
 			...leadSheetExtras(item.phraseId, lickUnlockRamp(lick, getInstrument()), item.keys)
 		}),
-		beatsPerBar: lick.timeSignature[0],
+		beatsPerBar: quarterBeatsPerBar(lick.timeSignature),
 		tempo: resolveLickTempo(lickPractice.progress, item.phraseId)
 	};
 }
@@ -678,7 +679,7 @@ export function computeSessionPlan(): LickPracticePlanItem[] {
 				mode: lickPractice.config.practiceMode,
 				...leadSheetExtras(lick.id, ramp, keys)
 			}),
-			beatsPerBar: lick.timeSignature[0],
+			beatsPerBar: quarterBeatsPerBar(lick.timeSignature),
 			tempo
 		});
 		// A lick that alone outruns the budget still gets planned when it would
@@ -812,7 +813,7 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 				mode: lickPractice.config.practiceMode,
 				...leadSheetExtras(lick.id, ramp, keys)
 			}),
-			beatsPerBar: lick.timeSignature[0],
+			beatsPerBar: quarterBeatsPerBar(lick.timeSignature),
 			tempo
 		});
 		// A lick that alone outruns the budget still gets planned when it would
@@ -1577,6 +1578,55 @@ function decideReveals(
 	return decisions;
 }
 
+/** Use the same next-turn notation for the queued preview and the scheduled retry. */
+function deepReveal(
+	key: PitchClass, baseline: boolean, owesMemory: boolean, attempts: readonly LickPracticeKeyResult[]
+): boolean {
+	if (owesMemory) return false;
+	const keyAttempts = attempts.filter((attempt) => attempt.key === key);
+	// A successful final turn earns memory playing next time, even when
+	// older scores still depress the EWMA. Only fresh difficulty after
+	// that success may restore support; rehearsal scores never enter here.
+	const lastClear = keyAttempts.findLastIndex((attempt) => attempt.score >= MASTERY_THRESHOLD);
+	const recent = keyAttempts.slice(lastClear + 1);
+	const latestTwo = recent.slice(-2);
+	// Bound memory retries even when scores plateau above the early
+	// rescue thresholds. A triple always yields one memory turn before
+	// these thresholds can restore support.
+	const struggling = recent.length >= DEEP_RESCUE_ATTEMPTS || (latestTwo.length === 1
+		? latestTwo[0].score < 0.5
+		: latestTwo.length === 2 && (latestTwo[0].score + latestTwo[1].score) / 2 < 0.7);
+	return lastClear >= 0 || struggling ? struggling : baseline;
+}
+
+/** During the focus staircase and its promised handoff the ramp owns the next key. */
+export function usesDeepRetryQueue(): boolean {
+	const phase = lickPractice.ramp?.phase;
+	const item = getCurrentPlanItem();
+	return !!item && lickPractice.mode === 'single-lick' && item.kind !== 'trick' &&
+		phase !== 'focus' && phase !== 'handoff';
+}
+
+/** The just-scored row goes behind every waiting key, with its next turn's notation. */
+export function queuedRetryRow(row: PlannedKey): PlannedKey | null {
+	if (!usesDeepRetryQueue() || lickPractice.masteredThisRound.includes(row.key)) return null;
+	const item = lickPractice.plan[row.lickIndex];
+	const lick = resolveLickFor(item);
+	if (!lick) return null;
+	const baseline = decideReveals(item.phraseId, lickUnlockRamp(lick, getInstrument()), [row.key]);
+	const reveal = deepReveal(
+		row.key, baseline.get(row.key) ?? false, row.passes === LEAD_SHEET_PASSES,
+		lickPractice.allAttempts.flat().concat(lickPractice.keyResults)
+	);
+	return {
+		...row,
+		reveal,
+		passes: reveal && lickPractice.config.practiceMode === 'continuous' ? LEAD_SHEET_PASSES : 1,
+		cycle: lickPractice.roundNumber + 1,
+		cycleEntry: null
+	};
+}
+
 /**
  * The rotation's reveal decisions, taken the first time the rotation is
  * asked about and held until it is replaced. A trick's regenerated figure is
@@ -1601,27 +1651,7 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 	if (ramp && lickPractice.mode === 'single-lick') {
 		const attempts = lickPractice.allAttempts.flat();
 		for (const key of keys) {
-			// Honor the sheet triple's memory commitment before considering rescue.
-			// It expires only when this key actually plays its next turn, so a
-			// mastered key sitting out a round cannot lose the commitment.
-			if (owesMemoryTurn(item, key)) {
-				decisions.set(key, false);
-				continue;
-			}
-			const keyAttempts = attempts.filter((attempt) => attempt.key === key);
-			// A successful final turn earns memory playing next time, even when
-			// older scores still depress the EWMA. Only fresh difficulty after
-			// that success may restore support; rehearsal scores never enter here.
-			const lastClear = keyAttempts.findLastIndex((attempt) => attempt.score >= MASTERY_THRESHOLD);
-			const recent = keyAttempts.slice(lastClear + 1);
-			const latestTwo = recent.slice(-2);
-			// Bound memory retries even when scores plateau above the early
-			// rescue thresholds. A triple always yields one memory turn before
-			// these thresholds can restore support.
-			const struggling = recent.length >= DEEP_RESCUE_ATTEMPTS || (latestTwo.length === 1
-				? latestTwo[0].score < 0.5
-				: latestTwo.length === 2 && (latestTwo[0].score + latestTwo[1].score) / 2 < 0.7);
-			if (lastClear >= 0 || struggling) decisions.set(key, struggling);
+			decisions.set(key, deepReveal(key, decisions.get(key) ?? false, owesMemoryTurn(item, key), attempts));
 		}
 	}
 	revealDecisions.set(item.keys, decisions);
@@ -1785,11 +1815,10 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// its call — are laid out once per pass, behind its reading pause when it
 	// has one. `getKeyPasses`/`getKeyPauses` are the same sources the session
 	// page schedules the recording windows from. Bar offsets are whole-note
-	// fractions: `barCursor` bars of `beatsPerBar` beats = [bars × beats, 4].
+	// fractions, with one full printed measure per bar.
 	const passes = getKeyPasses(lickIdx);
 	const pauses = getKeyPauses(lickIdx);
-	const beatsPerBar = baseLick.timeSignature[0];
-	const barsToWhole = (bars: number): Fraction => [bars * beatsPerBar, 4];
+	const barsToWhole = (bars: number): Fraction => multiplyFraction(baseLick.timeSignature, bars);
 	// Bars laid out so far — the demo, then each key's pause and passes.
 	let barCursor = demoBars;
 	for (let i = 0; i < item.keys.length; i++) {
@@ -1804,7 +1833,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		// ii-V into this key) once per pause bar — "vamp till ready" — so the
 		// player hears where the sheet they are now reading resolves to.
 		for (let bar = 0; bar < (pauses[i] ?? 0); bar++, barCursor++) {
-			for (const seg of turnaroundHarmony(progressionType, key, beatsPerBar)) {
+			for (const seg of turnaroundHarmony(progressionType, key, ...baseLick.timeSignature)) {
 				superHarmony.push({
 					...seg,
 					startOffset: addFractions(seg.startOffset, barsToWhole(barCursor))
@@ -2003,7 +2032,7 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	};
 	lickPractice.keyResults.push(result);
 	if (lickPractice.mode === 'single-lick') {
-		// Session-long per-key latest result — feeds the KeyProgressRing across
+		// Latest result for the live ring — feeds the KeyProgressRing across
 		// round boundaries (keyResults itself is cleared every cycle).
 		lickPractice.latestKeyResults = { ...lickPractice.latestKeyResults, [key]: result };
 	}
@@ -2204,7 +2233,7 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
  * archives the round's results to `allAttempts`, and:
  *   - If any keys remain, the next round cycles through the survivors at
  *     the same tempo.
- *   - If all 12 keys cleared, the tempo bumps by `config.tempoBumpPercent`
+ *   - If all active keys cleared, the tempo bumps by `config.tempoBumpPercent`
  *     (default 1%, rounded up to a whole BPM), the rotation refills with a
  *     fresh circle of 4ths from the lick's home key, and a new round begins.
  *
@@ -2224,11 +2253,12 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
  * never is, and the report's `FocusRampSummary` is the ramp's only trace.
  *
  * Mutates `plan[0].keys` so `buildLickSuperPhrase` and `getCurrentPhrase`
- * see the updated active-key list on the next cycle.
+ * see the updated active-key list on the next cycle. Returns true when its
+ * entrance can join the outgoing downbeat without a turnaround.
  */
-export function advanceSingleLickRound(): void {
+export function advanceSingleLickRound(): boolean {
 	const item = lickPractice.plan[0];
-	if (!item) return;
+	if (!item) return false;
 	const previousLastKey = item.keys.at(-1);
 	const previousReveals = revealDecisionsFor(item);
 	const previousTempo = lickPractice.currentTempo;
@@ -2259,6 +2289,8 @@ export function advanceSingleLickRound(): void {
 	// Drop mastered keys from the active rotation.
 	const survivors = item.keys.filter(k => !lickPractice.masteredThisRound.includes(k));
 	const ramp = item.kind === 'trick' ? null : lickPractice.ramp;
+	const queuedRetry = usesDeepRetryQueue() && survivors.length > 0;
+	const joinRetry = queuedRetry && survivors[0] !== previousLastKey;
 	const promisedKey = ramp?.phase === 'handoff' ? ramp.queue[0] : undefined;
 
 	if (ramp && ramp.phase !== 'complete') {
@@ -2348,24 +2380,13 @@ export function advanceSingleLickRound(): void {
 			trick !== undefined &&
 			trickRoundIntroducesStyle(trick, lickPractice.roundNumber + 1);
 	} else {
-		// Sort the next cycle worst-first from the rolling scores — which at
-		// this point already include this cycle's attempts — so the demo (and
-		// the user's first answer) land on the struggling key. Then decide
-		// whether that key still needs the demo at all. Never on a refill
-		// cycle: the rotation was just cleared in full, so every key in it was
-		// played at this tempo moments ago, and a rolling score that lags the
-		// clear (a 0.95 from a 0.7 history lands at 0.8) is no reason to
-		// replay the line — that was "it plays even at tempo bumps". A refill
-		// is any rotation rebuilt after a full clear: the plain bump-and-refill
-		// and the focus ramp's step-up and admission cycles alike. Otherwise
-		// only while the head key is below proficient, so proficient cycles
-		// run back-to-back with no listening interlude. Call-response mode has
-		// its own per-key call, so never demos here. A focused drill keeps
-		// moving after its opening demo: a miss changes tempo/rotation, not
-		// whether the player must stop and listen again.
-		item.keys = sortKeysWorstFirst(item.keys, (k) =>
-			getRollingScore(lickPractice.progress, item.phraseId, k)
-		);
+		// A retry keeps the order the misses reached the bottom of the chart.
+		// New rotations and focus admissions still start worst-first.
+		if (!queuedRetry) {
+			item.keys = sortKeysWorstFirst(item.keys, (k) =>
+				getRollingScore(lickPractice.progress, item.phraseId, k)
+			);
+		}
 		// A handoff preview promises the very next key, even if the repeat's
 		// score made an older key weaker. Resume worst-first after that entrance.
 		if (promisedKey && item.keys.includes(promisedKey)) {
@@ -2373,7 +2394,7 @@ export function advanceSingleLickRound(): void {
 		}
 		lickPractice.demoNextCycle =
 			lickPractice.config.practiceMode === 'continuous' &&
-			lickPractice.ramp === null &&
+			lickPractice.ramp === null && !joinRetry &&
 			survivors.length > 0 &&
 			!owesMemoryTurn(item, item.keys[0]) &&
 			shouldDemoHeadKey(getRollingScore(lickPractice.progress, item.phraseId, item.keys[0]));
@@ -2397,6 +2418,9 @@ export function advanceSingleLickRound(): void {
 		}
 	}
 
+	if (item.kind !== 'trick' && lickPractice.currentTempo !== previousTempo) {
+		lickPractice.latestKeyResults = {};
+	}
 	lickPractice.masteredThisRound = [];
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.roundNumber += 1;
@@ -2419,13 +2443,17 @@ export function advanceSingleLickRound(): void {
 				// take, which only stops for the sheet coming or going. Later
 				// sheet graduations need their own bar, even when rejoining after
 				// sitting out a round.
-				prepareBars: slot === 0
+				prepareBars: queuedRetry ? 0 : slot === 0
 					? (focusTake ? (sheet !== wasSheet ? 1 : 0) : ramp && (!promisedKey || fromMemory) ? 1 : 0)
 					: (fromMemory ? 1 : 0)
 			});
 		}
 		cycleEntries.set(item.keys, entries);
 	}
+	// Distinct queued keys have already been previewed. A consecutive retry
+	// needs the turnaround even when the rotation started with several keys.
+	if (queuedRetry) return joinRetry;
+	return !!ramp && lickPractice.config.practiceMode === 'continuous';
 }
 
 /**

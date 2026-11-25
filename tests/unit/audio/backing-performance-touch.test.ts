@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-// Captured from the served 0.20.0 image, before applying the walking policy.
+// Event hashes match both 0.20.0 (d95bebad) and pre-promotion dev (62450e2a).
+// Full-bar hashes include dev’s corrected common-tone voicing diagnostics.
 import baseline from '../../fixtures/musicality-020-walking-baseline.json';
 import { expect, it } from 'vitest';
 import { MANKUNKU_BLUES } from '$lib/data/tunes';
@@ -18,6 +19,7 @@ for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
    const current = createRollingBacking(phrase.harmony, BACKING_STYLES[style], params, options);
    const old = createRollingBacking(phrase.harmony, BACKING_STYLES[style], params, { ...options, performanceTouch: undefined });
    const oldHash = createHash('sha256');
+   const oldEvents = createHash('sha256');
    let checkpoint: RollingBackingCheckpoint | undefined, legacy: RollingBackingCheckpoint | undefined;
    const bassBars: number[] = [], keyBars: number[] = [], rideBars: number[] = [];
    const gateBeats: number[] = [], keyLift: number[] = [], rideLift: number[] = [];
@@ -25,6 +27,7 @@ for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
     const result = advanceRollingBacking(current, checkpoint);
     const prior = advanceRollingBacking(old, legacy);
     oldHash.update(JSON.stringify(prior));
+    oldEvents.update(JSON.stringify([prior.bassEvents, prior.compEvents, prior.drumEvents]));
     if (style === 'bossa-nova' || style === 'ballad') expect(result).toEqual(prior);
     else {
      expect(result.bassEvents.map(e => [e.midi,e.time])).toEqual(prior.bassEvents.map(e => [e.midi,e.time]));
@@ -48,7 +51,9 @@ for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
     }
     checkpoint = result.checkpoint; legacy = prior.checkpoint;
    }
-   expect(oldHash.digest('hex')).toBe(baseline[`${style}/${keyboard}`]);
+   const reference = baseline[`${style}/${keyboard}`];
+   expect(oldHash.digest('hex')).toBe(reference.fullBar);
+   expect(oldEvents.digest('hex')).toBe(reference.events);
    if (style === 'swing' || style === 'straight') {
     console.log('WALKING_TOUCH',style,keyboard,{bassBars,keyBars,rideBars});
     for (const bars of [bassBars,keyBars,rideBars]) expect(bars).toEqual(expect.arrayContaining([27,31,32,34]));

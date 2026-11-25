@@ -1,3 +1,4 @@
+import { setTuneTempo } from './fixtures/tune-setup';
 import { MANKUNKU_BLUES } from '../../src/lib/data/tunes/mankunku-blues';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedStorage, seedTunes, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
@@ -19,6 +20,34 @@ const endings: Tune = {
 	]
 };
 
+test('a saved PDF opens with both written endings visible on the tune desk', async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+	await seedTunes(page, [{ ...endings, source: 'imported-pdf', sections: endings.sections.map(section =>
+		({ ...section, ...(section.ending && { printedEndingBracket: { width: 8, height: 5 } }),
+			...(section.repeatStart && { repeatWings: 'start' as const }), ...(section.repeatEnd && { repeatWings: 'end' as const }) })) }]);
+	await page.goto('/tunes/jam-endings');
+	const chart = page.locator('.abcjs-container');
+	await expect(chart).toContainText('A7');
+	await expect(chart).toContainText('GΔ7');
+	await expect(chart.locator('.tune-repeat-wings')).toHaveCount(2);
+	const brackets = chart.locator('.abcjs-ending path');
+	await expect(brackets).toHaveCount(2);
+	for (const path of await brackets.all()) {
+		await expect(path).toHaveAttribute('d', / V [-.\d]+ h [\d.]+$/);
+		// An open bracket only changes the ink. Both cues and endings still belong to the score.
+		const height = await path.evaluate(el => {
+			const line = el as SVGPathElement;
+			const rules = line.closest('.abcjs-staff-wrapper')!.querySelectorAll<SVGGraphicsElement>('.abcjs-staff > :is(path, line)');
+			const spacing = (rules[4].getBBox().y - rules[0].getBBox().y) * rules[0].getScreenCTM()!.d / 4;
+			return line.getBBox().height * line.getScreenCTM()!.d / spacing;
+		});
+		expect(height).toBeCloseTo(5, 1);
+	}
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(chart.locator('.abcjs-ending')).toHaveCount(2);
+	await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
 for (const practice of [false, true]) {
 	for (const head of [true, false]) {
 		test(`${practice ? 'lick practice' : 'tune desk'} resolves endings with ${head ? 'head and outro' : 'solos only'}`, async ({ page, browserName }, info) => {
@@ -33,10 +62,11 @@ for (const practice of [false, true]) {
 			await seedTunes(page, [head || practice ? endings : { ...endings, sections: endings.sections.map(section => ({ ...section, notes: [] })) }]);
 			await installAudioMock(page);
 			await stubCdnInstrumentSamples(page);
-			await page.goto(`/tunes/jam-endings${practice ? '/practice' : ''}`);
+			await page.goto(`/tunes/jam-endings${practice ? '?licks=1' : ''}`);
 			if (practice && !head) {
-				await page.locator('details.tp-options summary').click();
-				await page.getByRole('switch', { name: 'Play head and outro' }).click();
+
+				await page.getByRole('switch', { name: 'Head' }).click();
+				await page.getByRole('switch', { name: 'Outro', exact: true }).click();
 			}
 			const score = page.locator('.abcjs-container');
 			if (!practice && !head) {
@@ -47,10 +77,10 @@ for (const practice of [false, true]) {
 				await expect(score).toContainText('A7');
 				await expect(score).not.toContainText('GΔ7');
 			}
-			const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-			await tempo.fill('180');
-			await tempo.press('Tab');
-			await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
+
+			await setTuneTempo(page, 180);
+
+			await page.getByRole('button', { name: 'Play', exact: true }).click();
 			const chart = page.getByTestId('tune-chord-chart');
 			await expect(chart).toBeVisible({ timeout: 30_000 });
 			await expect(chart.locator('[data-bar="2"] .chord-symbol')).toContainText('A');
@@ -58,7 +88,7 @@ for (const practice of [false, true]) {
 			await expect(chart.locator('.tcc-bar')).toHaveCount(3);
 			await page.screenshot({ path: info.outputPath('returning.png'), fullPage: true });
 			if (head) {
-				await expect(page.getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
+				await expect(page.locator('.td-status, .practice-session').getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
 				await expect(score).toContainText('GΔ7');
 				await expect(score).not.toContainText('A7');
 				await expect(chart).toHaveCount(0);
@@ -71,7 +101,7 @@ for (const practice of [false, true]) {
 			await page.screenshot({ path: info.outputPath('closing.png'), fullPage: true });
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 			if (practice) await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible({ timeout: 15_000 });
-			else await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible({ timeout: 15_000 });
+			else await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 15_000 });
 		});
 	}
 }
@@ -84,18 +114,19 @@ test('a headless tune without alternate endings keeps cues on the last solo', as
 	await seedStorage(page, { 'tune-practice-choruses': 2 });
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
-	await page.goto('/tunes/jam-endings/practice');
-	await page.locator('details.tp-options summary').click();
-	await page.getByRole('switch', { name: 'Play head and outro' }).click();
-	const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-	await tempo.fill('180');
-	await tempo.press('Tab');
-	await page.getByRole('button', { name: 'Start', exact: true }).click();
+	await page.goto('/tunes/jam-endings?licks=1');
+
+	await page.getByRole('switch', { name: 'Head' }).click();
+	await page.getByRole('switch', { name: 'Outro', exact: true }).click();
+
+	await setTuneTempo(page, 180);
+
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	const chart = page.getByTestId('tune-chord-chart');
 	await expect(chart.locator('.tcc-cue').first()).toBeVisible({ timeout: 30_000 });
 	await expect(page.getByText('Solo 2 of 2', { exact: true })).toBeVisible({ timeout: 10_000 });
 	await expect(chart.locator('.tcc-cue').first()).toBeVisible();
-	await page.getByRole('button', { name: 'End', exact: true }).click();
+	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
 for (const practice of [false, true]) {
@@ -109,13 +140,13 @@ for (const practice of [false, true]) {
 		await seedTunes(page, [{ ...MANKUNKU_BLUES, id: 'blues-layout', source: 'user', sections: MANKUNKU_BLUES.sections.slice(1) }]);
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
-		await page.goto(`/tunes/blues-layout${practice ? '/practice' : ''}`);
+		await page.goto(`/tunes/blues-layout${practice ? '?licks=1' : ''}`);
 		const systems = page.locator('.abcjs-staff-wrapper');
 		await expect(systems).toHaveCount(3);
-		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
-		await tempo.fill('240');
-		await tempo.press('Tab');
-		await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
+
+		await setTuneTempo(page, 240);
+
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
 		const chart = page.getByTestId('tune-chord-chart');
 		await expect(chart).toBeVisible({ timeout: 30_000 });
 		const row = await chart.locator('.tcc-bar').evaluateAll(bars => bars.slice(8, 12).map(bar => {
@@ -126,9 +157,9 @@ for (const practice of [false, true]) {
 		expect(Math.max(...row.map(bar => bar.top)) - Math.min(...row.map(bar => bar.top))).toBeLessThan(1);
 		for (let i = 1; i < row.length; i++) expect(Math.abs(row[i].left - row[i - 1].left - row[i - 1].width)).toBeLessThan(1);
 		await page.screenshot({ path: info.outputPath('blues-third-row.png'), fullPage: true });
-		await expect(page.getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
+		await expect(page.locator('.td-status, .practice-session').getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
 		await expect(systems).toHaveCount(3);
 		await page.screenshot({ path: info.outputPath('blues-outro.png'), fullPage: true });
-		await page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true }).click();
+		await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	});
 }

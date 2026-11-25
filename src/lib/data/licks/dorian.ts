@@ -196,7 +196,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'interval', 'descending', 'resolution'],
 		source: 'curated'
@@ -211,7 +211,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [3, 4], offset: [1, 4] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'interval', 'descending'],
 		source: 'curated'
@@ -226,7 +226,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [1, 2] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 23, pitchComplexity: 42, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 25, pitchComplexity: 42, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'interval', 'ascending', 'minor-six'],
 		source: 'curated'
@@ -289,7 +289,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -369,7 +369,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [1, 2] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'enclosure'],
 		source: 'curated'
@@ -436,7 +436,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -453,7 +453,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'scale-run', 'descending'],
 		source: 'curated'
@@ -487,7 +487,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 4], offset: [3, 4] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 8, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'beginner', 'turn'],
 		source: 'curated'
@@ -504,7 +504,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 19, pitchComplexity: 23, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 20, pitchComplexity: 23, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'quartal', 'ascending'],
 		source: 'curated'
@@ -593,7 +593,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [3, 4], offset: [1, 4] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 33, pitchComplexity: 6, rhythmComplexity: 65, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 8, rhythmComplexity: 65, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'triplet', 'turn'],
 		source: 'curated'
@@ -612,7 +612,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 4], offset: [3, 4] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -631,7 +631,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'scale-run', 'descending'],
 		source: 'curated'
@@ -650,7 +650,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [3, 4] }   // Eb4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 32, pitchComplexity: 18, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'arpeggio', 'minor-six'],
 		source: 'curated'
@@ -670,7 +670,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [3, 4] }   // Bb4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 39, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
+		difficulty: { level: 37, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -691,7 +691,7 @@ export const DORIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 8], offset: [7, 8] }   // A4
 		],
 		harmony: CMIN_DORIAN_1BAR,
-		difficulty: { level: 40, pitchComplexity: 23, rhythmComplexity: 62, lengthBars: 1 },
+		difficulty: { level: 40, pitchComplexity: 26, rhythmComplexity: 62, lengthBars: 1 },
 		category: 'modal',
 		tags: ['dorian', 'natural-six', 'intermediate', 'digital-pattern', 'sequence', 'ascending'],
 		source: 'curated'

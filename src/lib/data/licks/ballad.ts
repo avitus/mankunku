@@ -61,7 +61,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [7, 4] }      // G4
 		],
 		harmony: BALLAD_MAJ_HARMONY,
-		difficulty: { level: 15, pitchComplexity: 15, rhythmComplexity: 15, lengthBars: 2 },
+		difficulty: { level: 16, pitchComplexity: 17, rhythmComplexity: 15, lengthBars: 2 },
 		category: 'ballad',
 		tags: ['melodic', 'lyrical', 'standard'],
 		source: 'curated'
@@ -82,7 +82,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [3, 2] }      // E4
 		],
 		harmony: BALLAD_MAJ_HARMONY,
-		difficulty: { level: 27, pitchComplexity: 35, rhythmComplexity: 17, lengthBars: 2 },
+		difficulty: { level: 30, pitchComplexity: 39, rhythmComplexity: 17, lengthBars: 2 },
 		category: 'ballad',
 		tags: ['misty', 'wide-intervals', 'lyrical'],
 		source: 'curated'
@@ -105,7 +105,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 2], offset: [3, 2] }      // Eb4
 		],
 		harmony: BALLAD_MINOR_HARMONY,
-		difficulty: { level: 43, pitchComplexity: 41, rhythmComplexity: 46, lengthBars: 2 },
+		difficulty: { level: 44, pitchComplexity: 42, rhythmComplexity: 46, lengthBars: 2 },
 		category: 'ballad',
 		tags: ['monk', 'minor', 'angular'],
 		source: 'curated'
@@ -134,7 +134,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [3, 1] }      // C4
 		],
 		harmony: BALLAD_II_V_I,
-		difficulty: { level: 39, pitchComplexity: 36, rhythmComplexity: 42, lengthBars: 4 },
+		difficulty: { level: 41, pitchComplexity: 41, rhythmComplexity: 42, lengthBars: 4 },
 		category: 'ballad',
 		tags: ['ii-V-I', 'lyrical', 'sigh'],
 		source: 'curated'
@@ -157,7 +157,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [5, 2] }      // E4
 		],
 		harmony: BALLAD_MAJ_HARMONY,
-		difficulty: { level: 32, pitchComplexity: 27, rhythmComplexity: 38, lengthBars: 3 },
+		difficulty: { level: 32, pitchComplexity: 28, rhythmComplexity: 38, lengthBars: 3 },
 		category: 'ballad',
 		tags: ['chet-baker', 'space', 'lyrical'],
 		source: 'curated'
@@ -184,7 +184,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [13, 8] }     // E4
 		],
 		harmony: BALLAD_MAJ_HARMONY,
-		difficulty: { level: 65, pitchComplexity: 38, rhythmComplexity: 97, lengthBars: 3 },
+		difficulty: { level: 64, pitchComplexity: 43, rhythmComplexity: 97, lengthBars: 3 },
 		category: 'ballad',
 		tags: ['ornament', 'turn', 'expressive'],
 		source: 'curated'
@@ -206,7 +206,7 @@ export const BALLAD_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [7, 4] }      // E4
 		],
 		harmony: BALLAD_MAJ_HARMONY,
-		difficulty: { level: 24, pitchComplexity: 32, rhythmComplexity: 14, lengthBars: 2 },
+		difficulty: { level: 25, pitchComplexity: 33, rhythmComplexity: 14, lengthBars: 2 },
 		category: 'ballad',
 		tags: ['strayhorn', 'chromatic', 'lyrical'],
 		source: 'curated'

@@ -1,4 +1,6 @@
-import { createRepeatDotReader } from './pdf-repeat-dots';
+import type { PrintedEndingBracket } from '$lib/types/tune';
+import { createRepeatDotReader, hasRepeatWings } from './pdf-repeat-dots';
+import { attachedStem, rasterHeadCandidates } from './pdf-raster-heads';
 /**
  * Deterministic geometry analysis of a rendered chart page — pure functions
  * over pixel/darkness profiles, no ML, no DOM. The browser renders the PDF
@@ -170,7 +172,8 @@ export function findStaffBands(rowDarkness: ArrayLike<number>, minDarkness = 0.4
 export function findBarlines(
 	columns: ColumnProfile[],
 	interline: number,
-	minFill = 0.85
+	minFill = 0.85,
+	recoveredScan = false
 ): number[] {
 	const isCandidate = columns.map(
 		(c) =>
@@ -185,12 +188,12 @@ export function findBarlines(
 
 	const chunkAt = Math.max(2, Math.round(interline * 0.4));
 	const halfWin = Math.max(1, Math.round(interline * 0.075));
-	const chunky = (x: number): boolean => {
+	const chunky = (left: number, right = left): boolean => {
 		for (const side of [-1, 1]) {
 			let mass = 0;
 			let n = 0;
 			for (let d = chunkAt - halfWin; d <= chunkAt + halfWin; d++) {
-				const xi = x + side * d;
+				const xi = (side < 0 ? left : right) + side * d;
 				const c = columns[xi];
 				if (!c || isCandidate[xi]) continue;
 				mass += c.offLine;
@@ -203,7 +206,21 @@ export function findBarlines(
 
 	const candidates: number[] = [];
 	for (let x = 0; x < columns.length; x++) {
-		if (isCandidate[x] && !chunky(x)) candidates.push(x);
+		if (!isCandidate[x]) continue;
+		const left = x;
+		while (isCandidate[x + 1]) x++;
+		const previousCount = candidates.length;
+		for (let col = left; col <= x; col++) {
+			if (!chunky(col)) candidates.push(col);
+		}
+		// On a rotated or downsampled manuscript, the fuzzy sides of a
+		// thick pen stroke can look like notehead ink when sampled inside
+		// the rule. Probe outside both edges of its full-height core.
+		const width = x - left + 1;
+		if (recoveredScan && previousCount === candidates.length &&
+			width >= 0.35 * interline && width < interline && !chunky(left, x)) {
+			candidates.push(Math.round((left + x) / 2));
+		}
 	}
 
 	// Group into boundaries; a group wider than 2.2 il is a blob, not a
@@ -291,6 +308,10 @@ export interface PageImage {
 }
 
 export interface SystemGeometry {
+	/** Bars with a printed dashed instruction extending to the barline. */
+	endingDirectionLeaders?: number[];
+	/** Measured open-ended brackets, keyed by the bar where the hook starts. */
+	openEndingBrackets?: Partial<Record<number, PrintedEndingBracket>>;
 	band: StaffBand;
 	interline: number;
 	/** Barline x-positions, left to right. On single-staff systems there is
@@ -301,7 +322,7 @@ export interface SystemGeometry {
 	 * repeat START (|:), `left` dots a repeat END (:|). Lets the importer
 	 * veto hallucinated repeat flags with printed evidence.
 	 */
-	repeatDots: Array<{ left: boolean; right: boolean }>;
+	repeatDots: Array<{ left: boolean; right: boolean; wingedLeft?: boolean; wingedRight?: boolean }>;
 	/**
 	 * Where the first bar's content begins: the right edge of the leading
 	 * header run (clef, key signature, meter — dense full-height glyph
@@ -311,6 +332,43 @@ export interface SystemGeometry {
 	firstBarLeft: number;
 	/** Repeat dots on a removed opening staff border, not an extra measure. */
 	initialRepeat?: boolean;
+	initialRepeatWinged?: boolean;
+}
+
+/** A scanned paper edge can touch all five rules. Require four parallel rules
+ * continuing for an interline to locate the actual ends of the staff. */
+function scanStaffExtent(band: StaffBand, width: number, dark: (x: number, y: number) => boolean) {
+	const interline = (band.bottom - band.top) / 4;
+	let left = -1;
+	let right = -1;
+	let run = 0;
+	for (let x = 0; x < width; x++) {
+		const rules = band.lines.filter((y) => [-2, -1, 0, 1, 2].some((dy) => dark(x, y + dy)));
+		run = rules.length >= 4 ? run + 1 : 0;
+		if (run >= interline) {
+			if (left < 0) left = x - run + 1;
+			right = x;
+		}
+	}
+	return left >= 0 ? { left, right } : null;
+}
+
+function hasScanMarks(
+	band: StaffBand, span: { left: number; right: number }, top: number, bottom: number,
+	dark: (x: number, y: number) => boolean
+): boolean {
+	const interline = (band.bottom - band.top) / 4;
+	let inkColumns = 0;
+	for (let x = span.left; x <= span.right; x++) {
+		for (let y = top; y <= bottom; y++) {
+			if (band.lines.every((line) => Math.abs(line - y) >= 0.25 * interline) && dark(x, y)) {
+				// Allow isolated specks from the scan.
+				if (++inkColumns >= Math.max(2, 0.15 * interline)) return true;
+				break;
+			}
+		}
+	}
+	return false;
 }
 
 /**
@@ -318,7 +376,9 @@ export interface SystemGeometry {
  * pixels. Ink is black — a pixel is dark only when EVERY channel is dark,
  * so colored highlight boxes (chord-tone coloring) are ignored.
  */
-export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): SystemGeometry[] {
+export function analyzePageGeometry(
+	page: PageImage, minRowDarkness = 0.3, recoveredScan = false
+): SystemGeometry[] {
 	const { data, width: W, height: H } = page;
 	const dark = (x: number, y: number): boolean => {
 		const i = (y * W + x) * 4;
@@ -333,6 +393,7 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 	}
 
 	const systems: SystemGeometry[] = [];
+	let lastPrintedStaff = 0;
 	for (const band of findStaffBands(rows, minRowDarkness)) {
 		const il = (band.bottom - band.top) / 4;
 		const bandH = band.bottom - band.top + 1;
@@ -404,16 +465,21 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 		}
 		// A border at the staff origin closes no measure. Remove it BEFORE
 		// scanning the clef/key header, otherwise it also truncates that scan.
-		const staffLeft = cols.findIndex((c) => c.touchesTop && c.touchesBottom);
-		const candidates = findBarlines(cols, il);
+		const span = recoveredScan ? scanStaffExtent(band, W, dark) : null;
+		const staffLeft = span?.left ?? Math.max(0, cols.findIndex((c) => c.touchesTop && c.touchesBottom));
+		const candidates = findBarlines(cols, il, 0.85, recoveredScan);
 		const opening = candidates.filter((x) => x <= staffLeft + il);
-		const barlines = candidates.filter((x) => x > staffLeft + il);
+		const barlines = candidates.filter((x) => x > staffLeft + il && (!span || x <= span.right + il));
 
 		const dotsOnSide = createRepeatDotReader(dark, W, H, band, il);
-		const repeatDots = barlines.map((bx) => ({
-			left: dotsOnSide(bx, -1),
-			right: dotsOnSide(bx, 1)
-		}));
+		const repeatDots = barlines.map((bx) => {
+			const left = dotsOnSide(bx, -1);
+			const right = dotsOnSide(bx, 1);
+			return { left, right,
+				...(left && hasRepeatWings(dark, bx, -1, band, il) && { wingedLeft: true }),
+				...(right && hasRepeatWings(dark, bx, 1, band, il) && { wingedRight: true }) };
+		});
+		const initial = opening.find(x => dotsOnSide(x, 1));
 
 		// Header end: walk dense glyph blocks (clef/key/meter run ~2+ il of
 		// off-line ink over ≥0.4 il of width) from the staff's left edge;
@@ -449,14 +515,37 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 		}
 		if (blockStart >= 0 && lastDark - blockStart >= 0.4 * il) firstBarLeft = lastDark;
 
+		// A manuscript often omits the clef on later lines. An accidental
+		// beside the opening note can then look like a short key signature.
+		// If the inferred header ends on a filled note's own stem, restore
+		// the physical opening barline so the crop includes its accidental.
+		const border = opening.at(-1);
+		if (span && border !== undefined && firstBarLeft - border > il && firstBarLeft - border < 5 * il) {
+			const heads = rasterHeadCandidates(page, { band, interline: il }, border, firstBarLeft + il);
+			const crossesNote = heads.some(head => {
+				if (head.hollow || head.score < 0.92 || Math.abs(head.x - firstBarLeft) >= il) return false;
+				const stem = attachedStem(head, dark, il);
+				return stem !== null && Math.abs(stem - firstBarLeft) <= 0.3 * il;
+			});
+			if (crossesNote) {
+				firstBarLeft = border;
+				while (firstBarLeft + 1 < limit && cols[firstBarLeft + 1].fill >= 0.85) firstBarLeft++;
+			}
+		}
+
+		// A trailing ruled staff on a manuscript pad can be completely empty.
+		// Keep even an unbarred line if it contains a mark between the rules.
+		if (!span || barlines.length || hasScanMarks(band, span, extLo, extHi, dark))
+			lastPrintedStaff = systems.length + 1;
 		systems.push({
 			band,
 			interline: il,
 			barlines,
 			repeatDots,
 			firstBarLeft,
-			initialRepeat: opening.some((x) => dotsOnSide(x, 1))
+			initialRepeat: initial !== undefined,
+			...(initial !== undefined && hasRepeatWings(dark, initial, 1, band, il) && { initialRepeatWinged: true })
 		});
 	}
-	return systems;
+	return systems.slice(0, lastPrintedStaff);
 }

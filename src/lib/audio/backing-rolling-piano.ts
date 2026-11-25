@@ -436,7 +436,10 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
   proposal: !!proposal, nativeLatePad, guideTones: !!guideTones, contourEnabled,
   memory, bassEvents, lastVoicingPredecessor
  }, { events, voicingTrace, lastSuspensionBar, lastVoicing, segmentVoicing, voicingMemory, contourMemory }));
- // Do not restart a voice whose preceding-bar source still owns its gate.
+ // Voice leading and contour remember the complete selected voicing. The
+ // preceding bar still sounds the shared pitches at this attack, even though
+ // its gate owns them. Keep that harmonic anchor through their release.
+ // The attack trace below records only the notes this event retriggers.
  if (commonTones && carry) for (const event of events) {
   if (parseInt(event.time,10) >= carry) continue;
   event.notes = event.notes.filter(n => !commonTones.includes(n));
@@ -447,7 +450,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
    while(commonTones.includes(event.notes[0]))event.notes[0]-=12;
   }
   const index=voicingTrace.findIndex(v=>v.time===event.time);
-  if(index>=0)voicingTrace[index]=Object.freeze({...voicingTrace[index],notes:[...event.notes]});
+  if (index >= 0) {
+   const trace = voicingTrace[index];
+   const filtered = event.notes.length !== trace.notes.length || event.notes.some((note, i) => note !== trace.notes[i]);
+   const currentPolicy = score.harmonicSupportVersion || score.pianoContinuityVersion === 2;
+   voicingTrace[index] = Object.freeze({ ...trace, notes: [...event.notes],
+    ...(currentPolicy && filtered ? { decision: { ...trace.decision, rootlessTexture: undefined } } : {}) });
+  }
  }
 	if (rhythmicSentence && bar === motif.sourceBar && (transform !== 'statement' || reason || !events.length || hits.length !== events.length || hits.some((hit,i) => events[i].absBeat !== bar * 4 + hit.b))) motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };
  const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;

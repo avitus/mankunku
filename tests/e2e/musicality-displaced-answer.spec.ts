@@ -26,11 +26,11 @@ test('plays a keyboard statement and its displaced snare answer across the Swing
  await expect.poll(async()=>Number(await sourceMeter.getAttribute('aria-valuenow')),{timeout:1800}).toBeGreaterThan(-58);
  await expect(page.locator('[data-testid="musician-drums"][data-bar-index="24"]')).toContainText('Move the keyboard rhythm one beat later',{timeout:10000});
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 75_000 });
- await expectAudibleListeningOutput(page);
  await page.locator('details.take-notes > summary').click();
  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
  const path = (await download.path())!;
  const take = JSON.parse(await readFile(path, 'utf8')).playback;
+ await expectAudibleListeningOutput(page, take.generated);
  expectEveryBarCommittedWithLead(take, 52);
  expect(take.provenance.dispatches.every((d: RollingBackingDispatch) => d.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;

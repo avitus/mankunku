@@ -24,11 +24,11 @@ test('plays the three early bass arrivals across Fly Me to the Moon', async ({ p
  await expect(page.getByTestId('listening-status')).toHaveText('Playing', { timeout: 90_000 });
  await expect(page.locator('[data-testid="musician-bass"][data-bar-index="2"]')).toContainText('Reach the next root on four', { timeout: 15_000 });
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 180_000 });
- await expectAudibleListeningOutput(page);
  await page.locator('details.take-notes > summary').click();
  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
  const path = (await download.path())!;
  const take = JSON.parse(await readFile(path, 'utf8')).playback;
+ await expectAudibleListeningOutput(page, take.generated);
  expectEveryBarCommittedWithLead(take, 96);
  expect(take.provenance.dispatches.every((group: RollingBackingDispatch) => group.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;

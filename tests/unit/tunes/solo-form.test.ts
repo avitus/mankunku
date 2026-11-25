@@ -65,7 +65,7 @@ describe('explicit material omitted from solo choruses', () => {
 			intro, section('A', 4, 62), section('Ending', endingBars, 65)
 		] });
 		const built = buildSessionPhrase({ flat: form(2), closingFlat: form(1), timeSignature: [4, 4],
-			playHead: false, playOutro: true, choruses: 2 });
+			playHead: false, playOutro: false, choruses: 2 });
 		const start = omitFromSolos ? 6 : 7;
 		expect(built.closingStartBar).toBe(start);
 		expect(built.outroStartBar).toBeNull();
@@ -146,7 +146,7 @@ describe('explicit material omitted from solo choruses', () => {
 		expect(solo.flat.totalBars).toBe(8);
 		expect(solo.flat.segmentSourceIndices).toEqual([0, 2]);
 		expect(solo.sourceBars).toEqual([0, 1, 2, 3, 8, 9, 10, 11]);
-		const session = buildSessionPhrase({ flat: original, timeSignature: [4, 4], playHead: false, playOutro: true, choruses: 2 });
+		const session = buildSessionPhrase({ flat: original, timeSignature: [4, 4], playHead: false, playOutro: false, choruses: 2 });
 		expect(session.phraseBars).toBe(16);
 		expect(session.notes).toEqual([]);
 		expect(session.closingStartBar).toBeNull();

@@ -42,6 +42,23 @@ beforeEach(() => {
 });
 
 describe('live major-region sessions', () => {
+	it('starts solo windows after the entire repeated opening head and Solo break', () => {
+		const tune = sheet({ sections: [
+			section({ bars: 3, repeatStart: true, notes: [{ pitch: 60, offset: [2, 1], duration: [1, 1] }],
+				directions: [{ text: 'Fine', offset: [2, 1] }],
+				harmony: [seg('D', 'min7', [0, 1], [1, 1]), seg('G', '7', [1, 1], [1, 1]), seg('C', 'maj7', [2, 1], [1, 1])] }),
+			section({ label: '', bars: 1, ending: 1, repeatEnd: true }),
+			section({ label: '', bars: 1, ending: 2, directions: [{ text: 'Solo break', offset: [0, 1] }] })
+		] });
+		initTunePractice(tune);
+		tunePractice.config.playHead = true;
+		tunePractice.config.choruses = 2;
+		const audio = startTunePracticeSession(tune, 480);
+		expect(audio.leadBars).toBe(8);
+		expect(tunePractice.plan[0].openTick).toBe((audio.countInBars + 8) * 4 * 480);
+		expect(tunePractice.plan.filter(ip => ip.markerKey === tunePractice.plan[0].markerKey)[1]?.openTick).toBe((audio.countInBars + 12) * 4 * 480);
+	});
+
 	it('Autumn in New York: preview, Start and scoring agree on bars 1–3, with bar 4 protected', () => {
 		const before = structuredClone(autumn);
 		const preview = previewSessionPlan(autumn, false, 1);

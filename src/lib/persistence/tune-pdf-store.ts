@@ -90,7 +90,7 @@ function openRawDb(name: string, keyPath: string): Promise<IDBDatabase> {
 }
 
 /** Uids whose legacy DB has been checked this session (promise = in flight). */
-const _migrated = new Map<string, Promise<void>>();
+const _migrated = new Map<string, Promise<boolean>>();
 
 /**
  * Best-effort copy-forward from the pre-rename `mankunku-leadsheet-pdfs:<uid>`
@@ -99,7 +99,7 @@ const _migrated = new Map<string, Promise<void>>();
  * log and never block reads. Once per uid per session — after the first run
  * the legacy open finds an empty store and just deletes it again (trivial).
  */
-function migrateLegacyPdfDb(uid: string): Promise<void> {
+function migrateLegacyPdfDb(uid: string): Promise<boolean> {
 	let pending = _migrated.get(uid);
 	if (pending) return pending;
 	pending = (async () => {
@@ -139,14 +139,19 @@ function migrateLegacyPdfDb(uid: string): Promise<void> {
 			// makes deleteDatabase fire `blocked` with NO terminal event — that
 			// must never wedge the memoised migration promise (openDb awaits
 			// it). The delete completes on its own once that tab closes.
-			await new Promise<void>((resolve) => {
+			return await new Promise<boolean>((resolve) => {
 				const req = indexedDB.deleteDatabase(legacyName);
-				req.onsuccess = () => resolve();
-				req.onerror = () => resolve();
-				req.onblocked = () => resolve();
+				req.onsuccess = () => {
+					// A blocked delete can still succeed after another tab closes.
+					if (_migrated.get(uid) === pending) _migrated.set(uid, Promise.resolve(true));
+					resolve(true);
+				};
+				req.onerror = () => resolve(false);
+				req.onblocked = () => resolve(false);
 			});
 		} catch (error) {
 			console.warn('Legacy tune-PDF migration failed (cache only, safe to ignore):', error);
+			return false;
 		}
 	})();
 	_migrated.set(uid, pending);
@@ -199,11 +204,12 @@ export async function saveTunePdf(
 	blob: Blob,
 	options: SaveTunePdfOptions = {}
 ): Promise<void> {
+	const uid = options.userId ?? getActiveUid();
 	try {
 		// Read the bytes before the transaction opens: an await on anything but
 		// an IndexedDB request would let the transaction auto-commit under us.
 		const record = await toRecord(tuneId, blob, Date.now());
-		const db = await openDb();
+		const db = await openDb(uid);
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
 			const store = tx.objectStore(STORE_NAME);
@@ -249,8 +255,9 @@ export async function getTunePdf(
 	supabase?: SupabaseClient<Database>,
 	userId?: string
 ): Promise<Blob | null> {
+	const uid = userId ?? getActiveUid();
 	try {
-		const db = await openDb();
+		const db = await openDb(uid);
 		try {
 			const tx = db.transaction(STORE_NAME, 'readonly');
 			const record = await idbReq<StoredPdfRecord | undefined>(tx.objectStore(STORE_NAME).get(tuneId));
@@ -273,7 +280,7 @@ export async function getTunePdf(
 			return null;
 		}
 		// Re-cache locally so subsequent reads are offline-capable.
-		await saveTunePdf(tuneId, data);
+		await saveTunePdf(tuneId, data, { userId: uid });
 		return data;
 	} catch (error) {
 		console.warn('Failed to download tune PDF from cloud:', error);
@@ -334,17 +341,20 @@ export async function deleteTunePdf(
 }
 
 /** Clear every locally cached PDF for a user (account deletion / wipe). */
-export async function clearAllTunePdfs(uid?: string): Promise<void> {
+export async function clearAllTunePdfs(uid = getActiveUid()): Promise<boolean> {
 	try {
-		const db = await openDb(uid);
+		const legacyCleared = await migrateLegacyPdfDb(uid);
+		const db = await openRawDb(dbNameFor(uid), 'tuneId');
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
 			tx.objectStore(STORE_NAME).clear();
 			await idbTx(tx);
+			return legacyCleared;
 		} finally {
 			db.close();
 		}
 	} catch (error) {
 		console.warn('Failed to clear tune PDFs:', error);
+		return false;
 	}
 }

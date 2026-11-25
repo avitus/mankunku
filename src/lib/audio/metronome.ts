@@ -20,6 +20,8 @@ let hihatFilter: InstanceType<ToneModule['Filter']> | null = null;
 let woodblockSynth: InstanceType<ToneModule['MembraneSynth']> | null = null;
 let gainNode: InstanceType<ToneModule['Gain']> | null = null;
 let sequence: import('tone').Sequence<number> | null = null;
+let loopingMeter: { numerator: number; denominator: number; startTick?: number } | null = null;
+let retiringClicks: { sequence: import('tone').Sequence<number>; endTick: number }[] = [];
 let countInSequence: import('tone').Sequence<number> | null = null;
 
 async function getTone(): Promise<ToneModule> {
@@ -153,61 +155,47 @@ export async function scheduleMetronome(
 	const Tone = await getTone();
 	if (!isStillCurrent()) return;
 
-	// Dispose previous sequence
-	if (sequence) {
-		sequence.dispose();
-		sequence = null;
-	}
+	disposeKitSequences();
+	sequence = createKitSequence(Tone, beatsPerBar, denominator, bars, startAt);
+	if (bars === null) loopingMeter = { numerator: beatsPerBar, denominator };
+}
 
-	const beatsInPattern = beatsPerBar;
-	const pattern = Array.from({ length: beatsInPattern }, (_, i) => i);
+function createKitSequence(Tone: ToneModule, numerator: number, denominator: number, bars: number | null, startAt: string | number) {
+	const subdivision = `${Tone.getTransport().PPQ * 4 / denominator}i` as const;
+	const beats = Array.from({ length: numerator * (bars ?? 1) }, (_, i) => i % numerator);
+	const kit = new Tone.Sequence(playEachBeatOnce((time, beat) => {
+		if (beat === 0) kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
+		else rideSynth!.triggerAttackRelease('16n', time, 0.4);
+		if (beat === 1 || beat === 3) hihatSynth!.triggerAttackRelease('32n', time, 0.5);
+	}), beats, subdivision);
+	kit.loop = bars === null;
+	kit.start(startAt);
+	return kit;
+}
 
-	if (bars !== null) {
-		// Finite: build a flat array of all beats
-		const totalBeats = beatsPerBar * bars;
-		const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
+/** Hand an open click loop over at the phrase downbeat, preserving a finite count-in. */
+export function continueMetronome([numerator, denominator]: readonly [number, number], startTick: number): void {
+	if (!loopingMeter || !sequence || !tone) return;
+	if (loopingMeter.numerator === numerator && loopingMeter.denominator === denominator && startTick >= (loopingMeter.startTick ?? 0)) return;
 
-		sequence = new Tone.Sequence(
-			playEachBeatOnce((time, beat) => {
-				if (beat === 0) {
-					// Kick drum on the downbeat
-					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
-				} else {
-					// Ride cymbal on beats 2, 3, 4
-					rideSynth!.triggerAttackRelease('16n', time, 0.4);
-				}
-				// Hi-hat chick on 2 & 4
-				if (beat === 1 || beat === 3) {
-					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
-				}
-			}),
-			allBeats,
-			`${denominator}n`
-		);
-		sequence.start(startAt);
-		sequence.loop = false;
-	} else {
-		// Infinite loop for recording phase
-		sequence = new Tone.Sequence(
-			playEachBeatOnce((time, beat) => {
-				if (beat === 0) {
-					// Kick drum on the downbeat
-					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
-				} else {
-					// Ride cymbal on beats 2, 3, 4
-					rideSynth!.triggerAttackRelease('16n', time, 0.4);
-				}
-				// Hi-hat chick on 2 & 4
-				if (beat === 1 || beat === 3) {
-					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
-				}
-			}),
-			pattern,
-			`${denominator}n`
-		);
-		sequence.start(startAt);
-		sequence.loop = true;
-	}
+	const now = tone.getTransport().ticks;
+	retiringClicks.push({ sequence, endTick: startTick });
+	retiringClicks = retiringClicks.filter(click => {
+		click.endTick = Math.min(click.endTick, startTick);
+		if (click.endTick <= now) { click.sequence.dispose(); return false; }
+		click.sequence.stop(`${click.endTick}i`);
+		return true;
+	});
+	sequence = createKitSequence(tone, numerator, denominator, null, `${startTick}i`);
+	loopingMeter = { numerator, denominator, startTick };
+}
+
+function disposeKitSequences(): void {
+	sequence?.dispose();
+	sequence = null;
+	loopingMeter = null;
+	for (const click of retiringClicks) click.sequence.dispose();
+	retiringClicks = [];
 }
 
 /**
@@ -253,10 +241,7 @@ export async function setMetronomeVolume(volume: number): Promise<void> {
 
 /** Stop and dispose the metronome sequences (kit and count-in) */
 export function disposeMetronome(): void {
-	if (sequence) {
-		sequence.dispose();
-		sequence = null;
-	}
+	disposeKitSequences();
 	if (countInSequence) {
 		countInSequence.dispose();
 		countInSequence = null;

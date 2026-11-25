@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	defaultSourceTransposition,
+	sourcePitchFromFilename,
 	sourceTranspositionSemitones,
 	writtenSheetToConcert,
 	SOURCE_TRANSPOSITIONS
@@ -16,6 +17,19 @@ describe('defaultSourceTransposition', () => {
 		expect(defaultSourceTransposition(INSTRUMENTS['trumpet'])).toBe('Bb');
 		expect(defaultSourceTransposition(INSTRUMENTS['soprano-sax'])).toBe('Bb');
 		expect(defaultSourceTransposition(INSTRUMENTS['alto-sax'])).toBe('Eb');
+	});
+});
+
+describe('a labelled PDF part', () => {
+	it('reads explicit part suffixes while leaving tune keys and ambiguous labels alone', () => {
+		expect(sourcePitchFromFilename('Evening Walk (Bb).pdf')).toBe('Bb');
+		expect(sourcePitchFromFilename('Evening Walk [E♭ Inst.].PDF')).toBe('Eb');
+		expect(sourcePitchFromFilename('Evening Walk – Concert Pitch.pdf')).toBe('C');
+		expect(sourcePitchFromFilename('Suite – Evening Walk – Bb.pdf')).toBe('Bb');
+	expect(sourcePitchFromFilename('Suite – Evening Walk (Eb).pdf')).toBe('Eb');
+	expect(sourcePitchFromFilename('Blues in Bb.pdf')).toBeUndefined();
+		expect(sourcePitchFromFilename('Evening Walk (Bb minor).pdf')).toBeUndefined();
+		expect(sourcePitchFromFilename('Evening Walk (Bb and Eb).pdf')).toBeUndefined();
 	});
 });
 

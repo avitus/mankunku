@@ -247,6 +247,15 @@ describe('phaseCueAt', () => {
 		expect(phaseCueAt(15.9 * PPQ, timeline, PPQ).countdown).toBe(1);
 	});
 
+	it('counts the last four eighth notes of a 6/8 preparation bar', () => {
+		const eighth = PPQ / 2;
+		const phases = [{ phase: 'count-in', startTick: 0, endTick: 6 * eighth },
+			{ phase: 'play', startTick: 6 * eighth, endTick: 12 * eighth }] as const;
+		expect([0, 1, 2, 3, 4, 5].map(beat => phaseCueAt(beat * eighth, phases, eighth).countdown))
+			.toEqual([0, 0, 4, 3, 2, 1]);
+		expect(phaseCueAt(6 * eighth, phases, eighth).phase).toBe('play');
+	});
+
 	it('stays silent (countdown 0) while the switch is still far off', () => {
 		expect(phaseCueAt(0, timeline, PPQ).countdown).toBe(0);
 		expect(phaseCueAt(11 * PPQ, timeline, PPQ).countdown).toBe(0);

@@ -46,7 +46,7 @@ for (const keyboard of ['piano','organ'] as const) test(`0.18 full Rhythm Change
  expect(carries.length).toBeGreaterThan(0);
  expect(evidence.carry).toBeGreaterThan(0);expect(evidence.breath).toBeGreaterThan(0);
  for(const peak of evidence.peaks)expect(peak).toBeGreaterThan(-46);
- await expectAudibleListeningOutput(page);
+ await expectAudibleListeningOutput(page, generated);
  console.log('CROSS_BAR_AUDITION',JSON.stringify({keyboard,evidence,carries:carries.map(e=>({bar:Math.floor(e.absBeat/4)+1,beat:e.absBeat%4+1,releaseTick:e.barLineSustain!.releaseTick,duration:e.duration}))}));
  await page.screenshot({path:info.outputPath('cross-bar-complete.png'),fullPage:true});
 });

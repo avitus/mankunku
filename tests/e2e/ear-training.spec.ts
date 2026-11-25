@@ -202,7 +202,7 @@ test.describe('ear-training: practice-time counter', () => {
  * detectors' readings on the audio clock.
  */
 test.describe('ear-training: saved take', () => {
-	test('is saved with its capture timing', async ({
+	test('is rescored in a worker with the band playing and saved with its capture timing', async ({
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -217,9 +217,14 @@ test.describe('ear-training: saved take', () => {
 		);
 		test.setTimeout(60_000);
 
-		await seedOnboardedAnonymous(page);
+		await seedStorage(page, {
+			settings: { ...SETTINGS_ONBOARDED, backingTrackEnabled: true, tonalityOverride: { key: 'C', scaleType: 'major' } },
+			'tour-state': TOUR_DISMISSED
+		});
 		await installAudioMock(page, { fixturePath: '2026-09-18-blues-curl-up.wav' });
 		await stubCdnInstrumentSamples(page);
+		const workerUrls: string[] = [];
+		page.on('worker', worker => workerUrls.push(worker.url()));
 		await page.goto('/ear-training', { waitUntil: 'networkidle' });
 		await page.locator('[data-tour="play-button"]').click();
 
@@ -238,13 +243,13 @@ test.describe('ear-training: saved take', () => {
 				});
 				try {
 					const rows = await new Promise<
-						Array<{ metadata: { source?: string; captureTiming?: unknown } | null }>
+						Array<{ metadata: { source?: string; scoreSource?: string; captureTiming?: unknown } | null }>
 					>((resolve, reject) => {
 						const req = db.transaction('recordings', 'readonly').objectStore('recordings').getAll();
 						req.onsuccess = () => resolve(req.result);
 						req.onerror = () => reject(req.error);
 					});
-					const take = rows.find((r) => r.metadata?.source === 'ear-training');
+					const take = rows.find((r) => r.metadata?.source === 'ear-training' && r.metadata.scoreSource === 'replay');
 					return take ? (take.metadata?.captureTiming ?? 'missing') : null;
 				} finally {
 					db.close();
@@ -252,6 +257,7 @@ test.describe('ear-training: saved take', () => {
 			});
 
 		await expect.poll(readTiming, { timeout: 45_000 }).not.toBeNull();
+		expect(workerUrls).toContainEqual(expect.stringContaining('/replay-take-worker'));
 		const t = (await readTiming()) as {
 			version: number;
 			arm: {
@@ -280,7 +286,7 @@ test.describe('ear-training: saved take', () => {
 		await expect(page.getByRole('button', { name: 'Pause practice', exact: true })).toBeEnabled();
 		await page.getByRole('button', { name: 'Pause practice', exact: true }).click();
 		await expect(quote).not.toHaveText('');
-		await expect(page.locator('[data-tour="score-display"]')).toContainText('Last take');
+		await expect(page.getByRole('region', { name: 'Last take score' })).toBeVisible();
 		const scoreBefore = await page.locator('[data-tour="score-display"]').textContent();
 		await page.getByRole('button', { name: 'Start practice', exact: true }).click();
 		await expect(quote).toHaveText('');

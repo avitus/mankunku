@@ -176,7 +176,7 @@ describe('claudeJsonToTune — print-fidelity fields', () => {
 });
 
 describe('claudeJsonToTune — bar-wise schema (v2)', () => {
-	function barwiseDoc(): Record<string, unknown> {
+	function barwiseDoc(mark: string | null = 'A'): Record<string, unknown> {
 		return {
 			title: 'Barwise Tune',
 			composer: null,
@@ -187,7 +187,7 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 				{
 					bars: [
 						{ pickup: true, chords: [], melody: [[3, 1, 'F4']] },
-						{ mark: 'A', startRepeat: true, chords: [[0, 'Bb6']], melody: [[0, 2, 'Bb4'], [2, 2, 'D5']] },
+						{ mark, startRepeat: true, chords: [[0, 'Bb6']], melody: [[0, 2, 'Bb4'], [2, 2, 'D5']] },
 						{ chords: [[0, 'Cm7'], [2, 'F7']], melody: [[0, 4, 'C5', true]] }
 					]
 				},
@@ -218,6 +218,12 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		]);
 	});
 
+	it('keeps the repeat and both endings unlabelled when the PDF has no rehearsal mark', () => {
+		const { sheet } = claudeJsonToTune(barwiseDoc(null));
+		expect(sheet!.sections.map(section => section.label)).toEqual(['', '', '', '']);
+		expect(sheet!.sections.map(section => section.ending)).toEqual([undefined, undefined, 1, 2]);
+	});
+
 	it('places chords and melody at their in-bar beats, ties preserved', () => {
 		const { sheet } = claudeJsonToTune(barwiseDoc());
 		const a = sheet!.sections[1];
@@ -227,7 +233,7 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 			['F7', [3, 2]]
 		]);
 		expect(a.notes).toEqual([
-			{ pitch: 70, duration: [1, 2], offset: [0, 1] },
+			{ pitch: 70, duration: [1, 2], offset: [0, 1], spelling: 'flat' },
 			{ pitch: 74, duration: [1, 2], offset: [1, 2] },
 			{ pitch: 72, duration: [1, 1], offset: [1, 1], tied: true }
 		]);
@@ -249,6 +255,14 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		// An impossible value falls back to the derivation.
 		bars[0].pickupBeats = 4;
 		expect(claudeJsonToTune(doc).sheet!.sections[0].pickupLength).toEqual([1, 2]);
+	});
+
+	it('keeps an unpadded eighth-note pickup even when a reader supplies a silent prefix', () => {
+		for (const melody of [[[3.5, 0.5, 'D4']], [[0, 3.5, 'rest'], [3.5, 0.5, 'D4']]]) {
+			const doc = barwiseDoc();
+			(doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[0].bars[0].melody = melody;
+			expect(claudeJsonToTune(doc).sheet!.sections[0].pickupLength).toEqual([1, 8]);
+		}
 	});
 
 	it('leaves a chords-only pickup bar without a printed length', () => {

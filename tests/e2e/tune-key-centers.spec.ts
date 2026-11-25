@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import { threeLaneSheet } from '../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
@@ -15,41 +16,37 @@ for (const width of [1440, 390]) {
 		await seedTunes(page, [autumn]);
 		await page.setViewportSize({ width, height: 1000 });
 		await page.goto('/tunes/key-center-autumn');
-		const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
-		await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+		const toggle = page.getByRole('switch', { name: 'Show key centers', exact: true });
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
 		await expect(page.getByRole('button', { name: 'Harmony colors', exact: true })).toHaveCount(0);
 		const g = page.locator('svg [data-key-center="G major"]').first();
 		const a = page.locator('svg [data-key-center="A minor"]').first();
 		await expect(g).toBeVisible(); await expect(a).toBeVisible();
 		await expect(page.getByText('Key-center readings', { exact: true })).toHaveCount(0);
-		await expect(g.locator('text')).toHaveText('G maj');
-		await expect(a.locator('text')).toHaveText('A min');
-		await expect(g.locator('line')).toHaveCSS('stroke-width', '2.5px');
-		// Both overlapping rails remain below the music and inside the SVG,
-		// including the last system and the narrower mobile engraving.
-		const railsFit = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.every(rail => {
-			const box = rail.getBoundingClientRect();
-			const svg = rail.closest('svg')!.getBoundingClientRect();
-			const notes = rail.parentElement!.querySelectorAll('.abcjs-note');
-			const wrappers = [...rail.closest('svg')!.querySelectorAll('.abcjs-staff-wrapper')];
-			const next = wrappers[wrappers.indexOf(rail.parentElement!) + 1];
-			const nextInk = next?.querySelectorAll('.abcjs-note, .abcjs-chord, .abcjs-part, .abcjs-bar-number') ?? [];
-			return box.bottom <= svg.bottom && [...notes].every(note => note.getBoundingClientRect().bottom < box.top)
-				&& [...nextInk].every(ink => ink.getBoundingClientRect().top > box.bottom);
-		}));
-		expect(railsFit).toBe(true);
+		await expect(g).toHaveAccessibleName('G major');
+		await expect(g.locator('text')).toBeHidden();
+		await expect(a).toHaveAccessibleName('A minor');
+		await expect(a.locator('text')).toBeHidden();
+		await expect(g).toHaveAttribute('data-treatment', 'chord-stroke');
+		expect(await g.evaluate(group => {
+			const chord = group.parentElement!.querySelector('.abcjs-chord')!;
+			const rect = group.querySelector('rect')!.getBoundingClientRect();
+			const ink = chord.getBoundingClientRect();
+			return rect.top < ink.bottom && rect.bottom > ink.top &&
+				!!(group.compareDocumentPosition(chord) & Node.DOCUMENT_POSITION_FOLLOWING);
+		})).toBe(true);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-${width}.png`), fullPage: true });
 		await page.evaluate(() => document.documentElement.classList.add('light'));
 		const lightColor = await g.evaluate(el => getComputedStyle(el).color);
-		await expect(g.locator('line')).toHaveCSS('stroke', lightColor);
-		await expect(g.locator('text')).toHaveCSS('fill', lightColor);
+		await expect(g.locator('rect')).toHaveCSS('fill', lightColor);
+		await expect(g.locator('text')).toBeHidden();
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-light-${width}.png`), fullPage: true });
 		await page.evaluate(() => document.documentElement.classList.remove('light'));
 		await toggle.click();
 		await expect(page.locator('[data-key-center]')).toHaveCount(0);
-		await page.getByRole('button', { name: /Practice licks/ }).click();
-		await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+		await page.getByRole('switch', { name: 'Lick Practice' }).click();
+		await expect(toggle).toHaveAttribute('aria-checked', 'false');
 		await expect(page.locator('svg text.range-marker-label').first()).toBeVisible();
 		const planned = await page.locator('svg text.range-marker-label').allTextContents();
 		await toggle.click();
@@ -58,9 +55,10 @@ for (const width of [1440, 390]) {
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await page.screenshot({ path: info.outputPath(`key-centers-setup-${width}.png`), fullPage: true });
 		await page.reload();
-		await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+		await expect(toggle).toHaveAttribute('aria-checked', 'true');
 		await expect(g).toBeVisible();
-		await page.getByLabel('Key', { exact: true }).selectOption('A');
+		await openTuneSettings(page);
+		await page.getByLabel('Written key', { exact: true }).selectOption('A');
 		await expect(page.getByRole('list', { name: 'Key center legend' })).toContainText('A major');
 		await expect(page.locator('svg [data-key-center="A major"]').first()).toBeVisible();
 	});
@@ -77,7 +75,7 @@ test('a short IV-compatible passage keeps the longer cadenced key on the chart a
 	const labels = page.getByRole('list', { name: 'Key center legend' }).getByRole('listitem');
 	await expect(labels).toHaveText(['D major']); // concert C, written for tenor
 	await expect(page.getByTestId('tune-chord-chart').locator('[data-key-center="D major"]')).toHaveCount(5);
-	await page.getByRole('button', { name: /Practice licks/ }).click();
+	await page.getByRole('switch', { name: 'Lick Practice' }).click();
 	await expect(labels).toHaveText(['D major']);
 	await expect(page.locator('svg [data-key-center="D major"]').first()).toBeVisible();
 });
@@ -102,7 +100,7 @@ test('chord-only chart keeps G major through the secondary dominant and returnin
 		expect(await rail.evaluate(el => [(el as HTMLElement).style.left, (el as HTMLElement).style.width])).toEqual([left, '50%']);
 	}
 	await expect(splitBar.locator('[data-key-center="A minor"]')).toHaveCount(0);
-	await page.getByRole('button', { name: /Practice licks/ }).click();
+	await page.getByRole('switch', { name: 'Lick Practice' }).click();
 	// Setup uses the engraved staff even when the tune has no melody.
 	await expect(page.locator('svg [data-key-center="G major"]').nth(1)).toBeVisible();
 });
@@ -110,7 +108,7 @@ test('chord-only chart keeps G major through the secondary dominant and returnin
 test('freestyle keeps key centers without adding insertion windows', async ({ page }) => {
 	await seedTunes(page, [autumn]);
 	await seedStorage(page, { 'tune-practice-options': { mode: 'freestyle', strictness: 'guided', playHead: false } });
-	await page.goto('/tunes/key-center-autumn/practice');
+	await page.goto('/tunes/key-center-autumn?licks=1');
 	await expect(page.locator('svg [data-key-center="G major"]').first()).toBeVisible();
 	await expect(page.locator('svg .range-marker-label')).toHaveCount(0);
 	await expect(page.locator('.tp-insertion-status')).toContainText('No insertion windows');
@@ -139,7 +137,7 @@ test('All the Things You Are shows local centers beyond its key signature', asyn
 	for (const bar of [28, 29, 34, 35, 36]) {
 		await expect(page.getByTestId('tune-chord-chart').locator(`[data-bar="${bar}"] [data-key-center="Bb major"]`)).toBeVisible();
 	}
-	await page.goto('/tunes/key-center-all-things/practice');
+	await page.goto('/tunes/key-center-all-things?licks=1');
 	await expect(page.getByRole('list', { name: 'Key center legend' })).toBeVisible();
 	await expect.poll(() => page.getByRole('list', { name: 'Key center legend' }).locator('li').count()).toBeGreaterThan(3);
 	await expect(page.locator('svg [data-key-center="A major"]').first()).toBeVisible();
@@ -158,19 +156,20 @@ test('the displayed closing ending supplies its own center', async ({ page }) =>
 			{ label: 'Close', bars: 1, ending: 2, notes, harmony: [chord('C', 'maj7', 0, 2)] }
 		] }]);
 	await page.goto('/tunes/key-center-endings');
-	await expect(page.getByRole('button', { name: 'Show Key Centers', exact: true })).toBeVisible();
-	await page.locator('details.td-session-options summary').click();
-	await page.getByRole('switch', { name: 'Play head and outro', exact: true }).click();
-	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).fill('2');
-	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).blur();
+	await expect(page.getByRole('switch', { name: 'Show key centers', exact: true })).toBeVisible();
+
+	await page.getByRole('switch', { name: 'Head', exact: true }).click();
+	await page.getByRole('switch', { name: 'Outro', exact: true }).click();
+	await page.getByRole('spinbutton', { name: 'Choruses', exact: true }).fill('2');
+	await page.getByRole('spinbutton', { name: 'Choruses', exact: true }).blur();
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 	await expect(page.getByTestId('tune-chord-chart').locator('[data-bar="1"] [data-key-center="D major"]')).toHaveCount(0);
-	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).fill('1');
-	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).blur();
+	await page.getByRole('spinbutton', { name: 'Choruses', exact: true }).fill('1');
+	await page.getByRole('spinbutton', { name: 'Choruses', exact: true }).blur();
 	await expect(page.getByTestId('tune-chord-chart').locator('[data-bar="1"] [data-key-center="D major"]')).toBeVisible();
 });
 
-for (const width of [1440, 390]) test(`chord rails label a late entrance on the first fitting span at ${width}px`, async ({ page }) => {
+for (const width of [1440, 390]) test(`chord tint tracks a late entrance without printed key letters at ${width}px`, async ({ page }) => {
 	await page.setViewportSize({ width, height: 1000 });
 	await seedTunes(page, [{ id: 'late-key-center', title: 'Late Key Center', key: 'C', timeSignature: [4, 4], source: 'user', tags: [],
 		sections: [{ label: 'A', bars: 4, notes: [], harmony: [
@@ -181,11 +180,11 @@ for (const width of [1440, 390]) test(`chord rails label a late entrance on the 
 	await page.goto('/tunes/late-key-center');
 	const chart = page.getByTestId('tune-chord-chart');
 	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"]')).toBeVisible();
-	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"] span')).toHaveCount(0);
-	await expect(chart.locator('[data-bar="1"] [data-key-center="D major"] span')).toBeVisible();
-	const nextRow = chart.locator('[data-bar="2"] [data-key-center="D major"] span');
-	if (width === 390) await expect(nextRow).toBeVisible();
-	else await expect(nextRow).toBeHidden();
+	const entrance = chart.locator('[data-bar="0"] [data-key-center="D major"]');
+	await expect(entrance).toHaveAccessibleName('D major');
+	expect(await entrance.evaluate(el => (el as HTMLElement).style.left)).toBe('75%');
+	await expect(chart.locator('[data-bar="1"] [data-key-center="D major"]')).toBeVisible();
+	await expect(chart.locator('[data-key-center] span:visible')).toHaveCount(0);
 });
 
 for (const width of [1440, 390]) for (const melody of [true, false]) {
@@ -196,7 +195,7 @@ for (const width of [1440, 390]) for (const melody of [true, false]) {
 		const rail = page.locator('[data-key-center-lane="2"]').last();
 		await expect(rail).toBeVisible();
 		if (melody) {
-			const failures = await page.locator('svg .key-center-rail').evaluateAll(rails => rails.flatMap(rail => {
+			const failures = await page.locator('svg .key-center-ink').evaluateAll(rails => rails.flatMap(rail => {
 				const box = rail.getBoundingClientRect();
 				const svg = rail.closest('svg')!;
 				const wrappers = [...svg.querySelectorAll('.abcjs-staff-wrapper')];
@@ -211,7 +210,7 @@ for (const width of [1440, 390]) for (const melody of [true, false]) {
 			const { top, height } = el.getBoundingClientRect(); return { top: top - elements[0].getBoundingClientRect().top, height };
 		}));
 		const before = await geometry();
-		const toggle = page.getByRole('button', { name: 'Show Key Centers', exact: true });
+		const toggle = page.getByRole('switch', { name: 'Show key centers', exact: true });
 		await toggle.click();
 		await expect(page.locator('[data-key-center]')).toHaveCount(0);
 		expect(await geometry()).toEqual(before);
@@ -220,3 +219,36 @@ for (const width of [1440, 390]) for (const melody of [true, false]) {
 		expect(await geometry()).toEqual(before);
 	});
 }
+
+test('illustrated chart settings persist independently and print the written melody', async ({ page }) => {
+	const tune = structuredClone(autumn);
+	tune.sections[0].notes[0].gliss = true;
+	await seedTunes(page, [tune]);
+	await page.goto('/settings');
+	const radio = (name: string) => page.getByRole('radio', { name, exact:true });
+	await expect(radio('Chord stroke')).toBeChecked();
+	await expect(radio('Full bar')).toBeChecked();
+	await radio('Staff wash').check();
+	await radio('Top strip').check();
+	await page.reload();
+	await expect(radio('Staff wash')).toBeChecked();
+	await expect(radio('Top strip')).toBeChecked();
+	await page.goto('/tunes/key-center-autumn');
+	await openTuneSettings(page);
+	await page.getByRole('button', { name: 'Print lead sheet' }).click();
+	const rows = page.locator('.systems > svg');
+	await expect(rows.first().locator('.abcjs-note').first()).toBeVisible();
+	await expect(rows.first().locator('.abcjs-glissando')).toBeVisible();
+	await expect(rows.locator('.abcjs-glissando')).toHaveCount(1);
+	const wash = rows.locator('[data-treatment="staff-wash"]').first();
+	await expect(wash).toBeVisible();
+	expect(await wash.evaluate(group => {
+		const staff = group.parentElement!.querySelector('.abcjs-staff')!.getBoundingClientRect();
+		const tint = group.querySelector('rect')!.getBoundingClientRect();
+		return tint.bottom > staff.top && tint.top < staff.bottom;
+	})).toBe(true);
+	await page.emulateMedia({ media:'print' });
+	await expect(page.getByRole('navigation').first()).toBeHidden();
+	await expect(rows.last()).toBeVisible();
+	await expect(page.getByRole('button', { name:'Print', exact:true })).toBeHidden();
+});

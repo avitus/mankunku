@@ -20,10 +20,10 @@ import { SAMPLE_OPTIONS, SOUNDFONT_OPTIONS, SAMPLE_CHANNEL_REFERENCE, SOUNDFONT_
 import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
-import { fractionToFloat } from '$lib/music/intervals';
+import { addFractions, compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMelodyGain, setMasterVolume } from './audio-context';
-import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
+import { scheduleMetronome, continueMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
 import {
 	loadBackingInstruments,
 	startBackingTrack,
@@ -37,6 +37,7 @@ import {
 	playCountOff,
 	prepareBackingSection
 } from './backing-track';
+import { scheduleBoundaryEvents } from './boundary-events';
 import { COUNT_IN_VOICE, drumCountInHits } from './drum-count-in';
 import {
 	codaPhrase,
@@ -46,6 +47,7 @@ import {
 	splitLoopEvents,
 	type LoopRegion
 } from './phrase-loop';
+import { earTrainingGain, earTrainingVoice, loadEarTrainingVoice } from './ear-training-voices';
 import { loadSampleLayer } from './sample-loader';
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
@@ -95,6 +97,9 @@ export interface PlaybackNoteEvent {
 let tone: ToneModule | null = null;
 /** SoundFont instrument (used when no custom samples available) */
 let instrument: SmplrSoundfont | null = null;
+let concertPlayer: Awaited<ReturnType<typeof loadEarTrainingVoice>> | null = null;
+let loadedInstrumentId: string | undefined;
+let loadedMode: 'ear-training' | undefined;
 /** Custom sample layers for velocity switching */
 let samplerPiano: SmplrSampler | null = null;
 let samplerForte: SmplrSampler | null = null;
@@ -278,6 +283,10 @@ function cleanupJazzExpression(): void {
  * argument-less disconnects, which never throw.
  */
 function cleanupInstruments(): void {
+	concertPlayer?.disconnect();
+	concertPlayer = null;
+	loadedInstrumentId = undefined;
+	loadedMode = undefined;
 	if (samplerPiano) {
 		samplerPiano.disconnect();
 		samplerPiano = null;
@@ -364,9 +373,11 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 	const { Soundfont } = await import('smplr');
 	if (loadId !== currentLoadId) return;
 
+	const voice = instrumentVoice(instrumentId);
 	const newInstrument = new Soundfont(audioCtx, {
 		...SOUNDFONT_OPTIONS,
-		instrument: instrumentVoice(instrumentId).soundfont,
+		instrument: voice.soundfont,
+		loopDataUrl: voice.soundfontLoopUrl,
 		kit: 'MusyngKite',
 		loadLoopData: true,
 		destination: getMelodyGain()
@@ -390,7 +401,8 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 export async function loadInstrument(
 	instrumentId: string = 'tenor-sax',
 	masterVolume?: number,
-	backingInstrument?: BackingInstrument
+	backingInstrument?: BackingInstrument,
+	mode?: 'ear-training'
 ): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
@@ -404,7 +416,15 @@ export async function loadInstrument(
 
 	// Try custom samples first, fall back to SoundFont
 	const sampleMap = instrumentVoice(instrumentId).samples;
-	if (sampleMap) {
+	const voice = mode === 'ear-training' ? earTrainingVoice(instrumentId) : undefined;
+	if (voice) {
+		const player = await loadEarTrainingVoice(audioCtx, getMelodyGain(), voice);
+		if (loadId !== currentLoadId) {
+			player.disconnect();
+			return;
+		}
+		concertPlayer = player;
+	} else if (sampleMap) {
 		const loaded = await loadCustomSamples(audioCtx, sampleMap, loadId);
 		if (loadId !== currentLoadId) return;
 		if (!loaded) {
@@ -417,6 +437,18 @@ export async function loadInstrument(
 	}
 
 	setupJazzExpression(audioCtx, instrumentId);
+	if (mode === 'ear-training') {
+		const gain = earTrainingGain(instrumentId, !!sampleMap && !activeSampleMap);
+		if (concertPlayer) {
+			const trim = audioCtx.createGain();
+			trim.gain.value = gain;
+			concertPlayer.output.addInsert(trim);
+		} else if (melodyTrim) {
+			melodyTrim.gain.value *= gain;
+		}
+	}
+	loadedInstrumentId = instrumentId;
+	loadedMode = mode;
 
 	// Load backing track instruments in parallel with metronome warmup
 	// Backing track load is best-effort — failures must not block playback
@@ -433,8 +465,9 @@ export async function loadInstrument(
 /**
  * Check if an instrument is loaded and ready.
  */
-export function isInstrumentLoaded(): boolean {
-	return instrument !== null || (samplerPiano !== null && samplerForte !== null);
+export function isInstrumentLoaded(instrumentId?: string, mode?: 'ear-training'): boolean {
+	if (instrumentId !== undefined && (instrumentId !== loadedInstrumentId || loadedMode !== mode)) return false;
+	return concertPlayer !== null || instrument !== null || (samplerPiano !== null && samplerForte !== null);
 }
 
 /**
@@ -443,6 +476,10 @@ export function isInstrumentLoaded(): boolean {
  * and applies per-note tuning corrections from the SFZ mapping.
  */
 function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
+	if (concertPlayer) {
+		concertPlayer.start({ note: event.midi, velocity: event.velocity, time: event.time, duration: event.duration });
+		return;
+	}
 	shapeVibrato(event.time, event.duration, event.release);
 	if (activeSampleMap && samplerPiano && samplerForte) {
 		// Layer + tuning are chosen from the intended (un-humanized) velocity so
@@ -473,6 +510,7 @@ function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void 
 
 /** Stop all ringing notes on the active instrument. */
 function stopNotes(): void {
+	concertPlayer?.stop();
 	samplerPiano?.stop();
 	samplerForte?.stop();
 	instrument?.stop();
@@ -546,7 +584,7 @@ export function phraseToEvents(
 	tempo: number,
 	swing: number,
 	ppq: number,
-	{ performed = false }: { performed?: boolean } = {}
+	{ performed = false, tongueRepeats = false }: Pick<PhrasePlaybackOpts, 'performed' | 'tongueRepeats'> = {}
 ): PlaybackEvent[] {
 	// Rest-skip + tie-merge into sounding notes, then compute per-note musical
 	// expression (dynamics + articulation). The expression pass NEVER touches
@@ -565,6 +603,23 @@ export function phraseToEvents(
 		const gridTicks = Math.round(swungBeats * ppq);
 		const ticks = performed ? gridTicks : humanizeTiming(gridTicks, ppq, tempo);
 		const notatedSeconds = fractionToFloat(s.duration) * 4 * (60 / tempo);
+
+		const prev = sounding[k - 1];
+		if (tongueRepeats && !performed && prev?.pitch === s.pitch &&
+			compareFractions(addFractions(prev.offset, prev.duration), s.offset) === 0) {
+			// Fade the preceding sample into the new reed attack. Use the actual
+			// swung, humanized interval: a short upbeat can otherwise ring right
+			// across the downbeat. Tied continuations already form one event.
+			const prior = events[k - 1];
+			const interval = (ticks - prior.ticks) * 60 / (ppq * tempo);
+			if (interval > 0) {
+				const lead = Math.min(0.022, interval * 0.12);
+				prior.duration = Math.min(prior.duration, interval - lead);
+				// Let some tone carry through the attack, even on a fast upbeat.
+				const fadeBeforeAttack = interval - prior.duration;
+				prior.release = Math.min(prior.release, fadeBeforeAttack * 1.5 + lead / 2);
+			}
+		}
 
 		events.push({
 			time: `${ticks}i`,
@@ -678,6 +733,8 @@ function getPhraseBars(phrase: Phrase): number {
  * `onStarted` is added to the freshly-started transport and will fire.
  */
 export interface PhrasePlaybackOpts {
+	/** Give adjacent untied unisons a soft re-attack in a sax ear-training call. */
+	tongueRepeats?: boolean;
 	skipMelody?: boolean;
 	/** The phrase is a recorded performance: play its timing as written (see `phraseToEvents`). */
 	performed?: boolean;
@@ -694,7 +751,7 @@ export interface PhrasePlaybackOpts {
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
 	startTick?: number;
-	/** Audio time for a seamless, backing-only continuation at startTick. */
+	/** Audio time of a joined downbeat whose transport tick has already fired. */
 	boundaryTime?: number;
 	/**
 	 * Fired once per sounding melody note, on the UI thread at the audible
@@ -815,7 +872,7 @@ export async function playPhrase(
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
-	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
+	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq, opts);
 	const onNote = opts.onNote;
 	/** Sound one melody note and, at its audible moment, report it to the cursor. */
 	const playMelodyEvent = (time: number, event: PlaybackEvent): void => {
@@ -1090,7 +1147,7 @@ export async function scheduleNextPhrase(
 		onStopCallback = null;
 	}
 
-	// Dispose previous phrase part (metronome sequence is untouched)
+	// Dispose the previous phrase part. The click keeps playing through the handoff.
 	if (currentPart) {
 		currentPart.dispose();
 		currentPart = null;
@@ -1115,11 +1172,13 @@ export async function scheduleNextPhrase(
 		}
 	}
 
+	if (options.metronomeEnabled) continueMetronome(phrase.timeSignature, nextBarTicks);
+
 	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, { performed: opts.performed });
+		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq, opts);
 		const onNote = opts.onNote;
-		currentPart = new Tone.Part((time, event) => {
+		const playMelody = (time: number, event: PlaybackEvent) => {
 			startNote({ ...event, time });
 			if (onNote) {
 				const info: PlaybackNoteEvent = {
@@ -1132,7 +1191,12 @@ export async function scheduleNextPhrase(
 					if (scheduleId === currentScheduleId) onNote(info);
 				}, time);
 			}
-		}, events);
+		};
+		const boundary = opts.boundaryTime === undefined ? undefined : {
+			audioTime: opts.boundaryTime, startTick: nextBarTicks, throughTick: transport.ticks,
+			secondsPerTick: 60 / options.tempo / ppq
+		};
+		currentPart = new Tone.Part(playMelody, scheduleBoundaryEvents(events, playMelody, boundary));
 		currentPart.start(`${nextBarTicks}i`);
 	}
 
@@ -1162,9 +1226,15 @@ export async function scheduleNextPhrase(
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
 	const endTicks = nextBarTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 	if (opts.onDemonstration && !skipMelody) {
-		transport.scheduleOnce(time => {
-			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, (endTicks - nextBarTicks) * 60 / (ppq * options.tempo));
-		}, `${nextBarTicks}i`);
+		const duration = (endTicks - nextBarTicks) * 60 / (ppq * options.tempo);
+		const notify = (time: number) => {
+			if (scheduleId === currentScheduleId) opts.onDemonstration?.(time, duration);
+		};
+		if (opts.boundaryTime !== undefined && nextBarTicks <= transport.ticks) {
+			notify(opts.boundaryTime);
+		} else {
+			transport.scheduleOnce(notify, `${nextBarTicks}i`);
+		}
 	}
 
 	return new Promise<void>((resolve) => {

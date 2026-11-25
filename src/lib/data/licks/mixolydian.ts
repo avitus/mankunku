@@ -166,7 +166,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'interval', 'ascending', 'tritone', 'guide-tones'],
 		source: 'curated'
@@ -181,7 +181,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'interval', 'descending', 'tritone', 'guide-tones'],
 		source: 'curated'
@@ -196,7 +196,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 4], offset: [3, 4] }   // A4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'interval', 'descending'],
 		source: 'curated'
@@ -211,7 +211,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [3, 4], offset: [1, 4] }   // Bb4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'interval', 'ascending'],
 		source: 'curated'
@@ -226,7 +226,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 7, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'interval', 'ascending'],
 		source: 'curated'
@@ -241,7 +241,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 7, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 13, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'interval', 'descending'],
 		source: 'curated'
@@ -289,7 +289,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [1, 2] }   // C5
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 11, pitchComplexity: 8, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 12, pitchComplexity: 10, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -337,7 +337,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 9, pitchComplexity: 4, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 4, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'triad', 'upper-structure', 'ascending'],
 		source: 'curated'
@@ -353,7 +353,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 58, duration: [1, 2], offset: [1, 2] }   // Bb3
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 9, pitchComplexity: 4, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 4, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'triad', 'upper-structure', 'descending'],
 		source: 'curated'
@@ -385,7 +385,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [1, 2] }   // A4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'enclosure'],
 		source: 'curated'
@@ -470,7 +470,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -487,7 +487,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'scale-run', 'descending'],
 		source: 'curated'
@@ -576,7 +576,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [1, 1] }   // C5
 		],
 		harmony: C7_MIXOLYDIAN_2BAR,
-		difficulty: { level: 11, pitchComplexity: 9, rhythmComplexity: 12, lengthBars: 2 },
+		difficulty: { level: 12, pitchComplexity: 11, rhythmComplexity: 12, lengthBars: 2 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'beginner', 'turn'],
 		source: 'curated'
@@ -593,7 +593,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [3, 4], offset: [1, 4] }   // Bb4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 37, pitchComplexity: 15, rhythmComplexity: 65, lengthBars: 1 },
+		difficulty: { level: 35, pitchComplexity: 15, rhythmComplexity: 65, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'intermediate', 'triplet', 'arpeggio', 'ascending'],
 		source: 'curated'
@@ -612,7 +612,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 15, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 30, pitchComplexity: 15, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'intermediate', 'scale-run', 'ascending', 'resolution'],
 		source: 'curated'
@@ -631,7 +631,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [3, 4] }   // E4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 15, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 30, pitchComplexity: 15, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'intermediate', 'scale-run', 'descending'],
 		source: 'curated'
@@ -650,7 +650,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 30, pitchComplexity: 12, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 30, pitchComplexity: 15, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'intermediate', 'sequence', 'ascending'],
 		source: 'curated'
@@ -670,7 +670,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [3, 4] }   // Bb4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 39, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
+		difficulty: { level: 37, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -691,7 +691,7 @@ export const MIXOLYDIAN_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 8], offset: [7, 8] }   // E4
 		],
 		harmony: C7_MIXOLYDIAN_1BAR,
-		difficulty: { level: 41, pitchComplexity: 25, rhythmComplexity: 62, lengthBars: 1 },
+		difficulty: { level: 41, pitchComplexity: 26, rhythmComplexity: 62, lengthBars: 1 },
 		category: 'modal',
 		tags: ['mixolydian', 'flat-seven', 'intermediate', 'digital-pattern', 'descending'],
 		source: 'curated'

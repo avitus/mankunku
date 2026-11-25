@@ -6,10 +6,20 @@
  * the model's retry, and bars that survive both attempts carry them as
  * import warnings.
  */
-import { toFraction } from './claude-pdf';
+import type { Fraction } from '$lib/types/music';
 
-/** One system-mode melody entry: [beat, durationBeats, pitch, tied?]. */
-export type BarMelody = Array<[number, number, string] | [number, number, string, boolean]>;
+/** Rational snap over the duration ladder (triplets included); shared with
+ * the route's per-bar rhythm validation. */
+export function toFraction(value: number): Fraction {
+	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
+		const num = Math.round(value * den);
+		if (Math.abs(num / den - value) < 1e-9) return [num, den];
+	}
+	return [Math.round(value * 24), 24];
+}
+
+/** One system-mode melody entry: [beat, durationBeats, pitch, tied?, articulation?]. */
+export type BarMelody = Array<[number, number, string, boolean?, 'staccato'?]>;
 
 /** Rests travel in the melody list with this pitch. */
 export function isRestPitch(pitch: string): boolean {
@@ -79,4 +89,13 @@ export function barTilingIssues(
 		);
 	}
 	return issues;
+}
+
+/** A fully tiled pickup starts at its first printed note or rest, after the unprinted prefix. */
+export function printedPickupBeats(melody: BarMelody, beats: number): number | undefined {
+	if (!melody.length || barTilingIssues(melody, 0, beats, { allowLeadingGap: true }).length) {
+		return undefined;
+	}
+	const firstBeat = Math.min(...melody.map(([beat]) => toUnits(beat)));
+	return firstBeat > 0 ? beats - firstBeat / UNITS : undefined;
 }

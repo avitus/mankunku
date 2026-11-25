@@ -434,7 +434,8 @@ export function midiToAbcPitch(
 	midi: number,
 	useFlats: boolean,
 	keySigAccidentals: KeySigMap,
-	barState: BarAccidentalState
+	barState: BarAccidentalState,
+	showAccidental = false
 ): string {
 	const pc = midiToPitchClass(midi);
 	let octave = midiToOctave(midi);
@@ -474,8 +475,8 @@ export function midiToAbcPitch(
 	const current = barState[letter as NoteLetter];
 	let accidental: string;
 	if (target === current) {
-		// No change — no explicit accidental needed.
-		accidental = '';
+		// An explicitly printed reminder still appears on this note.
+		accidental = showAccidental ? (target || '=') : '';
 	} else {
 		// Emit the explicit mark. '=' is ABC's natural sign.
 		accidental = target === '' ? '=' : target;
@@ -530,6 +531,7 @@ const TRIPLET_BASE: Array<{ triplet: [number, number]; base: [number, number] }>
 	{ triplet: [1, 3], base: [1, 2] },   // half-triplet → half
 	{ triplet: [1, 6], base: [1, 4] },   // quarter-triplet → quarter
 	{ triplet: [1, 12], base: [1, 8] },  // eighth-triplet → eighth
+	{ triplet: [1, 24], base: [1, 16] }, // sixteenth-triplet → sixteenth
 ];
 
 export function getTripletBase(d: [number, number]): [number, number] | null {
@@ -834,7 +836,7 @@ export function phraseToAbcWithMap(
 				explicit: note.spelling
 			})
 		);
-		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
+		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState, note.showAccidental);
 		const art = noteArticulationPrefix(note);
 		const tieSuffix = note.tied ? '-' : '';
 		return `${art}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;

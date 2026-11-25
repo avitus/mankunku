@@ -1,3 +1,4 @@
+import { openTuneSettings } from './fixtures/tune-setup';
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
@@ -12,14 +13,16 @@ test('All the Things You Are repeat boundaries', async ({ page }, info) => {
 	await seedTunes(page, [{ ...tune, id: 'all-things-bars', source: 'user' }]);
 	await page.goto('/tunes/all-things-bars');
 	const bars = page.locator('.abcjs-staff-wrapper').first().locator('.abcjs-bar');
+	await openTuneSettings(page);
+	await expect(page.locator('.td-chart-facts')).toContainText('40 bars');
+	await page.keyboard.press('Escape');
 	await expect(bars).toHaveCount(5); // Pickup plus four intro measures
 	await expect(page.locator('.abcjs-part').first()).toContainText('Intro');
 	await expect(bars.first().locator('[data-name="dots.dot"]')).toHaveCount(2);
 	await expect(bars.last().locator('[data-name="dots.dot"]')).toHaveCount(2);
 	await page.locator('.abcjs-staff-wrapper').first().screenshot({ path: info.outputPath('pickup.png') });
-	for (const route of ['/tunes/all-things-bars', '/tunes/all-things-bars/practice']) {
+	for (const route of ['/tunes/all-things-bars', '/tunes/all-things-bars?licks=1']) {
 		await page.goto(route);
-		await expect(page.locator('.td-heading-meta')).toContainText('40 bars');
 		for (const width of [1280, 390]) {
 			await page.setViewportSize({ width, height: 900 });
 			const intro = page.locator('g.abcjs-part').filter({ hasText: 'Intro' }).first();

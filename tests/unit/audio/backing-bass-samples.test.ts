@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { SmplrPreset } from 'smplr';
-import { normalizeBackingBassPreset, normalizeBackingBassPresetWithStatus } from '$lib/audio/backing-bass-samples';
+import { extendMelodyBassRange, normalizeBackingBassPreset, normalizeBackingBassPresetWithStatus } from '$lib/audio/backing-bass-samples';
 
 const baseUrl = 'https://smpldsnds.github.io/sfzinstruments-dsmolken-double-bass';
 // Complete, unmodified D. Smolken source (royalty-free, attribution in header).
@@ -40,6 +40,19 @@ for (const scope of source.replace(/\/\/[^\n]*/g, '').split(/(?=<(?:group|region
 }
 
 describe('Smolken Pizzicato source region selection', () => {
+	it('plays one pitched bass sample throughout the Ear Training range', () => {
+		const preset = fixture(true);
+		normalizeBackingBassPreset(preset);
+		extendMelodyBassRange(preset, 72);
+		const matcher = new engine.RegionMatcher(preset);
+		for (let note = 40; note <= 72; note++) {
+			for (const velocity of [1, 74, 75, 120, 121, 127]) {
+				const regions = matcher.match(note, velocity, new Map());
+				expect(regions, `note ${note}, velocity ${velocity}`).toHaveLength(1);
+				expect(regions[0].sample).toMatch(/^pizz\/pizz_/);
+			}
+		}
+	});
 	it('distinguishes strict recognition from whether normalization changed anything', () => {
 		const p = fixture(true);
 		expect(normalizeBackingBassPresetWithStatus(p)).toEqual({ recognized: true, changed: true });

@@ -1,8 +1,8 @@
+import { anthropicSystemModel } from './anthropic-score-model';
 import { withRecognitionDeadline } from './request-budget';
 import { parseRecognitionJson } from './recognition-json';
 /** Harmony has its own prompt and output: reading chords must not perturb melody. */
 import type Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_MODEL } from '$lib/server/anthropic';
 import { screenHarmonyReading, type HarmonyReading } from '$lib/tunes/import/pdf-harmony-reading';
 import type { Harmony, SystemRecognitionInput } from '$lib/tunes/import/pdf-recognition';
 
@@ -14,13 +14,18 @@ async function readHarmonyOnce(
 	onAttempt?: () => void
 ): Promise<HarmonyReading> {
 	onAttempt?.();
+	const crops = input.barCount > 1 && input.harmonyImages?.length === input.barCount && input.barCount <= 8
+		? input.harmonyImages.flatMap((image, i): Anthropic.ContentBlockParam[] => image ? [
+			{ type: 'text', text: `Measure ${i + 1} of the line, cropped at its barlines:` },
+			{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: image.replace(/^data:image\/png;base64,/, '') } }
+		] : []) : [];
 	const response = await withRecognitionDeadline(signal, 120_000, (budgetSignal) =>
 		client.messages
 			.stream(
 				{
-					model: ANTHROPIC_MODEL,
-					max_tokens: 4096,
-					system: `Copy only the chord symbols printed above this single staff system. Never infer harmony from the tune or melody. Return JSON {"bars":[[[beat,"symbol"],...],...]}, one array per printed measure including any pickup. Beats are zero-based in the declared meter. Preserve roots, slash basses and alterations. No chord printed means []. Do not transcribe melody. Do not count an opening staff border as a measure.`,
+					model: anthropicSystemModel(),
+					max_tokens: 8192,
+					system: `Copy only the chord symbols printed above this single staff system. Never infer harmony from the tune or melody. Return JSON {"bars":[[[beat,"symbol"],...],...]}, one array per printed measure including any pickup. Beats are zero-based in the declared meter. Count note/rest durations to locate the chord over its printed onset. Chords may occur on the final eighth of a bar. A chord just before a barline belongs to the preceding measure. N.C. is a printed chord-change cue. Preserve roots, slash basses and alterations. No chord printed means []. Do not transcribe melody. Do not count an opening staff border as a measure.`,
 					messages: [
 						{
 							role: 'user',
@@ -29,7 +34,8 @@ async function readHarmonyOnce(
 								{
 									type: 'text',
 									text: `There are ${input.barCount} measures in ${input.timeSignature.join('/')} time. ${input.first ? 'The first measure may be a pickup.' : ''}`
-								}
+								},
+								...crops
 							]
 						}
 					]

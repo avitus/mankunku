@@ -1,11 +1,16 @@
 import { expect, it } from 'vitest';
 import {
 	fitRoom,
+	learnRoomSession,
 	predictRoom,
 	roomReduction,
 	validateRoom,
-	checkRoomTiming
+	verifyRoom,
+	type RoomTimingCheck,
+	type RoomSamples
 } from '$lib/audio/room-filter';
+
+const verifyTiming = (...args: Parameters<typeof verifyRoom>): RoomTimingCheck | null => verifyRoom(...args).check;
 
 it('subtracts independent stereo reflections on held-out audio and preserves added playing', () => {
 	const rate = 12000,
@@ -35,14 +40,14 @@ it('subtracts independent stereo reflections on held-out audio and preserves add
 	// A changed microphone clock can move the echo either side of the calibrated arrival.
 	for (const shift of [-155, 97]) {
 		const shifted = Float32Array.from(mic, (_, i) => mic[i - shift] ?? 0);
-		expect(checkRoomTiming({ ...capture, mic: shifted }, model)).toMatchObject({
+		expect(verifyTiming({ ...capture, mic: shifted }, model)).toMatchObject({
 			offset: shift,
 			accepted: true
 		});
 		// Use another room for the held-out half. A good first-half fit must not enable subtraction.
 		const heldOutStart = Math.floor((model.left.length + n) / 2);
 		shifted.set(independent.subarray(heldOutStart), heldOutStart);
-		expect(checkRoomTiming({ ...capture, mic: shifted }, model)).toMatchObject({
+		expect(verifyTiming({ ...capture, mic: shifted }, model)).toMatchObject({
 			offset: shift,
 			accepted: false
 		});
@@ -58,11 +63,175 @@ it('distinguishes a shared bass pitch from an aligned speaker path after reopeni
 	});
 	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
 	const right = new Float32Array(left.length);
-	const same = checkRoomTiming({rate, left, right, mic: left}, filter);
+	const same = verifyTiming({rate, left, right, mic: left}, filter);
 	expect(same?.transientReduction).toBeGreaterThan(10);
 	// Ten whole bass periods outside the adjustable delay range. The pitch still cancels.
 	const mic = Float32Array.from(left, (_, i) => left[i - 600] ?? 0);
-	const changed = checkRoomTiming({rate, left, right, mic}, filter);
+	const changed = verifyTiming({rate, left, right, mic}, filter);
 	expect(changed?.reduction).toBeGreaterThan(3);
 	expect(changed?.transientReduction).toBeLessThan(1);
+	expect(changed?.accepted).toBe(false);
+});
+
+it('recovers the speaker delay on a sustained pitched cue with a quiet nonrepeating component', () => {
+	const rate = 12000;
+	let seed = 71;
+	const left = Float32Array.from({ length: rate * 2 }, (_, i) => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return 0.3 * Math.sin(2 * Math.PI * 100 * i / rate) + 0.029 * (seed / 2147483648 - 1);
+	});
+	const right = new Float32Array(left.length);
+	const calibratedDelay = 400;
+	const taps = new Float32Array(calibratedDelay + 1);
+	taps[calibratedDelay] = 1;
+	const filter = { left: taps, right: new Float32Array(taps.length) };
+	for (const shift of [-185, 185]) {
+		const mic = Float32Array.from(left, (_, i) => left[i - calibratedDelay - shift] ?? 0);
+		const check = verifyTiming({ rate, left, right, mic }, filter);
+		expect(check?.transientReduction).toBeGreaterThan(1);
+		expect(check).toMatchObject({ offset: shift, accepted: true });
+	}
+});
+
+it('aligns the attacks when pitched notes put the broadband peak a few samples early', () => {
+	const rate = 12000;
+	let seed = 9315;
+	const noise = Float32Array.from({ length: rate * 1.25 }, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return 0.08 * (seed / 2147483648 - 1);
+	});
+	const tone = Float32Array.from(noise, (_, i) =>
+		0.4 * Math.sin(2 * Math.PI * 380 * i / rate) + 0.2 * Math.sin(2 * Math.PI * 511 * i / rate));
+	const left = Float32Array.from(tone, (x, i) => x + noise[i]);
+	const mic = Float32Array.from(tone, (x, i) => x + (noise[i - 2] ?? 0));
+	const check = verifyTiming({ rate, left, right: new Float32Array(left.length), mic },
+		{ left: Float32Array.of(1), right: Float32Array.of(0) });
+	expect(check).toMatchObject({ broadbandOffset: 0, offset: 2, accepted: true });
+	expect(check!.transientReduction).toBeGreaterThan(9);
+	expect(check!.reduction).toBeGreaterThan(3);
+});
+
+
+it('corrects a changed stereo balance on Listen and rejects a path that changes again during validation', () => {
+	const rate = 12000;
+	let seed = 291;
+	const noise = (): number => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	};
+	const left = Float32Array.from({length: rate * 3}, noise);
+	const right = Float32Array.from(left, noise);
+	const delay = 247;
+	const filter = {left: new Float32Array(600), right: new Float32Array(600)};
+	filter.left[delay] = 1;
+	filter.right[delay] = 1;
+	const mic = new Float32Array(left.length);
+	// The opening favors the left speaker. The validation half favors the right.
+	// A scalar gain inferred from the opening cannot transfer across that change.
+	for (let i = 0; i < left.length / 2; i++) right[i] *= 0.25;
+	for (let i = left.length / 2; i < left.length; i++) left[i] *= 0.25;
+	for (let i = 0; i < mic.length; i++) mic[i] = 1.3 * (left[i - delay] ?? 0) + 0.8 * (right[i - delay] ?? 0);
+	const capture = {rate, left, right, mic};
+	const stable = verifyRoom(capture, filter);
+	expect(stable.check?.accepted).toBe(true);
+	expect(stable.correction).toBeDefined();
+	expect(stable.check?.initial?.failure).toBeTruthy();
+	expect(stable.check!.reduction).toBeGreaterThan(10);
+	const independent = Float32Array.from(mic, noise);
+	mic.set(independent.subarray(19000), 19000);
+	expect(verifyRoom(capture, filter)).toMatchObject({check: {accepted: false}});
+	expect(verifyRoom({...capture, mic: new Float32Array(mic.length)}, filter).correction).toBeUndefined();
+});
+
+
+it('learns stereo balance on an earlier cue and rechecks it on the next cue before use', () => {
+	const rate = 12000, delay = 250;
+	const saved = {left: new Float32Array(600), right: new Float32Array(600)};
+	saved.left[delay] = saved.right[delay] = 1;
+	let seed = 761;
+	function noise(): number {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	}
+	function cue(alternate: boolean): RoomSamples {
+		const left = Float32Array.from({length: 3 * rate}, noise), right = Float32Array.from(left, noise);
+		if (alternate) {
+			right.fill(0, 0, left.length / 2 + delay);
+			left.fill(0, left.length / 2 + delay);
+		}
+		const mic = Float32Array.from(left, (_, i) => 1.3 * (left[i-delay] ?? 0) + 0.65 * (right[i-delay] ?? 0));
+		return {rate, left, right, mic};
+	}
+	const first = cue(false);
+	const accepted = verifyRoom(first, saved).check!;
+	expect(accepted.accepted).toBe(true);
+	const session = learnRoomSession(first, saved, accepted.offset)!;
+	const next = cue(true);
+	expect(verifyRoom(next, saved).check?.accepted).toBe(false);
+	expect(verifyRoom(next, saved, session).check).toMatchObject({accepted: true, sessionCues: 1});
+	const silent = {...next, mic: new Float32Array(next.mic.length)};
+	expect(verifyRoom(silent, saved, session).check?.accepted).toBe(false);
+	next.mic.set(Float32Array.from(next.mic.subarray(19000), noise), 19000);
+	expect(verifyRoom(next, saved, session).check?.accepted).toBe(false);
+	expect(session.cues).toBe(1);
+});
+
+it('bypasses a learned correction more powerful than the saved speaker response on the current cue', () => {
+	const rate = 12000;
+	let seed = 713;
+	const left = Float32Array.from({length: rate * 2}, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	});
+	const mic = Float32Array.from(left, x => 4 * x);
+	const saved = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const session = {cues: 1, correction: {left: Float32Array.of(3), right: Float32Array.of(0)}};
+	const result = verifyRoom({rate, left, mic, right: new Float32Array(left.length)}, saved, session);
+	expect(result.check).toMatchObject({accepted: false, failure: 'level'});
+	expect(result.correction).toBeUndefined();
+});
+
+it.each([1.81, 2.41])('verifies a closing fit against the opening of a %s-second Listen capture', (seconds) => {
+	const rate = 12000;
+	let seed = 132;
+	const left = Float32Array.from({length: Math.round(seconds * rate)}, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	});
+	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const right = new Float32Array(left.length);
+	const split = Math.min(Math.floor((1 + left.length) / 2), left.length - rate);
+	function recording(openingLevel: number): RoomSamples {
+		return {rate, left, right, mic: Float32Array.from(left, (v, i) => 1.35 * (i < split ? openingLevel * v : v))};
+	}
+	// The quieter opening underestimates the closing level. The closing fit
+	// still removes the speaker on the quieter opening within the level guard.
+	const short = recording(0.77);
+	expect(verifyRoom(short, filter).check?.accepted).toBe(false);
+	expect(verifyRoom(short, filter, undefined, true).check).toMatchObject({
+		accepted: true, closingStartSeconds: split / rate
+	});
+	// The ending alone is identical, but this opening disagrees with its gain.
+	const inconsistent = recording(0.4);
+	expect(verifyRoom(inconsistent, filter, undefined, true).check).toMatchObject({
+		accepted: false, closingStartSeconds: split / rate
+	});
+});
+
+it('uses the calibrated gain when the opening biases the level estimate and both halves improve', () => {
+	const rate = 12000;
+	let seed = 71;
+	const left = Float32Array.from({length: rate * 2}, () => {
+		seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+		return seed / 2147483648 - 1;
+	});
+	const filter = {left: Float32Array.of(1), right: Float32Array.of(0)};
+	const mic = Float32Array.from(left, (v, i) => i < rate ? 1.45 * v : v);
+	const samples = {rate, left, right: new Float32Array(left.length), mic};
+	expect(verifyRoom(samples, filter).check).toMatchObject({
+		accepted: true, calibratedGain: true, gain: 1, initial: { failure: 'level' }
+	});
+	// The same perfect ending cannot rescue an opening where subtraction adds energy.
+	for (let i = 0; i < rate; i++) mic[i] = 0.2 * left[i];
+	expect(verifyRoom(samples, filter, undefined, true).check?.accepted).toBe(false);
 });

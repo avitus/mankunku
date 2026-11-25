@@ -27,9 +27,10 @@ export function prepareReleasedArrangement(harmony: HarmonicSegment[], style: St
  const bars = Math.ceil(end / 4);
  // Plan a complete final bar, then discard its extra attacks. The transport
  // continues to own the original passage length and loop boundary.
- const preparedHarmony = structuredClone(harmony);
+ const preparedHarmony = [...harmony];
  const last = preparedHarmony[preparedHarmony.length - 1];
- if (end < bars * 4) last.duration = [(bars * 4 - fractionToFloat(last.startOffset) * 4), 4];
+ if (end < bars * 4) preparedHarmony[preparedHarmony.length - 1] = { ...last,
+  duration: [bars * 4 - fractionToFloat(last.startOffset) * 4, 4] };
  const key = JSON.stringify([harmony, style.coordinatedStyle, style.defaultSwing, params, instrument, seed]);
  const hit = cache.get(key);
  if (hit !== undefined) { cache.delete(key); cache.set(key, hit); return JSON.parse(hit); }
@@ -41,22 +42,24 @@ export function prepareReleasedArrangement(harmony: HarmonicSegment[], style: St
  const score = createRollingBacking(preparedHarmony, style, { ...params, performanceForm, ensemble: {} }, { ...releasedBackingOptions(instrument, seed), ...(!params.performanceForm ? { rhythmMemory: undefined, dominantRiff: undefined, brokenTwo: undefined, balladThird: undefined } : {}), preparedPlayback: true });
  const generated: GeneratedBacking = { bassEvents: [], compEvents: [], drumEvents: [] };
  let checkpoint: RollingBackingCheckpoint | undefined;
+ const planBars: NonNullable<GeneratedBacking['ensemblePlan']>['bars'][number][] = [];
+ const planTrace: NonNullable<GeneratedBacking['ensemblePlan']>['trace'][number][] = [];
+ generated.ensemblePlan = { version: 1, bars: planBars, trace: planTrace };
+ generated.ensembleDevelopment = { version: 1, pianoMotifs: [], bassTurnarounds: [], drumPhrases: [] };
  const timing = new Map<number, NonNullable<GeneratedBacking['ensembleTiming']>[number]>();
  for (let bar = 0; bar < score.totalBars; bar++) {
   const result = advanceRollingBacking(score, checkpoint, params.ensemble?.soloFeatures); checkpoint = result.checkpoint;
   generated.bassEvents.push(...result.bassEvents.filter(event => event.absBeat < end));
   generated.compEvents.push(...result.compEvents.filter(event => event.absBeat < end));
   generated.drumEvents.push(...result.drumEvents.filter(event => event.absBeat < end));
-  generated.ensemblePlan = { version: 1,
-   bars: [...(generated.ensemblePlan?.bars ?? []), ...result.ensemblePlan.bars],
-   trace: [...(generated.ensemblePlan?.trace ?? []), ...result.ensemblePlan.trace] };
+  planBars.push(...result.ensemblePlan.bars);
+  planTrace.push(...result.ensemblePlan.trace);
   generated.ensembleMemory = result.checkpoint.ensemble;
   for (const trace of result.ensembleTiming) if (!timing.has(trace.phraseStartBar)) timing.set(trace.phraseStartBar, trace);
-  generated.ensembleDevelopment ??= { version: 1, pianoMotifs: [], bassTurnarounds: [], drumPhrases: [] };
   for (const [key, value] of Object.entries(result.ensembleDevelopment)) {
    if (!Array.isArray(value)) continue;
    const target = generated.ensembleDevelopment as unknown as Record<string, unknown[]>;
-   target[key] = [...(target[key] ?? []), ...value];
+   (target[key] ??= []).push(...value);
   }
 
  }

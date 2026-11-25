@@ -622,6 +622,7 @@ describe('GET /api/tune-parse', () => {
 		const res = await GET({} as Parameters<RequestHandler>[0]);
 		const payload = await res.json();
 		expect(payload.configured).toBe(true);
+		expect(payload.wholePdf).toBe(true);
 		expect(payload.model).toBe('claude-test-model');
 	});
 });
@@ -987,6 +988,20 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		);
 		expect(res.status).toBe(200);
 		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it('recovers the opening printed header when the score model rejects it', async () => {
+		const { POST } = await loadRoute({ base: 'claude-base', tune: 'claude-tune' });
+		mockCreate.mockRejectedValueOnce(new Error('output blocked')).mockResolvedValueOnce({
+			content: [{ type: 'text', text: JSON.stringify({ fifths: -2, clef: 'treble',
+				timeSignature: [6, 8], heading: { composer: 'Printed credit' } }) }]
+		});
+		const res = await POST(makeEvent({ system: { image: PNG_B64, barCount: 1,
+			timeSignature: [6, 8], contextOnly: true, first: true } }));
+		expect(res.status).toBe(200);
+		expect(await res.json()).toMatchObject({ keySignature: { fifths: -2 },
+			timeSignature: [6, 8], heading: { composer: 'Printed credit' } });
+		expect(mockCreate.mock.calls.map(([request]) => request.model)).toEqual(['claude-tune', 'claude-base']);
 	});
 
 	it('falls back to the baseline model, without the thinking config, when the tune model fails outright', async () => {

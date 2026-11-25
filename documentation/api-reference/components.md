@@ -337,7 +337,7 @@ Pitch-name buttons (`C`–`B`), flat / sharp toggles, octave down / up, rest, ti
 
 **Path:** `src/lib/components/onboarding/Onboarding.svelte`
 
-Four-state first-run onboarding flow. The root layout mounts it **only on mic-driven practice routes** (`/ear-training`, `/lick-practice`, `/tricks`, `/licks/record`, `/tunes/<id>/practice`) and only **post-hydration** — everywhere else (`/`, `/docs`, `/licks`, `/tunes`, community pages) must render clean for a fresh profile, because crawlers render with empty localStorage and an unconditional overlay used to be the entire visible content of every URL on the site.
+Four-state first-run onboarding flow. The root layout mounts it **only on mic-driven practice routes** (`/ear-training`, `/lick-practice`, `/tricks`, `/licks/record`, `/tunes/<id>?licks=1`) and only **post-hydration** — everywhere else (`/`, `/docs`, `/licks`, `/tunes`, community pages) must render clean for a fresh profile, because crawlers render with empty localStorage and an unconditional overlay used to be the entire visible content of every URL on the site.
 
 | Prop | Type | Description |
 |---|---|---|

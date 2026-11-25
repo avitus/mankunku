@@ -3,7 +3,7 @@ import { quarterBeatsPerBar } from '$lib/tunes/meter';
 import { createDrumMixer } from './drum-mixer';
 import { BACKING_INPUT_REFERENCE, SAMPLE_OPTIONS, SOUNDFONT_OPTIONS } from './mixer-policy';
 import { getMixerLevels, setMixerLevels, subscribeMixer } from './mixer';
-import { prepareReleasedArrangement } from './backing-arrangement';
+import { preparePhraseArrangement } from './written-harmony';
 import { backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
@@ -56,7 +56,7 @@ import {
 	type BackingMixLevels,
 	type DrumFamily
 } from './backing-mix';
-import { createBackingSampleLoader } from './backing-sample-loader';
+import { createBackingSampleLoader, createSampleStorage } from './backing-sample-loader';
 import { backingKeyboardTrim } from './backing-keyboard-level';
 import { loadBackingBass } from './backing-bass-instrument';
 import { createSignalMonitor, type BackingSignalMonitor } from './backing-signal-monitor';
@@ -595,39 +595,7 @@ export async function loadBackingInstruments(
 	const native = getBackingNativeArming(audioCtx, Scheduler);
 	if (loadId !== currentLoadId) return;
 
-	// Cache the CDN sample libraries in CacheStorage so revisits (and full
-	// offline use after a first load) skip the network. Versioned name: bump
-	// it if a library swap ever needs to invalidate the cache. The Cache API
-	// needs a secure context; elsewhere smplr's default HttpStorage applies.
-	//
-	// Wrapped: smplr's CacheStorage caches whatever the network returns —
-	// the Cache API happily stores a 404/500 — so a single transient CDN
-	// error would otherwise serve that error forever. On a not-ok response
-	// (StorageResponse exposes status, not ok), retry the network and
-	// self-heal the cache: a good retry replaces the poisoned entry, a bad
-	// one deletes it so the next load takes a clean path.
-	const storage =
-		typeof caches !== 'undefined'
-			? (() => {
-					const CACHE_NAME = 'mankunku-samples-v1';
-					const cache = new CacheStorage(CACHE_NAME);
-					return {
-						fetch: async (url: string) => {
-							const response = await cache.fetch(url);
-							if (response.status >= 200 && response.status < 300) return response;
-							const retried = await fetch(url);
-							try {
-								const store = await caches.open(CACHE_NAME);
-								if (retried.ok) await store.put(url, retried.clone());
-								else await store.delete(url);
-							} catch {
-								// Cache maintenance is best-effort (quota, private mode).
-							}
-							return retried;
-						}
-					};
-				})()
-			: undefined;
+	const storage = createSampleStorage(CacheStorage);
 	const loader = createBackingSampleLoader(audioCtx, storage);
 
 	// Load bass if not already loaded — pizzicato upright bass samples
@@ -1157,17 +1125,17 @@ function playDrum(time: number, event: DrumEvent): void {
 /** The harmony a phrase's backing follows and the bass, comp and drum events over it. */
 function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 	const beatsPerBar = phrase.timeSignature[0];
-	const baseHarmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
-	// Every backing length is derived from the harmony, so it has to reach the
-	// end of the melody or the phrase's last bar plays dry.
-	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, quarterBeatsPerBar(phrase.timeSignature));
+	const quartersPerBar = quarterBeatsPerBar(phrase.timeSignature);
+	const harmony = phrase.writtenHarmonyOnly ? phrase.harmony : extendHarmonyToCoverMelody(
+		phrase.harmony.length ? phrase.harmony : inferTonicChord(phrase), phrase.notes, quartersPerBar
+	);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
-	const generated = prepareReleasedArrangement(harmony, style, {
+	const generated = preparePhraseArrangement(phrase, harmony, style, {
 		phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
 		sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm,
 		ensemble: { soloFeatures: options.backingSoloFeatures }
-	}, options.backingInstrument ?? currentInstrumentType ?? 'piano', phrase.timeSignature[1], options.backingPerformanceSeed ?? 0);
+	}, options.backingInstrument ?? currentInstrumentType ?? 'piano', options.backingPerformanceSeed ?? 0, options.swing);
 	return { harmony, generated };
 }
 
@@ -1259,7 +1227,11 @@ export async function scheduleBackingTrack(
 	}
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
-	const harmonyTicks = loopTicks ?? Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
+	// A written solo break is part of the form even when no chord sounds in it.
+	const loopBeats = phrase.writtenHarmonyOnly
+		? Math.max(harmonyDurationBeats, phrase.difficulty.lengthBars * beatsPerBar)
+		: Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar;
+	const harmonyTicks = loopTicks ?? Math.round(loopBeats * ppq);
 
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);

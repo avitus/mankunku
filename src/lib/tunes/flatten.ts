@@ -1,7 +1,7 @@
 import { sectionPlaybackRules } from './section-labels';
 import type { Fraction, HarmonicSegment, Note } from '$lib/types/music';
 import type { Tune, TuneSection } from '$lib/types/tune';
-import { addFractions, multiplyFraction } from '$lib/music/intervals';
+import { addFractions, compareFractions, fractionToFloat, multiplyFraction } from '$lib/music/intervals';
 
 /**
  * Flattening a tune's section list into one continuous melody + harmony
@@ -10,6 +10,8 @@ import { addFractions, multiplyFraction } from '$lib/music/intervals';
  */
 
 export interface FlattenedTune {
+	/** Fractional bar positions of printed solo breaks, in the emitted order. */
+	soloBreaks?: number[];
 	/** Explicit head-only material, addressed by authored section index. */
 	omittedSoloSections?: number[];
 	omittedOutroSections?: number[];
@@ -136,6 +138,7 @@ export function flattenTune(
 	}
 
 	const notes: Note[] = [];
+	const soloBreaks: number[] = [];
 	const harmony: HarmonicSegment[] = [];
 	const noteSourceIndices: number[] = [];
 	const segmentSourceIndices: number[] = [];
@@ -155,12 +158,16 @@ export function flattenTune(
 		}
 		for (let h = 0; h < sec.harmony.length; h++) {
 			const seg = sec.harmony[h];
-			harmony.push(
-				shift
-					? { ...seg, chord: { ...seg.chord }, startOffset: addFractions(seg.startOffset, shift) }
-					: { ...seg, chord: { ...seg.chord } }
-			);
+			const atFine = sec.directions?.some(cue => cue.text === 'Fine' && compareFractions(cue.offset, seg.startOffset) === 0);
+			harmony.push({
+				...seg, chord: { ...seg.chord },
+				...(shift && { startOffset: addFractions(seg.startOffset, shift) }),
+				...(atFine && { writtenFine: true })
+			});
 			segmentSourceIndices.push(segBase[src] + h);
+		}
+		for (const cue of sec.directions ?? []) {
+			if (cue.text === 'Solo break') soloBreaks.push(barsBefore + fractionToFloat(cue.offset) / fractionToFloat(barDuration));
 		}
 		barsBefore += sec.bars;
 	}
@@ -169,6 +176,7 @@ export function flattenTune(
 	const omittedOutroSections = rules.flatMap((rule, i) => rule.omitFromOutro ? [i] : []);
 	const omittedSoloSections = rules.flatMap((s, i) => s.omitFromSolos ? [i] : []);
 	return { notes, harmony, totalBars: barsBefore, noteSourceIndices, segmentSourceIndices, sectionMap,
+		...(soloBreaks.length ? { soloBreaks } : {}),
 		...(omittedOutroSections.length ? { omittedOutroSections } : {}),
 		...(omittedSoloSections.length ? { omittedSoloSections } : {}) };
 }

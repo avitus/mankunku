@@ -1,5 +1,5 @@
 /** Bounded, inert input at the browser/server recognition seam. */
-import type { Clef, NoteheadEvidence, RecognitionContext } from './pdf-recognition';
+import type { Clef, NoteheadEvidence, PrintedHeading, RecognitionContext } from './pdf-recognition';
 const clefs: Clef[] = ['treble', 'bass', 'alto', 'tenor'];
 export function sanitizeRecognitionContext(raw: unknown): RecognitionContext {
 	const c = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -17,6 +17,19 @@ export function sanitizeRecognitionContext(raw: unknown): RecognitionContext {
 				: null
 	};
 }
+/** Keep printed credits separate from the scan filename and surrounding publisher text. */
+export function screenPrintedHeading(raw: unknown): PrintedHeading | undefined {
+	if (!raw || typeof raw !== 'object') return undefined;
+	const heading: PrintedHeading = {};
+	for (const field of ['title', 'composer', 'style'] as const) {
+		const value = (raw as Record<string, unknown>)[field];
+		if (typeof value !== 'string') continue;
+		const clean = value.trim().replace(/\s+/g, ' ');
+		if (clean && clean.length <= 200 && !/[<>]/.test(clean)) heading[field] = clean;
+	}
+	return Object.keys(heading).length ? heading : undefined;
+}
+
 export function sanitizeEvidence(raw: unknown, count: number): Array<NoteheadEvidence | null> {
 	if (!Array.isArray(raw)) return [];
 	return raw.slice(0, count).map((e) => {

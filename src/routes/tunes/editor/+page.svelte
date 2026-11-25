@@ -2,6 +2,8 @@
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { tuneBackingStyle } from '$lib/tunes/backing-style';
 	import PdfSourceReview from '$lib/components/tunes/PdfSourceReview.svelte';
+	import SavedPdfSource from '$lib/components/tunes/SavedPdfSource.svelte';
+	import { getTunePdf } from '$lib/persistence/tune-pdf-store';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { tunePath } from '$lib/tunes/tune-slug';
@@ -543,6 +545,16 @@
 					currentBar={hasExplicitPosition ? currentAbsoluteBar : undefined}
 					onSelect={jumpToAbsoluteBar}
 				/>
+			{/if}
+			{#if tuneEntry.editingSource === 'imported-pdf' && tuneEntry.editingId}
+				{@const id = tuneEntry.editingId}
+				{@const owner = page.data.user?.id}
+				{#key `${owner ?? ''}/${id}`}
+					<SavedPdfSource
+						title={tuneEntry.title}
+						read={() => getTunePdf(id, tuneEntry.editingPdfUrl ? supabase ?? undefined : undefined, owner)}
+					/>
+				{/key}
 			{/if}
 </div>
 		</div><section class="te-entry-rail" aria-label="Note entry" data-testid="entry-rail" data-tour="tune-entry-rail">

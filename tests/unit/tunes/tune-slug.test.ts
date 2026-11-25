@@ -69,7 +69,7 @@ describe('tuneSlug', () => {
 		const transposed = transposeTune(base, 'Eb');
 		expect(transposed.id).toBe('sheet-1789579191100-55iq_Eb');
 		expect(tunePath(base, [base])).toBe('/tunes/autumn-leaves');
-		expect(tunePracticePath(base, [base])).toBe('/tunes/autumn-leaves/practice');
+		expect(tunePracticePath(base, [base])).toBe('/tunes/autumn-leaves?licks=1');
 	});
 });
 

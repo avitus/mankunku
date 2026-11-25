@@ -167,7 +167,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 68, duration: [1, 2], offset: [1, 2] }   // Ab4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'interval', 'ascending', 'tritone'],
 		source: 'curated'
@@ -182,7 +182,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 62, duration: [1, 2], offset: [1, 2] }   // D4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'interval', 'descending', 'tritone'],
 		source: 'curated'
@@ -197,7 +197,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'interval', 'descending', 'resolution'],
 		source: 'curated'
@@ -212,7 +212,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 68, duration: [3, 4], offset: [1, 4] }   // Ab4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
+		difficulty: { level: 4, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'interval', 'ascending'],
 		source: 'curated'
@@ -290,7 +290,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'neighbor'],
 		source: 'curated'
@@ -354,7 +354,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 68, duration: [1, 2], offset: [1, 2] }   // Ab4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 5, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'enclosure'],
 		source: 'curated'
@@ -403,7 +403,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'scale-run', 'descending', 'lament'],
 		source: 'curated'
@@ -420,7 +420,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -471,7 +471,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [3, 4] }   // Eb4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'scale-run', 'descending', 'lament'],
 		source: 'curated'
@@ -488,7 +488,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 10, pitchComplexity: 6, rhythmComplexity: 14, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 8, rhythmComplexity: 14, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'turn'],
 		source: 'curated'
@@ -577,7 +577,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 1] }   // G4
 		],
 		harmony: CMIN_AEOLIAN_2BAR,
-		difficulty: { level: 11, pitchComplexity: 9, rhythmComplexity: 12, lengthBars: 2 },
+		difficulty: { level: 12, pitchComplexity: 12, rhythmComplexity: 12, lengthBars: 2 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'beginner', 'neighbor', 'turn'],
 		source: 'curated'
@@ -594,7 +594,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [3, 4], offset: [1, 4] }   // G4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 33, pitchComplexity: 6, rhythmComplexity: 65, lengthBars: 1 },
+		difficulty: { level: 30, pitchComplexity: 6, rhythmComplexity: 65, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'intermediate', 'triplet', 'descending', 'lament'],
 		source: 'curated'
@@ -613,7 +613,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 68, duration: [1, 4], offset: [3, 4] }   // Ab4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -632,7 +632,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 32, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 31, pitchComplexity: 16, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'intermediate', 'scale-run', 'descending'],
 		source: 'curated'
@@ -651,7 +651,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [3, 4] }   // Eb4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 30, pitchComplexity: 12, rhythmComplexity: 52, lengthBars: 1 },
+		difficulty: { level: 30, pitchComplexity: 15, rhythmComplexity: 52, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'intermediate', 'sequence', 'descending', 'lament'],
 		source: 'curated'
@@ -671,7 +671,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 4], offset: [3, 4] }   // Bb4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 39, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
+		difficulty: { level: 37, pitchComplexity: 22, rhythmComplexity: 60, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'intermediate', 'scale-run', 'ascending'],
 		source: 'curated'
@@ -692,7 +692,7 @@ export const AEOLIAN_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [7, 8] }   // C4
 		],
 		harmony: CMIN_AEOLIAN_1BAR,
-		difficulty: { level: 40, pitchComplexity: 23, rhythmComplexity: 62, lengthBars: 1 },
+		difficulty: { level: 44, pitchComplexity: 32, rhythmComplexity: 62, lengthBars: 1 },
 		category: 'modal',
 		tags: ['aeolian', 'flat-six', 'intermediate', 'thirds', 'sequence', 'descending'],
 		source: 'curated'

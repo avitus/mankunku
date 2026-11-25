@@ -141,3 +141,40 @@ describe('phraseToEvents — performed timing', () => {
 		expect(events.some((e, k) => e.ticks !== grid[k])).toBe(true);
 	});
 });
+
+describe('sax ear-training repeats', () => {
+	it.each([60, 140, 240])('tapers into both re-attacks of a swung unison run at %i BPM', (tempo) => {
+		vi.spyOn(Math, 'random').mockReturnValue(0.75);
+		const notes = EIGHTH_LINE.map((note, k) => ({ ...note, pitch: k < 3 ? 60 : note.pitch }));
+		const phrase = makePhrase(notes);
+		const original = phraseToEvents(phrase, tempo, 0.67, PPQ);
+		const events = phraseToEvents(phrase, tempo, 0.67, PPQ, { tongueRepeats: true });
+		for (const k of [0, 1]) {
+			const interval = (events[k + 1].ticks - events[k].ticks) * 60 / (PPQ * tempo);
+			const { duration, release } = events[k];
+			expect(duration).toBeLessThan(interval);
+			expect(duration).toBeGreaterThanOrEqual(Math.min(original[k].duration, interval * 0.88) - 1e-9);
+			// smplr uses a linear release. At most half the previous voice
+			// carries into the attack, including the short swung upbeat.
+			expect(1 - (interval - duration) / release).toBeLessThanOrEqual(0.500001);
+			expect({ ...events[k], duration: original[k].duration, release: original[k].release }).toEqual(original[k]);
+		}
+		expect(events.slice(2)).toEqual(original.slice(2));
+	});
+
+	it('preserves ties, written rests, and the timing of a measured performance', () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		const phrase = makePhrase([
+			{ pitch: 60, offset: [0, 1], duration: [1, 8], tied: true },
+			{ pitch: 60, offset: [1, 8], duration: [1, 8] },
+			{ pitch: null, offset: [1, 4], duration: [1, 8] },
+			{ pitch: 60, offset: [3, 8], duration: [1, 8] }
+		]);
+		const original = phraseToEvents(phrase, 120, 0.5, PPQ);
+		expect(original).toHaveLength(2);
+		expect(phraseToEvents(phrase, 120, 0.5, PPQ, { tongueRepeats: true })).toEqual(original);
+		const repeats = makePhrase(EIGHTH_LINE.map(note => ({ ...note, pitch: 60 })));
+		expect(phraseToEvents(repeats, 120, 0.5, PPQ, { performed: true, tongueRepeats: true }))
+			.toEqual(phraseToEvents(repeats, 120, 0.5, PPQ, { performed: true }));
+	});
+});

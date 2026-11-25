@@ -212,7 +212,7 @@ export const CONCERT_INSTRUMENT_IDS = [
 ] as const satisfies readonly InstrumentId[];
 
 /** True for every instrument behind the "Concert Pitch" choice. */
-export function isConcertInstrument(id: string): boolean {
+export function isConcertInstrument(id: string): id is typeof CONCERT_INSTRUMENT_IDS[number] {
 	return (CONCERT_INSTRUMENT_IDS as readonly string[]).includes(id);
 }
 

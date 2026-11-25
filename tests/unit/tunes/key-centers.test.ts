@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { tuneKeyCenters, keyCenterBarSpan, keyCenterLabelStartsRow } from '$lib/tunes/key-centers';
+import { tuneKeyCenters, soloBarCenters, keyCenterBarSpan, keyCenterLabelStartsRow } from '$lib/tunes/key-centers';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { transposeTune } from '$lib/tunes/book-loader';
@@ -15,6 +15,14 @@ describe('key-center chart evidence', () => {
 		const display = tuneKeyCenters(threeLaneSheet(), INSTRUMENTS.concert);
 		expect(display.laneCount).toBe(3);
 		expect(display.markers.some(marker => marker.keyCenter?.lane === 2 && marker.endBarExclusive === 5)).toBe(true);
+	});
+	it('fills a solo bar with its longest reading and breaks equal coverage by primary lane', () => {
+		const display = tuneKeyCenters(threeLaneSheet(), INSTRUMENTS.concert);
+		const primary = { ...display.markers[0], startBar:0, endBarExclusive:2, timeRange:{start:0, end:1.25} };
+		const other = { ...display.markers[1], startBar:0, endBarExclusive:2, timeRange:{start:0, end:2},
+			keyCenter:{ ...display.markers[1].keyCenter!, lane:1 } };
+		const chosen = soloBarCenters([other, primary], 1);
+		expect([...chosen.values()]).toEqual([primary, other]);
 	});
 	it('labels the first fitting span on desktop, mobile and section rows after a narrow entrance', () => {
 		const marker = { id: 'late-center', startBar: 0, endBarExclusive: 7, status: 'upcoming' as const, timeRange: { start: .75, end: 6.25 } };

@@ -1,3 +1,4 @@
+import { setTuneTempo } from './fixtures/tune-setup';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MANKUNKU_BLUES } from '../../src/lib/data/tunes/mankunku-blues';
@@ -361,15 +362,14 @@ test('the editor bar hit rect for the stacked [2] bar sits under its music, not 
 });
 
 /**
- * Commit the maximum tempo after hydration; the transport readout confirms
- * that the input reached the practice state.
+ * Commit the maximum tempo after setup hydration.
  */
 async function setTempoMax(page: Page): Promise<void> {
-	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
+	const tempo = page.getByRole('slider', { name: /^tempo$/i });
 	await expect(async () => {
-		await tempo.fill('240');
-		await tempo.press('Tab');
-		await expect(page.locator('.tp-start')).toContainText('240 BPM', { timeout: 1_000 });
+		await setTuneTempo(page, 240);
+
+		await expect(tempo).toHaveAttribute('aria-valuenow', '240', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 
@@ -393,8 +393,8 @@ test.describe.serial('tune practice playhead on the stacked [2]', () => {
 
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
-		await page.goto(`/tunes/${A_TRAIN_ID}/practice`);
-		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		await page.goto(`/tunes/${A_TRAIN_ID}?licks=1`);
+		await expect(page.getByRole('button', { name: /^play$/i })).toBeVisible();
 		await setTempoMax(page);
 
 		// The playhead holds the [2] bar for one bar (a second at 240 BPM), so
@@ -432,8 +432,8 @@ test.describe.serial('tune practice playhead on the stacked [2]', () => {
 			}).observe(document.body, { childList: true, subtree: true });
 		});
 
-		await page.getByRole('button', { name: /^start$/i }).click();
-		await expect(page.getByRole('button', { name: /^end$/i })).toBeVisible({ timeout: 45_000 });
+		await page.getByRole('button', { name: /^play$/i }).click();
+		await expect(page.getByRole('button', { name: /^stop$/i })).toBeVisible({ timeout: 45_000 });
 
 		await expect
 			.poll(
@@ -457,7 +457,7 @@ test.describe.serial('tune practice playhead on the stacked [2]', () => {
 		// under-bar playhead hangs below the [2] staff.
 		expect(geometry.overlay.top, 'playhead below the [2] staff').toBeGreaterThanOrEqual(geometry.staff.bottom - 1);
 
-		await page.getByRole('button', { name: /^end$/i }).click();
+		await page.getByRole('button', { name: /^stop$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 10_000 });
 	});
 });

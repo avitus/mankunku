@@ -44,6 +44,7 @@
 	import { createSoloListener, type SoloListener } from '$lib/audio/solo-listener';
 	import type { SoloObservationWindow } from '$lib/audio/solo-observer';
 
+	import { releasedBackingOptions } from '$lib/audio/backing-release';
 	import { createRollingBacking, advanceRollingBacking, type RollingBackingDefinition } from '$lib/audio/backing-rolling';
 	import { MAX_ADAPTIVE_BARS, MAX_ADAPTIVE_LOOPS } from '$lib/audio/backing-performance-limits';
 	import { createRollingSession, type RollingSession, type RollingSessionSnapshot } from '$lib/audio/backing-rolling-session';
@@ -164,11 +165,12 @@
 			toneModule = await import('tone');
 			if (id !== playRequest) return;
 			let startAudioTime = Infinity;
+			// Fixed playback uses performance seed zero. Both paths encode the lab variation in phrase.id.
 			const definition = adapt ? createRollingBacking(phrase.harmony, BACKING_STYLES[style], {
 				phraseId: phrase.id, tempo, ppq: toneModule.getTransport().PPQ, beatsPerBar: 4,
 				swing: resolveBackingSwing(settings.swing, BACKING_STYLES[style], tempo),
 				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
-			}, { loopCount }) : null;
+			}, { ...releasedBackingOptions(instrument, 0), loopCount }) : null;
 			if (adapt) recordedDefinition = definition;
 			if (observe) {
 				const totalBars = definition?.totalBars ?? preset.bars;

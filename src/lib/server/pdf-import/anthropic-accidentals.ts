@@ -1,6 +1,6 @@
+import { anthropicSystemModel } from './anthropic-score-model';
 /** Independent symbol-only source readings; musical acceptance is provider-neutral. */
 import type Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_TUNE_MODEL } from '$lib/server/anthropic';
 import type {
 	SystemRecognitionInput,
 	SystemRecognitionResult
@@ -33,7 +33,7 @@ export async function reviewPrintedAccidentals(
 			client.messages
 				.stream(
 					{
-						model: ANTHROPIC_TUNE_MODEL,
+						model: anthropicSystemModel(),
 						thinking: { type: 'adaptive' },
 						output_config: { effort: 'high' },
 						max_tokens: 8192,

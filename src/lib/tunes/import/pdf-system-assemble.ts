@@ -14,15 +14,17 @@
  */
 import type { SystemGeometry } from './pdf-geometry';
 import type { SystemTexts } from './pdf-text-chords';
+import { printedPickupBeats } from './system-bar-validation';
 import { eventsByBar, type NoteEvent } from './pdf-noteheads';
 
-import type { RecognizedBar, Harmony } from './pdf-recognition';
+import { matchPrintedBeams } from './pdf-raster-beams';
+import type { Clef, RecognizedBar, Harmony } from './pdf-recognition';
 export type ModelBar = RecognizedBar;
 
 export interface AssembleSystemInput {
 	geometry: SystemGeometry;
 	texts: SystemTexts;
-	model: { fifths: number | null; bars: ModelBar[] };
+	model: { fifths: number | null; clef?: Clef | null; bars: ModelBar[] };
 	/** Detected note events — chord beats anchor to the nearest notehead. */
 	noteEvents?: NoteEvent[];
 	/** Independent vision harmony is used only where PDF text supplied none. */
@@ -32,6 +34,7 @@ export interface AssembleSystemInput {
 export interface AssembleMeta {
 	title: string;
 	composer?: string | null;
+	style?: string | null;
 	timeSignature: [number, number];
 }
 
@@ -55,6 +58,13 @@ export function systemBarBoundaries(geometry: SystemGeometry): number[] {
 		.sort((a, b) => a - b);
 	const median = widths.length ? widths[Math.floor(widths.length / 2)] : 8 * geometry.interline;
 	return [Math.max(0, bl[0] - median), ...bl];
+}
+
+/** Match complete treble staff positions before transferring pixel evidence to timed notes. */
+function printedBeams(bar: ModelBar, events: NoteEvent[] | undefined, denominator: number): Array<[number, 'join' | 'break']> {
+	const notes = bar.melody.filter(note => note[2].toLowerCase() !== 'rest').sort((a, b) => a[0] - b[0]);
+	const marks = matchPrintedBeams(notes.map(note => ({ name: note[2], length: note[1] / denominator })), events);
+	return marks.map(([i, beam]) => [notes[i][0], beam]);
 }
 
 export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: AssembleMeta): unknown {
@@ -246,6 +256,8 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 							? bar.ending
 							: null;
 				const pickup = sysIndex === 0 && i === 0 ? firstBarPickup : bar.pickup;
+				const beams = sys.model.clef === 'treble' ? printedBeams(bar, eventsPerBar?.[i], meta.timeSignature[1]) : [];
+				const pickupBeats = pickup ? bar.pickupBeats ?? printedPickupBeats(bar.melody, tsNum) : undefined;
 				const underLabel = endingByBar.has(i);
 				// Repeat flags are the model's least reliable output; the
 				// printed dots beside a barline are the evidence. A |: needs
@@ -260,6 +272,9 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 				const dotsConfirmEnd = sys.geometry.repeatDots[i]?.left ?? false;
 				return {
 					mark: markByBar.get(i) ?? null,
+					...(beams.length ? { beams } : {}),
+					...(bar.directions?.length ? { directions: bar.directions } : {}),
+					...(bar.printedAccidentals?.length ? { printedAccidentals: bar.printedAccidentals } : {}),
 					startRepeat: underLabel ? false : bar.startRepeat && dotsConfirmStart,
 					endRepeat:
 						endingByBar.get(i) === 2
@@ -269,7 +284,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 								: bar.endRepeat && dotsConfirmEnd,
 					ending,
 					pickup,
-					...(pickup && bar.pickupBeats !== undefined ? { pickupBeats: bar.pickupBeats } : {}),
+					...(pickup && pickupBeats !== undefined ? { pickupBeats } : {}),
 					chords: chordsByBar.get(i) ?? sys.harmony?.[i] ?? [],
 					melody: bar.melody
 				};
@@ -280,7 +295,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 	return {
 		title: meta.title,
 		composer: meta.composer ?? null,
-		style: null,
+		style: meta.style ?? null,
 		keySignature: { fifths },
 		timeSignature: meta.timeSignature,
 		systems: docSystems

@@ -1,6 +1,7 @@
 import type { Fraction, Note } from '$lib/types/music';
-import type { TuneSection } from '$lib/types/tune';
+import type { TuneDirection, TuneSection } from '$lib/types/tune';
 import { addFractions, subtractFractions, compareFractions } from '$lib/music/intervals';
+import { isIntroLabel } from '$lib/tunes/section-labels';
 import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 
 /**
@@ -23,6 +24,8 @@ import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 
 /** One bar of the piece, in reading order. */
 export interface BarStructure {
+	/** Direction offsets here are measure-local. */
+	directions?: TuneDirection[];
 	/** Absolute start offset in whole notes. */
 	startOffset: Fraction;
 	/** The bar's length (the meter in effect at this bar). */
@@ -74,7 +77,8 @@ export function buildSections(
 	measures: BarStructure[],
 	notes: Note[],
 	harmonies: HarmonyChange[],
-	warnOnce: (msg: string) => void
+	warnOnce: (msg: string) => void,
+	unmarkedSections: 'letter' | 'blank' = 'letter'
 ): TuneSection[] {
 	harmonies = [...harmonies].sort((a, b) => compareFractions(a.offset, b.offset));
 	// Sections split at rehearsal marks AND at repeat barlines: a |: opens a
@@ -153,6 +157,10 @@ export function buildSections(
 	const usedLabels = new Set(builders.map((b) => b.label).filter((l) => l !== null));
 	for (const b of builders) {
 		if (b.label !== null || b.inheritLabel) continue;
+		if (unmarkedSections === 'blank') {
+			b.label = '';
+			continue;
+		}
 		let code = 65; // 'A'
 		while (usedLabels.has(String.fromCharCode(code))) code++;
 		b.label = String.fromCharCode(code);
@@ -160,10 +168,15 @@ export function buildSections(
 	}
 	// Ending sections continue their body's material — same label, no letter.
 	builders.forEach((b, i) => {
-		if (b.inheritLabel && b.label === null) b.label = builders[i - 1]?.label ?? 'A';
+		if (b.inheritLabel && b.label === null) b.label = builders[i - 1]?.label ?? (unmarkedSections === 'blank' ? '' : 'A');
 	});
 
-	return builders.map((b) => {
+	// When Intro is the last printed mark, a following unmarked repeat is
+	// the body. A repeat before a later mark may belong to the intro itself.
+	const lastMark = builders.findLastIndex(b => Boolean(b.label));
+	const bodyStart = unmarkedSections === 'blank' && lastMark >= 0 && isIntroLabel(builders[lastMark].label!)
+		? builders.findIndex((b, i) => i > lastMark && b.startRepeat && !b.ending) : -1;
+	return builders.map((b, index) => {
 		const inRange = (offset: Fraction): boolean =>
 			compareFractions(offset, b.startOffset) >= 0 && compareFractions(offset, b.endOffset) < 0;
 
@@ -188,6 +201,9 @@ export function buildSections(
 		const harmony = changes.flatMap((h, i) => {
 			const end = i + 1 < changes.length ? changes[i + 1].offset : b.endOffset;
 			const duration = subtractFractions(end, h.offset);
+			// N.C. ends the preceding sound, including across a section boundary.
+			// Its printed sign is retained separately in the bar directions.
+			if (h.text === 'N.C.') return [];
 			const segment = harmonicSegmentFromSymbol(
 				h.text,
 				subtractFractions(h.offset, b.startOffset),
@@ -216,11 +232,17 @@ export function buildSections(
 		// A section opening on a flagged pickup bar carries its printed
 		// length — whether the pickup is a lone '' section or the padded
 		// first bar of a labelled one, the renderer applies the same rule.
+		const directions = measures.slice(b.firstMeasure, b.firstMeasure + b.measureCount).flatMap(m =>
+			(m.directions ?? []).map(direction => ({
+				...direction, offset: addFractions(subtractFractions(m.startOffset, b.startOffset), direction.offset)
+			})));
 		const first = measures[b.firstMeasure];
 		const pickupLength = first?.pickup && first.pickupLength ? first.pickupLength : undefined;
 
 		return {
 			label: b.label ?? 'A',
+			...(bodyStart >= 0 && index >= bodyStart ? { omitFromSolos: false } : {}),
+			...(directions.length ? { directions } : {}),
 			bars: b.measureCount,
 			...(b.startRepeat ? { repeatStart: true } : {}),
 			...(b.endRepeat ? { repeatEnd: true } : {}),

@@ -1,5 +1,5 @@
 import { SAMPLE_OPTIONS, SAMPLE_CHANNEL_REFERENCE } from './mixer-policy';
-import type { SampleLoader, Smolken, SmolkenOptions, SmplrOptions } from 'smplr';
+import type { SampleLoader, Smolken, SmolkenOptions, SmplrOptions, SmplrPreset } from 'smplr';
 import { normalizeBackingBassPresetWithStatus } from './backing-bass-samples';
 
 /** Equal-dB best-fit measured compensation after correcting layered selection. */
@@ -13,11 +13,13 @@ export const BACKING_BASS_SELECTION_GAIN = 7.74;
  * insert, including disconnection when an outer caller cancels a stale load.
  */
 export async function loadBackingBass(context: BaseAudioContext, Bass: typeof Smolken,
-	options: SmolkenOptions & SmplrOptions & { loader: SampleLoader }): Promise<Smolken> {
+	options: SmolkenOptions & SmplrOptions & { loader: SampleLoader },
+	preparePreset?: (preset: SmplrPreset) => void): Promise<Smolken> {
 	let recognized = false;
 	const loader: SampleLoader = {
 		load(preset, loadOptions) {
 			recognized = normalizeBackingBassPresetWithStatus(preset).recognized;
+			preparePreset?.(preset);
 			return typeof loadOptions === 'function'
 				? options.loader.load(preset, loadOptions)
 				: options.loader.load(preset, loadOptions);

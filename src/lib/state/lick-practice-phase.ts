@@ -47,7 +47,7 @@ export interface PhaseCue {
 	countdown: number;
 }
 
-/** One bar of 4 — the lead-in a player expects before an entrance. */
+/** Show the final four printed beats before an entrance, including four eighth notes in 6/8. */
 export const PHASE_LEAD_BEATS = 4;
 
 const IDLE_CUE: PhaseCue = { phase: 'idle', next: null, beatsUntilNext: null, countdown: 0 };

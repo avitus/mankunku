@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSections, type BarStructure } from '$lib/tunes/section-builder';
+import { sectionPlaybackRules } from '$lib/tunes/section-labels';
 import type { Fraction } from '$lib/types/music';
 
 function bar(startBar: number, overrides: Partial<BarStructure> = {}): BarStructure {
@@ -15,6 +16,14 @@ function bar(startBar: number, overrides: Partial<BarStructure> = {}): BarStruct
 }
 
 describe('buildSections', () => {
+	it('includes an unmarked repeated body after Intro in solo playback', () => {
+		const sections = buildSections([bar(0, { rehearsalMark: 'Intro' }),
+			bar(1, { startRepeat: true }), bar(2, { endRepeat: true })], [], [], () => {}, 'blank');
+		expect(sections.map(s => s.label)).toEqual(['Intro', '']);
+		expect(sectionPlaybackRules(sections)).toEqual([{ omitFromSolos: true, omitFromOutro: true },
+			{ omitFromSolos: false, omitFromOutro: false }]);
+	});
+
 	it('does not throw on a pickup-only form carrying an orphan :|', () => {
 		// A foreign/model payload can put rehearsalMark '' on a single pickup
 		// bar with an end repeat: the orphan-:| synthesis then points spanStart

@@ -96,7 +96,7 @@ for (const [keyboard,choice] of [['piano',3],['organ',3],['piano',10],['piano','
   expect(generated.compEvents.some(e=>Math.floor(e.absBeat/4)===bar)).toBe(true);
   expect(evidence.pianoBars[bar],`restored keyboard signal in performance bar ${bar+1}`).toBeGreaterThan(-46);
  }
- await expectAudibleListeningOutput(page);
+ await expectAudibleListeningOutput(page, generated);
  console.log('COMMON_TONE_AUDITION',JSON.stringify({keyboard,evidence,carries:carries.map(e=>({notes:e.notes,bar:Math.floor(e.absBeat/4)+1,beat:e.absBeat%4+1,releaseTick:e.barLineSustain!.releaseTick,duration:e.duration}))}));
  await page.screenshot({path:info.outputPath('common-tone-complete.png'),fullPage:true});
 });

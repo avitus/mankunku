@@ -20,7 +20,7 @@ test(`completes 52-bar ${keyboard} take with seed ${seed}`, async ({ page, brows
   const random=crypto.getRandomValues.bind(crypto);crypto.getRandomValues=((a:ArrayBufferView<ArrayBuffer>)=>{if(a instanceof Uint32Array&&a.length===1){a[0]=seed;return a;}return random(a);}) as typeof crypto.getRandomValues;
  },seed);
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-style').selectOption('swing');
  await expect(page.getByTestId('listening-keyboard')).toHaveValue(keyboard);

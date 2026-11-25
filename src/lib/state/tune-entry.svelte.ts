@@ -74,7 +74,7 @@ export function entryTranspositionSemitones(): number {
 
 const MAX_SECTION_BARS = 64;
 
-export const tuneEntry = $state({
+const initialTuneEntry = $state({
 	title: '',
 	composer: '',
 	style: '',
@@ -128,6 +128,12 @@ export const tuneEntry = $state({
 	lastRefusal: null as null | 'insert-no-room'
 });
 
+// Vite can serve the importer and editor different revisions of this module
+// after a hot update. Both must see the same pending draft when navigating.
+export const tuneEntry: typeof initialTuneEntry = typeof window !== 'undefined' && import.meta.hot
+	? (import.meta.hot.data.tuneEntry ??= initialTuneEntry)
+	: initialTuneEntry;
+
 function makeSection(label: string, bars = 8): TuneSection {
 	return { label, bars, notes: [], harmony: [] };
 }
@@ -135,6 +141,7 @@ function makeSection(label: string, bars = 8): TuneSection {
 function cloneSection(sec: TuneSection): TuneSection {
 	return {
 		...sec,
+		...(sec.directions && { directions: sec.directions.map(d => ({ ...d })) }),
 		notes: sec.notes.map((n) => ({ ...n })),
 		harmony: sec.harmony.map((h) => ({ ...h, chord: { ...h.chord } }))
 	};
@@ -1007,6 +1014,8 @@ export function insertBar(index: number, barInSection: number): void {
 	const bar = Math.max(0, Math.min(sec.bars, Math.floor(barInSection)));
 	const at: Fraction = [bar * tsNum, tsDen];
 	sec.bars += 1;
+	if (sec.directions) sec.directions = sec.directions.map(d =>
+		compareFractions(d.offset, at) >= 0 ? { ...d, offset: addFractions(d.offset, barLen) } : d);
 	sec.notes = sec.notes.map((n) =>
 		compareFractions(n.offset, at) >= 0 ? { ...n, offset: addFractions(n.offset, barLen) } : n
 	);
@@ -1043,6 +1052,9 @@ export function deleteBar(index: number, barInSection: number): void {
 		}
 	}
 	sec.notes = notes;
+	if (sec.directions) sec.directions = sec.directions
+		.filter(d => compareFractions(d.offset, start) < 0 || compareFractions(d.offset, end) >= 0)
+		.map(d => compareFractions(d.offset, end) >= 0 ? { ...d, offset: subtractFractions(d.offset, barLen) } : d);
 	sec.harmony = sec.harmony
 		.filter((h) => compareFractions(h.startOffset, start) < 0 || compareFractions(h.startOffset, end) >= 0)
 		.map((h) =>
@@ -1644,6 +1656,7 @@ export function setSectionBars(index: number, bars: number): void {
 	// recomputeHarmonyDurations) — the truncation bound must be too.
 	const [tsNum, tsDen] = tuneEntry.timeSignature;
 	const sectionEndF = (clamped * tsNum) / tsDen;
+	if (sec.directions) sec.directions = sec.directions.filter(d => fractionToFloat(d.offset) < sectionEndF);
 	sec.notes = sec.notes.filter((n) => fractionToFloat(n.offset) < sectionEndF - 1e-9);
 	sec.harmony = sec.harmony.filter((h) => fractionToFloat(h.startOffset) < sectionEndF - 1e-9);
 	recomputeHarmonyDurations(sec);
@@ -1665,7 +1678,11 @@ function recomputeHarmonyDurations(sec: TuneSection): void {
 	const [tsNum, tsDen] = tuneEntry.timeSignature;
 	const sectionEnd: Fraction = [sec.bars * tsNum, tsDen];
 	for (let i = 0; i < sorted.length; i++) {
-		const next = i + 1 < sorted.length ? sorted[i + 1].startOffset : sectionEnd;
+		let next = i + 1 < sorted.length ? sorted[i + 1].startOffset : sectionEnd;
+		for (const direction of sec.directions ?? []) {
+			if (direction.text === 'N.C.' && compareFractions(direction.offset, sorted[i].startOffset) > 0 &&
+				compareFractions(direction.offset, next) < 0) next = direction.offset;
+		}
 		sorted[i].duration = subtractFractions(next, sorted[i].startOffset);
 	}
 	sec.harmony = sorted;
@@ -1685,6 +1702,13 @@ function chordOffset(bar: number, beat: number): Fraction {
 export function setChord(sectionIdx: number, bar: number, beat: number, symbolText: string): boolean {
 	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return false;
+	const startOffset = chordOffset(bar, beat);
+	if (/^n\.?c\.?$/i.test(symbolText.trim())) {
+		removeChord(sectionIdx, bar, beat);
+		(sec.directions ??= []).push({ offset: startOffset, text: 'N.C.' });
+		recomputeHarmonyDurations(sec);
+		return true;
+	}
 	const parsed = parseChordSymbol(capitalizeTypedChord(symbolText));
 	if (!parsed) return false;
 
@@ -1694,7 +1718,8 @@ export function setChord(sectionIdx: number, bar: number, beat: number, symbolTe
 		root: transposePitchClass(parsed.root, -semitones),
 		bass: parsed.bass ? transposePitchClass(parsed.bass, -semitones) : undefined
 	};
-	const startOffset = chordOffset(bar, beat);
+	if (sec.directions) sec.directions = sec.directions.filter(d =>
+		d.text !== 'N.C.' || compareFractions(d.offset, startOffset) !== 0);
 	// Duration is a placeholder — recomputed below so each chord runs to the
 	// next change or the section end.
 	const segment = harmonicSegmentFromChordSymbol(concert, startOffset, [1, 1]);
@@ -1710,6 +1735,8 @@ export function removeChord(sectionIdx: number, bar: number, beat: number): void
 	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return;
 	const offset = chordOffset(bar, beat);
+	if (sec.directions) sec.directions = sec.directions.filter(d =>
+		d.text !== 'N.C.' || compareFractions(d.offset, offset) !== 0);
 	sec.harmony = sec.harmony.filter((h) => compareFractions(h.startOffset, offset) !== 0);
 	recomputeHarmonyDurations(sec);
 }
@@ -1719,6 +1746,7 @@ export function chordTextAt(sectionIdx: number, bar: number, beat: number): stri
 	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return null;
 	const offset = chordOffset(bar, beat);
+	if (sec.directions?.some(d => d.text === 'N.C.' && compareFractions(d.offset, offset) === 0)) return 'N.C.';
 	const seg = sec.harmony.find((h) => compareFractions(h.startOffset, offset) === 0);
 	if (!seg) return null;
 

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
@@ -69,14 +70,15 @@ const graph = vi.hoisted(() => {
 	};
 	const masterGain = context.createGain();
 	masterGain.connect(context.destination);
-	return { nodes, context, masterGain };
+	return { nodes, context, masterGain, soundfontOptions: vi.fn() };
 });
 
 vi.mock('smplr', async (importOriginal) => {
 	const smplr = await importOriginal<typeof import('smplr')>();
 	return {
 		...smplr,
-		Soundfont: smplr.Instrument((ctx, _options, instrument) => {
+		Soundfont: smplr.Instrument((ctx, options, instrument) => {
+			graph.soundfontOptions(options);
 			instrument.output.addInsert(ctx.createGain());
 		}),
 		Sampler: smplr.Instrument(() => {})
@@ -127,6 +129,37 @@ describe('reloading an instrument (MANKUNKU-1T)', () => {
 });
 
 describe('the loaded voice shapes the expression chain', () => {
+	it('loads a sustained section of each encoded trumpet note for looping', async () => {
+		const { loadInstrument } = await import('$lib/audio/playback');
+		await loadInstrument('trumpet', undefined, undefined, 'ear-training');
+		const options = graph.soundfontOptions.mock.lastCall![0];
+		expect(options.loadLoopData).toBe(true);
+		expect(options.loopDataUrl).toMatch(/^\/samples\//);
+		const loops = JSON.parse(readFileSync('static' + options.loopDataUrl, 'utf8'));
+		const names = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+		for (let midi = 21; midi <= 108; midi++) {
+			const name = names[midi % 12] + (Math.floor(midi / 12) - 1);
+			const [start, end] = loops[name];
+			expect(start, name).toBeGreaterThan(0);
+			expect(end - start, name).toBeGreaterThan(44100);
+			expect(end, name).toBeLessThan(3.12 * 44100);
+		}
+	});
+
+	it('reloads the trumpet trim when switching between Ear Training and other players', async () => {
+		const { loadInstrument, isInstrumentLoaded } = await import('$lib/audio/playback');
+		const { SOUNDFONT_REFERENCE } = await import('$lib/audio/mixer-policy');
+		for (const mode of ['ear-training', undefined] as const) {
+			const before = graph.nodes.length;
+			await loadInstrument('trumpet', undefined, undefined, mode);
+			expect(isInstrumentLoaded('trumpet', mode)).toBe(true);
+			expect(isInstrumentLoaded('trumpet', mode ? undefined : 'ear-training')).toBe(false);
+			const filter = graph.nodes.slice(before).find(node => 'Q' in node)!;
+			const [trim] = filter.outputs as Set<{ gain: { value: number } }>;
+			expect(trim.gain.value).toBeCloseTo(SOUNDFONT_REFERENCE * (mode ? 10 ** (-4 / 20) : 1));
+		}
+	});
+
 	it.each(['tenor-sax', 'alto-sax', 'soprano-sax', 'trumpet'])(
 		'%s gets its own warmth ceiling and a PITCH vibrato',
 		async (instrumentId) => {

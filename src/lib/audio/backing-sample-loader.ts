@@ -82,3 +82,35 @@ export function createBackingSampleLoader(context: BaseAudioContext, storage?: S
 		}
 	};
 }
+
+export function createSampleStorage(CacheStorage: typeof import('smplr').CacheStorage): Storage | undefined {
+	// Cache the CDN sample libraries in CacheStorage so revisits (and full
+	// offline use after a first load) skip the network. Versioned name: bump
+	// it if a library swap ever needs to invalidate the cache. The Cache API
+	// needs a secure context; elsewhere smplr's default HttpStorage applies.
+	//
+	// Wrapped: smplr's CacheStorage caches whatever the network returns —
+	// the Cache API happily stores a 404/500 — so a single transient CDN
+	// error would otherwise serve that error forever. On a not-ok response
+	// (StorageResponse exposes status, not ok), retry the network and
+	// self-heal the cache: a good retry replaces the poisoned entry, a bad
+	// one deletes it so the next load takes a clean path.
+	if (typeof caches === 'undefined') return undefined;
+	const CACHE_NAME = 'mankunku-samples-v1';
+	const cache = new CacheStorage(CACHE_NAME);
+	return {
+		fetch: async (url: string) => {
+			const response = await cache.fetch(url);
+			if (response.status >= 200 && response.status < 300) return response;
+			const retried = await fetch(url);
+			try {
+				const store = await caches.open(CACHE_NAME);
+				if (retried.ok) await store.put(url, retried.clone());
+				else await store.delete(url);
+			} catch {
+				// Cache maintenance is best-effort (quota, private mode).
+			}
+			return retried;
+		}
+	};
+}

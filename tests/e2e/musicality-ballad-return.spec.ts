@@ -30,7 +30,6 @@ test('hands beat three to the keyboard in the complete Ballad out-head', async (
   }
  }
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 45_000 });
- await expectAudibleListeningOutput(page);
  await page.locator('details.take-notes > summary').click();
  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
  const path = (await download.path())!;
@@ -38,6 +37,7 @@ test('hands beat three to the keyboard in the complete Ballad out-head', async (
  expectEveryBarCommittedWithLead(take, 52);
  expect(take.provenance.dispatches.every((dispatch: RollingBackingDispatch) => dispatch.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;
+ await expectAudibleListeningOutput(page, generated);
  for (const index of [46, 47]) {
   const beatOne = index * 4;
   expect(generated.bassEvents.filter(e => Math.floor(e.absBeat / 4) === index)).toHaveLength(1);

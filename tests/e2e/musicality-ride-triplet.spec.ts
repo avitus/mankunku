@@ -23,11 +23,11 @@ test('carries the ride triplet through two full Swing solos', async ({ page }, i
    .toContainText('Play three across two', { timeout: 75_000 });
  }
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 90_000 });
- await expectAudibleListeningOutput(page);
  await page.locator('details.take-notes > summary').click();
  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
  const path = (await download.path())!;
  const take = JSON.parse(await readFile(path, 'utf8')).playback;
+ await expectAudibleListeningOutput(page, take.generated);
  expectEveryBarCommittedWithLead(take, 52);
  expect(take.provenance.dispatches.every((d: RollingBackingDispatch) => d.status === 'played')).toBe(true);
  const generated: GeneratedBacking = take.generated;

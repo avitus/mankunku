@@ -58,7 +58,7 @@ Routes that belong to neither domain (or that serve both):
 - `/` — home
 - `/licks`, `/licks/[id]` — your lick book (used by both modes)
 - `/licks/add`, `/licks/editor`, `/licks/record` — adding new licks (book-building, not practice)
-- `/tunes` and its subroutes — the tune songbook, including the scored `/tunes/[id]/practice` session (a tune take is not a lick-practice session; it earns no domain accent)
+- `/tunes` and its subroutes — the tune songbook, including the scored `/tunes/[id]?licks=1` session (a tune take is not a lick-practice session; it earns no domain accent)
 - `/tricks`, `/tricks/[id]` — the melodic-device catalog and its mastery ladders (the *session* they launch runs under `/lick-practice`, which is where the terracotta appears)
 - `/settings` — global app settings
 - `/docs` and its subroutes — in-app documentation
@@ -126,9 +126,9 @@ icons must remain understandable without color, with stable Listen/Play geometry
 
 `--color-error` and `--color-warning` are **fill** tokens (tuned for button/tint backgrounds, which carry white text). For feedback **text** — an error message, a warning label — use the text-safe variants `--color-error-text` / `--color-warning-text`, which lighten (error) or darken (warning) per theme so small text keeps ≥4.5:1 contrast on the page and card surfaces.
 
-### Intonation poles
+### Intonation faders
 
-`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 12¢ (`ALERT_CENTS`), the offset the sharp/flat reminder speaks at. The reminder then holds down to 8¢ (`HOLD_CENTS`, 2026-10-20); that switch-off offset never moves the faders' ticks or this pole, which stay on `ALERT_CENTS`. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
+The ear-training **Your tuning** panel grades the absolute distance from the selected reference in whole cents. The fader caps use the MagicPath medal metals for gold (0–5¢), silver (6–10¢) and bronze (11–19¢), and the blue-green needs-work accent (`--accuracy-teal`) for 20¢ or more. Readouts use the theme-aware accuracy colours. The signed number and fader position show direction.
 
 ### Difficulty & Mastery ramps
 
@@ -402,7 +402,7 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | `/licks`, `/licks/[id]`          | neutral       | slate                               |
 | `/licks/add`, `/licks/editor`    | neutral       | slate                               |
 | `/licks/record`, `/tunes`        | neutral       | slate                               |
-| `/tunes/[id]/practice`, `/tricks` | neutral      | slate                               |
+| `/tunes/[id]?licks=1`, `/tricks` | neutral      | slate                               |
 | `/settings`, `/docs`, `/auth`, `/diag…` | neutral | slate                              |
 
 For each page confirm:
@@ -423,7 +423,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (migration sta
 | Page | Component | Approved revision |
 |---|---|---|
 | Home · Studio Desk | `460227723458142208` | `471099909966278656` |
-| Settings · Studio Desk | `459540987434397696` | `460225985468596224` |
+| Settings · Studio Desk | `459540987434397696` | `475480658450456576` |
 | Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
 | Licks · Studio Library | `460234239577821184` | `460236188301803520` |
 | Tunes · Studio Library | `460237458806812672` | `460237458806812673` |
@@ -447,7 +447,7 @@ existing font asset. `.studio-action`, `.studio-label`, `.studio-caption`, and
 phase, mastery and accuracy tokens above; they do not replace their meanings.
 `--studio-accent-text` is for text and `--studio-button` is for white-on-colour
 controls. Activity overrides are scoped to the owning panel. Settings is neutral;
-its tonality section is ear-training and its practice link is lick-practice.
+its tonality section uses the ear-training accent.
 
 Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
 the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
@@ -456,8 +456,7 @@ the layout's 1440px Studio Desk container. Tune Detail (`/tunes/[id]`) and Tune 
 shared editor shell. PDF Import (`/tunes/import/pdf`) uses the 1440px Studio Desk
 container and `PdfImportDesk`. Add Tunes and the iReal Pro, Band-in-a-Box and
 MuseScore import routes also use the shared 1440px container. Other session routes
-retain their existing width and presentation. The setup summary
-moves below the controls on tablet/mobile; instrument and scale banks reflow
+retain their existing width and presentation. Settings centers its panels in a 1024px column. Instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
 
@@ -467,15 +466,27 @@ Fraunces for headings and larger readouts. The dial marker sits near the rim
 so it stays clear of four-character values such as `100%`. Swing is displayed
 as 50–80% in 1% increments while its stored ratio and audio behaviour remain unchanged.
 
-Backing and metronome controls stay mounted when switched off. Their dependent
-knobs and selector bank are disabled, their values remain saved, and Rhythm &
-band retains its dimensions. The summary is read-only. Account, tour, password
+The shared tempo dial has a number-only face and a BPM caption. Settings keeps its 60–200 BPM range in five-beat steps.
+
+Settings groups the tempo and swing controls above the Metronome and Backing band rows. Level
+and power controls align across both rows. Speaker bleed reduction and its explicit
+sound check share a separate panel. Highest, Master and Melody stay together as
+Appearance moves to its own row on phones.
+
+Master, Melody, Click and Backing use the same volume dial. Fully left is mute.
+The first step is −60 dB, one-quarter turn is −24 dB, halfway is −12 dB,
+three-quarters is −6 dB and fully right is 0 dB. Interpolate in decibels between
+audible marks and store linear amplitude. Center the number on the dial and put
+the unit in its label or the Level (dB) heading. Announce the complete value.
+
+Backing controls stay mounted and retain their settings when disabled. Click
+level stays available for count-in when the metronome is off. Key center highlighting has independent lead-sheet and solo defaults with theme-aware previews. Help & data follows Ear Training, with Account last for signed-in players. Account, tour, password
 recovery, and destructive-action confirmation flows retain their existing logic.
 
 Before adopting these components on another route, check both themes, desktop,
 tablet and phone widths, keyboard navigation, persisted values and the route's
 real workflows. The Settings E2E tests exercise that baseline, including the
-backing-off layout regression and instrument/tempo summary updates.
+backing-off layout, section order and persisted instrument and tempo choices.
 The dial contract tests cover every volume, tempo and swing step, range limits,
 displayed values, and persistence. Highest-note tests cover written-pitch labels
 and saved concert pitches for all five instruments, including transposing horns.

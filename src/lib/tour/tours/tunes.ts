@@ -59,7 +59,7 @@ export const tunesTour: DriveStep[] = [
 		popover: {
 			title: 'Then put your licks in it',
 			description:
-				"The Practice licks button on any tune is where the two halves of the app meet: the band plays the form, and Mankunku finds the ii-Vs and turnarounds hiding in the changes and hands you those spots to fill with licks from your book. Its setup screen has a How this works walkthrough, and so does Settings → Tours & Help.",
+				"The Lick Practice switch on any tune is where the two halves of the app meet: the band plays the form, and Mankunku finds the ii-Vs and turnarounds hiding in the changes and hands you those spots to fill with licks from your book. Its setup screen has a How this works walkthrough, and so does Settings → Tours & Help.",
 			align: 'center'
 		}
 	}

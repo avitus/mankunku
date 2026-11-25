@@ -1,20 +1,21 @@
 <script lang="ts">
+	import { barBeatProgress } from '$lib/notation/bar-progress';
 	import type { Tune } from '$lib/types/tune';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import { followOffsetPx, type FollowSystem } from '$lib/notation/follow-scroll';
 	import { tuneChordBars } from '$lib/tunes/chord-bars';
-	import { keyCenterBarSpan, keyCenterLabelStartsRow } from '$lib/tunes/key-centers';
-	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [], keyCenterLaneCount = 2, playing = true, highlightCurrentBeat = true }: {
-		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; keyCenterLaneCount?: number; playing?: boolean; highlightCurrentBeat?: boolean;
+	import { settings } from '$lib/state/settings.svelte';
+	import { soloBarCenters, keyCenterBarSpan } from '$lib/tunes/key-centers';
+	let { tune, instrument, solo = false, currentBar = null, followBar = currentBar, markers = [], playing = true }: {
+		solo?: boolean; tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; playing?: boolean;
 	} = $props();
 	let viewport = $state<HTMLDivElement>();
 	let content = $state<HTMLDivElement>();
 	let geometry = $state<{ systems: FollowSystem[]; viewportPx: number; contentPx: number }>({ systems: [], viewportPx: 0, contentPx: 0 });
 	const sections = $derived(tuneChordBars(tune));
-	// Reserve the full producer capacity even when its markers are hidden.
-	const keyCenterLanes = $derived(Math.max(2, keyCenterLaneCount));
+	const soloCenters = $derived(solo ? soloBarCenters(markers, tune.timeSignature[0] / tune.timeSignature[1]) : null);
 	const activeBar = $derived(currentBar === null ? -1 : Math.floor(currentBar));
 	const followOffset = $derived(!playing || followBar === null ? 0 : followOffsetPx({ ...geometry, barFraction: followBar }));
 
@@ -63,20 +64,40 @@
 						{@const bands = markers.filter(marker => !marker.keyCenter && marker.status !== 'playhead' && marker.startBar <= bar.index && marker.endBarExclusive > bar.index)}
 						{@const centers = markers.filter(marker => marker.keyCenter && marker.startBar <= bar.index && marker.endBarExclusive > bar.index)}
 						{@const labels = markers.filter(marker => !marker.keyCenter && marker.status !== 'playhead' && (marker.labelBar ?? marker.startBar) === bar.index && marker.label)}
-						<div class="tcc-bar" class:active={activeBar === bar.index} data-bar={bar.index} aria-current={activeBar === bar.index ? 'true' : undefined}>
-							{#each bands as band}<div class="tcc-cue" style:background={band.color ?? 'var(--color-brass)'} data-cue-status={band.status}></div>{/each}
-
-							<small class:row-first={barInSection % 4 === 0} class:mobile-row-first={barInSection % 2 === 0}>{bar.number}</small>
-							{#if bar.harmony.length}
-								<ChordChart showLabel={false} harmony={bar.harmony} timeSignature={tune.timeSignature} {instrument} key={tune.key} currentBeat={currentBar === null ? -1 : (currentBar - bar.index) * tune.timeSignature[0]} isPlaying={highlightCurrentBeat && activeBar === bar.index} />
+						<div class="tcc-bar" class:solo class:active={activeBar === bar.index} data-bar={bar.index} aria-current={activeBar === bar.index ? 'true' : undefined}>
+							{#snippet chords()}
+								{#if bar.harmony.length}
+								<ChordChart showLabel={false} harmony={bar.harmony} timeSignature={tune.timeSignature} {instrument} key={tune.key} currentBeat={currentBar === null ? -1 : (currentBar - bar.index) * tune.timeSignature[0]} isPlaying={playing && activeBar === bar.index} />
 							{:else}<div class="tcc-empty">—</div>{/if}
-							{#each labels as label}<p style:color={label.color} data-marker-id={label.id}>{label.label}</p>{/each}
-							{#if keyCenterLanes}<div class="tcc-key-centers" style:height={`${keyCenterLanes * 18}px`}>
-								{#each centers as center}
-									{@const span = keyCenterBarSpan(center, bar.index, tune.timeSignature[0] / tune.timeSignature[1])}
-									<div class="tcc-key-center" class:minor={center.keyCenter!.minor} role="img" aria-label={center.keyCenter!.label} data-key-center={center.keyCenter!.label} data-key-center-lane={center.keyCenter!.lane} style:color={center.color} style:left={`${span.left}%`} style:width={`${span.width}%`} style:top={`${center.keyCenter!.lane * 18}px`}>{#if span.width > 40}<span class:rail-row-start={keyCenterLabelStartsRow(center, bar.index, bar.index - barInSection % 4, tune.timeSignature[0] / tune.timeSignature[1])} class:rail-mobile-row-start={keyCenterLabelStartsRow(center, bar.index, bar.index - barInSection % 2, tune.timeSignature[0] / tune.timeSignature[1])}>{center.keyCenter!.label.replace(/ major$/, ' maj').replace(/ minor$/, ' min')}</span>{/if}</div>
-								{/each}
-							</div>{/if}
+							{/snippet}
+							{#if solo}
+								{@const center = soloCenters?.get(bar.index)}
+								{@const name = center?.keyCenter?.label}
+								<div class="solo-harmony" class:strip={settings.soloHighlight === 'top-strip'} style:--center={center?.color ?? 'transparent'} data-key-center={name} data-treatment={settings.soloHighlight}>
+									<div class="solo-heading"><small class:row-first={barInSection % 4 === 0} class:mobile-row-first={barInSection % 2 === 0}>{bar.number}</small>
+										{#if name}<span class="sr-only" aria-label={name}>{name}</span>{/if}
+									</div>
+									{@render chords()}
+									{#if playing && activeBar === bar.index}
+										<i class="position-mark" aria-hidden="true" style:width={`${barBeatProgress(currentBar, tune.timeSignature[0]) * 100}%`}></i>
+									{/if}
+								</div>
+								<div class="solo-cues">
+									{#each labels as label}<p style:color={label.color} data-marker-id={label.id}>{label.label}</p>{/each}
+								</div>
+							{:else}
+								{#each bands as band}<div class="tcc-cue" style:background={band.color ?? 'var(--color-brass)'} data-cue-status={band.status}></div>{/each}
+
+								<small class:row-first={barInSection % 4 === 0} class:mobile-row-first={barInSection % 2 === 0}>{bar.number}</small>
+								{@render chords()}
+								{#each labels as label}<p style:color={label.color} data-marker-id={label.id}>{label.label}</p>{/each}
+								{#if centers.length}<div class="tcc-key-centers" data-treatment={settings.soloHighlight} class:strip={settings.soloHighlight === 'top-strip'}>
+									{#each centers as center}
+										{@const span = keyCenterBarSpan(center, bar.index, tune.timeSignature[0] / tune.timeSignature[1])}
+										<div class="tcc-key-center" role="img" aria-label={center.keyCenter!.label} data-key-center={center.keyCenter!.label} data-key-center-lane={center.keyCenter!.lane} style:color={center.color} style:left={`${span.left}%`} style:width={`${span.width}%`} style:top={`${center.keyCenter!.lane / center.keyCenter!.lanes * 100}%`} style:height={`${100 / center.keyCenter!.lanes}%`}></div>
+									{/each}
+								</div>{/if}
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -95,15 +116,24 @@
 	.tcc-bar { min-width:0; position:relative; border-right:1px solid var(--color-practice-divider); border-bottom:1px solid var(--color-practice-divider); padding:5px; }
 	.tcc-bar.active { background:color-mix(in srgb,var(--color-text) 4.5%,transparent); }
 	.tcc-cue { height:3px; opacity:.35; }
-	.tcc-key-centers { position:relative; margin-top:10px; }
-	.tcc-key-center { position:absolute; border-top:2.5px solid; }
-	.tcc-key-center.minor { border-top-style:dashed; }
+	.tcc-key-centers { position:absolute; inset:0; z-index:-1; pointer-events:none; }
+	.tcc-key-centers.strip { bottom:auto; height:9px; }
+	.tcc-key-center { position:absolute; background:currentColor; opacity:.16; }
+	.strip .tcc-key-center { opacity:.46; }
+	.tcc-bar { isolation:isolate; }
 	.tcc-cue[data-cue-status="active"] { opacity:1; }
-	.tcc-key-center span { position:absolute; left:4px; top:-8px; padding:0 3px; font-size:10px; line-height:14px; white-space:nowrap; background:var(--studio-well, var(--color-bg)); }
-	.tcc-key-center span:not(.rail-row-start) { display:none; }
 	small:not(.row-first) { visibility:hidden; }
 	small { color:var(--color-text-secondary); font-size:9px; padding-left:4px; }
 	p { font-size:11px; line-height:1.4; padding:5px; overflow-wrap:anywhere; }
 	.tcc-empty { height:88px; display:grid; place-items:center; color:var(--color-text-secondary); }
-	@media(max-width:600px) { .tcc-bars { grid-template-columns:repeat(2,minmax(0,1fr)); } small.mobile-row-first { visibility:visible; } .tcc-key-center span:not(.rail-mobile-row-start) { display:none; } .tcc-key-center span.rail-mobile-row-start { display:block; } }
+	@media(max-width:600px) { .tcc-bars { grid-template-columns:repeat(2,minmax(0,1fr)); } small.mobile-row-first { visibility:visible; } }
+	.tcc-bar.solo { padding:0; display:flex; flex-direction:column; }
+	.solo-harmony { padding:4px 6px; background:color-mix(in srgb,var(--center) 16%,transparent); }
+	.solo-harmony.strip { background:linear-gradient(to bottom,color-mix(in srgb,var(--center) 46%,transparent) 9px,transparent 9px); }
+	.solo-heading { display:flex; align-items:end; justify-content:space-between; height:22px; color:var(--center); font:600 11px/1 system-ui,sans-serif; }
+	.solo-heading small { font-variant-numeric:tabular-nums; }
+
+	.solo-cues { min-height:25px; flex:1; padding:0 5px; background:var(--studio-well,var(--color-bg)); }
+	.solo-cues p { margin:0; }
+	.solo-cues p::before { content:""; display:inline-block; width:10px; height:2px; margin-right:5px; background:currentColor; vertical-align:middle; }
 </style>

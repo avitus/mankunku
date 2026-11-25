@@ -20,7 +20,7 @@ for (const width of [1440, 390]) {
 		await page.setViewportSize({ width, height: 1000 });
 		await seedOnboardedAnonymous(page);
 		await seedTunes(page, [tune]);
-		await page.goto('/tunes/wrap-label/practice');
+		await page.goto('/tunes/wrap-label?licks=1');
 		const label = page.locator('svg text.range-marker-label').filter({ hasText: /^Short ii/ });
 		await expect(label).toHaveCount(1);
 		const placement = await label.evaluate(el => {

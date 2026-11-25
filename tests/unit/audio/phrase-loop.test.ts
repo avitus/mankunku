@@ -112,6 +112,15 @@ describe('loopBodyPhrase', () => {
 		expect(last.duration).toEqual([1, 1]);
 	});
 
+	it('keeps a printed break at the end of the loop and the closing pass', () => {
+		const phrase = { ...pickupPhrase(), writtenHarmonyOnly: true };
+		const region = { startBar: 1, endBar: 3, coda: { startBar: 2, endBar: 3 } };
+		const body = loopBodyPhrase(phrase, region);
+		const coda = codaPhrase(phrase, region)!;
+		expect([body.difficulty.lengthBars, coda.difficulty.lengthBars]).toEqual([2, 1]);
+		for (const pass of [body, coda]) expect(pass.harmony.at(-1)?.duration).toEqual([1, 2]);
+	});
+
 	it('keeps the section that opens on a pickup bar as the form\'s first', () => {
 		const labelled: Phrase = { ...pickupPhrase(), sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 2 }] };
 		expect(loopBodyPhrase(labelled, { startBar: 1, endBar: 3 }).sectionMap).toEqual([

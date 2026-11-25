@@ -58,7 +58,7 @@ export const MAJOR_CHORD_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }
 		],
 		harmony: MAJOR_CHORD,
-		difficulty: { level: 14, pitchComplexity: 12, rhythmComplexity: 15, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 13, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'major-chord',
 		tags: ['major', 'digital-pattern'],
 		source: 'curated'
@@ -115,7 +115,7 @@ export const MAJOR_CHORD_LICKS: Phrase[] = [
 		harmony: MAJOR_CHORD_3BAR,
 		difficulty: {
 			level: 31,
-			pitchComplexity: 31,
+			pitchComplexity: 33,
 			rhythmComplexity: 35,
 			lengthBars: 3,
 			pickupBars: 1

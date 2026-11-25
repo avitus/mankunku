@@ -8,6 +8,7 @@ export interface TunePracticePreferences {
 	mode: TunePracticeMode;
 	strictness: TunePracticeStrictness;
 	playHead: boolean;
+	playOutro: boolean;
 }
 
 /** Validate stored choices before they reach the session planner. */
@@ -16,13 +17,14 @@ export function savedTunePracticePreferences(): TunePracticePreferences {
 	return {
 		mode: value?.mode === 'points' || value?.mode === 'freestyle' ? value.mode : 'suggest',
 		strictness: value?.strictness === 'standard' || value?.strictness === 'solo' ? value.strictness : 'guided',
+		playOutro: typeof value?.playOutro === 'boolean' ? value.playOutro : value?.playHead !== false,
 		playHead: typeof value?.playHead === 'boolean' ? value.playHead : true
 	};
 }
 
 /** Persist the setup choices only, excluding transient session state. */
 export function saveTunePracticePreferences(value: TunePracticePreferences): void {
-	save('tune-practice-options', { mode: value.mode, strictness: value.strictness, playHead: value.playHead });
+	save('tune-practice-options', { mode: value.mode, strictness: value.strictness, playHead: value.playHead, playOutro: value.playOutro });
 }
 
 /** Concert pitch stays consistent when the instrument changes, on either page. */

@@ -10,8 +10,8 @@
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import './tune-practice-report.css';
 
-	let { tune, returnHref, phrase, plan, results, picked, instrument, tempo, elapsed, clock, points = null, onretry }: {
-		tune: Tune; returnHref: string; phrase: Phrase; plan: InsertionPoint[]; results: InsertionResult[];
+	let { tune, onexit, onprint, phrase, plan, results, picked, instrument, tempo, elapsed, clock, points = null, onretry }: {
+		tune: Tune; onprint: () => void; onexit: () => void; phrase: Phrase; plan: InsertionPoint[]; results: InsertionResult[];
 		picked: Record<string, number>; instrument: InstrumentConfig; tempo: number; elapsed: string;
 		clock: ReportClock;
 		points?: { total: number; streak: number } | null;
@@ -36,9 +36,9 @@
 </script>
 
 <div class="studio-desk tune-report" data-testid="tune-practice-report">
-	<div class="tr-masthead"><span>Take complete</span><time>{elapsed}</time></div>
+	<div class="tr-masthead"><span>Take complete</span><time>{elapsed}</time><button type="button" onclick={onprint}>Print lead sheet</button></div>
 	<header class="tr-heading">
-		<div><h1><span class="sr-only">Take complete — </span>{tune.title}</h1><p>{displayPitchClass(writtenKey, writtenKey)} <span>·</span> {tempo} BPM <span>·</span> {tune.style}</p></div>
+		<div><h1><span class="sr-only">Take complete — </span>{tune.title}</h1><p>Written in {displayPitchClass(writtenKey, writtenKey)} <span>·</span> {tempo} BPM <span>·</span> {tune.style}</p></div>
 		<div class="tr-summary" aria-label="Landed insertions by chorus">
 			{#each report.choruses as chorus}
 				<div><span>Chorus {chorus.index + 1}</span><strong>{#if chorus.total}{chorus.landed}<small>/{chorus.total}</small>{:else}—{/if}</strong></div>
@@ -97,7 +97,7 @@
 	{#if focus && needsWork.length === 0}<p class="tr-empty">No completed spots need work.</p>{/if}
 	{#if selected && selectedAttempt}
 		<div class="tr-selection" aria-live="polite">
-			<div class="tr-selection-title"><span>Bars {Math.floor(selected.start) + 1}–{Math.ceil(selected.end)} · {concertKeyToWritten(selectedAttempt.point.keyCenter, instrument)} · {selectedAttempt.point.bandName}</span><h2>{selectedAttempt.name}</h2></div>
+			<div class="tr-selection-title"><span>{Math.floor(selected.start) + 1 === Math.ceil(selected.end) ? `Bar ${Math.ceil(selected.end)}` : `Bars ${Math.floor(selected.start) + 1}–${Math.ceil(selected.end)}`} · {concertKeyToWritten(selectedAttempt.point.keyCenter, instrument)} · {selectedAttempt.point.bandName}</span><h2>{selectedAttempt.name}</h2></div>
 			<div class="tr-selected-scores">
 				{#each selected.attempts as attempt}
 					{@const tier = tiers.get(attempt.point.id)}
@@ -114,5 +114,5 @@
 		<p>{#if total}{landed} of {total} insertion {total === 1 ? 'point' : 'points'} landed{:else}No matching licks in this take.{/if}{#if recovered} · {recovered} recovered{/if}{#if slipped} · {slipped} slipped{/if}{#if points} · {points.total} points · best streak {points.streak}{/if}</p>
 		{#if queued.length}<button class="tr-action" onclick={() => onretry(queued)}>Practice {queued.length} selected {queued.length === 1 ? 'spot' : 'spots'}</button>{:else if needsWork.length}<button class="tr-action" onclick={() => onretry(needsWork.map(s => s.id))}>Practice {needsWork.length} needs-work {needsWork.length === 1 ? 'spot' : 'spots'}</button>{/if}
 	</footer>
-	<div class="tr-exit"><button onclick={() => onretry([])}>Practice again</button><a href={returnHref}>Back to tune</a></div>
+	<div class="tr-exit"><button onclick={() => onretry([])}>Practice again</button><button onclick={onexit}>Back to tune</button></div>
 </div>

@@ -1,3 +1,4 @@
+import { printedDirections } from './pdf-directions';
 /** Shared structural screening and rhythm validation for recognition adapters. */
 import type { RecognizedBar as SystemBar, Clef } from './pdf-recognition';
 import { barTilingIssues } from './system-bar-validation';
@@ -58,10 +59,18 @@ export function screenSystemBars(parsed: unknown): {
 				return null;
 			}
 			melody.push(
-				note[3] === true ? [note[0], note[1], note[2], true] : [note[0], note[1], note[2]]
+				note[4] === 'staccato' ? [note[0], note[1], note[2], note[3] === true, 'staccato']
+					: note[3] === true ? [note[0], note[1], note[2], true] : [note[0], note[1], note[2]]
 			);
 		}
+		const directions = printedDirections(b.directions);
+		const printedAccidentals = Array.isArray(b.printedAccidentals)
+			? b.printedAccidentals.slice(0, 128).filter((beat): beat is number =>
+				typeof beat === 'number' && Number.isFinite(beat) && beat >= 0 && beat < 32)
+			: [];
 		bars.push({
+			...(directions.length ? { directions } : {}),
+			...(printedAccidentals.length ? { printedAccidentals } : {}),
 			startRepeat: b.startRepeat === true,
 			endRepeat: b.endRepeat === true,
 			ending: typeof b.ending === 'number' ? b.ending : null,

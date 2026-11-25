@@ -85,3 +85,7 @@
 .tr-footer{align-items:flex-start;flex-direction:column}
 .tr-selection{gap:15px}
 .tr-selection h2{font-size:21px}}
+
+.tr-masthead {align-items:center;gap:12px}
+.tr-masthead time {margin-right:auto}
+.tr-masthead button {border:1px solid var(--studio-border);border-radius:4px;padding:6px 10px;color:var(--studio-text);font:500 12px/1.4 system-ui,sans-serif;letter-spacing:normal;text-transform:none;cursor:pointer}

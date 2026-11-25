@@ -58,6 +58,7 @@ describe('tune desk playback', () => {
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
 		player.setTempo(120);
 		player.playHead = false;
+		player.playOutro = false;
 		const started = player.toggle(tune, 'swing', 2);
 		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
 		const callbacks = audio.playPhrase.mock.calls[0][3];
@@ -83,6 +84,7 @@ describe('tune desk playback', () => {
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
 		player.setTempo(120);
 		player.playHead = false;
+		player.playOutro = false;
 		const started = player.toggle(tune, 'swing', 2);
 		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
 		expect(audio.playPhrase.mock.calls[0][0].notes).toEqual([]);
@@ -138,7 +140,10 @@ describe('tune desk playback', () => {
 			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
 			callbacks.onStarted();
 		};
+		at(0.5);
+		expect(player.countingIn).toBe(true);
 		at(2.2);
+		expect(player.countingIn).toBe(false);
 		expect(player.phase).toBe('head');
 		at(4.98); // Just before the two-beat return.
 		expect(player.showSoloChart).toBe(false);
@@ -264,6 +269,16 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
+	it('uses the selected melody feel without the band and restores the style grid with backing', () => {
+		const player = new TunePlayer();
+		player.toggleFeel('bossa-nova');
+		expect(player.swingFor('bossa-nova')).toBe(settings.swing);
+		player.setBacking(true);
+		expect(player.swingFor('bossa-nova')).toBe(0.5);
+		player.setBacking(false);
+		expect(player.swingFor('bossa-nova')).toBe(settings.swing);
+	});
+
 	it.each([['bossa-nova', 0.5], ['ballad', 0.53], ['straight', 0.5], ['swing', 0.62]] as const)(
 		'passes saved %s to the production engine with matching melody feel', async (style, swing) => {
 			player.backing = true;
@@ -280,7 +295,7 @@ describe('tune desk playback', () => {
 	it.each([true, false])('uses melody and metronome switches without removing the jam head (%s)', async (enabled) => {
 		player.melody = enabled;
 		player.metronome = enabled;
-		await player.toggle(tune, 'swing', 1);
+		await expect(player.toggle(tune, 'swing', 1)).resolves.toBe(true);
 		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ metronomeEnabled: enabled });
 		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ skipMelody: !enabled });
 		// Notes for both heads remain in the plan even when their audio is muted.
@@ -306,7 +321,7 @@ describe('tune desk playback', () => {
 		await vi.waitFor(() => expect(audio.loadInstrument).toHaveBeenCalled());
 		player.dispose();
 		loaded();
-		await started;
+		await expect(started).resolves.toBe(false);
 		expect(audio.playPhrase).not.toHaveBeenCalled();
 		expect(player.busy).toBe(false);
 	});
@@ -397,7 +412,7 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
-	it('maps repeated notes to the printed chart and ignores callbacks after stop', async () => {
+	it('maps repeated notes and reports cancellation when changing Melody stops the pass', async () => {
 		let finish!: () => void;
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
 		const started = player.toggle(tune, 'swing');
@@ -405,10 +420,10 @@ describe('tune desk playback', () => {
 		const callbacks = audio.playPhrase.mock.calls[0][3];
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBe(0);
-		player.stop();
+		player.setMelody(false);
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBeNull();
 		finish();
-		await started;
+		await expect(started).resolves.toBe(false);
 	});
 });

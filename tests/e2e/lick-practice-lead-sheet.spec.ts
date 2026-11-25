@@ -30,7 +30,7 @@ test.describe('lick-practice session flow', () => {
 		await stubCdnInstrumentSamples(page);
 		await page.goto(practice === 'daily' ? '/lick-practice' : '/licks/e2e-user-lick-bebop');
 		await page.getByRole('button', { name: practice === 'daily' ? /start daily practice/i : /^practice$/i }).click();
-		const sheet = page.getByTestId('lead-sheet-row');
+		const sheet = page.locator('.row[data-key="Bb"]').getByTestId('lead-sheet-row');
 		await expect(sheet).toBeVisible({ timeout: 20_000 });
 		await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
 		await expect(page.getByTestId('lead-sheet-placeholder')).toHaveCount(0);

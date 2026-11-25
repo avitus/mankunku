@@ -27,11 +27,11 @@ for (const example of examples) {
   const card = page.locator(`[data-testid="musician-${example.card}"][data-bar-index="${example.bar-1}"]`);
   await expect(card).toContainText(example.card === 'bass' ? 'Answer the keyboard melody' : 'Answer the upright melody', { timeout: 145_000 });
   await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 95_000 });
-  await expectAudibleListeningOutput(page);
   await page.locator('details.take-notes > summary').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
   const path = (await download.path())!;
   const take = JSON.parse(await readFile(path, 'utf8')).playback;
+  await expectAudibleListeningOutput(page, take.generated);
   expectEveryBarCommittedWithLead(take, 52);
   expect(take.provenance.dispatches.every((d: RollingBackingDispatch) => d.status === 'played')).toBe(true);
   const generated: GeneratedBacking = take.generated;

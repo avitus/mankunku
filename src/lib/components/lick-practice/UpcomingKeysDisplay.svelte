@@ -321,7 +321,7 @@
 										showLabel={false}
 										harmony={pk.harmony}
 										currentBeat={0}
-										timeSignature={[4, 4]}
+										timeSignature={pk.phrase.timeSignature}
 										isPlaying={false}
 										key={pk.key}
 										mode={lickMode(pk.phrase)}
@@ -335,7 +335,7 @@
 							showLabel={false}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
-							timeSignature={[4, 4]}
+							timeSignature={pk.phrase.timeSignature}
 							isPlaying={isCurrent && isPlaying}
 							key={pk.key}
 							mode={lickMode(pk.phrase)}

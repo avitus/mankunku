@@ -12,6 +12,7 @@
 		configured: boolean | null;
 		busy: boolean;
 		source: SourceTransposition;
+		sourceHint?: string;
 		meter: [number, number];
 		error: string | null;
 		omrFileName: string | null;
@@ -25,7 +26,7 @@
 		onclearomr: () => void;
 		progress: Snippet;
 	}
-	let { file, configured, busy, source, meter, error, omrFileName, omrError, omrLoading,
+	let { file, configured, busy, source, sourceHint, meter, error, omrFileName, omrError, omrLoading,
 		onfile, onprepare, onsource, onmeter, onomr, onclearomr, progress }: Props = $props();
 	let pdfInput: HTMLInputElement;
 	let omrInput: HTMLInputElement;
@@ -112,7 +113,7 @@
 					<p class="studio-label">Setup</p><h2>The printed page.</h2><p>Match the chart you’re bringing in.</p>
 					<fieldset disabled={busy}>
 						<legend class="sr-only">Printed chart settings</legend>
-						<SourceTranspositionSelect value={source} onchange={onsource} />
+						<SourceTranspositionSelect value={source} onchange={onsource} hint={sourceHint} />
 						<TimeSignatureSelect value={meter} onchange={onmeter} />
 					</fieldset>
 					<p class="pi-setup-hint">Use what’s on the page.<br />You can change the playing key later.</p>

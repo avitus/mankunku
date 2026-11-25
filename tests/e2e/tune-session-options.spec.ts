@@ -27,35 +27,31 @@ for (const width of [1440, 390]) {
 		await page.setViewportSize({ width, height: 1000 });
 		await page.goto('/tunes/e2e-session-form');
 		await expect(page.locator('.abcjs-container svg')).toBeVisible();
-		const panel = page.locator('details.td-session-options');
-		await panel.locator('summary').click();
-		await expect(panel.getByText('Head again', { exact: true })).toBeVisible();
-		await expect(panel.getByRole('radiogroup')).toHaveCount(0);
-		await panel.scrollIntoViewIfNeeded();
+		await expect(page.getByRole('switch', { name: 'Outro' })).toBeChecked();
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await page.screenshot({ path: info.outputPath(`session-form-${width}.png`), fullPage: true });
-		const head = page.getByRole('switch', { name: 'Play head and outro', exact: true });
-		const count = page.getByRole('spinbutton', { name: 'Solo choruses', exact: true });
+		const head = page.getByRole('switch', { name: 'Head', exact: true });
+		const count = page.getByRole('spinbutton', { name: 'Choruses', exact: true });
 		await head.click();
 		await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 		await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 		await count.fill('3');
 		await count.blur();
-		await expect(panel.locator('.so-head')).toHaveCount(0);
+		await expect(page.getByRole('switch', { name: 'Outro' })).toBeChecked();
 		await page.reload();
 		await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 		await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 		await expect(head).toHaveAttribute('aria-checked', 'false');
 		await expect(count).toHaveValue('3');
-		await page.getByRole('button', { name: /Practice licks/ }).click();
-		await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
-		await page.locator('details.tp-options summary').click();
+		await page.getByRole('switch', { name: 'Lick Practice' }).click();
+		await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+
 		await expect(head).toHaveAttribute('aria-checked', 'false');
 		await expect(count).toHaveValue('3');
 		await head.click();
-		await page.getByRole('button', { name: 'More solo choruses', exact: true }).click();
-		await page.getByRole('link', { name: 'Session Form', exact: true }).click();
-		await expect(page).toHaveURL(/\/tunes\/session-form$/);
+		await page.getByRole('button', { name: 'More choruses', exact: true }).click();
+		await page.getByRole('switch', { name: 'Lick Practice', exact: true }).click();
+		await expect(page).toHaveURL(/\/tunes\/e2e-session-form$/);
 		await expect(head).toHaveAttribute('aria-checked', 'true');
 		await expect(count).toHaveValue('4');
 		await expect(page.getByTestId('tune-chord-chart')).toHaveCount(0);
@@ -66,11 +62,11 @@ for (const width of [1440, 390]) {
 test('chord-only charts disable head and outro without overwriting the saved choice', async ({ page }) => {
 	await page.goto('/tunes/e2e-chords-only');
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
-	await page.locator('details.td-session-options summary').click();
-	const head = page.getByRole('switch', { name: 'Play head and outro', exact: true });
+
+	const head = page.getByRole('switch', { name: 'Head', exact: true });
 	await expect(head).toBeDisabled();
 	await expect(head).toHaveAttribute('aria-checked', 'false');
-	await expect(page.getByText('This chart has no melody — straight to the changes.')).toBeVisible();
+	await expect(page.getByRole('switch', { name: 'Outro' })).toBeDisabled();
 	await page.goto('/tunes/e2e-session-form');
 	await expect(head).toBeEnabled();
 	await expect(head).toHaveAttribute('aria-checked', 'true');
@@ -82,12 +78,13 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
 	await page.goto('/tunes/e2e-session-form');
-	await page.locator('details.td-session-options summary').click();
-	const head = page.getByRole('switch', { name: 'Play head and outro', exact: true });
+
+	const head = page.getByRole('switch', { name: 'Head', exact: true });
 	await head.click();
-	await page.getByRole('spinbutton', { name: 'Tempo', exact: true }).fill('240');
-	await page.getByRole('spinbutton', { name: 'Tempo', exact: true }).blur();
-	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
+	await page.getByRole('switch', { name: 'Outro' }).click();
+	await page.getByRole('slider', { name: 'Tempo', exact: true }).press('End');
+	await page.getByRole('slider', { name: 'Tempo', exact: true }).blur();
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect(head).toBeDisabled();
 	await expect(page.getByTestId('tune-chord-chart')).toHaveCSS('overflow-y', 'hidden');
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
@@ -95,7 +92,7 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 	await expect(page.getByText(/Solo 1 of 1/)).toBeVisible({ timeout: 15_000 });
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
-	await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible({ timeout: 5_000 });
+	await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 5_000 });
 	await expect(head).toBeEnabled();
 	await expect(page.getByTestId('tune-chord-chart')).toHaveCSS('overflow-y', 'auto');
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
@@ -113,9 +110,9 @@ for (const width of [1440, 390]) {
 		await expect(chart.locator('.tcc-bar')).toHaveCount(34);
 		await expect(chart.locator('section').nth(1).locator('.tcc-bar').first()).toHaveAttribute('data-bar', '2');
 		await expect(chart.locator('[data-key-center]').first()).toBeVisible();
-		await page.getByRole('button', { name: 'Show Key Centers', exact: true }).click();
+		await page.getByRole('switch', { name: 'Show key centers', exact: true }).click();
 		await expect(chart.locator('[data-key-center]')).toHaveCount(0);
-		await page.getByRole('button', { name: 'Show Key Centers', exact: true }).click();
+		await page.getByRole('switch', { name: 'Show key centers', exact: true }).click();
 		await expect(chart.locator('[data-key-center]').first()).toBeVisible();
 		await expect(chart).toHaveCSS('overflow-y', 'auto');
 		await chart.focus();
@@ -127,3 +124,20 @@ for (const width of [1440, 390]) {
 		await expect(chart.locator('.tcc-bar').last()).toBeInViewport();
 	});
 }
+
+test('switching practice mode during playback ends the take and opens the chosen setup', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+		'Linux Firefox has no audio device for Tone.start');
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/e2e-session-form');
+	for (const practice of [true, false]) {
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+		await page.locator('summary').filter({ hasText: 'Chart display' }).click();
+		await page.locator('.sd-advanced[open]').getByRole('switch', { name: 'Lick Practice' }).click();
+		await expect(page).toHaveURL(practice ? /\?licks=1$/ : /\/tunes\/e2e-session-form$/);
+		await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toHaveAttribute('aria-checked', String(practice));
+	}
+});

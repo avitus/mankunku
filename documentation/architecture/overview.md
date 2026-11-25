@@ -47,7 +47,7 @@ Tricks is **generative**. Side B gives you one line you can play anywhere; a tri
 
 ## Tune Practice — applying it
 
-The fourth surface, reached from **Practice licks** on any tune in your book. It isn't another kind of drill; it's the place the other three pay off.
+The fourth surface, reached from **Lick Practice** on any tune in your book. It isn't another kind of drill; it's the place the other three pay off.
 
 - The app reads a tune's changes and **detects the progressions it knows** inside them — short and long ii-V-Is, turnarounds, iii-VI-ii-V-I, vamps, blues. Each match becomes an **insertion point**: a window in the form, in a specific local key.
 - The rhythm section plays the form. The head plays **once** (jazz form rule), then the staff clears and the chorus is yours.
