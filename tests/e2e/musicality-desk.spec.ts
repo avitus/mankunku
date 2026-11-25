@@ -108,7 +108,8 @@ test('pins actual sounding decisions, saves release-labelled feedback and preser
 test('keeps the current curated catalog within the unchanged full-tune listening budget', async ({ page }) => {
  await page.goto('/musicality');
  const picker = page.getByTestId('listening-tune');
- await expect(picker.locator('option')).toHaveText(['Mankunku Blues', 'Rhythm Changes']);
+ await expect(picker.locator('optgroup[label="Built-in"] option')).toHaveText(['Mankunku Blues', 'Rhythm Changes']);
+ await expect(picker.locator('optgroup[label="Test scenarios"] option')).toHaveText(['Fly Me to the Moon', 'All the Things You Are']);
  await picker.selectOption('ls-rhythm-changes');
  await expect(page.locator('.transport')).toContainText('128 bars');
  for (const solos of ['3', '4']) {
