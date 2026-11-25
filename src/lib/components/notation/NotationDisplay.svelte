@@ -587,7 +587,18 @@
 		});
 	});
 
-	const beatProgress = $derived(barBeatProgress(playheadPosition, tune?.timeSignature[0] ?? 4));
+	const pickupBeatsByBar = $derived.by(() => {
+		const prefixes = new Map<number, number>();
+		if (tune) {
+			const bases = sectionBarBases(tune);
+			for (const [section, prefix] of pickupPrefixesFor(tune)) {
+				prefixes.set(bases[section], prefix * tune.timeSignature[1]);
+			}
+		}
+		return prefixes;
+	});
+	const beatProgress = $derived(barBeatProgress(playheadPosition, tune?.timeSignature[0] ?? 4,
+		pickupBeatsByBar.get(Math.floor(playheadPosition ?? -1))));
 
 	// Insertion-point range bands — a handful of overlay rects per status
 	// change, inserted below the glyphs like the bar hit rects.

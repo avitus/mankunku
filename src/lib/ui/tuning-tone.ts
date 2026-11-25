@@ -8,7 +8,7 @@ const TUNING_TIERS = [
 ] as const;
 
 /** Grade the same whole-cent distance the fader prints, in either direction. */
-export function tuningTier(cents: number) {
+export function tuningTier(cents: number): (typeof TUNING_TIERS)[number] {
 	const distance = Math.round(Math.abs(cents));
 	return TUNING_TIERS.find(tier => distance <= tier.maxCents) ?? TUNING_TIERS[3];
 }

@@ -107,6 +107,7 @@
 	   is instantly legible: podium medals (gold/silver/bronze) for good takes,
 	   two teal shades below "decent" for needs-work vs rough — encouraging,
 	   never an alarm-red. Breakpoints match the Grade thresholds (.95/.85/.70/.55).
+	   Tuning faders use the same metals and teal, graded by absolute cents.
 	   The :root.light block re-steps them to stay legible on paper. */
 	--accuracy-gold: var(--metal-gold);     /* ≥ 95%  excellence */
 	--accuracy-silver: var(--metal-silver); /* 85–94% very good  */

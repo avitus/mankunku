@@ -170,13 +170,32 @@ test('a sign-in refresh during the head keeps the same chorus playing', async ({
 	const status = page.locator('.td-status strong');
 	await expect(status).toHaveText('Head · Bar 2', { timeout: 30_000 });
 
+	const history = await status.evaluateHandle(element => {
+		const labels = [element.textContent ?? ''];
+		const container = element.closest('.td-status')!.parentElement!;
+		const observer = new MutationObserver(() => {
+			const label = container.querySelector('.td-status strong')?.textContent ?? '';
+			if (label !== labels.at(-1)) labels.push(label);
+		});
+		observer.observe(container, { childList: true, subtree: true, characterData: true });
+		return { labels, observer };
+	});
 	const refreshed = page.waitForResponse(response =>
 		new URL(response.url()).pathname === '/tunes/ls-rhythm-changes/__data.json' && response.ok()
 	);
 	await broadcastTokenRefresh(page, testUser);
 	await (await refreshed).finished();
 
-	await expect(status).toHaveText(/Head · Bar [3-9]$/, { timeout: 10_000 });
+	await expect(status).toHaveText(/Head · Bar (?:[3-9]|[1-9]\d+)$/, { timeout: 10_000 });
+	const labels = await history.evaluate(({ labels, observer }) => {
+		observer.disconnect();
+		return labels;
+	});
+	await history.dispose();
+	const bars = labels.map(label => Number(/^Head · Bar (\d+)$/.exec(label)?.[1]));
+	expect(bars[0]).toBeGreaterThanOrEqual(2);
+	expect(bars).toEqual([...bars].sort((a, b) => a - b));
+	expect(bars.every(bar => Number.isInteger(bar) && bar >= 2)).toBe(true);
 	await expect(page.getByRole('region', { name: 'Session setup' })).toBeHidden();
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await expect(page.getByRole('region', { name: 'Session setup' })).toBeVisible();

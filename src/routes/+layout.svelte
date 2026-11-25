@@ -262,21 +262,20 @@
 	 * anywhere outside it, or Escape, closes it like any popup menu. Presses
 	 * inside (the name itself included) are left to the native toggle.
 	 */
-	let accountMenuOpen = $state(false);
 	let accountMenu = $state<HTMLDetailsElement | null>(null);
 
 	/** Closes the open account menu when a press lands outside it. */
 	function closeAccountMenuOnOutsidePress(event: PointerEvent): void {
-		if (!accountMenuOpen || !accountMenu) return;
+		if (!accountMenu?.open) return;
 		if (event.target instanceof Node && accountMenu.contains(event.target)) return;
-		accountMenuOpen = false;
+		accountMenu.open = false;
 	}
 
 	/** Closes the open account menu on Escape and returns focus to its summary. */
 	function closeAccountMenuOnEscape(event: KeyboardEvent): void {
-		if (event.key !== 'Escape' || !accountMenuOpen) return;
-		accountMenuOpen = false;
-		accountMenu?.querySelector('summary')?.focus();
+		if (event.key !== 'Escape' || !accountMenu?.open) return;
+		accountMenu.open = false;
+		accountMenu.querySelector('summary')?.focus();
 	}
 </script>
 
@@ -361,7 +360,7 @@
 				-->
 				<div class="ml-2 border-l border-[var(--color-bg-tertiary)] pl-3">
 					{#if session && user}
-						<details class="group relative" bind:open={accountMenuOpen} bind:this={accountMenu}>
+						<details class="group relative" bind:this={accountMenu}>
 							<summary
 								class="cursor-pointer list-none max-w-[120px] truncate text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 								title={user.email ?? ''}
@@ -377,7 +376,7 @@
 										onclick={() => {
 											// Client-side nav doesn't unmount the layout, so the native
 											// <details> would stay open over the admin page.
-											accountMenuOpen = false;
+											if (accountMenu) accountMenu.open = false;
 										}}
 										class="block w-full rounded px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
 									>

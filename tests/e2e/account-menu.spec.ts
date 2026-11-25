@@ -39,6 +39,16 @@ test.describe('account menu', () => {
 		await expect(page.locator('nav details[open]')).toHaveCount(0);
 	});
 
+	test('Escape can close the native menu before its toggle event is delivered', async ({ signedInPage: page }) => {
+		const menu = page.locator('nav details');
+		await menu.locator('summary').evaluate(summary => {
+			if (!(summary instanceof HTMLElement)) throw new Error('Expected an HTML summary');
+			summary.click();
+			summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		});
+		await expect(menu).not.toHaveAttribute('open', '');
+	});
+
 	test('re-clicking the name still toggles it, and a click inside keeps it open', async ({
 		signedInPage: page
 	}) => {

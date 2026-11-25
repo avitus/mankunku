@@ -28,7 +28,7 @@ describe('coordinated drum phrase planning', () => {
 		const offsets: [number, number] = [0, 1.5];
 		const cell = { player: 'piano' as const, bar: 0, offsets, stressed: 1 as 0 | 1 };
 		const bars = fixture();
-		const phrase = { phraseId: 'displaced-snapshot', tempo: 140, beatsPerBar: 4, harmonyEndBeat: 20 };
+		const phrase = { phraseId: 'displaced-snapshot', tempo: 140, beatsPerBar: 4 as const, harmonyEndBeat: 20 };
 		const previous = planDrumPhraseBar({ ...phrase, barIndex: 0, info: bars[0],
 			phraseStartBar: 0, phraseEndBarExclusive: 1 });
 		const { bar } = planDrumPhraseBar({ ...phrase, barIndex: 1, info: bars[1],
