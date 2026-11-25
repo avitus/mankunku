@@ -358,6 +358,7 @@
 		// markers mis-parse ASCII flats ("Bb7" → B + b7); structureChordSymbols
 		// does the superscript engraving after render. gchordfont only feeds
 		// abcjs's width estimation; the painted face is the --chord-font CSS.
+		const mastheadFace = '"Fraunces, Georgia, Times New Roman, serif"';
 		const [visualObj] = abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
 			// Keep the score named for assistive technology when the page owns its visual masthead.
@@ -369,41 +370,16 @@
 			paddingright: 12,
 			add_classes: true,
 			format: {
-				// abcjs parses format values as ABC directives, so the compact
-				// font must be a string for its size to affect engraving geometry.
-				gchordfont: compactStaff ? 'Fraunces 17' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
+				// abcjs tokenizes font directives as text. Quote each family list as one face.
+				gchordfont: compactStaff ? 'Fraunces 17' : '"Fraunces, Edwin, Georgia, serif" 15',
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
 				partsfont: 'Fraunces 14 bold',
-				titlefont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 22,
-					weight: 'normal',
-					style: 'normal',
-					decoration: 'none'
-				},
-				composerfont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 13,
-					weight: 'normal',
-					style: 'italic',
-					decoration: 'none'
-				},
-				infofont: { face: 'MuseJazzText', size: 12, weight: 'normal', style: 'normal', decoration: 'none' },
+				titlefont: `${mastheadFace} 22`,
+				composerfont: `${mastheadFace} 13 italic`,
+				infofont: 'MuseJazzText 12',
 				// Quiet navigation marks — slightly smaller than body text.
-				measurefont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 8,
-					weight: 'normal',
-					style: 'italic',
-					decoration: 'none'
-				},
-				subtitlefont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 14,
-					weight: 'normal',
-					style: 'normal',
-					decoration: 'none'
-				}
+				measurefont: `${mastheadFace} 8 italic`,
+				subtitlefont: `${mastheadFace} 14`
 			},
 			clickListener: function (abcElem, _tuneNumber, _classes, analysis) {
 				if (!abcElem) return;
