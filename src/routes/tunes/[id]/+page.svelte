@@ -398,7 +398,7 @@
 		{/if}
 		<section class="le-panel td-detail-chart" aria-label="Tune chart">
 			{#if practice && bookSheet}
-				{#key bookSheet.id}<TunePracticeSession bind:this={practiceSession} baseSheet={bookSheet} {player} {cacheVersion} {concertKey} {backingStyle} {showKeyCenters} onexit={() => setPractice(false)} />{/key}
+				{#key bookSheet.id}<TunePracticeSession bind:this={practiceSession} baseSheet={bookSheet} onprint={() => printPreview = true} {player} {cacheVersion} {concertKey} {backingStyle} {showKeyCenters} onexit={() => setPractice(false)} />{/key}
 			{:else}
 				{#if player.busy}
 					<div class="td-status">

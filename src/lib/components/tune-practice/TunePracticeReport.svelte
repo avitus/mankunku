@@ -10,8 +10,8 @@
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import './tune-practice-report.css';
 
-	let { tune, onexit, phrase, plan, results, picked, instrument, tempo, elapsed, clock, points = null, onretry }: {
-		tune: Tune; onexit: () => void; phrase: Phrase; plan: InsertionPoint[]; results: InsertionResult[];
+	let { tune, onexit, onprint, phrase, plan, results, picked, instrument, tempo, elapsed, clock, points = null, onretry }: {
+		tune: Tune; onprint: () => void; onexit: () => void; phrase: Phrase; plan: InsertionPoint[]; results: InsertionResult[];
 		picked: Record<string, number>; instrument: InstrumentConfig; tempo: number; elapsed: string;
 		clock: ReportClock;
 		points?: { total: number; streak: number } | null;
@@ -36,7 +36,7 @@
 </script>
 
 <div class="studio-desk tune-report" data-testid="tune-practice-report">
-	<div class="tr-masthead"><span>Take complete</span><time>{elapsed}</time></div>
+	<div class="tr-masthead"><span>Take complete</span><time>{elapsed}</time><button type="button" onclick={onprint}>Print lead sheet</button></div>
 	<header class="tr-heading">
 		<div><h1><span class="sr-only">Take complete — </span>{tune.title}</h1><p>Written in {displayPitchClass(writtenKey, writtenKey)} <span>·</span> {tempo} BPM <span>·</span> {tune.style}</p></div>
 		<div class="tr-summary" aria-label="Landed insertions by chorus">

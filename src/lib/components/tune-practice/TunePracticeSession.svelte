@@ -73,9 +73,9 @@
 	import type { Tune } from '$lib/types/tune';
 	import type { TunePlayer } from '$lib/state/tune-player.svelte';
 	import type { BackingStyle } from '$lib/types/instruments';
-	let { baseSheet, cacheVersion, player, concertKey, backingStyle, showKeyCenters, onexit }: {
+	let { baseSheet, cacheVersion, player, concertKey, backingStyle, showKeyCenters, onprint, onexit }: {
 		baseSheet: Tune; cacheVersion: number; player: TunePlayer; concertKey: PitchClass;
-		backingStyle: BackingStyle; showKeyCenters: boolean; onexit: () => void;
+		backingStyle: BackingStyle; showKeyCenters: boolean; onprint: () => void; onexit: () => void;
 	} = $props();
 	/**
 	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
@@ -933,7 +933,7 @@
 		{/if}
 		{#if showKeyCenters && activeKeyCenters}<KeyCenterLegend display={activeKeyCenters} />{/if}
 	{:else if tunePractice.config.mode !== 'freestyle' && audioPlan}
-		<TunePracticeReport {onexit} tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
+		<TunePracticeReport {onexit} {onprint} tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
 			clock={{ barTicks: barTicksNR, countInTicks: countInTicksNR }}
 			results={tunePractice.results} picked={tunePractice.pickedSuggestion} instrument={getInstrument()}
 			tempo={tunePractice.config.tempo} elapsed={formatElapsed(tunePractice.elapsedSeconds)}
