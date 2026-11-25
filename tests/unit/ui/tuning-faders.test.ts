@@ -31,8 +31,8 @@ describe('tuning faders', () => {
 		const samples = [...takes(60, 22, 4), ...takes(62, -11, 3)];
 		const studio = renderTenor(samples, 'D', true);
 		expect(channelNotes(studio)).toEqual(channelNotes(renderTenor(samples)));
-		expect(studio).toContain('aria-label="D5: 22 cents sharp, 4 takes"');
-		expect(studio).toContain('aria-label="E5: 11 cents flat, 3 takes"');
+		expect(studio).toContain('aria-label="D5: 22 cents sharp, Blue-green, 4 takes"');
+		expect(studio).toContain('aria-label="E5: 11 cents flat, Bronze, 3 takes"');
 		expect(studio).toContain('A = 440');
 		expect(studio).toContain('Your centre');
 	});
@@ -55,8 +55,8 @@ describe('tuning faders', () => {
 
 	it('labels each channel with its offset and number of takes', () => {
 		const body = renderTenor([...takes(60, 22, 4), ...takes(62, -11, 3)]);
-		expect(body).toContain('aria-label="D5: 22 cents sharp, 4 takes"');
-		expect(body).toContain('aria-label="E5: 11 cents flat, 3 takes"');
+		expect(body).toContain('aria-label="D5: 22 cents sharp, Blue-green, 4 takes"');
+		expect(body).toContain('aria-label="E5: 11 cents flat, Bronze, 3 takes"');
 		expect(body).toContain('+22');
 		expect(body).toContain('−11');
 		expect(body).toContain('×4');
@@ -66,11 +66,11 @@ describe('tuning faders', () => {
 		const body = renderTenor([...takes(60, 22, 1), ...takes(62, 4, 3)]);
 		expect(body).toMatch(/data-note="D5"[^>]*data-steady="false"/);
 		expect(body).toMatch(/data-note="E5"[^>]*data-steady="true"/);
-		expect(body).toContain('aria-label="D5: 22 cents sharp, 1 take"');
+		expect(body).toContain('aria-label="D5: 22 cents sharp, Blue-green, 1 take"');
 	});
 
 	it('reads an in-tune note as in tune', () => {
-		expect(renderTenor(takes(60, 3, 4))).toContain('aria-label="D5: in tune, 4 takes"');
+		expect(renderTenor(takes(60, 3, 4))).toContain('aria-label="D5: in tune, Gold, 4 takes"');
 	});
 
 	it('offers the centre view only once there is a centre', () => {

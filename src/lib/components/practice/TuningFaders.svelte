@@ -7,7 +7,7 @@
 	import { midiToDisplayName } from '$lib/music/notation';
 	import { ALERT_CENTS } from '$lib/scoring/tuning';
 	import { IN_TUNE_CENTS, tuningSummaryLines, type TuningSummary } from '$lib/scoring/tuning-summary';
-	import { signedCents, tuningTone } from '$lib/ui/tuning-tone';
+	import { signedCents, tuningTier } from '$lib/ui/tuning-tone';
 
 	interface Props {
 		summary: TuningSummary;
@@ -41,6 +41,7 @@
 			const name = writtenName(n.midi);
 			const m = /^(.*?)(-?\d+)$/.exec(name);
 			const median = n.median - shift;
+			const tier = tuningTier(median);
 			const size = Math.round(Math.abs(median));
 			const reading = size <= IN_TUNE_CENTS ? 'in tune' : `${size} cents ${median > 0 ? 'sharp' : 'flat'}`;
 			return {
@@ -51,7 +52,8 @@
 				median,
 				q1: n.q1 === null ? null : n.q1 - shift,
 				q3: n.q3 === null ? null : n.q3 - shift,
-				label: `${name}: ${reading}, ${n.count} ${n.count === 1 ? 'take' : 'takes'}`
+				tier,
+				label: `${name}: ${reading}, ${tier.name}, ${n.count} ${n.count === 1 ? 'take' : 'takes'}`
 			};
 		})
 	);
@@ -113,7 +115,7 @@
 			aria-label="Tuning by note, low to high"
 		>
 			{#each channels as c (c.midi)}
-				{@const color = tuningTone(c.median)}
+				{@const color = c.tier.color}
 				<li
 					class="channel flex min-w-0 flex-col items-center rounded-md px-0.5 pb-2 pt-1"
 					data-note={c.name}
@@ -129,7 +131,7 @@
 						<div
 							class="absolute inset-x-2 rounded-sm"
 							style="top: {y(IN_TUNE_CENTS)}px; height: {y(-IN_TUNE_CENTS) - y(IN_TUNE_CENTS)}px;
-								   background: color-mix(in srgb, var(--color-brass) 12%, transparent)"
+								   background: color-mix(in srgb, var(--accuracy-gold) 12%, transparent)"
 						></div>
 						{#each TICKS as t (t)}
 							<div
@@ -153,7 +155,7 @@
 						<div
 							class="cap absolute left-1/2 h-4 w-[min(30px,90%)] -translate-x-1/2 -translate-y-1/2 rounded-[3px]"
 							class:is-unsteady={!c.steady}
-							style="top: {y(c.median)}px; --cap: {color}"
+							style="top: {y(c.median)}px; --cap: {c.tier.cap}"
 						>
 							<span class="grip"></span>
 						</div>
