@@ -10,7 +10,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.14 full Blues with ${ke
  requireRealtimeAudio(page);
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
- const seed = keyboard === 'piano' ? 5 : 190;
+ const seed = keyboard === 'piano' ? 5 : 595;
  await page.addInitScript(seed=>{
   const random=crypto.getRandomValues.bind(crypto);
   crypto.getRandomValues=((array:ArrayBufferView<ArrayBuffer>)=>{

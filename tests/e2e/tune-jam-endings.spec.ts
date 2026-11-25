@@ -123,9 +123,9 @@ test('a headless tune without alternate endings keeps cues on the last solo', as
 
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	const chart = page.getByTestId('tune-chord-chart');
-	await expect(chart.locator('.tcc-cue').first()).toBeVisible({ timeout: 30_000 });
+	await expect(chart.locator('.solo-cues [data-marker-id]').first()).toBeVisible({ timeout: 30_000 });
 	await expect(page.getByText('Solo 2 of 2', { exact: true })).toBeVisible({ timeout: 10_000 });
-	await expect(chart.locator('.tcc-cue').first()).toBeVisible();
+	await expect(chart.locator('.solo-cues [data-marker-id]').first()).toBeVisible();
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 

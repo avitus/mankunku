@@ -1,0 +1,74 @@
+import type { Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { test, expect } from './fixtures/test';
+import { seedOnboardedAnonymous } from './fixtures/storage';
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
+import { expectEveryBarCommittedWithLead } from './fixtures/rolling-lead';
+import { observeListeningOutput, expectAudibleListeningOutput } from './fixtures/listening-output';
+import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
+import type { RollingBackingDispatch } from '../../src/lib/audio/backing-rolling-renderer';
+
+const visibleCue = (page: Page) => page.getByTestId('listening-cue').filter({ visible: true });
+const cueMarker = (page: Page, bar: number) => page.locator(`rect[data-marker-id="listening-cue-${bar}"]`);
+
+test('marks the score below the notes and previews every listening cue', async ({ page }, info) => {
+ await seedOnboardedAnonymous(page);
+ await page.goto('/musicality');
+ await page.getByTestId('listening-eighth-anticipation').click();
+ const cue = visibleCue(page);
+ const highlight = (bar: number) => cueMarker(page, bar);
+ await expect(cue).toContainText('Head in · Bar 18');
+ await expect(highlight(18)).toBeVisible();
+ await expect(highlight(22)).toBeVisible();
+ const itinerary = page.locator('details.cue-list:visible');
+ await itinerary.locator('summary').click();
+ await expect(itinerary).toContainText('Head out · Bar 6');
+ await itinerary.locator('summary').click();
+ await expect(highlight(78)).toHaveCount(0);
+ const inkClearance = await page.locator('text[data-marker-id="listening-cue-18"]').evaluate(label => {
+  const staff = label.closest('g.abcjs-staff-wrapper')!;
+  const notes = [...staff.querySelectorAll('.abcjs-note')];
+  return label.getBoundingClientRect().top - Math.max(...notes.map(note => note.getBoundingClientRect().bottom));
+ });
+ expect(inkClearance).toBeGreaterThan(0);
+ await page.getByTestId('listening-score').screenshot({path: info.outputPath('marked-score.png')});
+ await page.setViewportSize({ width: 390, height: 844 });
+ await expect(cue).toContainText('Bass G, then G on one.');
+ await page.setViewportSize({ width: 1440, height: 1000 });
+ await page.getByTestId('listening-new-arc').click();
+ await expect(cue).toHaveCount(0);
+ await expect(highlight(18)).toHaveCount(0);
+});
+
+test('gives advance listening cues for three Bossa cadences across All the Things You Are', async ({ page }, info) => {
+ requireRealtimeAudio(page);
+ test.setTimeout(300_000);
+ await observeListeningOutput(page);
+ await seedOnboardedAnonymous(page);
+ await page.goto('/musicality');
+ const cue = visibleCue(page);
+ await page.getByTestId('listening-keyboard').selectOption(info.project.name === 'webkit' ? 'organ' : 'piano');
+ await page.getByTestId('listening-eighth-anticipation').click();
+ await expect(page.getByTestId('listening-position')).toContainText('108 bars');
+ await page.getByTestId('listening-play').click();
+ await expect(page.getByTestId('listening-status')).toHaveText('Playing', { timeout: 90_000 });
+ await expect(cue).toContainText('In 4 bars · Head in · Bar 18', { timeout: 40_000 });
+ await expect(cue).toContainText('Listen here · Head in · Bar 18', { timeout: 15_000 });
+ await expect(page.locator('[data-testid="musician-bass"][data-bar-index="17"]')).toContainText('Anticipate on the and of four');
+ await expect(cue).toContainText('Just heard · Head in · Bar 18', { timeout: 8_000 });
+ await expect(cue).toContainText('Up next · Head out · Bar 6', { timeout: 20_000 });
+ await expect(cueMarker(page, 78)).toBeVisible({ timeout: 110_000 });
+ await expect(cueMarker(page, 18)).toHaveCount(0);
+ await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 85_000 });
+ await page.locator('details.take-notes > summary').click();
+ const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
+ const path = (await download.path())!;
+ const take = JSON.parse(await readFile(path, 'utf8')).playback;
+ await expectAudibleListeningOutput(page, take.generated);
+ expectEveryBarCommittedWithLead(take, 108);
+ expect(take.provenance.dispatches.every((group: RollingBackingDispatch) => group.status === 'played')).toBe(true);
+ const generated: GeneratedBacking = take.generated;
+ expect(generated.bassEvents.filter(event => event.eighthAnticipatedRoot).map(event => [event.absBeat, event.midi]))
+  .toEqual([[71.5, 43], [87.5, 40], [311.5, 36]]);
+ await info.attach('all-the-things-take', { path, contentType: 'application/json' });
+});

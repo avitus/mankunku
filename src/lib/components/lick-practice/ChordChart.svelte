@@ -137,7 +137,7 @@
 					{#each Array(numBeats) as _, b}
 						{@const isBeatActive = isActive && b === beatInCell}
 						<div
-							class="h-1.5 w-1.5 rounded-full transition-all duration-100
+							class:lit={isBeatActive} class="h-1.5 w-1.5 rounded-full transition-all duration-100
 								   {isBeatActive
 									? 'bg-[var(--practice-phase,var(--color-phase-play))] scale-125'
 									: isActive && b < beatInCell
@@ -149,7 +149,7 @@
 
 				<!-- Progress bar across cell bottom -->
 				{#if isActive && isPlaying}
-					<div class="absolute bottom-0 left-0 h-0.5 bg-[var(--practice-phase,var(--color-phase-play))] transition-all duration-75"
+					<div class="chord-progress absolute bottom-0 left-0 h-0.5 bg-[var(--practice-phase,var(--color-phase-play))] transition-all duration-75"
 						 style="width: {cellProgress * 100}%"></div>
 				{/if}
 			</div>

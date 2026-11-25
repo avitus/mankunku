@@ -79,6 +79,8 @@ export default defineConfig({
 	test: {
 		include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
 		environment: 'node',
+		// The font-token check inspects the app stylesheet after Tailwind resolves its imports.
+		css: { include: [/\/src\/app\.css(?:\?|$)/] },
 		setupFiles: ['./vitest.setup.ts'],
 		// The full-performance Musicality tests generate whole tunes per case:
 		// 2–3 s locally, 7–14 s on CI's shared vCPUs, where Vitest's 5 s default

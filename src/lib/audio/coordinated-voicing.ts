@@ -16,6 +16,7 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+ readonly melodicStep?: true;
  readonly chromaticInner?: Extract<InnerMotion,{kind:'chromatic-inner'}>;
  readonly fourthStack?: Extract<PhraseDialogue,{kind:'fourth-stack'}>;
  readonly spreadVoicing?: Extract<EnsembleColor,{kind:'drop3'}>;
@@ -277,6 +278,7 @@ export function resolveCoordinatedVoicing(input: {
 	family: CoordinatedVoicingFamily; registerMidi: number; previous?: CoordinatedVoicingMemory;
 	rootlessTexture?: 'two' | 'three' | 'full';
 	targetTopMidi?: number;
+ melodicStep?: { readonly anchor: number; readonly step: number };
 	/** Optional admission of a compact or open rootless placement before ordinary voice-leading ranking. */
 	spacing?: 'compact' | 'open';
 	/** A melodic preference admitted only within the current spacing and explicit motion bounds. */
@@ -343,6 +345,21 @@ export function resolveCoordinatedVoicing(input: {
 	}
 
 
+	let melodicStep = false;
+	if (input.melodicStep && previous && contourEligible) {
+		const { anchor, step } = input.melodicStep;
+		const pcs = CHORD_DEFINITIONS[chord.quality].intervals.map(n => (PITCH_CLASSES.indexOf(chord.root) + n) % 12);
+		const fits = ranked.filter(candidate => {
+			const top = candidate.notes.at(-1)!;
+			const movement = top - anchor;
+			return pcs.includes(top % 12) && Math.sign(movement) === Math.sign(step) && Math.abs(movement - step) <= 3 &&
+				Math.abs(movement) <= 9 && (candidate.guideMotion ?? 0) <= (ordinary.guideMotion ?? 0) + 4 &&
+				candidate.totalMovement <= ordinary.totalMovement + 10;
+		});
+		fits.sort((a,b) => Math.abs(a.notes.at(-1)! - anchor - step) - Math.abs(b.notes.at(-1)! - anchor - step));
+		if (fits.length) { selected = fits[0]; melodicStep = true; }
+	}
+
 	const beforeContrary = selected;
 	let contraryStatus: NonNullable<CoordinatedVoicingDecision['keyboardContraryMotion']>['status'] = 'family_ineligible';
 	let contraryVoice: number | undefined;
@@ -385,7 +402,7 @@ export function resolveCoordinatedVoicing(input: {
 
 	const notes = Object.freeze([...selected.notes]);
 	const memory = Object.freeze({ version: 1 as const, chord: Object.freeze(chord), notes });
-	const decision = Object.freeze({ requestedFamily: input.family, resolvedFamily: family, correction,
+	const decision = Object.freeze({ ...(melodicStep ? { melodicStep: true as const } : {}), requestedFamily: input.family, resolvedFamily: family, correction,
 		guideMotion: selected.guideMotion, commonTones: Object.freeze([...selected.commonTones]), totalMovement: selected.totalMovement,
 		registerDistance: selected.registerDistance, candidateCount: ranked.length,
 		...(input.keyboardContraryMotion ? { keyboardContraryMotion: Object.freeze({ status: contraryStatus,

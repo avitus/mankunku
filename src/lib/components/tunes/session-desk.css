@@ -139,3 +139,30 @@
 @media (prefers-reduced-motion:reduce) {
   .sd-setup, .unified-practice {transition:none}
 }
+
+.td-highlight-style {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;color:var(--studio-text);font-size:12px}
+.td-highlight-style select {border:1px solid var(--studio-border);border-radius:4px;padding:6px 8px;background:var(--studio-well);color:inherit}
+.td-highlight-style select:disabled {opacity:.55}
+.tune-detail .td-status {margin:0 0 8px}
+.tune-detail .practice-session .td-score-well {margin-top:8px}
+.sd-playing .sd-header .sd-advanced {display:block}
+.sd-playing .sd-header .sd-advanced .sd-drawer {inset-inline-start:auto;inset-inline-end:0;max-width:calc(100vw - 32px)}
+.tune-detail .practice-session .font-medium {font-weight:600}
+.tune-detail .practice-session .tp-listen {font-weight:600;color:color-mix(in srgb,var(--color-phase-listen) 52%,var(--studio-text))}
+
+/* The beat indication stays distinct from the selected harmony treatment. */
+.tune-detail {--tune-beat-ink:#e4bc7e;--tune-current-number:#f0cf94}
+:root.light .tune-detail {--tune-beat-ink:var(--color-brass);--tune-current-number:var(--color-brass)}
+.tune-detail .solo-harmony {position:relative}
+.tune-detail .solo-harmony .position-mark {position:absolute;left:0;bottom:0;height:2px;background:var(--tune-beat-ink);transition:width .1s;pointer-events:none}
+.tune-detail .tcc-bar.solo.active .solo-heading small {color:var(--tune-current-number)}
+.tune-detail .tcc-bar.solo .chord-cell.active {background:transparent}
+.tune-detail .tcc-bar.solo .chord-cell.past {--chord-content-opacity:1}
+.tune-detail .solo-harmony .chord-progress {display:none}
+.tune-detail .solo-harmony .beat-dots > div {background:#475466;transform:none;scale:1}
+.tune-detail .solo-harmony .beat-dots > .lit {background:var(--tune-beat-ink)}
+.tune-detail .notation-container svg .range-marker.playhead-beat-line {fill:var(--tune-beat-ink);fill-opacity:1;stroke:none;pointer-events:none}
+.tune-detail svg .key-center-ink text {display:none}
+@media(prefers-reduced-motion:reduce){.tune-detail .position-mark{transition:none}}
+
+.sd-mode-hint {margin:6px 0 0;color:var(--studio-muted);font-size:11px;line-height:1.45}

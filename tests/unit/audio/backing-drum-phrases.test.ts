@@ -24,6 +24,23 @@ function sourceOf(trace: readonly DrumPhraseDecision[], entry: DrumPhraseDecisio
 }
 
 describe('coordinated drum phrase planning', () => {
+	it('snapshots a displaced source without freezing the caller’s offsets', () => {
+		const offsets: [number, number] = [0, 1.5];
+		const cell = { player: 'piano' as const, bar: 0, offsets, stressed: 1 as 0 | 1 };
+		const bars = fixture();
+		const phrase = { phraseId: 'displaced-snapshot', tempo: 140, beatsPerBar: 4 as const, harmonyEndBeat: 20 };
+		const previous = planDrumPhraseBar({ ...phrase, barIndex: 0, info: bars[0],
+			phraseStartBar: 0, phraseEndBarExclusive: 1 });
+		const { bar } = planDrumPhraseBar({ ...phrase, barIndex: 1, info: bars[1],
+			phraseStartBar: 1, phraseEndBarExclusive: 5, displaced: { cell, shift: 1 } }, previous.memory);
+		offsets[1] = 2;
+		cell.stressed = 0;
+		const source = bar.commentary.hits[0]?.displacedAnswer;
+		expect(source).toEqual({ player: 'piano', bar: 0, offsets: [0, 1.5], stressed: 1 });
+		expect(Object.isFrozen(source)).toBe(true);
+		expect(bar.commentary.sourceOffsets).toBe(source?.offsets);
+	});
+
 	it('closes a delayed eight-bar commentary statement instead of resting on its final bar', () => {
 		let witnesses = 0;
 		for (let seed = 0; seed < 24; seed++) {

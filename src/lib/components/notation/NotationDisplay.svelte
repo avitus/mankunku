@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { barBeatProgress } from '$lib/notation/bar-progress';
 	import { compactCenter } from '$lib/tunes/key-centers';
 	import { settings } from '$lib/state/settings.svelte';
 	import { tick, untrack } from 'svelte';
@@ -90,6 +91,8 @@
 		label?: string;
 		/** Explicit musical start for a label when coverage wraps to earlier chart bars. */
 		labelBar?: number;
+  /** Place listening annotations beneath the lowest ink across this system. */
+  labelBelowSystem?: boolean;
 		/**
 		 * Progression identity colour (a CSS colour, e.g. a `var(--prog-*)` ref).
 		 * When set it tints the band + label to the matched progression's hue for
@@ -100,7 +103,7 @@
 	}
 
 	/** Visual treatment for the current-bar playhead marker. */
-	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle';
+	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle' | 'beat-line';
 
 	/**
 	 * Chart presentation:
@@ -143,6 +146,7 @@
 		rangeMarkers?: RangeMarker[];
 		/** Visual treatment for `status: 'playhead'` markers. Default 'under-bar'. */
 		playheadStyle?: PlayheadStyle;
+		playheadPosition?: number | null;
 		/** Engrave key-center highlights on the chord row or staff. */
 		keyCenterRails?: boolean;
 		/** Full producer lane count, retained when rails are hidden. */
@@ -227,6 +231,7 @@
 		cursorIndex = null,
 		rangeMarkers,
 		playheadStyle = 'under-bar',
+		playheadPosition = null,
 		keyCenterRails = false,
 		keyCenterLaneCount = 2,
 		autoScrollPlayhead = false,
@@ -358,6 +363,7 @@
 		// markers mis-parse ASCII flats ("Bb7" → B + b7); structureChordSymbols
 		// does the superscript engraving after render. gchordfont only feeds
 		// abcjs's width estimation; the painted face is the --chord-font CSS.
+		const mastheadFace = '"Fraunces, Georgia, Times New Roman, serif"';
 		const [visualObj] = abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
 			// Keep the score named for assistive technology when the page owns its visual masthead.
@@ -369,41 +375,16 @@
 			paddingright: 12,
 			add_classes: true,
 			format: {
-				// abcjs parses format values as ABC directives, so the compact
-				// font must be a string for its size to affect engraving geometry.
-				gchordfont: compactStaff ? 'Fraunces 17' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
+				// abcjs tokenizes font directives as text. Quote each family list as one face.
+				gchordfont: compactStaff ? 'Fraunces 17' : '"Fraunces, Edwin, Georgia, serif" 15',
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
 				partsfont: 'Fraunces 14 bold',
-				titlefont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 22,
-					weight: 'normal',
-					style: 'normal',
-					decoration: 'none'
-				},
-				composerfont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 13,
-					weight: 'normal',
-					style: 'italic',
-					decoration: 'none'
-				},
-				infofont: { face: 'MuseJazzText', size: 12, weight: 'normal', style: 'normal', decoration: 'none' },
+				titlefont: `${mastheadFace} 22`,
+				composerfont: `${mastheadFace} 13 italic`,
+				infofont: 'MuseJazzText 12',
 				// Quiet navigation marks — slightly smaller than body text.
-				measurefont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 8,
-					weight: 'normal',
-					style: 'italic',
-					decoration: 'none'
-				},
-				subtitlefont: {
-					face: 'Fraunces, Georgia, "Times New Roman", serif',
-					size: 14,
-					weight: 'normal',
-					style: 'normal',
-					decoration: 'none'
-				}
+				measurefont: `${mastheadFace} 8 italic`,
+				subtitlefont: `${mastheadFace} 14`
 			},
 			clickListener: function (abcElem, _tuneNumber, _classes, analysis) {
 				if (!abcElem) return;
@@ -449,6 +430,7 @@
 		structureChordSymbols(containerEl);
 		dropChordSymbols(containerEl);
 		nudgeChordSymbols(containerEl);
+		if (tune) positionRowNumbers(containerEl);
 		repositionPartLabels(containerEl);
 		// Stacked second endings: map [2] onto [1]'s horizontal span (pure-translate
 		// glyphs, scale only volta/beam line art) — driven entirely from the rendered
@@ -605,6 +587,19 @@
 		});
 	});
 
+	const pickupBeatsByBar = $derived.by(() => {
+		const prefixes = new Map<number, number>();
+		if (tune) {
+			const bases = sectionBarBases(tune);
+			for (const [section, prefix] of pickupPrefixesFor(tune)) {
+				prefixes.set(bases[section], prefix * tune.timeSignature[1]);
+			}
+		}
+		return prefixes;
+	});
+	const beatProgress = $derived(barBeatProgress(playheadPosition, tune?.timeSignature[0] ?? 4,
+		pickupBeatsByBar.get(Math.floor(playheadPosition ?? -1))));
+
 	// Insertion-point range bands — a handful of overlay rects per status
 	// change, inserted below the glyphs like the bar hit rects.
 	$effect(() => {
@@ -756,7 +751,10 @@
 							: marker.label;
 					const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
 					el.setAttribute('x', (labelX + band.spacing * 0.6).toFixed(2));
-					el.setAttribute('y', (band.staffBottom + band.spacing * 1.9).toFixed(2));
+					const labelY = marker.labelBelowSystem
+						? band.bottom + band.spacing * 2.9
+						: band.staffBottom + band.spacing * 1.9;
+					el.setAttribute('y', labelY.toFixed(2));
 					el.setAttribute('font-size', fontSize.toFixed(2));
 					el.setAttribute('class', `range-marker range-marker-label marker-label-${marker.status}`);
 					el.setAttribute('data-marker-id', marker.id);
@@ -1051,6 +1049,10 @@
 			return r;
 		};
 
+		if (style === 'beat-line') {
+			add(rect(x0, band.staffBottom + sp * .5, w, 2));
+			return;
+		}
 		if (style === 'under-bar') {
 			const svg = wrapper.ownerSVGElement;
 			const bottom = compactStaff && svg ? svg.viewBox.baseVal.y + svg.viewBox.baseVal.height - 2 : band.staffBottom + sp * 0.35;
@@ -1357,6 +1359,21 @@
 		}
 	}
 
+	/** Place the row number above the staff and clef. The clef group
+	 * also contains the number, so measure only the clef's drawn path. */
+	function positionRowNumbers(container: HTMLDivElement): void {
+		for (const row of container.querySelectorAll<SVGGElement>('g.abcjs-staff-wrapper')) {
+			const number = row.querySelector<SVGTextElement>('text.abcjs-bar-number');
+			const staff = row.querySelector<SVGGraphicsElement>('.abcjs-staff')?.getBBox();
+			const clef = row.querySelector<SVGGraphicsElement>('.abcjs-clef path[data-name^="clefs."]')?.getBBox();
+			if (!number || !staff || !clef || !staff.height) continue;
+			const gap = staff.height / 8;
+			const box = number.getBBox();
+			const dy = Math.min(clef.y, staff.y) - gap - (box.y + box.height);
+			number.setAttribute('y', String(number.y.baseVal.getItem(0).value + dy));
+		}
+	}
+
 	function repositionPartLabels(container: HTMLDivElement): void {
 		for (const svg of container.querySelectorAll('svg')) {
 			for (const wrapper of svg.querySelectorAll<SVGGElement>('g.abcjs-staff-wrapper')) {
@@ -1607,6 +1624,7 @@
 </script>
 
 <div
+	style:--notation-beat-progress={playheadStyle === 'beat-line' ? beatProgress : undefined}
 	class="notation-container {frameless ? 'frameless' : 'rounded-lg p-4'}"
 	class:chart-practice={variant === 'practice'}
 	class:editable={!!onSelect}
@@ -2018,6 +2036,11 @@
 		fill-opacity: 0.1;
 	}
 	/* Current-bar playhead colors. drawPlayhead sets the geometry. */
+	.notation-container :global(svg .playhead-beat-line) {
+		transform-box: fill-box;
+		transform-origin: left center;
+		transform: scaleX(var(--notation-beat-progress, 1));
+	}
 	.notation-container :global(svg .playhead-under-bar) {
 		fill: var(--color-brass);
 		fill-opacity: 0.9;

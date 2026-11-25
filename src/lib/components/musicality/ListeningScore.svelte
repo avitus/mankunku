@@ -1,11 +1,12 @@
 <script lang="ts">
-	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import { listeningScoreBar, listeningScoreBars } from '$lib/musicality/listening-score';
 	import type { ListeningTuneSession } from '$lib/musicality/listening-tunes';
 
-	let { session, barIndex, follow = false }: {
+	let { session, barIndex, follow = false, cues = [] }: {
 		session: ListeningTuneSession;
 		barIndex: number | null;
+		cues?: readonly import('$lib/musicality/listening-cues').ListeningCue[];
 		/** Clip and follow the active staff instead of showing the complete chart. */
 		follow?: boolean;
 	} = $props();
@@ -17,10 +18,29 @@
 	}
 	const scoreMap = $derived(listeningScoreBars(session));
 	const notationBar = $derived(listeningScoreBar(scoreMap, barIndex));
-	const markers = $derived(notationBar === null ? [] : [{
-		id: 'listening-playhead', startBar: notationBar, endBarExclusive: notationBar + 1,
-		status: 'playhead' as const
-	}]);
+	// The same written bar can occur in multiple passes (or twice within a repeat).
+ // Resolve every performed bar separately and give the current occurrence priority.
+ const cueMarkers = $derived.by(() => {
+  const occurrence = barIndex ?? (cues[0]?.first ?? 1) - 1;
+  const pass = session.bars[occurrence]?.context.chorusIndex;
+  const byWrittenBar = new Map<number, RangeMarker>();
+  for (const cue of cues) {
+   for (let number = cue.first; number <= cue.last; number++) {
+    const index = number - 1;
+    const written = listeningScoreBar(scoreMap, index);
+    if (written === null || session.bars[index]?.context.chorusIndex !== pass) continue;
+    if (barIndex !== null && scoreMap[barIndex] === written && index !== barIndex) continue;
+    byWrittenBar.set(written, {
+     id: `listening-cue-${number}`, startBar: written, endBarExclusive: written + 1,
+     status: index === barIndex ? 'active' : 'upcoming', color: '#e2bd77', label: cue.note, labelBelowSystem: true
+    });
+   }
+  }
+  return [...byWrittenBar.values()];
+ });
+ const markers = $derived<RangeMarker[]>(notationBar === null ? cueMarkers : [...cueMarkers, {
+  id: 'listening-playhead', startBar: notationBar, endBarExclusive: notationBar + 1, status: 'playhead'
+ }]);
 </script>
 
 <div class="listening-score" data-testid="listening-score" data-key={session.tune.key} data-notation-bar={notationBar ?? ''}
@@ -29,7 +49,7 @@
 	<div class="score-scroll" data-testid="listening-score-scroll" tabindex="0" onkeydown={scrollWithArrow}
 		role="region" aria-label="Scrollable score. Use arrow keys to move across the music.">
 		<div class="score-sheet" data-testid="listening-score-sheet">
-			<NotationDisplay tune={session.tune} tuneOptions={{ omitMasthead: true }}
+			<NotationDisplay tune={session.tune} tuneOptions={{ omitMasthead: true, staffSeparation: cues.length ? 100 : undefined }}
 				frameless variant="practice" rangeMarkers={markers} playheadStyle="box"
 				autoScrollPlayhead={follow} />
 		</div>
@@ -49,6 +69,13 @@
 		border: 1px solid #52617555;
 		border-radius: 3px;
 	}
+ .score-sheet :global(rect[data-marker-id^="listening-cue-"]) {
+  fill-opacity: .16;
+  stroke: #e2bd77;
+  stroke-opacity: .75;
+  stroke-width: 1;
+ }
+ .score-sheet :global(rect.marker-active[data-marker-id^="listening-cue-"]) { fill-opacity: .27; }
 	.score-scroll {
 		width: 100%;
 		max-width: 100%;

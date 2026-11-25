@@ -802,6 +802,40 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   if(!drums.some(e=>e.role==='commentary')){drumCard.detail+=' Leave commentary space for the keyboard breath while keeping the pulse.';drumCard.evidence.push('Keyboard breath · timekeeping continues');}
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+	if (bass.some(event => event.balladThird)) {
+		bassCard.action = 'Rise to the third';
+		bassCard.detail = 'The upright starts on the root and steps up to the chord’s third on beat three.';
+	}
+	if (piano.some(event => event.balladThird)) {
+		pianoCard.action = 'Hold the chord, then answer on four';
+		pianoCard.detail = 'The downbeat harmony rings over the bass change before the short reply.';
+	}
+	if (drums.some(event => event.balladThird)) {
+		drumCard.action = 'Catch the bass with the rim';
+		drumCard.detail = 'One soft cross-stick marks beat three while the ride continues in quarters.';
+	}
+	const earlyEighth = bass.find(event => event.eighthAnticipatedRoot);
+ if (earlyEighth) {
+  bassCard.action = 'Anticipate on the and of four';
+  bassCard.detail = `The upright plays ${noteName(earlyEighth.midi)} a straight eighth before the change.`;
+ }
+ const anticipation = bass.find(event => event.anticipatedRoot);
+	if (anticipation) {
+		bassCard.action = 'Reach the next root on four';
+		bassCard.detail = `The upright plays ${noteName(anticipation.midi)} on beat four, one beat before the written change.`;
+	}
+	if (bass.some(event => event.brokenTwo)) {
+		bassCard.action = 'Give beat four a second pluck';
+		bassCard.detail = 'The upright holds one, then plays the same pitch on three and a lighter four.';
+	}
+	if (piano.some(event => event.brokenTwo)) {
+		pianoCard.action = 'Answer on two and four';
+		pianoCard.detail = 'Short chords answer the downbeat and meet the upright’s second pluck on four.';
+	}
+	if (drums.some(event => event.brokenTwo)) {
+		drumCard.action = 'Feather the two-beat pulse';
+		drumCard.detail = 'A light kick marks the bass foundation underneath the keyboard backbeats.';
+	}
 	if (bass.some(event => event.dominantRiff)) {
 		bassCard.action = 'Break the walk on the and of two';
 		bassCard.detail = 'The upright plays one, the swung and of two, then steps back into the walk on four.';
@@ -829,6 +863,46 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	if (offbeat) pianoCard.evidence.push('Offbeat chord accented between walking bass notes');
 	if (drums.some(e => e.walkingBackbeatLift && e.drum === 'ride' && e.absBeat % 2 === 1)) {
 		drumCard.evidence.push('Ride backbeat accented over the walking bass');
+	}
+	for (const [card, events] of [[bassCard, bass], [pianoCard, piano], [drumCard, drums]] as const) {
+		const marked = events.filter(e => e.rhythmAnswer).sort((a,b) => a.absBeat-b.absBeat);
+		const cell = marked[0]?.rhythmAnswer;
+		if (!cell || marked.length !== 2) continue;
+		const source = cell.player === 'piano' ? 'keyboard' : cell.player;
+		card.action = `Answer the ${source} rhythm`;
+		card.detail = `The ${source} played this spacing in bar ${cell.bar+1}. The ${cell.stressed === 0 ? 'first' : 'second'} note takes the accent.`;
+		card.evidence.push('S3 · S38 · S39');
+	}
+ if (drums.filter(event => event.rideTriplet && event.drum === 'ride').length === 3) {
+  drumCard.action = 'Play three across two';
+  drumCard.detail = 'Three evenly spaced ride strokes span beats one and two. The ride and upright meet again on three.';
+ }
+	const strokes = drums.filter(e => e.displacedAnswer);
+	const rhythmSource = strokes[0]?.displacedAnswer;
+	if (rhythmSource && strokes.length === 2) {
+		const player = rhythmSource.player === 'bass' ? 'bass' : 'keyboard';
+		const later = strokes[0].absBeat % 4 > rhythmSource.offsets[0];
+		drumCard.action = `Move the ${player} rhythm one beat ${later ? 'later' : 'earlier'}`;
+		drumCard.detail = `Two snare strokes answer the ${player} in performed bar ${rhythmSource.bar+1}. The ${rhythmSource.stressed===0?'first':'second'} stroke carries the accent.`;
+		drumCard.evidence.push('S3 · S38 · S39 · D27–29');
+	}
+	const handoff = bass.filter(event => event.melodicSource);
+	const melody = handoff[0]?.melodicSource;
+	if (melody) {
+		const start = Math.floor(melody[0].beat / 4) + 1;
+		const end = Math.floor(melody[melody.length - 1].beat / 4) + 1;
+		bassCard.action = 'Answer the keyboard melody';
+		bassCard.detail = `The keyboard played ${melody.map(note => noteName(note.midi)).join('–')} in performed bars ${start}–${end}. The upright answers ${(handoff[0].melodicReply ?? handoff).map(note => noteName(note.midi)).join('–')} over the written harmony.`;
+		bassCard.evidence.push('S3 · S38 · S39 · B31–32');
+	}
+	const keyboardAnswer = piano.find(event => event.keyboardAnswer)?.keyboardAnswer;
+	if (keyboardAnswer) {
+		const { source, reply } = keyboardAnswer;
+		const first = Math.floor(source[0].beat / 4) + 1;
+		const last = Math.floor(source.at(-1)!.beat / 4) + 1;
+		pianoCard.action = 'Answer the upright melody';
+		pianoCard.detail = `The upright played ${source.map(note => noteName(note.midi)).join('–')} in performed bars ${first}–${last}. The keyboard answers ${reply.map(note => noteName(note.midi)).join('–')} in the top voice.`;
+		pianoCard.evidence.push('S3 · S38 · S39 · B31–32');
 	}
 	return [bassCard, pianoCard, drumCard];
 }

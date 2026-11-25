@@ -16,7 +16,7 @@ function scoreFor(style: Style, tune: 'blues' | 'aaba', seed: number, instrument
  const { phrase } = tune === 'blues'
   ? buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 }) : admitted.session;
  const tempo = style === 'ballad' ? 80 : 140;
- const { dominantRiff: _riff, balladReturn: _return, bossaPickup: _pickup, performanceTouch: _touch, pianoContinuity: _continuity, keyboardSustain: _sustain, longerSentences: _newPolicy, ...released016 } = releasedBackingOptions(instrument, seed);
+ const { eighthAnticipation: _eighth, quarterAnticipation: _anticipation, rideTriplet: _triplet, rhythmMemory: _rhythmMemory, balladThird: _third, brokenTwo: _two, dominantRiff: _riff, balladReturn: _return, bossaPickup: _pickup, performanceTouch: _touch, pianoContinuity: _continuity, keyboardSustain: _sustain, longerSentences: _newPolicy, ...released016 } = releasedBackingOptions(instrument, seed);
  return createRollingBacking(phrase.harmony!, BACKING_STYLES[style], {
   phraseId: phrase.id, tempo, ppq: 192, beatsPerBar: 4,
   swing: resolveBackingSwing(.62, BACKING_STYLES[style], tempo),

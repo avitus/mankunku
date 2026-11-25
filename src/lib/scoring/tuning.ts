@@ -41,11 +41,11 @@ const MIN_NOTES_PER_TAKE = 2;
 const MIN_PITCH_CLASSES = 3;
 const MIN_CLARITY = 0.9;
 const MIN_DURATION = 0.12;
-/** The offset the sharp/flat cue speaks at; the per-note panel's full colour. */
+/** The offset the sharp/flat cue speaks at. */
 export const ALERT_CENTS = 12;
 /**
  * Once the cue is on, the window centre it stays on at. Only the cue's
- * switch-off moves; the faders' ticks and `tuningTone` stay on ALERT_CENTS.
+ * switch-off uses this threshold.
  */
 export const HOLD_CENTS = 8;
 /** A take, or a pitch class, leans the cue's way when its median sits this far on that side. */

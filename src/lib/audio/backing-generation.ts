@@ -1,3 +1,5 @@
+import type { KeyboardMelodicAnswer } from './backing-keyboard-melodic-handoff';
+import type { HeardNote } from './backing-melodic-handoff';
 import type { InnerMotion } from './backing-inner-motion';
 import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
@@ -91,7 +93,16 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 
 // ── Event shapes ─────────────────────────────────────────────
 
+import type { RhythmCell } from './backing-rhythm-memory';
+
 export interface BassEvent {
+ readonly eighthAnticipatedRoot?: HarmonicSegment['chord']['root'];
+ readonly anticipatedRoot?: HarmonicSegment['chord']['root'];
+ readonly melodicReply?: readonly HeardNote[];
+ readonly melodicSource?: readonly HeardNote[];
+	readonly rhythmAnswer?: RhythmCell;
+	readonly balladThird?: true;
+	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly balladHeldBass?: true;
 	readonly bossaOctavePickup?: true;
@@ -115,6 +126,10 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ readonly keyboardAnswer?: KeyboardMelodicAnswer;
+	readonly rhythmAnswer?: RhythmCell;
+	readonly balladThird?: true;
+	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly balladReturnAnswer?: true;
 	/** Original beat offset of the displaced Bossa chord. */
@@ -137,6 +152,11 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+	readonly rideTriplet?: true;
+	readonly displacedAnswer?: RhythmCell;
+	readonly rhythmAnswer?: RhythmCell;
+	readonly balladThird?: true;
+	readonly brokenTwo?: true;
 	readonly dominantRiff?: true;
 	readonly bossaPickupKick?: true;
  /** Velocity added to this ride backbeat over four walking pulses. */
@@ -391,6 +411,10 @@ export function resolveBackingSwing(
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
+	readonly balladThirdAllowed?: boolean;
+	readonly eighthAnticipationAllowed?: boolean;
+	readonly anticipationAllowed?: boolean;
+	readonly brokenTwoAllowed?: boolean;
 	readonly dominantRiffAllowed?: boolean;
 	readonly balladHoldAllowed?: boolean;
 	readonly bossaPickupAllowed?: boolean;

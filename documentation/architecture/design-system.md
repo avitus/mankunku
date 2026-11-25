@@ -126,9 +126,9 @@ icons must remain understandable without color, with stable Listen/Play geometry
 
 `--color-error` and `--color-warning` are **fill** tokens (tuned for button/tint backgrounds, which carry white text). For feedback **text** — an error message, a warning label — use the text-safe variants `--color-error-text` / `--color-warning-text`, which lighten (error) or darken (warning) per theme so small text keeps ≥4.5:1 contrast on the page and card surfaces.
 
-### Intonation poles
+### Intonation faders
 
-`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 12¢ (`ALERT_CENTS`), the offset the sharp/flat reminder speaks at. The reminder then holds down to 8¢ (`HOLD_CENTS`, 2026-10-20); that switch-off offset never moves the faders' ticks or this pole, which stay on `ALERT_CENTS`. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
+The ear-training **Your tuning** panel grades the absolute distance from the selected reference in whole cents. The fader caps use the MagicPath medal metals for gold (0–5¢), silver (6–10¢) and bronze (11–19¢), and the blue-green needs-work accent (`--accuracy-teal`) for 20¢ or more. Readouts use the theme-aware accuracy colours. The signed number and fader position show direction.
 
 ### Difficulty & Mastery ramps
 

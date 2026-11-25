@@ -45,7 +45,7 @@ export interface DrumPhraseDecision {
 	};
 	readonly commentary: {
 		readonly motifId: string | null;
-		readonly source: 'vocabulary' | 'piano' | 'none';
+		readonly source: 'vocabulary' | 'piano' | 'bass' | 'none';
 		readonly sourceId: string | null;
 		readonly sourceBar: number | null;
 		readonly sourceOffsets: readonly number[];
@@ -78,6 +78,8 @@ export interface DrumPhraseInput {
 
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
+	readonly rideTripletSeed?: number;
+	readonly displaced?: {readonly cell: import('./backing-rhythm-memory').RhythmCell; readonly shift: number};
  readonly longerSentences?: true;
 	readonly phraseCushioning?: true;
 	readonly phraseExpression?: true;
@@ -102,6 +104,7 @@ export interface DrumPhraseBarInput {
 	readonly harmonyEndBeat: number;
 	/** Only attacks accepted for emission in this bar, never candidate rhythms. */
 	readonly compOnsets?: readonly number[];
+	readonly balladAnswerOnFour?: boolean;
 	/** A committed answer remains actual evidence, not a new independent statement. */
 	readonly compIsDrumReply?: true;
 	/** Scoped native caller knows the preceding actual piano attack was itself a reply. */
@@ -299,6 +302,7 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const skipOffsets = phase === 'release' ? state.skips.slice(0, 1) : phase === 'variation' ? state.variedSkips : state.skips;
 	const velocityScale = phase === 'release' ? 0.94 : phase === 'variation' ? 1.04 : phase === 'repeat' ? 1.01 : 1;
 	const timeRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-time', bar));
+	const brokenTwo = input.bassEvents?.some(e => e.brokenTwo);
 	const catchRiff = input.bassEvents?.some(e => e.dominantRiff && e.absBeat === bar * 4 + 1.5);
 	const ostinato: DrumHitSpec[] = [
 		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map(hit => {
@@ -309,7 +313,8 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 				: { ...hit, drum, velocity };
 		}),
 		...hihatBar(4, timeRng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
-		...featherBar(4, timeRng, info.intensity)
+		...(brokenTwo ? [0, 2].map(beatOffset => ({ drum: 'kick' as const, beatOffset,
+			velocity: beatOffset === 0 ? .26 : .22, brokenTwo: true as const })) : featherBar(4, timeRng, info.intensity))
 	].map((hit): DrumHitSpec => ({ ...hit, role: 'timekeeping' }))
 		.filter((hit) => hit.beatOffset < extent && accepts(hit));
 	const commentaryRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-commentary', bar));
@@ -328,6 +333,14 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	let reason: DrumPhraseReason | undefined;
 	let setupId: string | undefined;
 	const allowance = ensemble.drums.maxCommentaryHits;
+	const proposal = !state.motif && !ensemble.drums.allowFill ? input.displaced : undefined;
+	const cell = proposal && Object.freeze({
+		...proposal.cell, offsets: Object.freeze([...proposal.cell.offsets] as const)
+	});
+	const answerHits: DrumHitSpec[] = proposal && cell ? cell.offsets.map((beat, index) => ({
+		drum: 'snare', role: 'commentary', beatOffset: beat + proposal.shift,
+		velocity: index === cell.stressed ? .56 : .34, displacedAnswer: cell
+	})) : [];
 	if (arrival) reason = 'arrival_reserved';
 	else if (allowance === 0) reason = 'ensemble_silence';
 	else if (ensemble.responseOwner === 'piano' || ensemble.responseOwner === 'bass') reason = 'response_reserved';
@@ -338,6 +351,10 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 			chosen = fill; transform = 'setup';
 			setupId = `fill:${fill.map((hit) => `${hit.drum}@${hit.beatOffset}`).join(',')}`;
 		} else reason = 'setup_does_not_fit';
+	} else if (proposal && fits(answerHits,allowance,extent,acceptsCommentary)) {
+		chosen = answerHits;
+		shift = proposal.shift;
+		transform = 'displace';
 	} else {
 		if (!state.motif && state.commentarySelected && state.end - bar >= 2 && extent === 4) {
 			state.motif = chooseMotif(input, state, bar, allowance, previousCompOnsets);
@@ -374,20 +391,50 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const occupied = new Set([...commentary, ...accents].map(slot));
 	const hits = [...ostinato.filter((hit) => !occupied.has(slot(hit))), ...accents, ...commentary];
 	const motif = state.motif;
+	const displaced = commentary[0]?.displacedAnswer;
 	const decision: DrumPhraseDecision = {
 		version: 1, barIndex: bar, phraseStartBar: state.start, phraseLength: length,
 		ride: { mode: state.mode, phase, ...(state.rideVoice ? { voice: state.rideVoice } : {}), skipOffsets: [...skipOffsets].filter((offset) => offset < extent), velocityScale,
 			onsets: [...new Set(hits.filter((hit) => cymbal(hit.drum)).map((hit) => hit.beatOffset))].sort((a, b) => a - b) },
 		commentary: {
 			motifId: transform === 'setup' ? null : motif?.id ?? null,
-			source: transform === 'setup' ? 'vocabulary' : motif?.source ?? 'none',
-			sourceId: setupId ?? motif?.sourceId ?? null,
-			sourceBar: transform === 'setup' ? bar : motif?.sourceBar ?? null,
-			sourceOffsets: transform === 'setup' ? commentary.map((hit) => hit.beatOffset) : [...motif?.sourceOffsets ?? []],
+			source: displaced ? (displaced.player === 'bass' ? 'bass' : 'piano') : transform === 'setup' ? 'vocabulary' : motif?.source ?? 'none',
+			sourceId: displaced ? 'displaced-rhythm' : setupId ?? motif?.sourceId ?? null,
+			sourceBar: displaced ? displaced.bar : transform === 'setup' ? bar : motif?.sourceBar ?? null,
+			sourceOffsets: displaced ? displaced.offsets : transform === 'setup' ? commentary.map((hit) => hit.beatOffset) : [...motif?.sourceOffsets ?? []],
 			transform, displacementBeats: shift, hits: commentary, ...(reason ? { reason } : {})
 		}, hits
 	};
 	return freezeDrumPhraseTrace([decision])[0];
+}
+
+/** D9: let the ride cross two walking beats, with beat three as the audible landing. */
+function playRideTriplet(input: DrumPhraseBarInput, bar: DrumPhraseDecision): DrumPhraseDecision {
+ const { info, barIndex, rideTripletSeed } = input;
+ const ensemble = info.ensemble!;
+ if (rideTripletSeed === undefined || !['solo_build', 'solo_peak'].includes(ensemble.performanceEnergy?.phase ?? '') ||
+  ensemble.responseOwner !== 'nobody' || ensemble.coordinatedAccent || ensemble.setupFor || ensemble.terminalArrangement ||
+  ensemble.intent === 'leave_space' || ensemble.intent === 'release' || ensemble.drums.allowFill ||
+  ensemble.drums.silenceReason === 'soloist_dense' || info.isSectionFirstBar || info.isSectionFinalBar ||
+  info.isChorusFirstBar || info.isChorusFinalBar || bar.ride.voice !== 'ride' || bar.cushioning ||
+  bar.commentary.hits.some(hit => hit.beatOffset < 2) || bar.commentary.motifId || bar.phraseLength < 3) return bar;
+ const rng = createRng(seedFrom(input.phraseId, rideTripletSeed, bar.phraseStartBar, 'ride-triplet'));
+ if (barIndex !== bar.phraseStartBar + rng.pick([1, 2]) || !rng.chance(.7)) return bar;
+ const walking = input.bassEvents ?? [];
+ if (![0,1,2].every(offset => walking.some(e => e.absBeat === barIndex*4 + offset))) return bar;
+ const isRide = (hit: DrumHitSpec) => hit.drum === 'ride' && hit.role === 'timekeeping';
+ const entrance = bar.hits.find(hit => isRide(hit) && hit.beatOffset === 0);
+ if (!entrance || !bar.hits.some(hit => isRide(hit) && hit.beatOffset === 2) ||
+  bar.hits.some(hit => hit.beatOffset < 2 && (hit.dominantRiff || hit.conversation))) return bar;
+ const triplet: DrumHitSpec[] = [0, 2/3, 4/3].map((beatOffset, i) => ({
+  drum: 'ride', role: 'timekeeping', beatOffset, velocity: entrance.velocity * [1, .86, .94][i], rideTriplet: true
+ }));
+ if (triplet.some(hit => input.acceptsOnset && !input.acceptsOnset(barIndex*4 + hit.beatOffset, hit))) return bar;
+ const hits = [...triplet, ...bar.hits.filter(hit => !isRide(hit) || hit.beatOffset >= 2)];
+ return freezeDrumPhraseTrace([{ ...bar, hits, ride: { ...bar.ride,
+  skipOffsets: bar.ride.skipOffsets.filter(offset => offset >= 2),
+  onsets: hits.filter(hit => cymbal(hit.drum)).map(hit => hit.beatOffset).sort((a,b) => a-b)
+ } }])[0];
 }
 
 /** Restore deep immutability after a JSON checkpoint round trip. */
@@ -548,7 +595,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 		} } : {})
 	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive, previous);
 	let bar = cushionPhrase(input, realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []));
- if (input.phraseExpression && selectsPhraseExpression(input.info, input.phraseId, 'drums') && !bar.cushioning &&
+ if (bar.commentary.sourceId !== 'displaced-rhythm' && input.phraseExpression && selectsPhraseExpression(input.info, input.phraseId, 'drums') && !bar.cushioning &&
   bar.commentary.transform !== 'space') {
   const shaped = ghostSnareAnswer(bar.commentary.hits, bar.commentary.transform === 'setup');
   if (shaped.some(hit => hit.expression)) {
@@ -559,7 +606,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
    freezeDrumPhraseTrace([bar]);
   }
  }
- if(input.trioConversation && allowsTrioConversation(input.info) && !bar.cushioning) {
+ if(bar.commentary.sourceId !== 'displaced-rhythm' && input.trioConversation && allowsTrioConversation(input.info) && !bar.cushioning) {
   const hits=catchBassRepeat(bar.hits,input.bassEvents??[],input.barIndex,input.compOnsets??[]);
   if(hits.some(hit=>hit.conversation)) { bar={...bar,hits}; freezeDrumPhraseTrace([bar]); }
  }
@@ -573,6 +620,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
     softenedHits:bar.cushioning.softenedHits.map(h=>({before:tint(h.before),after:tint(h.after)}))}}:{})};
   freezeDrumPhraseTrace([bar]);
  }
+	bar = playRideTriplet(input, bar);
 	const touch = input.info.walkingTouch;
 	if (touch !== undefined && !bar.cushioning && !input.compIsDrumReply && bar.ride.voice !== 'hihat') {
 		const lift = .035 + .11 * touch;
@@ -671,6 +719,11 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		: raw.filter((hit) => ['snare', 'crossstick'].includes(hit.drum) &&
 			(hit.beatOffset !== 3.5 || ensemble.drums.allowFill) && !(input.compOnsets ?? []).includes(hit.beatOffset))
 			.slice(0, ensemble.drums.maxCommentaryHits).map((hit) => ({ ...hit, role: 'commentary' }));
+	// Leave the chord attack clear. The rim catches the rising bass inside the held pad.
+	if (canComment && input.bassEvents?.some(event => event.balladThird) &&
+		input.balladAnswerOnFour && !input.compOnsets?.includes(2) && answerOffset === undefined) {
+		commentary = [{ drum: 'crossstick', beatOffset: 2, velocity: .32, role: 'commentary', balladThird: true }];
+	}
 	// Form arrivals use the existing soft kick, never introduce a swing crash into bossa/ballad.
 	if (ensemble.coordinatedAccent) {
 		const kick = time.find((hit) => hit.drum === 'kick' && hit.beatOffset === 0);
@@ -683,15 +736,19 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		(!input.acceptsOnset || input.acceptsOnset(input.barIndex * 4 + hit.beatOffset, hit));
 	commentary = commentary.filter(accepted);
 	const hits = [...time.filter(accepted), ...commentary];
+	const caughtThird = commentary.some(hit => hit.balladThird);
+	const pianoAnswer = commentary.length > 0 && answerOffset !== undefined;
+	const source: DrumPhraseDecision['commentary']['source'] = caughtThird ? 'bass' : pianoAnswer ? 'piano'
+		: commentary.length ? 'vocabulary' : 'none';
 	const bar: DrumPhraseDecision = { version: 1, style: input.style, barIndex: input.barIndex,
 		phraseStartBar: input.phraseStartBar, phraseLength: input.phraseEndBarExclusive - input.phraseStartBar,
 		ride: { mode: isBossa ? 'none' : halfNoteRide ? 'half-notes' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
 			onsets: hits.filter((hit) => hit.drum === 'ride').map((hit) => hit.beatOffset) },
-		commentary: { motifId: null, source: commentary.length ? answerOffset !== undefined ? 'piano' : 'vocabulary' : 'none',
-			sourceId: commentary.length ? answerOffset !== undefined ? 'previous-piano' : 'ballad-color' : null,
-			sourceBar: commentary.length && answerOffset !== undefined ? input.barIndex - 1 : null,
-			sourceOffsets: commentary.length && answerOffset !== undefined ? [answerOffset] : [],
-			transform: commentary.length ? answerOffset !== undefined ? 'answer' : 'fallback' : 'space', displacementBeats: 0, hits: commentary,
+		commentary: { motifId: null, source,
+			sourceId: caughtThird ? 'bass-third' : pianoAnswer ? 'previous-piano' : commentary.length ? 'ballad-color' : null,
+			sourceBar: caughtThird ? input.barIndex : pianoAnswer ? input.barIndex - 1 : null,
+			sourceOffsets: caughtThird ? [2] : pianoAnswer ? [answerOffset] : [],
+			transform: caughtThird || pianoAnswer ? 'answer' : commentary.length ? 'fallback' : 'space', displacementBeats: 0, hits: commentary,
 			...(!commentary.length ? { reason: isBossa ? 'native_groove' as const : ensemble.coordinatedAccent ? 'arrival_reserved' as const
 				: ensemble.responseOwner !== 'nobody' && ensemble.responseOwner !== 'drums' ? 'response_reserved' as const
 				: !canComment ? 'ensemble_silence' as const : 'not_selected' as const } : {}) }, hits };

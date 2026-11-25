@@ -26,7 +26,7 @@ export function sustainAcrossBar(
 		!createRng(seedFrom(score.phraseId, current.pianoPresenceSeed ?? 0, bar, 'keyboard-sustain')).chance(.65)) return;
 
 	const event = events.at(-1);
-	if (!event) return;
+	if (!event || event.brokenTwo || event.balladThird) return;
 	const within = event.absBeat - bar * 4;
 	const beats = event.duration * score.tempo / 60;
 	// Keep detached jabs detached. Ballad pads can support the seam from their earlier attack.

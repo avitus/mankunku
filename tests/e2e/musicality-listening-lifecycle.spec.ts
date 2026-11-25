@@ -139,12 +139,12 @@ test('navigation releases the current take and returning starts from a fresh ses
 test('shows a real previous drum statement and the pianist breathing in the current sounding bar', async ({ page }) => {
 	test.setTimeout(75_000);
 	await seedTunes(page, [WHEN_THE_SAINTS]);
-	// Saints in F at 160 under seed 4. Since the accompaniment policy (engine
+	// Saints in F at 160 under seed 70. Since the accompaniment policy (engine
 	// 0.3, 2026-11-08) a drum statement usually THINS the piano to one light
 	// chord (1,301 of the 1,349 yields in 12,960 scanned takes); this is one of
 	// the 48 where the bar had a single attack to give up and falls silent.
 	// No synthetic soloist or microphone.
-	await setup(page, 4);
+	await setup(page, 70);
 	await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 	await page.getByTestId('listening-key').selectOption('F');
 	await page.getByTestId('listening-tempo').fill('160');

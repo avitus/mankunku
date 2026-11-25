@@ -1,7 +1,8 @@
 import { openTuneSettings, setTuneTempo } from './fixtures/tune-setup';
-import { test, expect } from './fixtures/test';
+import { test, expect } from './fixtures/auth';
 import type { PlaywrightTestArgs, PlaywrightWorkerOptions } from '@playwright/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
+import { broadcastTokenRefresh, createStubCloud, installStubCloud } from './fixtures/stub-cloud';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
 
 test.beforeEach(async ({ page }) => {
@@ -136,16 +137,72 @@ test('Play focuses the titled chart and Stop restores setup', async ({ page, bro
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });
 	await expect(page.getByRole('heading', { level: 1, name: /Rhythm Changes/i })).toBeVisible();
 	await expect(page.locator('nav')).toBeHidden();
-	await expect(page.locator('.sd-advanced')).toBeHidden();
+	await expect(page.getByText('Tune settings', { exact: true })).toBeHidden();
+	await expect(page.locator('.td-status')).toContainText('Count-in');
+	await page.locator('summary').filter({ hasText: 'Chart display' }).click();
+	const drawer = page.locator('.sd-advanced[open]');
+	await drawer.getByLabel('Highlight style').selectOption('staff-wash');
+	await expect(page.locator('.key-center-ink[data-treatment="staff-wash"]').first()).toBeVisible();
+	await drawer.getByRole('switch', { name: 'Show key centers' }).click();
+	await expect(page.locator('.key-center-ink')).toHaveCount(0);
+	await drawer.getByRole('switch', { name: 'Show key centers' }).click();
+	await page.keyboard.press('Escape');
+	await expect(drawer).toHaveCount(0);
 	await expect(page.getByRole('region', { name: 'Session setup' })).toBeHidden();
 	await expect(page.locator('.td-status')).toContainText('Head');
 	await expect(page.getByTestId('chart-scroll-viewport')).toHaveClass(/following/);
-	await expect(page.locator('svg .playhead-wash-subtle')).toBeVisible();
+	await expect(page.locator('svg .playhead-beat-line')).toBeVisible();
 	await expect(page.locator('svg .cursor-note, svg .playhead-under-bar')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await openTuneSettings(page);
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeEnabled();
 	await expect(page.locator('.sd-play')).toHaveText('Play');
+});
+
+test('a sign-in refresh during the head keeps the same chorus playing', async ({ page, browserName, baseURL, testUser }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
+	test.setTimeout(60_000);
+	await installStubCloud(page.context(), createStubCloud(), testUser, baseURL!);
+	await seedOnboardedAnonymous(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/ls-rhythm-changes');
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
+	const status = page.locator('.td-status strong');
+	await expect(status).toHaveText('Head · Bar 2', { timeout: 30_000 });
+
+	const history = await status.evaluateHandle(element => {
+		const labels = [element.textContent ?? ''];
+		const container = element.closest('.td-status')!.parentElement!;
+		const observer = new MutationObserver(() => {
+			const label = container.querySelector('.td-status strong')?.textContent ?? '';
+			if (label !== labels.at(-1)) labels.push(label);
+		});
+		observer.observe(container, { childList: true, subtree: true, characterData: true });
+		return { labels, observer };
+	});
+	const refreshed = page.waitForResponse(response =>
+		new URL(response.url()).pathname === '/tunes/ls-rhythm-changes/__data.json' && response.ok()
+	);
+	await broadcastTokenRefresh(page, testUser);
+	await (await refreshed).finished();
+
+	const readHeadBar = async (): Promise<number> =>
+		Number(/^Head · Bar (\d+)$/.exec(await status.textContent() ?? '')?.[1]);
+	const barAfterRefresh = await readHeadBar();
+	expect(barAfterRefresh).toBeGreaterThanOrEqual(2);
+	await expect.poll(readHeadBar, { timeout: 10_000 }).toBeGreaterThan(barAfterRefresh);
+	const labels = await history.evaluate(({ labels, observer }) => {
+		observer.disconnect();
+		return labels;
+	});
+	await history.dispose();
+	const bars = labels.map(label => Number(/^Head · Bar (\d+)$/.exec(label)?.[1]));
+	expect(bars[0]).toBeGreaterThanOrEqual(2);
+	expect(bars).toEqual([...bars].sort((a, b) => a - b));
+	expect(bars.every(bar => Number.isInteger(bar) && bar >= 2)).toBe(true);
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeHidden();
+	await page.getByRole('button', { name: 'Stop', exact: true }).click();
+	await expect(page.getByRole('region', { name: 'Session setup' })).toBeVisible();
 });
 
 test('editor style changes update its preview and survive saving the tune', async ({ page }) => {

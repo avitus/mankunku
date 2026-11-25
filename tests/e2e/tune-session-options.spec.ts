@@ -124,3 +124,20 @@ for (const width of [1440, 390]) {
 		await expect(chart.locator('.tcc-bar').last()).toBeInViewport();
 	});
 }
+
+test('switching practice mode during playback ends the take and opens the chosen setup', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+		'Linux Firefox has no audio device for Tone.start');
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/e2e-session-form');
+	for (const practice of [true, false]) {
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+		await page.locator('summary').filter({ hasText: 'Chart display' }).click();
+		await page.locator('.sd-advanced[open]').getByRole('switch', { name: 'Lick Practice' }).click();
+		await expect(page).toHaveURL(practice ? /\?licks=1$/ : /\/tunes\/e2e-session-form$/);
+		await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+		await expect(page.getByRole('switch', { name: 'Lick Practice' })).toHaveAttribute('aria-checked', String(practice));
+	}
+});

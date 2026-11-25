@@ -1,3 +1,4 @@
+import { LISTENING_SCENARIOS } from './listening-scenarios';
 import { ALL_CURATED_TUNES } from '$lib/data/tunes';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { sectionPlaybackRules } from '$lib/tunes/section-labels';
@@ -46,6 +47,8 @@ export interface ListeningTuneSession {
 
 /** Build a finite, explicitly labelled performance from the app's real chart. */
 export function buildListeningTuneSession(options: ListeningTuneOptions): ListeningTuneSession {
+	const scenario = LISTENING_SCENARIOS.find(entry => entry.tune.id === options.tuneId);
+	if (scenario) return buildListeningTuneSessionFromTune(scenario.tune, { ...options, soloChoruses: options.soloChoruses ?? scenario.maxSolos });
 	const original = ALL_CURATED_TUNES.find((tune) => tune.id === options.tuneId);
 	if (!original) throw new Error('Unknown listening tune');
 	return buildSessionFromSource(original, options);
