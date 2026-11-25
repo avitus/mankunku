@@ -26,3 +26,19 @@ describe('curated listening arrangement admission', () => {
 			.toThrow('128-bar listening limit; choose fewer solo choruses or a shorter chart');
 	});
 });
+
+describe('production listening scenarios', () => {
+ it.each([
+  ['scenario-fly-me-to-the-moon', 'C', 32, 2, 'Am7'],
+  ['scenario-all-the-things-you-are', 'Ab', 36, 1, 'F-7']
+ ] as const)('opens the accompanied form of %s with a playable default', (tuneId, key, bars, solos, first) => {
+  const take = buildListeningTuneSession({ tuneId });
+  expect(take.tune.key).toBe(key);
+  expect(take.chorusBars).toBe(bars);
+  expect(take.soloChoruses).toBe(solos);
+  expect(take.bars).toHaveLength((solos + 2) * bars);
+  expect(take.bars[0].chordSymbols).toEqual([first]);
+  expect(take.phrase.performanceForm.choruses.at(-1)?.role).toBe('head');
+  expect(take.tune.sections.every(section => section.notes.length && section.harmony.length)).toBe(true);
+ });
+});

@@ -814,6 +814,11 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		drumCard.action = 'Catch the bass with the rim';
 		drumCard.detail = 'One soft cross-stick marks beat three while the ride continues in quarters.';
 	}
+	const anticipation = bass.find(event => event.anticipatedRoot);
+	if (anticipation) {
+		bassCard.action = 'Reach the next root on four';
+		bassCard.detail = `The upright plays ${noteName(anticipation.midi)} on beat four, one beat before the written change.`;
+	}
 	if (bass.some(event => event.brokenTwo)) {
 		bassCard.action = 'Give beat four a second pluck';
 		bassCard.detail = 'The upright holds one, then plays the same pitch on three and a lighter four.';

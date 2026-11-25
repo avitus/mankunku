@@ -313,7 +313,7 @@ const foundationAssessments: Record<string, string> = {
 	S15: 'Existing note duration and velocity shaping now reaches source-defined Smolken velocity layers and round robins: one recording per note in the supported register instead of unintended stacked layers.',
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
-	S12: 'Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
+	S12: '0.32.0 lets the Swing upright reach the next root on beat four of selected two-feel cadences (B6). Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
 	S18: '0.31.0 adds a short quarter-note triplet against walking bass in a Swing solo. Selected complete solo-peak phrases sustain ride-bell color, with a return to ride and no consecutive bell phrases. Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
 	S19: 'Coordinated mode uses a foot hi-hat on beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
@@ -382,10 +382,15 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'B6') return { ...entry, status: 'implemented',
+  assessment: 'On beat four of a selected dominant bar the upright plays the planned root of the following chord, then lands on that pitch on one.',
+  scope: '0.32.0, coordinated 4/4 Swing heads in two, with a root-position dominant resolving up a fourth at the barline.',
+  remaining: 'Human listening acceptance is pending. Other feels and harmonic contexts remain open.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), test('backing-quarter-anticipation')] };
  if (entry.id === 'D9') return { ...entry, status: 'implemented',
   assessment: 'In a selected Swing solo bar the ride plays three evenly spaced strokes across the first two walking beats and rejoins the bass on beat three.',
   scope: '0.31.0, coordinated 4/4 Swing solos with a clear ride entrance and a walking bass pulse.',
-  remaining: 'Full-tune listening acceptance is pending. Other placements and longer cross-rhythms remain open.',
+  remaining: 'The 0.31.0 listening example was accepted. Other placements and longer cross-rhythms remain open.',
   evidence: [...entry.evidence, source('backing-drum-phrases'), test('backing-ride-triplet')] };
  if (entry.id === 'B25') return { ...entry, status: 'partial',
   assessment: 'In 0.25.0 the Ballad bassist can keep the downbeat root and climb to the major or minor third on beat three.',

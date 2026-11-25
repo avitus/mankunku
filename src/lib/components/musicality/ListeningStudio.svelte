@@ -7,6 +7,7 @@
  import { CURRENT_MUSICALITY_RELEASE } from '$lib/musicality/release';
  import { createListeningFeedback, readListeningFeedback, saveListeningFeedback, serializeListeningFeedback, type ListeningFeedback } from '$lib/musicality/listening-feedback';
  import { page } from '$app/state';
+ import { LISTENING_SCENARIOS } from '$lib/musicality/listening-scenarios';
  import { LISTENING_TUNES, assessCuratedListeningTune, assessListeningTune, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
  import { createListeningPlayer, type ListeningSnapshot } from '$lib/musicality/listening-player';
  import { describeMusicianDecisions, describePerformanceArc } from '$lib/musicality/musician-decisions';
@@ -33,8 +34,18 @@
  let solos = $state(2);
  const mode = 'coordinated';
  let energySeed = $state(0);
- function loadReleaseExample(example: 'ride-triplet' | 'bossa-handoff' | 'ballad-handoff' | 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
+ function loadReleaseExample(example: 'quarter-anticipation' | 'ride-triplet' | 'bossa-handoff' | 'ballad-handoff' | 'keyboard-handoff' | 'melodic-handoff' | 'displaced-answer' | 'rhythm-memory' | 'ballad-solo' | 'straight' | 'swing' | 'ballad' | 'bossa-nova') {
   clearTake();
+  if (example === 'quarter-anticipation') {
+   tuneId = 'scenario-fly-me-to-the-moon';
+   key = 'C';
+   style = 'swing';
+   tempo = 144;
+   solos = 1;
+   energySeed = 7;
+   ending = 'continue';
+   return;
+  }
   const rideTriplet = example === 'ride-triplet';
   const keyboardHandoff = example === 'keyboard-handoff';
   const melodic = example === 'melodic-handoff';
@@ -67,15 +78,17 @@
  ];
  let library = $state.raw<ListeningLibrarySnapshot>({tunes:[],error:null});
  let libraryLoaded = $state(false);
+ const scenario = $derived(LISTENING_SCENARIOS.find(entry => entry.tune.id === tuneId));
+ const fixedChart = $derived(isCuratedTuneId(tuneId) || !!scenario);
  const bookEntries = $derived(library.tunes.flatMap(tune => {
   if (!tune || typeof tune !== 'object') return [];
   const row = tune as Record<string,unknown>;
-  if (typeof row.id !== 'string' || !row.id || isCuratedTuneId(row.id)) return [];
+  if (typeof row.id !== 'string' || !row.id || isCuratedTuneId(row.id) || LISTENING_SCENARIOS.some(entry => entry.tune.id === row.id)) return [];
   return [{id:row.id,title:typeof row.title==='string' && row.title.trim() ? row.title.slice(0,200) : 'Untitled saved chart',tune}];
  }));
  const unreadableBookEntries = $derived(library.tunes.some(tune=>!tune || typeof tune!=='object' || typeof (tune as Record<string,unknown>).id!=='string' || !(tune as Record<string,unknown>).id));
  const selectedBookEntry = $derived(bookEntries.find(tune=>tune.id===tuneId));
- const admission = $derived(isCuratedTuneId(tuneId)
+ const admission = $derived(fixedChart
   ? assessCuratedListeningTune({tuneId,key,soloChoruses:solos})
   : assessListeningTune(selectedBookEntry?.tune,{key,soloChoruses:solos}));
  const session = $derived(admission.ok ? admission.session : null);
@@ -137,7 +150,8 @@
  function clearTake() { pinnedBarIndex=null;feedbackMessage='';feedbackError='';verdict='unsure';reviewBarIndex=null;player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined,outputSignal:undefined};takeSession=null;takeSource=null;marks=[];note=''; }
  function changeArrangement() { ending='continue';clearTake(); }
  function changeTune() {
-  const source = isCuratedTuneId(tuneId) ? LISTENING_TUNES.find(t=>t.id===tuneId) : selectedBookEntry?.tune as Partial<Tune> | undefined;
+  const source = scenario?.tune ?? (isCuratedTuneId(tuneId) ? LISTENING_TUNES.find(t=>t.id===tuneId) : selectedBookEntry?.tune as Partial<Tune> | undefined);
+  if (scenario) solos = Math.min(solos, scenario.maxSolos);
   key=source?.key && PITCH_CLASSES.includes(source.key) ? source.key : 'C';
   clearTake();
  }
@@ -152,7 +166,7 @@
   onChange: next => { library=next;libraryLoaded=true; },
   onAccountChange: () => {
    feedback=[];showArchive=false;clearTake();refreshFeedback();
-   if (!isCuratedTuneId(tuneId) || takeSource) {
+   if (!fixedChart || takeSource) {
     clearTake();tuneId=defaultTune.id;key=defaultTune.key;
    }
   }
@@ -165,7 +179,7 @@
  async function play() {
   if(!session || endingUnavailable || !Number.isFinite(tempo) || tempo < 40 || tempo > 240) return;
   takeScope=JSON.stringify([getLastUserId(),getScopeGeneration()]);const captured=structuredClone(session);pinnedBarIndex=null;feedbackMessage='';feedbackError='';verdict='unsure';reviewBarIndex=null;takeSession=captured;marks=[];note='';
-  takeSource=isCuratedTuneId(tuneId) ? null : {id:tuneId,title:captured.tune.title,composer:captured.tune.composer,source:captured.tune.source};
+  takeSource=fixedChart ? null : {id:tuneId,title:captured.tune.title,composer:captured.tune.composer,source:captured.tune.source};
   await player.start({performanceEnergySeed: energySeed,phrase:captured.phrase,style,tempo,swing:settings.swing,instrument:keyboard,volume:settings.backingTrackVolume,mix:{...$state.snapshot(monitorMix)},orchestration:mode,...(endingSupported && ending === 'hold-release' ? {ending} : {})});
  }
  function mark() { if(selectedReviewBar === null && snapshot.barIndex !== null) {marks=[...marks.slice(-49),{barIndex:snapshot.barIndex,elapsedBeats:snapshot.elapsedBeats,note:note.trim()}];note='';} }
@@ -219,7 +233,7 @@
  onDestroy(()=>{book.dispose();player.dispose();});
 </script>
 
-<header class="tune-heading"><div><span class="eyebrow">Musicality <span class="release" data-testid="musicality-release">{CURRENT_MUSICALITY_RELEASE.version} · <span data-testid="musicality-engine-revision" title="Accompaniment engine revision">{CURRENT_MUSICALITY_RELEASE.engineRevision.slice(0, 8)}</span> · Pending listening</span></span><h1>{shownSession?.tune.title ?? 'Choose a tune'}</h1></div> <label class="tune">Tune<select data-testid="listening-tune" bind:value={tuneId} onchange={changeTune} disabled={busy}><optgroup label="Built-in">{#each LISTENING_TUNES as tune}<option value={tune.id}>{tune.title}</option>{/each}</optgroup>{#if shownBookEntries.length}<optgroup label="Your tune book">{#each shownBookEntries as tune}<option value={tune.id}>{takeSource?.id===tune.id ? takeSource.title : tune.title}</option>{/each}</optgroup>{/if}</select></label></header>
+<header class="tune-heading"><div><span class="eyebrow">Musicality <span class="release" data-testid="musicality-release">{CURRENT_MUSICALITY_RELEASE.version} · <span data-testid="musicality-engine-revision" title="Accompaniment engine revision">{CURRENT_MUSICALITY_RELEASE.engineRevision.slice(0, 8)}</span> · Pending listening</span></span><h1>{shownSession?.tune.title ?? 'Choose a tune'}</h1></div> <label class="tune">Tune<select data-testid="listening-tune" bind:value={tuneId} onchange={changeTune} disabled={busy}><optgroup label="Built-in">{#each LISTENING_TUNES as tune}<option value={tune.id}>{tune.title}</option>{/each}</optgroup><optgroup label="Test scenarios">{#each LISTENING_SCENARIOS as entry}<option value={entry.tune.id}>{entry.tune.title}</option>{/each}</optgroup>{#if shownBookEntries.length}<optgroup label="Your tune book">{#each shownBookEntries as tune}<option value={tune.id}>{takeSource?.id===tune.id ? takeSource.title : tune.title}</option>{/each}</optgroup>{/if}</select></label></header>
 
 {#if !admission.ok && !busy}<p data-testid="listening-unavailable" role="status" class="error">{admission.reason}</p>{/if}
 {#if endingUnavailable && !busy}<p data-testid="listening-ending-unavailable" role="status" class="error">Hold &amp; release is unavailable: {endingUnavailable}</p>{/if}
@@ -232,7 +246,7 @@
  <label>Style<select data-testid="listening-style" bind:value={style} onchange={changeArrangement} disabled={busy}>{#each styles as item}<option value={item.value}>{item.label}</option>{/each}</select></label>
  <label>Key<select data-testid="listening-key" bind:value={key} onchange={clearTake} disabled={busy}>{#each PITCH_CLASSES as pitch}<option value={pitch}>{pitch.replace('b','♭').replace('#','♯')}</option>{/each}</select></label>
  <label>Tempo<input data-testid="listening-tempo" type="number" min="40" max="240" step="1" bind:value={tempo} onchange={clearTake} disabled={busy} /></label>
- <label>Solo choruses<select data-testid="listening-choruses" bind:value={solos} onchange={clearTake} disabled={busy}>{#each [1,2,3,4] as count}<option value={count}>{count}</option>{/each}</select></label>
+ <label>Solo choruses<select data-testid="listening-choruses" bind:value={solos} onchange={clearTake} disabled={busy}>{#each [1,2,3,4] as count}<option value={count} disabled={!!scenario && count > scenario.maxSolos}>{count}</option>{/each}</select></label>
 </section><div class="arrangement-row"><span class="engine-caption">Musicality {CURRENT_MUSICALITY_RELEASE.version}</span></div>
    {#if shownSession}<ListeningScore session={shownSession} barIndex={displayBarIndex} />{/if}
    <section class="transport" aria-label="Playback">
@@ -244,9 +258,11 @@
   </section>
 
   <div class="ending-row"><label>Keyboard<select data-testid="listening-keyboard" bind:value={keyboard} onchange={clearTake} disabled={busy}><option value="piano">Piano</option><option value="organ">Organ</option></select></label>{#if endingSupported}<label>Ending<select data-testid="listening-ending" bind:value={ending} onchange={clearTake} disabled={busy}><option value="continue">Keep groove to the end</option><option value="hold-release">Hold &amp; release</option></select></label>{/if}</div>
-  <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Play the melody yourself.</span></p>
+  <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>{scenario?.description ?? 'Play the melody yourself.'}</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
+    <p><button class="release-example" data-testid="listening-quarter-anticipation" onclick={() => loadReleaseExample('quarter-anticipation')} disabled={busy}>Load 0.32 Fly Me to the Moon ↗</button>
+     · Count one and three with the upright. In head-in bar 3 it adds a low C on four, then plays C again when the chart reaches Cmaj7. Listen for A in head-in bar 23 and D in head-out bar 28 (performed bar 92). S12/B6.</p>
     <p><button class="release-example" data-testid="listening-ride-triplet" onclick={() => loadReleaseExample('ride-triplet')} disabled={busy}>Load 0.31 Swing ride triplets ↗</button>
      · Tap four with the bass. In Solo 1 bar 2 and Solo 2 bar 3 (performed bars 18 and 31), the ride plays three even strokes across beats one and two. Listen for the ride and bass coming back together on three. S18/D9 · S48 phase 6.</p>
     <p><button class="release-example" data-testid="listening-bossa-handoff" onclick={() => loadReleaseExample('bossa-handoff')} disabled={busy}>Load 0.30 Bossa handoff ↗</button>

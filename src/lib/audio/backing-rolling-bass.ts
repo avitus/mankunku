@@ -113,7 +113,7 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 				memory: { ...result.memory, previousMidi: midi, previousPreviousMidi: one.midi, direction: 1 } };
 		}
 	}
-	if (info.brokenTwoAllowed && result.memory.feel === 'two' && !result.delayedRootTrace &&
+	if ((info.brokenTwoAllowed || info.anticipationAllowed) && result.memory.feel === 'two' && !result.delayedRootTrace &&
 		!previous?.pendingLaunch && !result.memory.pendingLaunch && result.events.length === 2 &&
 		result.events.every((event, i) => event.absBeat === bar * 4 + 2 * i)) {
 		const [one, three] = result.events;
@@ -121,12 +121,25 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 		const tick = timing.place(beat, 'bass');
 		const secondsPerTick = 60 / score.tempo / score.ppq;
 		const available = (bar + 1) * 4 * score.ppq - tick;
-		if (tick > parseInt(three.time) && available > 0) {
-			const four = { ...three, absBeat: beat, time: `${tick}i`, brokenTwo: true as const,
-				duration: Math.min(.65 * score.ppq, available) * secondsPerTick, velocity: three.velocity - 8 };
+		const index = result.memory.segmentIndex;
+		const current = index === null ? undefined : score.harmony[index];
+		const next = index === null ? undefined : score.harmony[index + 1];
+		const target = result.memory.nextTarget;
+		// B6 uses the actual planned landing. A split bar, inversion, or non-root
+		// destination keeps its existing approach and the two-beat foundation.
+		const anticipates = info.anticipationAllowed && current && next && target !== null &&
+			!current.chord.bass && !next.chord.bass &&
+			fractionToFloat(current.startOffset) <= bar && fractionToFloat(next.startOffset) === bar + 1 &&
+			current.chord.quality.startsWith('7') && pc(target) === pitchClassToNumber(next.chord.root) &&
+			pc(pitchClassToNumber(current.chord.root) - pc(target)) === 7 &&
+			target !== three.midi && Math.abs(target - three.midi) <= 7;
+		if ((info.brokenTwoAllowed || anticipates) && tick > parseInt(three.time) && available > 0) {
+			const four = { ...three, absBeat: beat, time: `${tick}i`, midi: anticipates ? target : three.midi,
+				...(anticipates ? { anticipatedRoot: next.chord.root } : { brokenTwo: true as const }),
+				duration: Math.min(.65 * score.ppq, available) * secondsPerTick, velocity: three.velocity - (anticipates ? 2 : 8) };
 			result = { ...result, events: [one,
 				{ ...three, duration: Math.min(three.duration, (tick - parseInt(three.time)) * secondsPerTick * .8) }, four],
-				memory: { ...result.memory, previousPreviousMidi: three.midi, direction: 0,
+				memory: { ...result.memory, previousMidi: four.midi, previousPreviousMidi: three.midi, direction: Math.sign(four.midi - three.midi),
 					...(score.bassScalarContinuation ? { scalarHistory: { pulse: { absBeat: beat, midi: four.midi, time: four.time }, ornamentAfterPulse: false } } : {}) } };
 		}
 	}

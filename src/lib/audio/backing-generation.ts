@@ -96,6 +96,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 import type { RhythmCell } from './backing-rhythm-memory';
 
 export interface BassEvent {
+ readonly anticipatedRoot?: HarmonicSegment['chord']['root'];
  readonly melodicReply?: readonly HeardNote[];
  readonly melodicSource?: readonly HeardNote[];
 	readonly rhythmAnswer?: RhythmCell;
@@ -410,6 +411,7 @@ export function resolveBackingSwing(
 
 export interface BarInfo {
 	readonly balladThirdAllowed?: boolean;
+	readonly anticipationAllowed?: boolean;
 	readonly brokenTwoAllowed?: boolean;
 	readonly dominantRiffAllowed?: boolean;
 	readonly balladHoldAllowed?: boolean;
