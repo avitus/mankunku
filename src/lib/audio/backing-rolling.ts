@@ -781,7 +781,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 					velocity: event.velocity < 50 ? 67 : event.velocity }));
 				const pulses = events.filter(event => Number.isInteger(event.absBeat));
 				const penultimate = pulses.at(-2)!;
-				bass = { ...bass, events, memory: { ...bass.memory, openingMotif: null, previousPreviousMidi: penultimate.midi,
+				bass = { ...bass, events, memory: { ...bass.memory, ...(definition.phraseDialogueVersion && { openingMotif: null }), previousPreviousMidi: penultimate.midi,
 					direction: Math.sign(pulses.at(-1)!.midi - penultimate.midi) } };
 				// A performed answer cannot become a fresh source for another motif.
 				rhythmMemory = { ...rhythmMemory, cells: rhythmMemory.cells.filter(cell => cell.player !== 'bass' || cell.bar !== bar) };

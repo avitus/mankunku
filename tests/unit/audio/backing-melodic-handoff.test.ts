@@ -46,6 +46,7 @@ it.each([
    heardAnswer = true;
    expect(hits.map(e => e.midi)).toEqual(notes);
    expect(actual.checkpoint.bass.openingMotif).toBeNull();
+   expect(advanceRollingBacking(score, JSON.parse(JSON.stringify(actual.checkpoint)))).toEqual(advanceRollingBacking(score, actual.checkpoint));
    expect(prior.bassEvents.map(e => e.midi)).not.toEqual(notes);
    expect(hits.map(e => [e.time, e.duration])).toEqual(prior.bassEvents.map(e => [e.time, e.duration]));
    for (const note of hits[0].melodicSource!) expect(played.get(note.beat)).toBe(note.midi);
@@ -60,4 +61,23 @@ it.each([
   baseline = prior.checkpoint;
  }
  expect(heardAnswer).toBe(true);
+});
+
+it('restores a fitted bass answer with phrase dialogue disabled', () => {
+ const { phrase } = buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
+ const style = BACKING_STYLES.swing;
+ const score = createRollingBacking(phrase.harmony, style, {
+  phraseId: phrase.id, tempo: 128, ppq: 192, beatsPerBar: 4, swing: style.defaultSwing,
+  performanceForm: phrase.performanceForm, sectionMap: phrase.sectionMap, ensemble: {}
+ }, { ...releasedBackingOptions('piano', 29), phraseDialogue: undefined });
+ let checkpoint: RollingBackingCheckpoint | undefined;
+ for (let bar = 0; bar < score.totalBars - 1; bar++) {
+  const result = advanceRollingBacking(score, checkpoint);
+  checkpoint = result.checkpoint;
+  if (!result.bassEvents.some(event => event.melodicSource)) continue;
+  expect(checkpoint.bass).not.toHaveProperty('openingMotif');
+  expect(advanceRollingBacking(score, JSON.parse(JSON.stringify(checkpoint)))).toEqual(advanceRollingBacking(score, checkpoint));
+  return;
+ }
+ throw new Error('Expected the seeded walk to fit a melodic answer');
 });
