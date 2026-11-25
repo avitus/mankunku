@@ -140,7 +140,10 @@ describe('tune desk playback', () => {
 			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
 			callbacks.onStarted();
 		};
+		at(0.5);
+		expect(player.countingIn).toBe(true);
 		at(2.2);
+		expect(player.countingIn).toBe(false);
 		expect(player.phase).toBe('head');
 		at(4.98); // Just before the two-beat return.
 		expect(player.showSoloChart).toBe(false);

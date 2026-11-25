@@ -42,6 +42,7 @@ export class TunePlayer {
 	playHead = $state(true);
 	playOutro = $state(true);
 	closing = $state(false);
+	countingIn = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	showSoloChart = $state(false);
 	soloChorus = $state(0);
@@ -120,6 +121,7 @@ export class TunePlayer {
 		this.chartBar = null;
 		this.followBar = null;
 		this.cursorIndex = null;
+		this.countingIn = false;
 		this.phase = 'head';
 		this.showSoloChart = false;
 		this.closing = false;
@@ -152,6 +154,7 @@ export class TunePlayer {
 			if (this.disposed || generation !== this.run) return false;
 			this.starting = false;
 			this.playing = true;
+			this.countingIn = true;
 			const region = formLoopRegion(tune, flat);
 			/** Returns to the top the engine has taken — where the marker is after each pass. */
 			let returns = 0;
@@ -202,7 +205,8 @@ export class TunePlayer {
 						}
 						const { flat: chartFlat, sheet: chartSheet } = jam ? jamChartAt(jam, bar, jam.headBars) : { flat, sheet: tune };
 						const chartBar = notationBarForPlaybackBar(chartFlat.sectionMap, chartSheet.sections, sourceBar);
-						this.chartBar = chartBar !== null && isInPickupLeadIn(chartSheet, chartBar) ? null : chartBar;
+						this.countingIn = bar < 0 || (chartBar !== null && isInPickupLeadIn(chartSheet, chartBar));
+						this.chartBar = this.countingIn ? null : chartBar;
 						const chartBarAt = (position: number): number | null => {
 							if (jam && position >= jam.phraseBars) return null;
 							const { flat: targetFlat, sheet: targetSheet } = jam ? jamChartAt(jam, position, jam.headBars) : { flat, sheet: tune };

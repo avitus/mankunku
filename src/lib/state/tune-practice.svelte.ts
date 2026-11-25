@@ -26,7 +26,7 @@ import {
 	suggestLicksForMajorRegion,
 	type LickSuggestion
 } from '$lib/tunes/lick-matcher';
-import { transposeTune } from '$lib/tunes/book-loader';
+import { tuneInPlayingRange } from '$lib/state/tune-playing-sheet';
 import { baseLickId, getAllLicks, getBaseLickFromId, transposeLick } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
 import { getInstrument, settings } from '$lib/state/settings.svelte';
@@ -380,10 +380,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	plan: InsertionPoint[];
 	pickedSuggestion: Record<string, number>;
 } {
-	const keyed =
-		sheet.key === config.concertKey
-			? sheet
-			: transposeTune(sheet, config.concertKey);
+	const keyed = tuneInPlayingRange(sheet, config.concertKey);
 	const { returning: transposed, closing: closingSheet, soloStartBar, opening } = jamSheets(keyed, config.playHead, config.playOutro);
 	const separateClosingChart = closingSheet !== transposed;
 	const closingFlat = clearPickupBarHarmony(closingSheet, flattenTune(closingSheet, { expandRepeats: true }));

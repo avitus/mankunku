@@ -34,7 +34,8 @@
 	import '$lib/components/tunes/tune-detail.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
-	import { isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
+	import { tuneInPlayingRange } from '$lib/state/tune-playing-sheet';
+	import { isCuratedTuneId } from '$lib/tunes/book-loader';
 	import { resolveTuneRef } from '$lib/tunes/tune-slug';
 	import { getUserTunesLocal, deleteUserTune, saveUserTune } from '$lib/persistence/user-tunes';
 	import {
@@ -45,7 +46,7 @@
 		fetchCommunityTune,
 		type SharedTune
 	} from '$lib/persistence/tune-community';
-	import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import { getInstrument } from '$lib/state/settings.svelte';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
@@ -143,7 +144,7 @@
 
 	const sheet = $derived(
 		baseSheet
-			? transposeTune(baseSheet, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote())
+			? tuneInPlayingRange(baseSheet, concertKey)
 			: undefined
 	);
 
@@ -163,6 +164,11 @@
 	}
 	let practiceSession = $state<TunePracticeSession>();
 	const practiceStatus = $derived(practiceSession?.status());
+	function switchSessionMode(on: boolean) {
+		if (changingMode || on === practice) return;
+		if (practice && (practiceStatus?.running || practiceStatus?.loading)) practiceSession?.togglePlay();
+		void setPractice(on);
+	}
 	let repeatSession = $state(false);
 	let playGeneration = 0;
 	async function togglePlay() {
@@ -238,7 +244,7 @@
 		selectedWrittenKey = key;
 		if (baseId) saveTuneKey(baseId, writtenKeyToConcert(key, getInstrument()));
 	}
-	const keyCenters = $derived(displayedSheet && (!player.playing || showChordChart) ? tuneKeyCenters(displayedSheet, getInstrument(), { solo: showChordChart }) : null);
+	const keyCenters = $derived(displayedSheet ? tuneKeyCenters(displayedSheet, getInstrument(), { solo: showChordChart }) : null);
 	const markers: RangeMarker[] = $derived([
 		...(showKeyCenters ? keyCenters?.markers ?? [] : []),
 		...(player.chartBar === null ? [] : [{ id: 'tune-playhead', startBar: Math.floor(player.chartBar), endBarExclusive: Math.floor(player.chartBar) + 1, status: 'playhead' as const }])
@@ -275,8 +281,8 @@
 	function handleKeydown(event: KeyboardEvent): void {
 		if (printPreview || document.querySelector('dialog[open]')) return;
 		if (event.key === 'Escape') {
-			if (busy) { void togglePlay(); }
-			else if (settingsPanel?.open) { settingsPanel.open = false; settingsPanel.querySelector('summary')?.focus(); }
+			if (settingsPanel?.open) { settingsPanel.open = false; settingsPanel.querySelector('summary')?.focus(); }
+			else if (busy) { void togglePlay(); }
 			else setFocus(false);
 			return;
 		}
@@ -344,6 +350,7 @@
 <div hidden={printPreview && !!sheet} class="lick-editor tune-desk tune-detail studio-desk sd-page" class:td-focus={focused} class:sd-playing={busy}>
 	{#if !focused}<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>{/if}
 	{#if sheet && baseSheet}
+		{#if !practiceStatus?.reportVisible}
 		<header class="sd-header">
 			<div class="sd-title"><h1>{baseSheet.title}</h1><p>{baseSheet.composer || 'Your arrangement'}{authorName ? ` · Shared by ${authorName}` : ''}</p></div>
 			<button class="sd-play" data-running={busy} disabled={changingMode || (practice && !practiceStatus?.ready)} onclick={togglePlay}>
@@ -354,6 +361,7 @@
 				<details class="sd-advanced" bind:this={settingsPanel}><summary><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h18M3 17h18"/><g fill="var(--studio-well)"><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></g></svg>Tune settings</summary>
 					<div class="sd-drawer"><fieldset disabled={!!practiceStatus?.running || !!practiceStatus?.loading}>
 						{@render chartSettings('setup')}
+						{@render highlightStyle()}
 						<TuneBandControls {player} style={backingStyle} tuneId={baseSheet.id} personal={!isOwnSheet} onsave={saveBackingStyle} />
 						<div class="sd-actions">
 							{#if isOwnSheet}<button onclick={handleEdit}>Edit tune</button>{:else if isCurated}<button onclick={handleCopy}>Edit a copy</button>{/if}
@@ -366,6 +374,19 @@
 						</div>
 					</fieldset></div>
 				</details>
+			{:else}
+				<details class="sd-advanced" bind:this={settingsPanel}>
+					<summary>Chart display</summary>
+					<div class="sd-drawer">
+						<label class="sd-switch">Key centers <RockerSwitch compact label="Show key centers" checked={showKeyCenters} onChange={on => showKeyCenters = saveTuneDisplay('key-centers', on)} /></label>
+						{@render highlightStyle()}
+						{#if bookSheet}
+							<label class="sd-switch">Lick Practice <RockerSwitch compact label="Lick Practice" checked={practice}
+								disabled={changingMode} onChange={switchSessionMode} /></label>
+							<p class="sd-mode-hint">Changing practice mode ends this take and returns to setup.</p>
+						{/if}
+					</div>
+				</details>
 			{/if}
 		</header>
 		{#if !manualFocus}
@@ -374,30 +395,31 @@
 					oncenters={on => showKeyCenters = saveTuneDisplay('key-centers', on)} onpractice={setPractice} />
 			</div>
 		{/if}
+		{/if}
 		<section class="le-panel td-detail-chart" aria-label="Tune chart">
 			{#if practice && bookSheet}
 				{#key bookSheet.id}<TunePracticeSession bind:this={practiceSession} baseSheet={bookSheet} {player} {cacheVersion} {concertKey} {backingStyle} {showKeyCenters} onexit={() => setPractice(false)} />{/key}
 			{:else}
+				{#if player.busy}
+					<div class="td-status">
+						<span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.countingIn ? 'Count-in' : `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + openingBarNumber}`}</strong>
+							Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span>
+						<span>{sheet.timeSignature.join('/')} · {totalBars} bars</span>
+					</div>
+				{/if}
 				<div class="td-score-well" use:observeChartWidth={(width) => { chartWidth = width; }}>
 					{#if showChordChart}
 						<TuneChordChart tune={displayedSheet!} instrument={getInstrument()} solo={player.playing}
-							keyCenterLaneCount={keyCenters?.laneCount ?? 0} highlightCurrentBeat={false}
 							currentBar={player.chartBar} followBar={player.followBar} playing={player.playing} {markers} />
 					{:else}
 						<NotationDisplay tune={displayedSheet!} instrument={getInstrument()} frameless keyCenterRails
 							staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined}
 							tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }}
 							rangeMarkers={markers} keyCenterLaneCount={keyCenters?.laneCount ?? 0}
-							playheadStyle="wash-subtle" autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />
+							playheadStyle="beat-line" playheadPosition={player.chartBar} autoScrollPlayhead={player.playing} playheadBarFraction={player.followBar} />
 					{/if}
 				</div>
-				{#if player.busy}
-					<div class="td-status">
-						<span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + openingBarNumber}`}</strong>
-							Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span>
-						<span>{sheet.timeSignature.join('/')} · {totalBars} bars</span>
-					</div>
-				{/if}
+
 				{#if showKeyCenters && keyCenters}<KeyCenterLegend display={keyCenters} />{/if}
 				{#if player.error}<p role="alert">{player.error}</p>{/if}
 			{/if}
@@ -412,4 +434,24 @@
 		<details class="td-chart-details"><summary>Chart details & harmony guide</summary><TuneHarmonyGuide /><div class="td-tags">{#each baseSheet.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag (tag)}<span>{tag}</span>{/each}</div></details>
 		<div class="td-library-actions">{#if isOwnSheet}<button onclick={handleDelete}>{confirmingDelete ? 'Confirm Delete' : 'Delete'}</button>{:else if isAdopted && bookSheet}<button onclick={handleReturn}>{confirmingReturn ? 'Confirm Return' : 'Return to community'}</button>{/if}</div>
 	{/if}
+{/snippet}
+
+{#snippet highlightStyle()}
+	{@const grid = practice ? !!practiceStatus?.soloChart : showChordChart}
+	<label class="td-highlight-style">
+		Highlight style
+		<select disabled={!showKeyCenters} value={grid ? settings.soloHighlight : settings.leadSheetHighlight}
+			onchange={event => {
+				const value = event.currentTarget.value;
+				if (value === 'top-strip' || value === 'full-bar') settings.soloHighlight = value;
+				else if (value === 'staff-wash' || value === 'chord-stroke') settings.leadSheetHighlight = value;
+				saveSettings();
+			}}>
+			{#if grid}
+				<option value="full-bar">Full bar</option><option value="top-strip">Top strip</option>
+			{:else}
+				<option value="chord-stroke">Chord stroke</option><option value="staff-wash">Staff wash</option>
+			{/if}
+		</select>
+	</label>
 {/snippet}

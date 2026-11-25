@@ -580,7 +580,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			const markers = [...(vp?.querySelectorAll('svg .range-marker') ?? [])];
 			return {
 				labels: markers.filter((m) => m.classList.contains('range-marker-label')).length,
-				bands: markers.filter((m) => m.getAttribute('data-marker-id') !== '__playhead').length,
+				bands: markers.filter((m) => !m.hasAttribute('data-key-center') && m.getAttribute('data-marker-id') !== '__playhead').length,
 				pickCard: !!document.querySelector('[data-testid="suggestion-pick-card"]')
 			};
 		});
@@ -697,13 +697,22 @@ test.describe.serial('tune practice session follow-scroll', () => {
 for (const [showCenters, style] of [[true, 'Full bar'], [true, 'Top strip'], [false, 'Top strip']] as const)
 test(`key centers follow the solo and respect the setup switch: ${style}, ${showCenters}`, async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Headless Linux Firefox has no audio device');
+	await page.setViewportSize({ width: 390, height: 844 });
 	await seedOnboardedAnonymous(page);
-	await seedTunes(page, [threeLaneSheet()]);
+	const tune = threeLaneSheet();
+	for (const note of tune.sections[0].notes) note.pitch = 84;
+	await seedTunes(page, [tune]);
 	await page.goto('/settings');
 	await page.getByRole('radio', { name:style }).check();
 	await installAudioMock(page);
 	await stubCdnInstrumentSamples(page);
-	await page.goto('/tunes/three-lane-centers?licks=1');
+	await page.goto('/tunes/three-lane-centers');
+	const ledger = page.locator('.abcjs-ledger');
+	await expect(page.locator('.abcjs-staff')).toHaveCount(3);
+	const regularLedgers = await ledger.count();
+	await page.getByRole('switch', { name: 'Lick Practice' }).click();
+	await expect(page.locator('.unified-practice')).toBeVisible();
+	await expect(ledger).toHaveCount(regularLedgers);
 	const toggle = page.getByRole('switch', { name: 'Show key centers', exact: true });
 	await expect(toggle).toHaveAttribute('aria-checked', 'true');
 	if (!showCenters) await toggle.click();
@@ -712,8 +721,12 @@ test(`key centers follow the solo and respect the setup switch: ${style}, ${show
 	await startPracticeSession(page);
 	await expect(page.getByText(/melody once\s+through/i)).toBeVisible();
 	const legend = page.getByRole('list', { name: 'Key center legend', exact: true });
-	await expect(legend).toHaveCount(0);
-	await expect(page.locator('.following [data-key-center]')).toHaveCount(0);
+	await expect(legend).toBeHidden();
+	await expect(page.locator('.following .abcjs-staff')).toHaveCount(3);
+	await expect(ledger).toHaveCount(regularLedgers);
+	const headInk = page.locator('.following .key-center-ink');
+	if (showCenters) await expect(headInk.first()).toBeVisible();
+	else await expect(headInk).toHaveCount(0);
 	const chart = page.getByTestId('tune-chord-chart');
 	await expect(chart).toBeVisible({ timeout: 20_000 });
 	await expect(chart.locator('.solo-cues').first()).toBeVisible();

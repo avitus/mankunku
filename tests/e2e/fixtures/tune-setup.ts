@@ -2,7 +2,9 @@ import { expect, type Page } from '@playwright/test';
 
 export async function setTuneTempo(page: Page, bpm: number): Promise<void> {
 	const dial = page.getByRole('slider', { name: 'Tempo', exact: true });
+	await expect(dial).toBeEnabled();
 	await dial.press('Home');
+	await expect(dial).toHaveAttribute('aria-valuenow', '40');
 	if (bpm === 240) await dial.press('End');
 	else {
 		for (let n = 0; n < Math.floor((bpm - 40) / 5); n++) await dial.press('PageUp');

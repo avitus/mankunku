@@ -14,7 +14,8 @@
 	import { MissingPracticeSpotsError } from '$lib/tunes/practice-report';
 	import TunePracticeReport from '$lib/components/tune-practice/TunePracticeReport.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
-	import { transposeTune } from '$lib/tunes/book-loader';
+	import { tuneInPlayingRange } from '$lib/state/tune-playing-sheet';
+	import { observeChartWidth } from '$lib/notation/observe-chart-width';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
@@ -172,7 +173,7 @@
 	});
 	const previewSheet = $derived.by(() => {
 		if (!baseSheet || tunePractice.phase !== 'setup') return null;
-		const keyed = baseSheet.key === tunePractice.config.concertKey ? baseSheet : transposeTune(baseSheet, tunePractice.config.concertKey);
+		const keyed = tuneInPlayingRange(baseSheet, tunePractice.config.concertKey);
 		const sheets = jamSheets(keyed, tunePractice.config.playHead, tunePractice.config.playOutro);
 		const melody = keyed.sections.some(section => section.notes.some(note => note.pitch !== null));
 		const hasHead = tunePractice.config.playHead && melody;
@@ -214,7 +215,7 @@
 		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
 	);
 	const activeKeyCenters = $derived.by(() => {
-		const sheet = showSoloChart ? chartSheet : null;
+		const sheet = showSoloChart ? chartSheet : displayedSheet;
 		return sheet ? tuneKeyCenters(sheet, getInstrument(), { solo: showSoloChart }) : null;
 	});
 	const markers = $derived.by<RangeMarker[]>(() => {
@@ -370,8 +371,13 @@
 		if (tunePractice.phase === 'setup') syncSetup();
 	});
 
+	let chartWidth = $state(800);
+
 	export function status() {
-		return { loading: isLoading, running: isSessionRunning, ready: audioModulesReady };
+		return {
+			loading: isLoading, running: isSessionRunning, ready: audioModulesReady,
+			soloChart: showSoloChart, reportVisible: tunePractice.phase === 'complete' && tunePractice.config.mode !== 'freestyle'
+		};
 	}
 	export function togglePlay() {
 		if (!audioModulesReady) return;
@@ -864,10 +870,10 @@
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
 					{:else if tunePractice.phase === 'head'}
-						<span class="font-medium text-[var(--color-phase-listen)]">Head</span> — melody once
+						<span class="tp-listen">Head</span> — melody once
 						through, then it's yours
 					{:else if tunePractice.phase === 'outro'}
-						<span class="font-medium text-[var(--color-phase-listen)]">Outro</span> — the head again
+						<span class="tp-listen">Outro</span> — the head again
 					{:else if tunePractice.config.mode === 'freestyle'}
 						<span class="font-medium text-[var(--color-phase-play)]">Your solo</span> —
 						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
@@ -909,22 +915,23 @@
 			/>
 		{/if}
 
-		{#if showKeyCenters && activeKeyCenters}<KeyCenterLegend display={activeKeyCenters} />{/if}
 		{#if displayedSheet && showSoloChart}
 			<TuneChordChart solo tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
-			<NotationDisplay
-				tune={displayedSheet}
-				instrument={getInstrument()}
-				tuneOptions={audioPlan?.chartOptions}
-				{cursorIndex}
-				rangeMarkers={markers}
-				autoScrollPlayhead
-				playheadBarFraction={followBarFraction}
-			/>
+			<div class="td-score-well" use:observeChartWidth={width => { chartWidth = width; }}>
+				<NotationDisplay
+					tune={displayedSheet} instrument={getInstrument()} {cursorIndex} frameless keyCenterRails
+					staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined}
+					tuneOptions={{ ...audioPlan?.chartOptions, omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }}
+					rangeMarkers={markers} keyCenterLaneCount={activeKeyCenters?.laneCount ?? 0}
+					autoScrollPlayhead playheadBarFraction={followBarFraction}
+					playheadStyle="beat-line" playheadPosition={playheadBarFraction}
+				/>
+			</div>
 		{/if}
+		{#if showKeyCenters && activeKeyCenters}<KeyCenterLegend display={activeKeyCenters} />{/if}
 	{:else if tunePractice.config.mode !== 'freestyle' && audioPlan}
 		<TunePracticeReport {onexit} tune={audioPlan.sheet} phrase={audioPlan.playedPhrase} plan={tunePractice.plan}
 			clock={{ barTicks: barTicksNR, countInTicks: countInTicksNR }}

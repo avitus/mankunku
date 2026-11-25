@@ -23,8 +23,10 @@ for (const width of [1440, 390]) {
 		const a = page.locator('svg [data-key-center="A minor"]').first();
 		await expect(g).toBeVisible(); await expect(a).toBeVisible();
 		await expect(page.getByText('Key-center readings', { exact: true })).toHaveCount(0);
-		await expect(g.locator('text')).toHaveText('G');
-		await expect(a.locator('text')).toHaveText('A-');
+		await expect(g).toHaveAccessibleName('G major');
+		await expect(g.locator('text')).toBeHidden();
+		await expect(a).toHaveAccessibleName('A minor');
+		await expect(a.locator('text')).toBeHidden();
 		await expect(g).toHaveAttribute('data-treatment', 'chord-stroke');
 		expect(await g.evaluate(group => {
 			const chord = group.parentElement!.querySelector('.abcjs-chord')!;
@@ -38,7 +40,7 @@ for (const width of [1440, 390]) {
 		await page.evaluate(() => document.documentElement.classList.add('light'));
 		const lightColor = await g.evaluate(el => getComputedStyle(el).color);
 		await expect(g.locator('rect')).toHaveCSS('fill', lightColor);
-		await expect(g.locator('text')).toHaveCSS('fill', lightColor);
+		await expect(g.locator('text')).toBeHidden();
 		await page.screenshot({ path: info.outputPath(`key-centers-tune-light-${width}.png`), fullPage: true });
 		await page.evaluate(() => document.documentElement.classList.remove('light'));
 		await toggle.click();
@@ -167,7 +169,7 @@ test('the displayed closing ending supplies its own center', async ({ page }) =>
 	await expect(page.getByTestId('tune-chord-chart').locator('[data-bar="1"] [data-key-center="D major"]')).toBeVisible();
 });
 
-for (const width of [1440, 390]) test(`chord rails label a late entrance on the first fitting span at ${width}px`, async ({ page }) => {
+for (const width of [1440, 390]) test(`chord tint tracks a late entrance without printed key letters at ${width}px`, async ({ page }) => {
 	await page.setViewportSize({ width, height: 1000 });
 	await seedTunes(page, [{ id: 'late-key-center', title: 'Late Key Center', key: 'C', timeSignature: [4, 4], source: 'user', tags: [],
 		sections: [{ label: 'A', bars: 4, notes: [], harmony: [
@@ -178,11 +180,11 @@ for (const width of [1440, 390]) test(`chord rails label a late entrance on the 
 	await page.goto('/tunes/late-key-center');
 	const chart = page.getByTestId('tune-chord-chart');
 	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"]')).toBeVisible();
-	await expect(chart.locator('[data-bar="0"] [data-key-center="D major"] span')).toHaveCount(0);
-	await expect(chart.locator('[data-bar="1"] [data-key-center="D major"] span')).toBeVisible();
-	const nextRow = chart.locator('[data-bar="2"] [data-key-center="D major"] span');
-	if (width === 390) await expect(nextRow).toBeVisible();
-	else await expect(nextRow).toBeHidden();
+	const entrance = chart.locator('[data-bar="0"] [data-key-center="D major"]');
+	await expect(entrance).toHaveAccessibleName('D major');
+	expect(await entrance.evaluate(el => (el as HTMLElement).style.left)).toBe('75%');
+	await expect(chart.locator('[data-bar="1"] [data-key-center="D major"]')).toBeVisible();
+	await expect(chart.locator('[data-key-center] span:visible')).toHaveCount(0);
 });
 
 for (const width of [1440, 390]) for (const melody of [true, false]) {

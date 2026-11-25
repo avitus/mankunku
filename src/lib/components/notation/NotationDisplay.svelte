@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { barBeatProgress } from '$lib/notation/bar-progress';
 	import { compactCenter } from '$lib/tunes/key-centers';
 	import { settings } from '$lib/state/settings.svelte';
 	import { tick, untrack } from 'svelte';
@@ -100,7 +101,7 @@
 	}
 
 	/** Visual treatment for the current-bar playhead marker. */
-	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle';
+	export type PlayheadStyle = 'under-bar' | 'box' | 'wash-subtle' | 'beat-line';
 
 	/**
 	 * Chart presentation:
@@ -143,6 +144,7 @@
 		rangeMarkers?: RangeMarker[];
 		/** Visual treatment for `status: 'playhead'` markers. Default 'under-bar'. */
 		playheadStyle?: PlayheadStyle;
+		playheadPosition?: number | null;
 		/** Engrave key-center highlights on the chord row or staff. */
 		keyCenterRails?: boolean;
 		/** Full producer lane count, retained when rails are hidden. */
@@ -227,6 +229,7 @@
 		cursorIndex = null,
 		rangeMarkers,
 		playheadStyle = 'under-bar',
+		playheadPosition = null,
 		keyCenterRails = false,
 		keyCenterLaneCount = 2,
 		autoScrollPlayhead = false,
@@ -425,6 +428,7 @@
 		structureChordSymbols(containerEl);
 		dropChordSymbols(containerEl);
 		nudgeChordSymbols(containerEl);
+		if (tune) positionRowNumbers(containerEl);
 		repositionPartLabels(containerEl);
 		// Stacked second endings: map [2] onto [1]'s horizontal span (pure-translate
 		// glyphs, scale only volta/beam line art) — driven entirely from the rendered
@@ -580,6 +584,8 @@
 			contentPx
 		});
 	});
+
+	const beatProgress = $derived(barBeatProgress(playheadPosition, tune?.timeSignature[0] ?? 4));
 
 	// Insertion-point range bands — a handful of overlay rects per status
 	// change, inserted below the glyphs like the bar hit rects.
@@ -1027,6 +1033,10 @@
 			return r;
 		};
 
+		if (style === 'beat-line') {
+			add(rect(x0, band.staffBottom + sp * .5, w * beatProgress, 2));
+			return;
+		}
 		if (style === 'under-bar') {
 			const svg = wrapper.ownerSVGElement;
 			const bottom = compactStaff && svg ? svg.viewBox.baseVal.y + svg.viewBox.baseVal.height - 2 : band.staffBottom + sp * 0.35;
@@ -1330,6 +1340,21 @@
 				if (Math.abs(dx) < 0.01) continue;
 				part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
 			}
+		}
+	}
+
+	/** Place the row number above the staff and clef. The clef group
+	 * also contains the number, so measure only the clef's drawn path. */
+	function positionRowNumbers(container: HTMLDivElement): void {
+		for (const row of container.querySelectorAll<SVGGElement>('g.abcjs-staff-wrapper')) {
+			const number = row.querySelector<SVGTextElement>('text.abcjs-bar-number');
+			const staff = row.querySelector<SVGGraphicsElement>('.abcjs-staff')?.getBBox();
+			const clef = row.querySelector<SVGGraphicsElement>('.abcjs-clef path[data-name^="clefs."]')?.getBBox();
+			if (!number || !staff || !clef || !staff.height) continue;
+			const gap = staff.height / 8;
+			const box = number.getBBox();
+			const dy = Math.min(clef.y, staff.y) - gap - (box.y + box.height);
+			number.setAttribute('y', String(number.y.baseVal.getItem(0).value + dy));
 		}
 	}
 

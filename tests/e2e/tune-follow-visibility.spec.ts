@@ -43,7 +43,7 @@ for (const width of [1280, 390]) for (const melody of [true, false]) for (const 
 				if (bar >= 8) return { completed: true, samples };
 				if (bar < 0) continue;
 				const viewport = document.querySelector('[data-testid="chart-scroll-viewport"].following, [data-testid="tune-chord-chart"]');
-				const row = viewport?.querySelector('.playhead-wash-subtle')?.closest('.abcjs-staff-wrapper')
+				const row = viewport?.querySelector('.playhead-beat-line')?.closest('.abcjs-staff-wrapper')
 					?? viewport?.querySelector('.tcc-bar.active');
 				const chords = row?.querySelectorAll('.abcjs-chord, .chord-symbol');
 				if (!viewport || !chords?.length) continue;
