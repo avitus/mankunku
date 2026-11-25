@@ -186,7 +186,11 @@ test('a sign-in refresh during the head keeps the same chorus playing', async ({
 	await broadcastTokenRefresh(page, testUser);
 	await (await refreshed).finished();
 
-	await expect(status).toHaveText(/Head · Bar (?:[3-9]|[1-9]\d+)$/, { timeout: 10_000 });
+	const readHeadBar = async (): Promise<number> =>
+		Number(/^Head · Bar (\d+)$/.exec(await status.textContent() ?? '')?.[1]);
+	const barAfterRefresh = await readHeadBar();
+	expect(barAfterRefresh).toBeGreaterThanOrEqual(2);
+	await expect.poll(readHeadBar, { timeout: 10_000 }).toBeGreaterThan(barAfterRefresh);
 	const labels = await history.evaluate(({ labels, observer }) => {
 		observer.disconnect();
 		return labels;

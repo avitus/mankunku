@@ -107,8 +107,11 @@ for (const practice of [false, true]) {
 			await expect(page.locator('.abcjs-container svg')).toBeVisible();
 			await expect(page.locator('svg text.range-marker-label')).toHaveCount(0);
 			await page.screenshot({ path: info.outputPath(`outro-${width}.png`), fullPage: true });
-			if (practice) await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible({ timeout: 10_000 });
-			else await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 10_000 });
+			if (practice) {
+				const report = page.getByTestId('tune-practice-report');
+				await expect(report.getByRole('heading', { name: 'Take complete' })).toBeVisible({ timeout: 10_000 });
+				await report.getByRole('button', { name: 'Back to tune' }).click();
+			} else await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible({ timeout: 10_000 });
 			await expect(page.getByRole('region', { name: 'Session setup' })).toBeVisible();
 			await expect(page.locator('nav')).toBeVisible();
 		});

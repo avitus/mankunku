@@ -2382,4 +2382,4 @@ Local Colima validation covered the three existing S12/B7 unit contracts, the re
 
 ### 2026-11-25 — 0.33.1 rolling backing corrections (S3, S38–39)
 
-A piano recovery reserves a bar for space only when the returning drum phrase is accepted. A declined recovery leaves the normal rhythm-development rules in effect. When a melodic bass answer rewrites the walk, the next bar can no longer recall an opening from the discarded notes. The rhythm and melodic policies have new checkpoint fingerprints. The listening desk and exported takes identify the corrected engine as `99a888e52d2ce2edcd3b16880340d743d96f5204`.
+A piano recovery reserves a bar for space only when the returning drum phrase is accepted. A declined recovery leaves the normal rhythm-development rules in effect. When a melodic bass answer rewrites the walk, the next bar can no longer recall an opening from the discarded notes. The rhythm and melodic policies have new checkpoint fingerprints. The listening desk and exported takes identify the corrected engine as `bbea3856ddc3e8f61f20cb909048215e52215147`.

@@ -423,13 +423,15 @@ test.describe.serial('tune practice playhead on the stacked [2]', () => {
 					noteheads: [...layer.querySelectorAll('g.abcjs-note')].map(rect)
 				};
 			};
-			new MutationObserver((mutations) => {
-				for (const m of mutations) {
-					for (const n of m.addedNodes) {
-						if (n instanceof Element && n.getAttribute('data-marker-id') === '__playhead') record(n);
-					}
-				}
-			}).observe(document.body, { childList: true, subtree: true });
+			// The beat line reaches the bracket's far edge on the last beat.
+			// Its per-beat update changes a CSS variable on the chart container.
+			const observer = new MutationObserver(() => {
+				const line = document.querySelector('.playhead-beat-line[data-marker-id="__playhead"]');
+				if (!line || Number(getComputedStyle(line).getPropertyValue('--notation-beat-progress')) !== 1) return;
+				record(line);
+				if (w.__playheadOnSecondEnding) observer.disconnect();
+			});
+			observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
 		});
 
 		await page.getByRole('button', { name: /^play$/i }).click();
