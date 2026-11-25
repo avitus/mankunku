@@ -45,7 +45,7 @@ const MIN_DURATION = 0.12;
 export const ALERT_CENTS = 12;
 /**
  * Once the cue is on, the window centre it stays on at. Only the cue's
- * switch-off moves; the faders' reference ticks stay on ALERT_CENTS.
+ * switch-off uses this threshold.
  */
 export const HOLD_CENTS = 8;
 /** A take, or a pitch class, leans the cue's way when its median sits this far on that side. */
