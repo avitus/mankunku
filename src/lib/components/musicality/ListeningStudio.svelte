@@ -291,7 +291,7 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>{scenario?.description ?? 'Play the melody yourself.'}</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
-    <p>0.33 · All the Things You Are · S12/B7. Count “four-and-one” through the marked cadences. The upright arrives on “and” and plays the same note on one.</p>
+    <p>0.33 · All the Things You Are · S12/B7. The bass often plays on the “and” of four. Listen for it to reach the next chord early and repeat its root on one. Try head-in bar 22 first (E–E), then bar 18 (G–G).</p>
     <p><button class="release-example" data-testid="listening-quarter-anticipation" onclick={() => loadReleaseExample('quarter-anticipation')} disabled={busy}>Load 0.32 Fly Me to the Moon ↗</button>
      · Count one and three with the upright. In head-in bar 3 it adds a low C on four, then plays C again when the chart reaches Cmaj7. Listen for A in head-in bar 23 and D in head-out bar 28 (performed bar 92). S12/B6.</p>
     <p><button class="release-example" data-testid="listening-ride-triplet" onclick={() => loadReleaseExample('ride-triplet')} disabled={busy}>Load 0.31 Swing ride triplets ↗</button>

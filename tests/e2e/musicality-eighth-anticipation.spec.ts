@@ -33,7 +33,7 @@ test('marks the score below the notes and previews every listening cue', async (
  expect(inkClearance).toBeGreaterThan(0);
  await page.getByTestId('listening-score').screenshot({path: info.outputPath('marked-score.png')});
  await page.setViewportSize({ width: 390, height: 844 });
- await expect(cue).toContainText('Bass G');
+ await expect(cue).toContainText('Bass G, then G on one.');
  await page.setViewportSize({ width: 1440, height: 1000 });
  await page.getByTestId('listening-new-arc').click();
  await expect(cue).toHaveCount(0);
