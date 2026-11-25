@@ -19,6 +19,10 @@ test('gives advance listening cues for three Bossa cadences across All the Thing
  await expect(cue).toContainText('Head in · Bar 18');
  await expect(highlight(18)).toBeVisible();
  await expect(highlight(22)).toBeVisible();
+ const itinerary = page.locator('details.cue-list:visible');
+ await itinerary.locator('summary').click();
+ await expect(itinerary).toContainText('Head out · Bar 6');
+ await itinerary.locator('summary').click();
  await expect(highlight(78)).toHaveCount(0);
  await page.getByTestId('listening-score').screenshot({path: info.outputPath('marked-score.png')});
  await page.setViewportSize({ width: 390, height: 844 });
@@ -35,6 +39,7 @@ test('gives advance listening cues for three Bossa cadences across All the Thing
  await expect(cue).toContainText('In 4 bars · Head in · Bar 18', { timeout: 40_000 });
  await expect(cue).toContainText('Listen here · Head in · Bar 18', { timeout: 15_000 });
  await expect(page.locator('[data-testid="musician-bass"][data-bar-index="17"]')).toContainText('Anticipate on the and of four');
+ await expect(cue).toContainText('Just heard · Head in · Bar 18', { timeout: 8_000 });
  await expect(cue).toContainText('Up next · Head out · Bar 6', { timeout: 20_000 });
  await expect(highlight(78)).toBeVisible({ timeout: 110_000 });
  await expect(highlight(18)).toHaveCount(0);

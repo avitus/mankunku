@@ -131,10 +131,12 @@
  const displayBarIndex = $derived(selectedReviewBar ?? snapshot.barIndex);
  const cues = $derived(selectedExample ? listeningGuides[selectedExample] : []);
  const performedBar = $derived((displayBarIndex ?? -1) + 1);
- const nextCue = $derived(cues.find(cue => cue.last >= performedBar));
+ const upcomingCue = $derived(cues.find(cue => cue.last >= performedBar));
+ const previousCue = $derived(cues.find(cue => cue.last === performedBar - 1));
+ const nextCue = $derived(upcomingCue && upcomingCue.first <= performedBar ? upcomingCue : previousCue ?? upcomingCue);
  const cueBar = $derived(nextCue && shownSession?.bars[nextCue.first - 1]);
  const cueDistance = $derived(nextCue ? nextCue.first - performedBar : 0);
- const cueHeading = $derived(!performedBar ? 'Listen for' : cueDistance <= 0 ? (selectedReviewBar !== null ? 'Marked passage' : 'Listen here')
+ const cueHeading = $derived(!performedBar ? 'Listen for' : nextCue === previousCue && previousCue ? 'Just heard' : cueDistance <= 0 ? (selectedReviewBar !== null ? 'Marked passage' : 'Listen here')
   : cueDistance <= 4 ? `In ${cueDistance} ${cueDistance === 1 ? 'bar' : 'bars'}` : 'Up next');
  const reviewValue = $derived(selectedReviewBar ?? reviewExtent?.lastBarIndex ?? 0);
  const reviewValueBar = $derived(shownSession?.bars[reviewValue]);
@@ -251,6 +253,14 @@
     <strong>{nextCue.note}</strong>
    </aside>
   {/if}
+  {#if cues.length}
+   <details class="cue-list"><summary>All listening cues ({cues.length})</summary><ul>
+    {#each cues as cue}
+     {@const at = shownSession?.bars[cue.first - 1]}
+     {#if at}<li><small>{passName(at.context.chorusIndex)} · Bar {at.context.barInChorus + 1}</small> {cue.note}</li>{/if}
+    {/each}
+   </ul></details>
+  {/if}
 {/snippet}
 <header class="tune-heading"><div><span class="eyebrow">Musicality <span class="release" data-testid="musicality-release">{CURRENT_MUSICALITY_RELEASE.version} · <span data-testid="musicality-engine-revision" title="Accompaniment engine revision">{CURRENT_MUSICALITY_RELEASE.engineRevision.slice(0, 8)}</span> · Pending listening</span></span><h1>{shownSession?.tune.title ?? 'Choose a tune'}</h1></div> <label class="tune">Tune<select data-testid="listening-tune" bind:value={tuneId} onchange={changeTune} disabled={busy}><optgroup label="Built-in">{#each LISTENING_TUNES as tune}<option value={tune.id}>{tune.title}</option>{/each}</optgroup><optgroup label="Test scenarios">{#each LISTENING_SCENARIOS as entry}<option value={entry.tune.id}>{entry.tune.title}</option>{/each}</optgroup>{#if shownBookEntries.length}<optgroup label="Your tune book">{#each shownBookEntries as tune}<option value={tune.id}>{takeSource?.id===tune.id ? takeSource.title : tune.title}</option>{/each}</optgroup>{/if}</select></label></header>
 
@@ -337,6 +347,11 @@
 <footer><span>Musicality {CURRENT_MUSICALITY_RELEASE.version} · Listening review pending</span><a href="/docs/architecture/musicality">Architecture & roadmap ↗</a></footer>
 
 <style>
+ .cue-list { margin: 0 0 .8rem; font-size: .77rem; color: #e5e5df; }
+ .cue-list summary { cursor: pointer; color: #d5ad6c; }
+ .cue-list ul { padding-left: 1.1rem; }
+ .cue-list li { padding: .2rem 0; }
+ .cue-list small { color: #acbac7; }
  .mobile-cue { display: none; }
  @media(max-width:800px) { .mobile-cue { display: block; } .desktop-cue { display: none; } }
  .listen-ahead { margin-bottom: .85rem; padding: .65rem .85rem; border-left: 3px solid #e2bd77; background: #26303a; color: #f5edde; }

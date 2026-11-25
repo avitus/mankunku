@@ -909,10 +909,13 @@ export function generateBossaBass(
 			// B7 colors an existing pickup at a written V resolution. Leave splits,
 			// inversions and all other native approaches to the ordinary line.
 			if (barInfos[bar].eighthAnticipationAllowed && nextSeg.startBeats === barStart + beatsPerBar &&
-				segAt0 === segAt2 && segAt0.startBeats + segAt0.totalBeats === nextSeg.startBeats &&
+				segAt0 === segAt2 &&
 				segAt2.quality.startsWith('7') && (segAt2.rootPc - nextSeg.rootPc + 12) % 12 === 7) {
-				const chord = harmony[segments.indexOf(nextSeg)].chord;
-				if (!chord.bass && !harmony[segments.indexOf(segAt2)].chord.bass) {
+				const nextIndex = segments.indexOf(nextSeg);
+				const chord = harmony[nextIndex].chord;
+				// Segment pulse counts round to quarters. Adjacency in the written
+				// chart also catches a last-eighth change after the third pulse.
+				if (segments[nextIndex - 1] === segAt0 && !harmony[nextIndex - 1].chord.bass && !chord.bass) {
 					push(barStart + 3.5, rootFor(nextSeg), beatDuration * .42, velocity + 6, chord.root);
 					continue;
 				}

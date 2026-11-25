@@ -48,3 +48,26 @@ it.each([
  }
  expect(landmarks).toEqual(expected);
 });
+
+it('leaves a written change on the last eighth intact', () => {
+ const { phrase } = buildListeningTuneSession({ tuneId: 'scenario-all-the-things-you-are', soloChoruses: 1 });
+ const harmony = phrase.harmony.flatMap<typeof phrase.harmony[number]>(segment =>
+  segment.startOffset[0] / segment.startOffset[1] === 17
+   ? [{ ...segment, duration: [7, 8] },
+      { ...segment, chord: { ...segment.chord, bass: 'Ab' as const }, startOffset: [143, 8], duration: [1, 8] }]
+   : [segment]);
+ const style = BACKING_STYLES['bossa-nova'];
+ const score = createRollingBacking(harmony, style, { phraseId: phrase.id, tempo: 144, ppq: 192, beatsPerBar: 4,
+  swing: style.defaultSwing, performanceForm: phrase.performanceForm, sectionMap: phrase.sectionMap, ensemble: {} },
+  { ...releasedBackingOptions('piano', 0), preparedPlayback: true });
+ let checkpoint: RollingBackingCheckpoint | undefined;
+ for (let bar = 0; bar <= 17; bar++) {
+  const result = advanceRollingBacking(score, checkpoint);
+  if (bar === 17) {
+   const pickup = result.bassEvents.find(event => event.absBeat === 71.5);
+   expect(pickup).toBeDefined();
+   expect(pickup?.eighthAnticipatedRoot).toBeUndefined();
+  }
+  checkpoint = result.checkpoint;
+ }
+});
