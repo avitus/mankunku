@@ -78,6 +78,7 @@ export interface DrumPhraseInput {
 
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
+	readonly quarterPedalSeed?: number;
 	readonly rideTripletSeed?: number;
 	readonly displaced?: {readonly cell: import('./backing-rhythm-memory').RhythmCell; readonly shift: number};
  readonly longerSentences?: true;
@@ -683,6 +684,18 @@ export function planDrumPhrases(input: DrumPhraseInput): DrumPhrasePlan {
 	return Object.freeze({ version: 1, bars: trace, trace });
 }
 
+/** S19/D18, D20. Let the left foot carry time through the interior of a quiet head phrase. */
+function playsQuarterPedal(input: DrumPhraseBarInput): boolean {
+ const { info, quarterPedalSeed, phraseStartBar, phraseEndBarExclusive, barIndex } = input;
+ const ensemble = info.ensemble!;
+ if (quarterPedalSeed === undefined || input.style !== 'ballad' ||
+  !['head_in', 'head_return'].includes(ensemble.performanceEnergy?.phase ?? '') ||
+  barIndex <= phraseStartBar || barIndex >= Math.min(phraseStartBar + 3, phraseEndBarExclusive - 1) ||
+  info.isSectionFirstBar || info.isSectionFinalBar || ensemble.energy > .55 ||
+  ensemble.drums.allowFill || input.compIsDrumReply) return false;
+ return createRng(seedFrom(input.phraseId, quarterPedalSeed, phraseStartBar, 'quarter-pedal')).chance(.5);
+}
+
 /** Native timekeeping is protected; only optional commentary competes for a response slot. */
 function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemory): {
 	readonly bar: DrumPhraseDecision; readonly memory: DrumPhraseMemory;
@@ -695,9 +708,13 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		swing: style.defaultSwing, rng, fillRng: createRng(seedFrom(input.phraseId, input.tempo, 'drum-fill', input.barIndex)),
 		clavePhase: createRng(seedFrom(input.phraseId, input.tempo, 'clave', 0)).chance(0.5) ? '32' : '23' });
 	const halfNoteRide = input.style === 'ballad' && input.bassEvents?.some(event => event.balladHeldBass);
-	const time: DrumHitSpec[] = raw.filter(hit => !halfNoteRide || hit.drum !== 'ride' || hit.beatOffset % 2 === 0)
-		.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
-		.map((hit) => ({ ...hit, role: 'timekeeping' }));
+	const quarterPedal = !halfNoteRide && playsQuarterPedal(input);
+	// Keep the pedal backbeats. In quarter-pedal time, the free foot takes
+	// the softer ride strokes on one and three while the ride rests.
+	const time: DrumHitSpec[] = raw
+		.filter(hit => !(halfNoteRide || quarterPedal) || hit.drum !== 'ride' || hit.beatOffset % 2 === 0)
+		.filter(hit => isBossa || !['snare', 'crossstick'].includes(hit.drum))
+		.map(hit => ({ ...hit, drum: quarterPedal && hit.drum === 'ride' ? 'hihat-pedal' : hit.drum, role: 'timekeeping' }));
 	if (isBossa && input.bassEvents?.some(event => event.bossaOctavePickup && event.absBeat === input.barIndex * 4 + 1.5)) {
 		const pickupKick = time.find(hit => hit.drum === 'kick' && hit.beatOffset === 1.5);
 		if (pickupKick) {
@@ -739,7 +756,7 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		: commentary.length ? 'vocabulary' : 'none';
 	const bar: DrumPhraseDecision = { version: 1, style: input.style, barIndex: input.barIndex,
 		phraseStartBar: input.phraseStartBar, phraseLength: input.phraseEndBarExclusive - input.phraseStartBar,
-		ride: { mode: isBossa ? 'none' : halfNoteRide ? 'half-notes' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
+		ride: { mode: isBossa || quarterPedal ? 'none' : halfNoteRide ? 'half-notes' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
 			onsets: hits.filter((hit) => hit.drum === 'ride').map((hit) => hit.beatOffset) },
 		commentary: { motifId: null, source,
 			sourceId: caughtThird ? 'bass-third' : pianoAnswer ? 'previous-piano' : commentary.length ? 'ballad-color' : null,

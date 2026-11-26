@@ -46,6 +46,7 @@ export interface RollingBackingOptions {
  /** Let the kit displace a recently heard pitched rhythm during a solo. */
  readonly displacedRhythm?: true;
  readonly melodicHandoff?: true;
+ readonly quarterPedal?: true;
  readonly dottedQuarterComp?: true;
  readonly eighthAnticipation?: true;
  readonly quarterAnticipation?: true;
@@ -143,6 +144,7 @@ export interface RollingBackingDefinition {
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
  readonly melodicHandoffVersion?: 1;
+ readonly quarterPedalVersion?: 1;
  readonly dottedQuarterCompVersion?: 1;
  readonly eighthAnticipationVersion?: 1;
  readonly quarterAnticipationVersion?: 1;
@@ -298,6 +300,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const nativeHandoff = options.nativeMelodicHandoff && options.rhythmMemory && options.melodicHandoff && options.keyboardMelodicHandoff &&
   performanceEnergy && ['bossa-nova', 'ballad'].includes(style.coordinatedStyle!) && form.choruses.some(c => c.role === 'solo');
 	const versionedPolicies = {
+  ...(options.quarterPedal && performanceEnergy && style.coordinatedStyle === 'ballad' && form.choruses.some(c => c.role === 'head')
+   ? { quarterPedalVersion: 1 as const } : {}),
   ...(options.dottedQuarterComp && keyboardVariety && style.coordinatedStyle === 'straight' && form.choruses.some(c => c.role === 'solo')
    ? { dottedQuarterCompVersion: 1 as const } : {}),
   ...(options.eighthAnticipation && performanceEnergy && style.coordinatedStyle === 'bossa-nova' && form.choruses.some(c => c.role === 'head')
@@ -538,12 +542,13 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
   !definition.bars[bar].returningMelodySpace && !ensemble.drums.allowFill && ensemble.bass.keepPulse &&
   !['leave_space', 'release'].includes(ensemble.phraseIntent) &&
   createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'bossa-anticipation')).chance(.45);
- const unreserved = (eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
+ const pedalWindow = definition.quarterPedalVersion && definition.bars[bar].role === 'head';
+ const unreserved = (pedalWindow || eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&
 		!ensemble.terminalArrangement && !definition.bars[bar].isChorusFinalBar &&
 		!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
 		!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
-	const openHarmony = (balladWindow || bossaWindow || headWindow || thirdWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
+	const openHarmony = (pedalWindow || balladWindow || bossaWindow || headWindow || thirdWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
 			fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration) >= bar + 1);
 	const source = checkpoint?.drums.previousCompOnsets;
 	const dottedQuarterSource = definition.dottedQuarterCompVersion && source?.length === 2 && source[1] >= 2.5 && source[1] - source[0] === 1.5 &&
@@ -615,6 +620,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
    const openSolo = definition.rideTripletVersion && solo && (!followsSolo || !rhythmAnswerOpportunity(answerSeed, bar)) && !pianoResult.answer && !bass.memory.pendingLaunch &&
     !['active','resting'].includes(window.plan.trace[0].soloEvidence);
 	 const planned = planDrumPhraseBar({
+    quarterPedalSeed: pedalWindow && openHarmony
+     ? current.pianoPresenceSeed ?? 0 : undefined,
 		rideTripletSeed: openSolo ? current.pianoPresenceSeed ?? 0 : undefined,
 		displaced: offerAnswer && !pianoResult.answer && pianoResult.trace.carriedReleaseTick === undefined && !pianoResult.trace.commonToneEntry
 			? displacedRhythm(previous, bar, compOnsets, seedFrom(definition.phraseId,current.pianoPresenceSeed ?? 0)) : undefined,
