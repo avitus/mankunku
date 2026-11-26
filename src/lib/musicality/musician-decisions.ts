@@ -814,6 +814,12 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		drumCard.action = 'Catch the bass with the rim';
 		drumCard.detail = 'One soft cross-stick marks beat three while the ride continues in quarters.';
 	}
+	const pedal = bass.find(event => event.commonBassPedal && event.absBeat === barIndex * beatsPerBar + 2);
+	if (pedal && bass.some(event => event.absBeat === barIndex * beatsPerBar && event.midi === pedal.midi)) {
+		bassCard.action = 'Repeat the bass under the change';
+		bassCard.detail = `On beat three, ${noteName(pedal.midi)} shifts from the minor chord’s root to the dominant chord’s fifth.`;
+		bassCard.evidence.push('S12/B12 · S14/B45');
+	}
 	const earlyEighth = bass.find(event => event.eighthAnticipatedRoot);
  if (earlyEighth) {
   bassCard.action = 'Anticipate on the and of four';

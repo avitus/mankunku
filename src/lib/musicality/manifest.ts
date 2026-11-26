@@ -313,7 +313,7 @@ const foundationAssessments: Record<string, string> = {
 	S15: 'Existing note duration and velocity shaping now reaches source-defined Smolken velocity layers and round robins: one recording per note in the supported register instead of unintended stacked layers.',
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
-	S12: '0.33.0 uses a straight eighth-note pickup for selected Bossa resolutions (B7). 0.32.0 lets the Swing upright reach the next root on beat four of selected two-feel cadences (B6). Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
+	S12: '0.36.0 lets a Swing bassist repeat the minor root as the following dominant’s fifth in a split two-feel bar. 0.33.0 uses a straight eighth-note pickup for selected Bossa resolutions (B7). 0.32.0 lets the Swing upright reach the next root on beat four of selected two-feel cadences (B6). Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
 	S18: '0.31.0 adds a short quarter-note triplet against walking bass in a Swing solo. Selected complete solo-peak phrases sustain ride-bell color, with a return to ride and no consecutive bell phrases. Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
 	S19: 'In 0.35.0 a Ballad drummer can move the pulse from ride to pedal hi-hat for one or two bars of a quiet head. Ordinary coordinated pedal time marks beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
@@ -382,6 +382,11 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'S14' || entry.id === 'B12' || entry.id === 'B45') return { ...entry, status: 'partial',
+  assessment: '0.36.0 repeats the sounding minor root on beat three as the fifth of the next dominant chord. Both half-note pulses keep their original timing and articulation.',
+  scope: 'Selected unreserved 4/4 Swing head bars with one minor seventh and one dominant seventh, each lasting two beats.',
+  remaining: 'Longer pedals, vamps and human listening acceptance remain open. Harmonic substitutions still require shared bass and keyboard agreement.',
+  evidence: [...entry.evidence, source('backing-rolling-bass'), test('backing-common-bass-pedal')] };
  if (entry.id === 'D18') return { ...entry, status: 'implemented',
   assessment: 'In a quiet Ballad head, the drummer can switch from ringing ride quarters to a short foot hi-hat on every beat.',
   scope: '0.35.0, interior bars of selected phrases in authored 4/4 Ballad heads.',
@@ -733,6 +738,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. The released engine supplies normal playback: developed 4/4 orchestration and basic style-sensitive accompaniment in other valid meters. There is no legacy playback fallback. Human listening acceptance remains pending.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			...(entry.id === 'S12' ? [source('backing-rolling-bass'), test('backing-common-bass-pedal')] : []),
 			...(entry.id === 'S19' ? [source('backing-drum-phrases'), test('backing-quarter-pedal')] : []),
 			...(['S3', 'S38', 'S39'].includes(entry.id) ? [source('backing-rhythm-memory'), test('backing-rhythm-memory'), test('backing-displaced-answer'), source('backing-melodic-handoff'), test('backing-melodic-handoff'),source('backing-keyboard-melodic-handoff'),test('backing-keyboard-melodic-handoff'),source('backing-native-melodic-handoff'),test('backing-native-melodic-handoff')] : []),
 			...(['S25', 'S33', 'S38', 'S40', 'S41', 'S44', 'S46'].includes(entry.id) ? returningMelodyEvidence : []),

@@ -964,3 +964,9 @@ This development requires an existing two-attack proposal and budget. A motif st
 S19/D18 and D20 give a Ballad drummer a quieter way to state quarter time. In an authored 4/4 head the rolling definition fingerprints the option. A separate seeded draw belongs to the phrase, so neighboring eligible bars share the color. Only its second and third bars can qualify, before the closing bar. Each bar requires one sustained harmony and checks current energy, player evidence, response ownership, accents, setups and fills. A half-note ride arrangement keeps priority.
 
 The native kit retains the strength and placement of its pedal backbeats, transfers the softer ride strokes on one and three to the foot, and rests the ride. Each resulting stroke uses pedal timing and the pedal sample. Bass, keyboard and optional kit commentary keep their parts. The decision card checks for all four emitted pedal strokes and a resting ride. Checkpoint replay recomputes the phrase choice from the same seed.
+
+## 0.36.0 — A shared bass note across a Swing ii–V
+
+S12/B12 gives a stable pitch a rhythmic role under changing harmony. S14/B45 describes its harmonic role as a pedal point. In a two-feel Swing head, the bassist can repeat a sounding minor-seventh root on beat three when it also supplies the perfect fifth of the following dominant seventh. The chart must have two root-position chords, each spanning exactly half the bar. The generator replaces an otherwise different pitch and chooses the following target from the actual pedal register. The option contributes to the rolling score identity. Bass articulation, pulse and harmonic rhythm still come from the ordinary performance.
+
+A separate seed selects opportunities across the head. A section boundary, a reserved setup, a fill, an active soloist or an existing bass launch takes precedence. Solo choruses retain their walking time. The listening desk checks the two emitted bass notes before describing the pedal.
