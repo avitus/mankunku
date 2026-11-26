@@ -96,6 +96,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 import type { RhythmCell } from './backing-rhythm-memory';
 
 export interface BassEvent {
+ readonly commonBassPedal?: true;
  readonly eighthAnticipatedRoot?: HarmonicSegment['chord']['root'];
  readonly anticipatedRoot?: HarmonicSegment['chord']['root'];
  readonly melodicReply?: readonly HeardNote[];
@@ -416,6 +417,7 @@ export interface BarInfo {
 	readonly balladThirdAllowed?: boolean;
 	readonly eighthAnticipationAllowed?: boolean;
 	readonly anticipationAllowed?: boolean;
+	readonly commonBassPedalAllowed?: boolean;
 	readonly brokenTwoAllowed?: boolean;
 	readonly dominantRiffAllowed?: boolean;
 	readonly balladHoldAllowed?: boolean;

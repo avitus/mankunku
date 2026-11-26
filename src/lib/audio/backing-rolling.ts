@@ -46,6 +46,7 @@ export interface RollingBackingOptions {
  /** Let the kit displace a recently heard pitched rhythm during a solo. */
  readonly displacedRhythm?: true;
  readonly melodicHandoff?: true;
+ readonly commonBassPedal?: true;
  readonly quarterPedal?: true;
  readonly dottedQuarterComp?: true;
  readonly eighthAnticipation?: true;
@@ -144,6 +145,7 @@ export interface RollingBackingDefinition {
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
  readonly melodicHandoffVersion?: 1;
+ readonly commonBassPedalVersion?: 1;
  readonly quarterPedalVersion?: 1;
  readonly dottedQuarterCompVersion?: 1;
  readonly eighthAnticipationVersion?: 1;
@@ -300,6 +302,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const nativeHandoff = options.nativeMelodicHandoff && options.rhythmMemory && options.melodicHandoff && options.keyboardMelodicHandoff &&
   performanceEnergy && ['bossa-nova', 'ballad'].includes(style.coordinatedStyle!) && form.choruses.some(c => c.role === 'solo');
 	const versionedPolicies = {
+  ...(options.commonBassPedal && performanceEnergy && style.coordinatedStyle === 'swing' && form.choruses.some(c => c.role === 'head')
+   ? { commonBassPedalVersion: 1 as const } : {}),
   ...(options.quarterPedal && performanceEnergy && style.coordinatedStyle === 'ballad' && form.choruses.some(c => c.role === 'head')
    ? { quarterPedalVersion: 1 as const } : {}),
   ...(options.dottedQuarterComp && keyboardVariety && style.coordinatedStyle === 'straight' && form.choruses.some(c => c.role === 'solo')
@@ -543,7 +547,12 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
   !['leave_space', 'release'].includes(ensemble.phraseIntent) &&
   createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'bossa-anticipation')).chance(.45);
  const pedalWindow = definition.quarterPedalVersion && definition.bars[bar].role === 'head';
- const unreserved = (pedalWindow || eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
+ const bassPedalWindow = definition.commonBassPedalVersion && definition.bars[bar].role === 'head' &&
+  !definition.bars[bar].isSectionFirstBar && !definition.bars[bar].isSectionFinalBar && !definition.bars[bar].returningMelodySpace &&
+  !ensemble.drums.allowFill && ensemble.bass.keepPulse && ensemble.bass.role === 'time' &&
+  !['release', 'leave_space'].includes(ensemble.phraseIntent) &&
+  createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'common-bass-pedal')).chance(.45);
+ const unreserved = (bassPedalWindow || pedalWindow || eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&
 		!ensemble.terminalArrangement && !definition.bars[bar].isChorusFinalBar &&
 		!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
@@ -558,6 +567,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'dotted-quarter-comp')).chance(.65)
 		? source[1] : undefined;
 	const baseInfo = { ...definition.bars[bar], ensemble, intensity: ensemble.energy, dottedQuarterSource,
+		commonBassPedalAllowed: bassPedalWindow && unreserved,
 		eighthAnticipationAllowed: eighthWindow && unreserved,
 		anticipationAllowed: anticipationWindow && unreserved,
 		balladThirdAllowed: thirdWindow && openHarmony, brokenTwoAllowed: headWindow && openHarmony, bossaPickupAllowed: bossaWindow && openHarmony, balladHoldAllowed: balladWindow && openHarmony, dominantRiffAllowed: riffWindow && unreserved };

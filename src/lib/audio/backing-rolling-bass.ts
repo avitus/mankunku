@@ -371,14 +371,14 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 	let scalarHistory: BassScalarHistory | undefined;
 	const events: BassEvent[] = [];
 	const endTick = (bar + 1) * 4 * score.ppq;
-	const push = (absBeat: number, midi: number, durationBeats: number, velocity: number) => {
+	const push = (absBeat: number, midi: number, durationBeats: number, velocity: number, commonBassPedal = false) => {
 		const tick = Math.max(bar * 4 * score.ppq, timing.place(absBeat, 'bass'));
 		if (tick >= endTick) return false;
 		if (score.bassScalarContinuation) {
 			if (Number.isInteger(absBeat)) scalarHistory = { pulse: { absBeat, midi, time: `${tick}i` }, ornamentAfterPulse: false };
 			else if (scalarHistory) scalarHistory = { ...scalarHistory, ornamentAfterPulse: true };
 		}
-		events.push({ absBeat, midi, velocity, time: `${tick}i`, duration: Math.min(durationBeats * 60 / score.tempo,
+		events.push({ ...(commonBassPedal && { commonBassPedal: true as const }), absBeat, midi, velocity, time: `${tick}i`, duration: Math.min(durationBeats * 60 / score.tempo,
 			(endTick - tick) * 60 / score.tempo / score.ppq) });
 		return true;
 	};
@@ -388,11 +388,25 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 		const segment = segments[index];
 		const isChange = segment.start === absBeat;
 		let scalarChanged = false;
+		let commonBassPedal = false;
 		if (index !== segmentIndex) {
 			// A chord shorter than one walking pulse can fall entirely between sampled beats.
 			// Only reuse a planned target when it belongs to the segment we actually reached.
 			const target = segmentIndex !== null && index === segmentIndex + 1 ? nextTarget : null;
 			segmentAnchor = pendingLaunch?.notes.find((note) => note.absBeat === absBeat)?.midi ?? target ?? targetAt(index, previousMidi);
+			// B12/B45: a minor root becomes the fifth of the dominant on beat three.
+			// Commit the sounding pitch before selecting the next harmonic target.
+			if (info.commonBassPedalAllowed && feel === 'two' && beat === 2 && !pendingLaunch && !delayedRoot &&
+				events.length === 1 && segment.length === 2 && isChange && index > 0) {
+				const first = segments[index - 1];
+				const minor = score.harmony[index - 1].chord, dominant = score.harmony[index].chord;
+				const held = events[0].midi;
+				if (first.start === bar * 4 && first.length === 2 && minor.quality === 'min7' && dominant.quality === '7' &&
+					!minor.bass && !dominant.bass && pc(held) === first.root && pc(held) === pc(segment.root + 7) && segmentAnchor !== held) {
+					segmentAnchor = held;
+					commonBassPedal = true;
+				}
+			}
 			segmentIndex = index;
 			nextTarget = index + 1 < segments.length ? targetAt(index + 1, segmentAnchor) : null;
 			approach = createRng(seedFrom(score.phraseId, score.tempo, 'bass-appr', index)).weighted<BassApproachDevice>([
@@ -482,7 +496,7 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 		}
 		const velocity = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-velocity', absBeat)).int(76, 88) + (beat === 0 ? 4 : beat === 2 ? 2 : 0);
 		const durationBeats = feel === 'two' ? 1.7 : 0.85;
-		const acceptedPulse = push(absBeat, midi, structuralFeels && feel === 'two' ? Math.min(durationBeats, segment.start + segment.length - absBeat) : durationBeats, velocity);
+		const acceptedPulse = push(absBeat, midi, structuralFeels && feel === 'two' ? Math.min(durationBeats, segment.start + segment.length - absBeat) : durationBeats, velocity, commonBassPedal);
 		if (scalarChanged) {
 			const arrival = events.find(event => event.absBeat === bar * 4);
 			const continuation = events.find(event => event.absBeat === absBeat);
