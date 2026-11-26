@@ -813,6 +813,18 @@ the prototype's illustrative score and playback data are not production inputs.
   harmonic context for the displayed returning/closing sheet. Key-center rails
   remain independent of lick prompts, which stay hidden during the head.
 
+### Tune solos in Lick Practice
+
+The [tune canvas](https://designs.magicpath.ai/v1/serene-brook-7998) revision
+`476506587566063616` and design system revision `476499055078424576` show
+the active bar and lick cues during solos. Keep the chorus number in the
+chart’s accessible name. Omit the visible solo commentary and insertion
+countdown, and show elapsed time in the take report.
+
+Place each lick name directly beneath its target bars in its cue colour.
+Use 14 px type at viewport widths of 1024 px and above, and 11 px below.
+Leave an extra 8 px below the cue lane before the next row of bars.
+
 ### Shared editing controls
 
 Lick Editor and Tune Editor use the same `DurationSelector`,

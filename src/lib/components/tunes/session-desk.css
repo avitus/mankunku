@@ -166,3 +166,9 @@
 @media(prefers-reduced-motion:reduce){.tune-detail .position-mark{transition:none}}
 
 .sd-mode-hint {margin:6px 0 0;color:var(--studio-muted);font-size:11px;line-height:1.45}
+
+/* Leave the name close to its harmony and put the extra space below the label lane. */
+.solo-practice .solo-cues { padding-bottom: 8px; min-height: 33px; }
+@media (min-width: 1024px) {
+  .solo-practice .solo-cues p { font-size: 14px; }
+}

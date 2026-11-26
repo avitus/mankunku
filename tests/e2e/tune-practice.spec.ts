@@ -353,7 +353,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await startPracticeSession(page);
 		// After count-in (1s), head (2s), and the first chorus (2s), the
 		// chart must still follow the second practice chorus, not finish early.
-		await expect(page.getByText('0:05', { exact: true })).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByRole('region', { name: 'Solo chord chart, solo 2 of 3' })).toBeVisible({ timeout: 20_000 });
 		await expectChartVisibleInFollowViewport(page);
 		await expect(page.locator('.tcc-bar.active').first()).toBeVisible();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
@@ -396,11 +396,9 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await setTempoMax(page);
 		await startPracticeSession(page);
 
-		// Wait until practice chorus / first window: either "Your turn" (window
-		// open) or "Comping — insertion" (running, window not yet open). Both
-		// sit after the head→changes re-render that used to blank the chart.
+		// Wait until the sounding solo, after the head→changes chart swap.
 		await expect(
-			page.getByText(/your turn — play the lick!|comping — insertion/i)
+			page.getByRole('region', { name: /Solo chord chart, solo/i })
 		).toBeVisible({ timeout: 75_000 });
 
 		// Poll a few frames: a one-frame flash is acceptable; sustained hide is not.
@@ -459,7 +457,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		// Reaching a scored window is the point: it is where the missing
 		// schedule would be read.
 		await expect(
-			page.getByText(/your turn — play the lick!|comping — insertion/i)
+			page.getByRole('region', { name: /Solo chord chart, solo/i })
 		).toBeVisible({ timeout: 75_000 });
 
 		await page.getByRole('button', { name: /^stop$/i }).click();
@@ -589,7 +587,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		// The solo chorus: the minor lick is named on its own Minor bands, in
 		// the written key of the chord it sits on (concert E- is F#- on tenor).
 		await expect(
-			page.getByText(/your turn — play the lick!|comping — insertion/i)
+			page.getByRole('region', { name: /Solo chord chart, solo/i })
 		).toBeVisible({ timeout: 75_000 });
 		const labels = page.locator('[data-testid="tune-chord-chart"] [data-marker-id]');
 		await expect(labels.first()).toBeVisible();
@@ -669,7 +667,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		expect(headSignature).toEqual([5, 4, 4, 4, 4, 4, 4]);
 
 		await expect(
-			page.getByText(/your turn — play the lick!|comping — insertion/i)
+			page.getByRole('region', { name: /Solo chord chart, solo/i })
 		).toBeVisible({ timeout: 75_000 });
 
 		for (let i = 0; i < 5; i++) {
