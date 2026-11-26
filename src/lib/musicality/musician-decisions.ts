@@ -928,5 +928,11 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			pianoCard.evidence.push('S6 · P8');
 		}
 	}
+	if (piano.length === 2 && piano[0].bossaLongShort === 'hold' && piano[1].bossaLongShort === 'clip' &&
+  piano[0].duration >= 3 * piano[1].duration) {
+		pianoCard.action = 'Hold on two, clip the upbeat';
+		pianoCard.detail = 'The first chord rings across beat three. The second is a short answer on the “and” of three.';
+		pianoCard.evidence.push('S6 · P14');
+	}
 	return [bassCard, pianoCard, drumCard];
 }
