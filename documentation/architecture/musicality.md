@@ -958,3 +958,9 @@ Each listening preset has short cues indexed by performed bar. The desk maps the
 In an authored Straight solo the pianist or organist can continue two sounding chord attacks spaced three eighths apart. The rolling planner reads the previous keyboard onsets already retained in the drummer’s checkpoint. A seeded opportunity inside a phrase offers the following pair at the same spacing. The keyboard selects a native two-hit cell that places both attacks exactly there. Its usual voicing and articulation engines play the written harmony at the new positions.
 
 This development requires an existing two-attack proposal and budget. A motif statement, recall, committed sustain, shared arrival, fill, response reservation, phrase seam or fresh soloist activity takes priority. The option is part of the score fingerprint. Both prepared tune playback and the rolling listener use it. The keyboard card checks the four performed onsets across the two bars before describing the grouping.
+
+## 0.35.0 — Ballad foot hi-hat in four
+
+S19/D18 and D20 give a Ballad drummer a quieter way to state quarter time. In an authored 4/4 head the rolling definition fingerprints the option. A separate seeded draw belongs to the phrase, so neighboring eligible bars share the color. Only its second and third bars can qualify, before the closing bar. Each bar requires one sustained harmony and checks current energy, player evidence, response ownership, accents, setups and fills. A half-note ride arrangement keeps priority.
+
+The native kit retains the strength and placement of its pedal backbeats, transfers the softer ride strokes on one and three to the foot, and rests the ride. Each resulting stroke uses pedal timing and the pedal sample. Bass, keyboard and optional kit commentary keep their parts. The decision card checks for all four emitted pedal strokes and a resting ride. Checkpoint replay recomputes the phrase choice from the same seed.

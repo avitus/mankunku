@@ -39,6 +39,11 @@
  function loadReleaseExample(example: ListeningExample) {
   clearTake();
   selectedExample = example;
+  if (example === 'quarter-pedal') {
+   tuneId = defaultTune.id; key = defaultTune.key; style = 'ballad';
+   tempo = 92; solos = 1; energySeed = 9; ending = 'continue';
+   return;
+  }
   if (example === 'dotted-quarter') {
    tuneId = 'scenario-fly-me-to-the-moon'; key = 'C'; style = 'straight';
    tempo = 144; solos = 1; energySeed = 11; ending = 'continue';
@@ -281,7 +286,7 @@
  <label>Key<select data-testid="listening-key" bind:value={key} onchange={clearTake} disabled={busy}>{#each PITCH_CLASSES as pitch}<option value={pitch}>{pitch.replace('b','♭').replace('#','♯')}</option>{/each}</select></label>
  <label>Tempo<input data-testid="listening-tempo" type="number" min="40" max="240" step="1" bind:value={tempo} onchange={clearTake} disabled={busy} /></label>
  <label>Solo choruses<select data-testid="listening-choruses" bind:value={solos} onchange={clearTake} disabled={busy}>{#each [1,2,3,4] as count}<option value={count} disabled={!!scenario && count > scenario.maxSolos}>{count}</option>{/each}</select></label>
-</section><div class="arrangement-row"><span class="engine-caption">Musicality {CURRENT_MUSICALITY_RELEASE.version}</span><button class="release-example" data-testid="listening-dotted-quarter" onclick={() => loadReleaseExample('dotted-quarter')} disabled={busy}>Load 0.34 Straight listening guide ↗</button></div>
+</section><div class="arrangement-row"><span class="engine-caption">Musicality {CURRENT_MUSICALITY_RELEASE.version}</span><button class="release-example" data-testid="listening-quarter-pedal" onclick={() => loadReleaseExample('quarter-pedal')} disabled={busy}>Load 0.35 Ballad listening guide ↗</button></div>
    <div class="mobile-cue">{@render cueCard()}</div>
    {#if shownSession}<ListeningScore session={shownSession} barIndex={displayBarIndex} {cues} />{/if}
    <section class="transport" aria-label="Playback">
@@ -296,7 +301,8 @@
   <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>{scenario?.description ?? 'Play the melody yourself.'}</span></p>
   {#if mode==='coordinated'}
    <div class="style-note" data-testid="listening-release-focus">
-    <p>0.34 · Fly Me to the Moon · S6/P8. Tap four with the band. In Solo 1 bars 19–20 and 22–23 the keyboard plays four chords three eighth notes apart. Listen for the rhythm to cross the bar line.</p>
+    <p>0.35 · Mankunku Blues · S19/D18 and D20. Listen for the dry foot hi-hat on all four beats in head-in bars 6–7. The ride rings again in bar 8. Hear the same contrast in head-out bars 2–4.</p>
+    <p><button class="release-example" data-testid="listening-dotted-quarter" onclick={() => loadReleaseExample('dotted-quarter')} disabled={busy}>Load 0.34 Straight listening guide ↗</button> · Fly Me to the Moon · S6/P8. Tap four with the band. In Solo 1 bars 19–20 and 22–23 the keyboard plays four chords three eighth notes apart. Listen for the rhythm to cross the bar line.</p>
     <p><button class="release-example" data-testid="listening-eighth-anticipation" onclick={() => loadReleaseExample('eighth-anticipation')} disabled={busy}>Load 0.33 Bossa listening guide ↗</button> · All the Things You Are · S12/B7. The bass often plays on the “and” of four. Listen for it to reach the next chord early and repeat its root on one. Try head-in bar 22 first (E–E), then bar 18 (G–G).</p>
     <p><button class="release-example" data-testid="listening-quarter-anticipation" onclick={() => loadReleaseExample('quarter-anticipation')} disabled={busy}>Load 0.32 Fly Me to the Moon ↗</button>
      · Count one and three with the upright. In head-in bar 3 it adds a low C on four, then plays C again when the chart reaches Cmaj7. Listen for A in head-in bar 23 and D in head-out bar 28 (performed bar 92). S12/B6.</p>

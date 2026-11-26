@@ -315,7 +315,7 @@ const foundationAssessments: Record<string, string> = {
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
 	S12: '0.33.0 uses a straight eighth-note pickup for selected Bossa resolutions (B7). 0.32.0 lets the Swing upright reach the next root on beat four of selected two-feel cadences (B6). Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
 	S18: '0.31.0 adds a short quarter-note triplet against walking bass in a Swing solo. Selected complete solo-peak phrases sustain ride-bell color, with a return to ride and no consecutive bell phrases. Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
-	S19: 'Coordinated mode uses a foot hi-hat on beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
+	S19: 'In 0.35.0 a Ballad drummer can move the pulse from ride to pedal hi-hat for one or two bars of a quiet head. Ordinary coordinated pedal time marks beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
 	S22: 'A remembered commentary rhythm can change between existing snare, cross-stick, kick and ride-bell voices; accepted gestures have explicit limb occupancy.',
 	S23: 'Coordinated bars resolve coincident strokes by a fixed hand/foot assignment. Commentary and agreed accents replace conflicting ostinato strokes before the complete bar is exported.',
@@ -346,7 +346,7 @@ const foundationRemaining: Record<string, string> = {
 	S17: "Broader kit vocabulary, articulation lengths and musical acceptance remain incomplete. Rolling memory continues across declared loops; new motifs still follow phrase boundaries.",
 	S12: 'Further bass time devices, solo-density-led feel negotiation and human listening acceptance remain incomplete.',
 	S18: 'Bell color requires a complete eligible peak phrase; short peaks retain ride. Cymbal note-length control, other metric and displacement devices and broader modern ride textures remain incomplete.',
-	S19: 'Splash/barked hats, sustained hi-hat timekeeping textures and other vocabulary remain incomplete.',
+	S19: 'Dedicated splash and bark articulations and longer pedal-led passages remain open.',
 	S20: 'Live solo motif recognition, solo phrase-end detection, rolls and grace-note articulations remain incomplete.',
 	S22: 'Tom voices and a general orchestration/limb-transition model remain absent.',
 	S23: 'The fixed assignment checks simultaneous strokes only; stick travel, recovery times, rolls and more flexible limb allocation remain incomplete. Shared arrivals can include a single piano catch in explicit Swing/Straight; a general arrangement-hit contract remains incomplete.',
@@ -382,6 +382,11 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if (entry.id === 'D18') return { ...entry, status: 'implemented',
+  assessment: 'In a quiet Ballad head, the drummer can switch from ringing ride quarters to a short foot hi-hat on every beat.',
+  scope: '0.35.0, interior bars of selected phrases in authored 4/4 Ballad heads.',
+  remaining: 'Human listening acceptance is pending.',
+  evidence: [...entry.evidence, source('backing-drum-phrases'), test('backing-quarter-pedal')] };
  if (entry.id === 'P8') return { ...entry, status: 'implemented',
   assessment: 'In Straight solos the keyboard can continue a heard dotted-quarter pair over the bar line. Four chord attacks keep the same three-eighth spacing.',
   scope: '0.34.0, two existing keyboard attacks per bar in an unreserved 4/4 solo passage.',
@@ -505,10 +510,10 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
    ? 'Musicality 0.13.0 occasionally dips from the root to the seventh below on beat two of a walking bar. Four pulses, the final two approach notes and gates remain intact; reserved bass figures take priority.'
    :entry.id==='P26'
     ? 'Musicality 0.13.0 can voice a plain dominant as a 3/7 shell under a major upper triad (9, sharp 11, 13) on an existing attack. The top may rise by up to seven semitones; actual notes enter voice-leading memory. Close bass clashes veto the color.'
-    : 'Musicality 0.13.0 occasionally moves right-hand timekeeping from ride to quieter closed stick hi-hat for a two-to-four-bar head or solo-release phrase, preserving attack timing, pedal time, commentary and fills. Consecutive selected hat phrases are excluded.',
-  remaining:'Bass and drum additions are Swing/Straight only. Keyboard color also uses native Bossa/Ballad rhythm. Other upper structures, broader bass motifs and human listening acceptance remain pending.',
+    : 'Musicality 0.13.0 occasionally moves right-hand timekeeping from ride to quieter closed stick hi-hat for a two-to-four-bar head or solo-release phrase, preserving attack timing, pedal time, commentary and fills. Consecutive selected stick-hat phrases are excluded. In 0.35.0 a quiet Ballad head can instead move the pulse to the pedal hat.',
+  remaining:'The 0.13.0 bass and drum additions are Swing/Straight only. Keyboard color also uses native Bossa/Ballad rhythm. Other upper structures, broader bass motifs and human listening acceptance remain pending.',
   scope:'Explicit Coordinated phrase-colors policy, independently fingerprinted. Omission preserves complete 0.12 performances; Original is unchanged.',
-  evidence:[...entry.evidence,source('backing-phrase-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-phrase-colors'),test('backing-phrase-colors-performance')]
+  evidence:[...entry.evidence,source('backing-phrase-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-phrase-colors'),test('backing-phrase-colors-performance'), ...(entry.id === 'D20' ? [test('backing-quarter-pedal')] : [])]
  };
 
  if(['B9','P48','D77'].includes(entry.id))return {
@@ -728,6 +733,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. The released engine supplies normal playback: developed 4/4 orchestration and basic style-sensitive accompaniment in other valid meters. There is no legacy playback fallback. Human listening acceptance remains pending.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			...(entry.id === 'S19' ? [source('backing-drum-phrases'), test('backing-quarter-pedal')] : []),
 			...(['S3', 'S38', 'S39'].includes(entry.id) ? [source('backing-rhythm-memory'), test('backing-rhythm-memory'), test('backing-displaced-answer'), source('backing-melodic-handoff'), test('backing-melodic-handoff'),source('backing-keyboard-melodic-handoff'),test('backing-keyboard-melodic-handoff'),source('backing-native-melodic-handoff'),test('backing-native-melodic-handoff')] : []),
 			...(['S25', 'S33', 'S38', 'S40', 'S41', 'S44', 'S46'].includes(entry.id) ? returningMelodyEvidence : []),
 			...(['S15', 'S33', 'S44', 'S46'].includes(entry.id) ? bassSampleEvidence : []),

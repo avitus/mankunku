@@ -873,6 +873,13 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		card.detail = `The ${source} played this spacing in bar ${cell.bar+1}. The ${cell.stressed === 0 ? 'first' : 'second'} note takes the accent.`;
 		card.evidence.push('S3 · S38 · S39');
 	}
+ if (style === 'ballad' && drumPhrase?.ride.mode === 'none' && beatsPerBar === 4 &&
+  [0, 1, 2, 3].every(beat => drums.some(hit => hit.drum === 'hihat-pedal' && hit.role === 'timekeeping' && hit.absBeat === barIndex * 4 + beat)) &&
+  !drums.some(hit => hit.drum === 'ride')) {
+  drumCard.action = 'Keep four with the foot hat';
+  drumCard.detail = 'The ride rests. Four short pedal chicks carry the beat, with a little more weight on two and four.';
+  drumCard.evidence.push('S19 · D18 · D20');
+ }
  if (drums.filter(event => event.rideTriplet && event.drum === 'ride').length === 3) {
   drumCard.action = 'Play three across two';
   drumCard.detail = 'Three evenly spaced ride strokes span beats one and two. The ride and upright meet again on three.';
