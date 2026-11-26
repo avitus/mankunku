@@ -39,7 +39,7 @@ export function prepareReleasedArrangement(harmony: HarmonicSegment[], style: St
  const performanceForm = params.performanceForm ?? buildPerformanceForm({ totalBars: bars,
   sectionMap: params.sectionMap ?? [], choruses: [{ role: 'solo', startBar: 0, endBarExclusive: bars }] });
  // A synthesized practice solo is useful for support, but it does not identify a tune’s solo chorus.
- const score = createRollingBacking(preparedHarmony, style, { ...params, performanceForm, ensemble: {} }, { ...releasedBackingOptions(instrument, seed), ...(!params.performanceForm ? { commonBassPedal: undefined, quarterPedal: undefined, dottedQuarterComp: undefined, rhythmMemory: undefined, dominantRiff: undefined, brokenTwo: undefined, balladThird: undefined } : {}), preparedPlayback: true });
+ const score = createRollingBacking(preparedHarmony, style, { ...params, performanceForm, ensemble: {} }, { ...releasedBackingOptions(instrument, seed), ...(!params.performanceForm ? { bossaLongShort: undefined, commonBassPedal: undefined, quarterPedal: undefined, dottedQuarterComp: undefined, rhythmMemory: undefined, dominantRiff: undefined, brokenTwo: undefined, balladThird: undefined } : {}), preparedPlayback: true });
  const generated: GeneratedBacking = { bassEvents: [], compEvents: [], drumEvents: [] };
  let checkpoint: RollingBackingCheckpoint | undefined;
  const planBars: NonNullable<GeneratedBacking['ensemblePlan']>['bars'][number][] = [];

@@ -127,6 +127,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ readonly bossaLongShort?: 'hold' | 'clip';
  readonly keyboardAnswer?: KeyboardMelodicAnswer;
 	readonly rhythmAnswer?: RhythmCell;
 	readonly balladThird?: true;

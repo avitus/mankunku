@@ -1,6 +1,7 @@
 import { finishNativeBassAnswer } from './backing-native-melodic-handoff';
 import { bassCall, finishKeyboardAnswer, validBassCalls } from './backing-keyboard-melodic-handoff';
 import { fitBassAnswer, rememberKeyboard, validMelodicMemory, type MelodicMemory } from './backing-melodic-handoff';
+import { phraseBossaChordPair } from './backing-keyboard-articulation';
 import { sustainAcrossBar, commonToneAtBoundary } from './backing-keyboard-sustain';
 import { keyboardFigures } from './backing-keyboard-vocabulary';
 import { musicalSentence } from './backing-sentences';
@@ -46,6 +47,7 @@ export interface RollingBackingOptions {
  /** Let the kit displace a recently heard pitched rhythm during a solo. */
  readonly displacedRhythm?: true;
  readonly melodicHandoff?: true;
+ readonly bossaLongShort?: true;
  readonly commonBassPedal?: true;
  readonly quarterPedal?: true;
  readonly dottedQuarterComp?: true;
@@ -145,6 +147,7 @@ export interface RollingBackingDefinition {
  readonly balladReturnVersion?: 1;
  readonly displacedRhythmVersion?: 1;
  readonly melodicHandoffVersion?: 1;
+ readonly bossaLongShortVersion?: 1;
  readonly commonBassPedalVersion?: 1;
  readonly quarterPedalVersion?: 1;
  readonly dottedQuarterCompVersion?: 1;
@@ -302,6 +305,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const nativeHandoff = options.nativeMelodicHandoff && options.rhythmMemory && options.melodicHandoff && options.keyboardMelodicHandoff &&
   performanceEnergy && ['bossa-nova', 'ballad'].includes(style.coordinatedStyle!) && form.choruses.some(c => c.role === 'solo');
 	const versionedPolicies = {
+  ...(options.bossaLongShort && keyboardPhrasing && style.coordinatedStyle === 'bossa-nova' && form.choruses.some(c => c.role === 'head')
+   ? { bossaLongShortVersion: 1 as const } : {}),
   ...(options.commonBassPedal && performanceEnergy && style.coordinatedStyle === 'swing' && form.choruses.some(c => c.role === 'head')
    ? { commonBassPedalVersion: 1 as const } : {}),
   ...(options.quarterPedal && performanceEnergy && style.coordinatedStyle === 'ballad' && form.choruses.some(c => c.role === 'head')
@@ -552,12 +557,16 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
   !ensemble.drums.allowFill && ensemble.bass.keepPulse && ensemble.bass.role === 'time' &&
   !['release', 'leave_space'].includes(ensemble.phraseIntent) &&
   createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, bar, 'common-bass-pedal')).chance(.45);
- const unreserved = (bassPedalWindow || pedalWindow || eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
+ const bossaChordWindow = definition.bossaLongShortVersion && definition.bars[bar].role === 'head' &&
+  !definition.bars[bar].isSectionFinalBar && !definition.bars[bar].returningMelodySpace && !ensemble.drums.allowFill &&
+  !['leave_space', 'release'].includes(ensemble.phraseIntent) &&
+  createRng(seedFrom(definition.phraseId, definition.bars[bar].pianoPresenceSeed ?? 0, ensemble.phraseStartBar, 'bossa-long-short')).chance(.6);
+ const unreserved = (bossaChordWindow || bassPedalWindow || pedalWindow || eighthWindow || anticipationWindow || bossaWindow || balladWindow || riffWindow || headWindow || thirdWindow) &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !ensemble.setupFor &&
 		!ensemble.terminalArrangement && !definition.bars[bar].isChorusFinalBar &&
 		!['active', 'resting'].includes(window.plan.trace[0].soloEvidence) &&
 		!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
-	const openHarmony = (pedalWindow || balladWindow || bossaWindow || headWindow || thirdWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
+	const openHarmony = (bossaChordWindow || pedalWindow || balladWindow || bossaWindow || headWindow || thirdWindow) && unreserved && definition.harmony.some(segment => fractionToFloat(segment.startOffset) <= bar &&
 			fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration) >= bar + 1);
 	const source = checkpoint?.drums.previousCompOnsets;
 	const dottedQuarterSource = definition.dottedQuarterCompVersion && source?.length === 2 && source[1] >= 2.5 && source[1] - source[0] === 1.5 &&
@@ -757,6 +766,13 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
    voicingTrace:piano.voicingTrace?.flatMap(v=>v.time!==held.time?[v]:sustained.map(event=>({...v,notes:[...event.notes],decision:{...v.decision,
     ...(sustained.length > 1 && (definition.harmonicSupportVersion || definition.pianoContinuityVersion === 2) ? {rootlessTexture: undefined} : {}),
     ...(v.decision.keyboardArticulation?{keyboardArticulation:{...v.decision.keyboardArticulation,durationSeconds:event.duration,durationBeats:event.duration*definition.tempo/60}}:{})}}))) };
+ }
+
+ if (bossaChordWindow && openHarmony && !sustained && !checkpoint?.piano.crossBarReleaseTick && !nativeReply &&
+   !terminalDecision && feedback?.action !== 'yield' && piano.voicingTrace && definition.keyboardPhrasing) {
+  const pair = phraseBossaChordPair(piano.events, piano.voicingTrace, definition.keyboardPhrasing.instrument,
+   definition.tempo, definition.ppq, bar);
+  if (pair) piano = { ...piano, ...pair };
  }
 
 	let melodicMemory: MelodicMemory | undefined;

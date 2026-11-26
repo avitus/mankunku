@@ -1,3 +1,4 @@
+import type { CompEvent, CoordinatedPianoVoicing } from './backing-generation';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 
 export interface KeyboardArticulationInput {
@@ -55,4 +56,25 @@ export function articulateKeyboardHit(input: KeyboardArticulationInput): Keyboar
 		duration = instrument === 'piano' ? durationBeats : durationBeats * 1.12;
 	}
 	return { durationBeats: Math.min(duration, availableBeats), velocity, profile };
+}
+
+/** S6/P14. Phrase the two side of the Bossa clave after other gestures have claimed their gates. */
+export function phraseBossaChordPair(events: readonly CompEvent[], trace: readonly CoordinatedPianoVoicing[],
+ instrument: BackingInstrument, tempo: number, ppq: number, bar: number) {
+ const [first, second] = events;
+ if (events.length !== 2 || first.absBeat !== bar * 4 + 1 || second.absBeat !== bar * 4 + 2.5 ||
+  trace.length !== 2 || events.some((event, index) => event.time !== trace[index].time ||
+   !trace[index].decision.keyboardArticulation || event.bossaReplyFrom !== undefined || event.innerMotion ||
+   event.ensembleColor || event.phraseColor || event.phraseDialogue || event.conversation)) return;
+ const gates = events.map((event, i) => articulateKeyboardHit({
+  style: 'bossa-nova', instrument, durationBeats: i === 0 ? 1.5 : .32, velocity: event.velocity,
+  availableBeats: ((i === 0 ? parseInt(second.time, 10) : (bar + 1) * 4 * ppq) - parseInt(event.time, 10)) / ppq
+ }).durationBeats);
+ const seconds = gates.map(beats => beats * 60 / tempo);
+ if (seconds[0] <= first.duration || seconds[1] >= second.duration || gates[0] < gates[1] * 3) return;
+ return {
+  events: events.map((event, i) => ({ ...event, duration: seconds[i], bossaLongShort: i === 0 ? 'hold' as const : 'clip' as const })),
+  voicingTrace: trace.map((voicing, i) => ({ ...voicing, decision: { ...voicing.decision,
+   keyboardArticulation: { ...voicing.decision.keyboardArticulation!, durationBeats: gates[i], durationSeconds: seconds[i] } } }))
+ };
 }
