@@ -7,6 +7,8 @@ import { encodeRoomSamples } from '$lib/audio/room-profile';
 export interface SpeakerCheck {
 	monitorSession?: string;
 	cueNumber?: number;
+	graphLeadSeconds?: number;
+	learnedCuesAtStart?: number;
 	at: string;
 	stage: 'sound-check' | 'listen' | 'practice';
 	result: string;

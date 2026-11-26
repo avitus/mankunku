@@ -209,12 +209,19 @@ it.each([1.81, 2.41])('verifies a closing fit against the opening of a %s-second
 	const short = recording(0.77);
 	expect(verifyRoom(short, filter).check?.accepted).toBe(false);
 	expect(verifyRoom(short, filter, undefined, true).check).toMatchObject({
-		accepted: true, closingStartSeconds: split / rate
+		accepted: true, closingStartSeconds: split / rate, retryStage: 'verified', retryOffsetDeltaSamples: 0
 	});
 	// The ending alone is identical, but this opening disagrees with its gain.
 	const inconsistent = recording(0.4);
 	expect(verifyRoom(inconsistent, filter, undefined, true).check).toMatchObject({
-		accepted: false, closingStartSeconds: split / rate
+		accepted: false, closingStartSeconds: split / rate, retryStage: 'opening',
+		retryWindow: {failure: 'reduction', validationGain: expect.closeTo(0.4, 2)}
+	});
+	// This time the path changes inside the ending itself.
+	const reversal = recording(1);
+	for (let i = Math.ceil((split + left.length) / 2); i < left.length; i++) reversal.mic[i] *= -1;
+	expect(verifyRoom(reversal, filter, undefined, true).check).toMatchObject({
+		accepted: false, retryStage: 'ending', retryWindow: {failure: 'reduction'}
 	});
 });
 

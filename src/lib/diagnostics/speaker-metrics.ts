@@ -16,11 +16,13 @@ const measurements = [
 	'rate', 'cueNumber', 'attempt', 'listenSeconds', 'captureSeconds', 'startSeconds',
 	'calibratedDelaySamples', 'calibrationReductionDb', 'offset', 'broadbandOffset', 'gain',
 	'validationGain', 'reduction', 'transientReduction', 'micRms', 'predictedRms', 'sessionCues', 'closingStartSeconds',
-	'initialReduction', 'initialTransientReduction', 'initialValidationGain'
+	'initialReduction', 'initialTransientReduction', 'initialValidationGain', 'graphLeadSeconds', 'learnedCuesAtStart',
+	'retryOffsetDeltaSamples', 'retryReduction', 'retryTransientReduction', 'retryValidationGain'
 ] as const;
 const surfaces = new Set(['ear-training', 'lick-practice', 'settings']);
 const stages = new Set(['sound-check', 'listen', 'practice']);
 const methods = new Set(['saved', 'calibrated-gain', 'cue', 'session']);
+const retryStages = new Set(['insufficient-samples', 'ending', 'alignment', 'correction-power', 'opening', 'verified']);
 const failures = new Set(['timing', 'reduction', 'level', 'attacks']);
 
 type SpeakerMetrics = Partial<Record<typeof measurements[number], number>> & {
@@ -31,6 +33,8 @@ type SpeakerMetrics = Partial<Record<typeof measurements[number], number>> & {
 	clientVersion?: string;
 	method?: string;
 	initialFailure?: string;
+	retryStage?: string;
+	retryFailure?: string;
 };
 
 /** The wire format is also the log allowlist. Local recordings and arbitrary strings stay on the device. */
@@ -51,6 +55,8 @@ export function speakerMetrics(value: unknown): SpeakerMetrics | null {
 		...(typeof row.clientVersion === 'string' && /^[\da-f]{7,40}$/i.test(row.clientVersion) && {clientVersion: row.clientVersion}),
 		...(typeof row.method === 'string' && methods.has(row.method) && {method: row.method}),
 		...(typeof row.initialFailure === 'string' && failures.has(row.initialFailure) && {initialFailure: row.initialFailure}),
+		...(typeof row.retryStage === 'string' && retryStages.has(row.retryStage) && {retryStage: row.retryStage}),
+		...(typeof row.retryFailure === 'string' && failures.has(row.retryFailure) && {retryFailure: row.retryFailure}),
 		...fields
 	};
 }
@@ -61,6 +67,8 @@ export function summarizeSpeakerCheck(event: SpeakerCheck, session: string, surf
 		...event, ...check, session, surface, clientVersion,
 		result: results.has(event.result) ? event.result : errors.get(event.result) ?? 'measurement-error',
 		method: check?.accepted ? (check.calibratedGain ? 'calibrated-gain' : check.sessionCues ? 'session' : check.initial ? 'cue' : 'saved') : undefined,
+		retryFailure: check?.retryWindow?.failure, retryReduction: check?.retryWindow?.reduction,
+		retryTransientReduction: check?.retryWindow?.transientReduction, retryValidationGain: check?.retryWindow?.validationGain,
 		initialFailure: check?.initial?.failure, initialReduction: check?.initial?.reduction,
 		initialTransientReduction: check?.initial?.transientReduction, initialValidationGain: check?.initial?.validationGain
 	});

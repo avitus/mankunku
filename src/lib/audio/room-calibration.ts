@@ -354,11 +354,15 @@ export async function calibrateRoom(
 			}
 		}
 
+		const graphReadyTime = ctx.currentTime;
 		let cueNumber = 0;
 		const verifyListen = async (startTime: number, seconds: number, phraseId?: string): Promise<void> => {
 			listen?.abort();
 			if (life.signal.aborted) return;
-			const cue = { monitorSession, cueNumber: ++cueNumber, phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap };
+			const cue = {
+				monitorSession, cueNumber: ++cueNumber, phraseId, listenSeconds: seconds, calibratedDelaySamples: firstTap,
+				graphLeadSeconds: startTime - graphReadyTime, learnedCuesAtStart: session?.cues ?? 0
+			};
 			if (seconds < 1.8) {
 				report('listen', 'short-cue', cue);
 				bypass();

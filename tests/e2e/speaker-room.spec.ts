@@ -388,7 +388,8 @@ for (const mode of ['ear-training', 'lick-practice'])
 			const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
 			expect(report.checks).toEqual(expect.arrayContaining([
 				expect.objectContaining({ stage: 'sound-check', result: 'saved', calibrationReductionDb: expect.any(Number) }),
-				expect.objectContaining({ stage: 'listen', result: 'active', phraseId: expect.any(String) })
+				expect.objectContaining({ stage: 'listen', cueNumber: 1, result: 'active', phraseId: expect.any(String),
+					graphLeadSeconds: expect.any(Number), learnedCuesAtStart: 0 })
 			]));
 			expect(report.examples.length).toBeGreaterThanOrEqual(2);
 			expect(report.examples).toHaveLength(report.checks.filter((row: {audioIncluded?: boolean}) => row.audioIncluded).length);
