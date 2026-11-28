@@ -6,11 +6,10 @@ import { getActiveUidOrNull } from './namespace';
 import { getScopeGeneration } from './user-scope';
 import { getRecordingIds, getRecordingMetadata } from './audio-store';
 import { enqueue } from './outbox';
+import { acknowledgeReportResets, pendingReportResets, persistReportReset } from './lick-report-resets';
 import { baseSessionId, loadLickPracticeSessions, type LickPracticeSessionLogEntry } from './lick-practice-sessions';
 
 const SYNCED = 'synced-lick-report-revisions';
-const PENDING_RESET = 'lick-report-pending-generation';
-const OBSERVED = 'lick-report-observed-generation';
 type Revision = { signature: string; recordings: string[] };
 type RecentWorkouts = Map<string, LickPracticeSessionLogEntry[]>;
 type TakeReference = Pick<Phrase, 'notes' | 'timeSignature'> & { tempo: number; swing: number };
@@ -19,16 +18,9 @@ type TakeReference = Pick<Phrase, 'notes' | 'timeSignature'> & { tempo: number; 
 let cacheOwner = '';
 const references = new Map<string, TakeReference | null>();
 
-/** Snapshot at workout start, including a reset requested locally while offline. */
-export function currentLickReportGeneration(): number {
-	return Math.max(load<number>(PENDING_RESET) ?? 0, load<number>(OBSERVED) ?? 0);
-}
-
 export function queueLickReportReset(): void {
 	if (!getActiveUidOrNull()) return;
-	const pending = (load<number>(OBSERVED) ?? 0) + 1;
-	save(PENDING_RESET, pending);
-	if (load<number>(PENDING_RESET) !== pending) throw new Error('Could not persist the practice report reset');
+	persistReportReset();
 	remove(SYNCED);
 	enqueue('lickReports');
 }
@@ -60,26 +52,25 @@ export async function flushLickReports(client: SupabaseClient<Database>): Promis
 	const sameAccount = () => getScopeGeneration() === generation && getActiveUidOrNull() === userId;
 	// Serialize reset with uploads in the same outbox worker. Retrying a reset
 	// must preserve workouts begun on another device after the reset.
-	const reset = load<number>(PENDING_RESET);
-	if (reset !== null) {
+	const sent: string[] = [];
+	for (const { id } of pendingReportResets()) {
+		if (!sameAccount()) return;
 		const { error } = await client.from('lick_report_resets')
-			.upsert({ user_id: userId, generation: reset }, { onConflict: 'user_id' });
+			.upsert({ user_id: userId, generation: id }, { onConflict: 'user_id,generation', ignoreDuplicates: true });
 		if (error) throw error;
+		sent.push(id);
 	}
-	if (!sameAccount() || load(PENDING_RESET) !== reset) return;
-	const { data, error } = await client.from('lick_report_resets')
-		.select('generation').eq('user_id', userId).maybeSingle();
+	if (!sameAccount()) return;
+	const { data: latest, error } = await client.from('lick_report_resets')
+		.select('generation, applied_order').eq('user_id', userId)
+		.order('applied_order', { ascending: false }).limit(1).maybeSingle();
 	if (error) throw error;
-	if (!sameAccount() || load(PENDING_RESET) !== reset) return;
-	const observed = data?.generation ?? 0;
-	if (observed < (load<number>(OBSERVED) ?? 0)) return;
-	if (reset !== null && observed < reset) throw new Error('Practice report reset is still pending');
-	save(OBSERVED, observed);
-	if (load<number>(OBSERVED) !== observed) throw new Error('Could not persist the practice report generation');
-	if (reset !== null) remove(PENDING_RESET);
+	if (!sameAccount()) return;
+	acknowledgeReportResets(latest, sent);
+	const observed = latest?.generation ?? null;
 	// An offline device cannot order its workouts against an unseen reset.
 	// Keep those sessions local. Only a workout begun in this generation can upload.
-	const workouts = recentLickWorkouts(loadLickPracticeSessions().filter(e => (e.reportGeneration ?? 0) === observed));
+	const workouts = recentLickWorkouts(loadLickPracticeSessions().filter(e => (e.reportGeneration ?? null) === observed));
 	if (!workouts.size) return;
 	const recordings = await getRecordingIds().catch(() => new Set<string>());
 	if (!sameAccount()) return;

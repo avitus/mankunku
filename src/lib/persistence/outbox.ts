@@ -22,6 +22,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { load, save } from './storage';
+import { pendingReportResets } from './lick-report-resets';
 import { getActiveUidOrNull } from './namespace';
 import { getScopeGeneration } from './user-scope';
 import { getUserCoalesced } from '$lib/supabase/get-user';
@@ -165,6 +166,8 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 	if (_draining) return;
 	// In particular, pagehide must not start an auth fetch for an empty queue:
 	// document teardown aborts it (WebKit reports an access-control page error).
+	const queued = loadOutbox();
+	if (!queued.lickReports && getActiveUidOrNull() && pendingReportResets().length) enqueue('lickReports');
 	if (Object.keys(loadOutbox()).length === 0) return;
 	_draining = true;
 	try {

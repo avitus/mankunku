@@ -734,13 +734,16 @@ reconstructed. Browser visits do not count as completed practice.
 
 The admin session review reads the five most recent lick workouts. Each workout
 records the account's current report generation when practice starts. A reset
-persists the next generation on the device before clearing local history. The
+persists a unique request ID on the device before clearing local history. The
 database serializes report uploads and resets for each player. Retrying the
 same reset preserves workouts already started in the new generation.
 
 A device that practiced offline across another device's reset keeps those
 workouts in its local history. It resumes uploads for workouts started after it
-learns the new generation. Device clocks determine the displayed time only.
+learns the new generation. The device timestamp determines display order and
+which five workouts are retained. Local history clears immediately. Cloud report
+deletion takes effect when the server first receives the request. The server
+retains the request ID so a delayed retry cannot repeat the deletion.
 Historical workouts without a generation belong to the initial generation.
 
 ### Admin visit days and content removal

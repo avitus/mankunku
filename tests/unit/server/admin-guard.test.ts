@@ -12,10 +12,11 @@ import { requireAdmin } from '../../../src/lib/server/admin-guard';
 import { GET as getRecording } from '../../../src/routes/admin/[userId]/sessions/audio/[take]/+server';
 
 const storage = vi.hoisted(() => ({
+	eligible: vi.fn(async () => ({ data: true, error: null })),
 	createSignedUrl: vi.fn(async () => ({ data: { signedUrl: 'https://example.test/take' }, error: null }))
 }));
 vi.mock('$lib/supabase/admin', () => ({
-	createAdminClient: () => ({ storage: { from: () => storage } })
+	createAdminClient: () => ({ rpc: storage.eligible, storage: { from: () => storage } })
 }));
 
 function makeLocals(options: {
@@ -109,7 +110,14 @@ it('requires admin authorization before signing a player recording', async () =>
 
 		await expect(getRecording(event(false))).rejects.toMatchObject({ status: 404 });
 		expect(storage.createSignedUrl).not.toHaveBeenCalled();
+		expect(storage.eligible).not.toHaveBeenCalled();
+		storage.eligible.mockResolvedValueOnce({ data: false, error: null });
+		await expect(getRecording(event(true))).rejects.toMatchObject({ status: 404 });
+		expect(storage.createSignedUrl).not.toHaveBeenCalled();
 		const response = await getRecording(event(true));
+		expect(storage.eligible).toHaveBeenCalledWith('admin_review_recording_allowed', {
+			p_user_id: params.userId, p_take: params.take
+		});
 		expect(storage.createSignedUrl).toHaveBeenCalledWith(params.userId + '/test-recording.webm', 300);
 		expect(response.status).toBe(307);
 		expect(response.headers.get('location')).toBe('https://example.test/take');

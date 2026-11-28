@@ -26,7 +26,7 @@ const STORAGE_KEY = 'lick-practice-sessions';
 
 export interface LickPracticeSessionLogEntry {
 	/** Absent on workouts saved before account-wide report resets. */
-	reportGeneration?: number;
+	reportGeneration?: string | null;
 	id: string;
 	timestamp: number;
 	progressionType: ChordProgressionType;

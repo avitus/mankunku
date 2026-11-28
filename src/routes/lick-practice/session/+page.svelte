@@ -96,7 +96,7 @@
 	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
-	import { currentLickReportGeneration } from '$lib/persistence/lick-report-sync';
+	import { currentLickReportGeneration } from '$lib/persistence/lick-report-resets';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
 	import {
 		upsertLickPracticeSession,
@@ -291,7 +291,7 @@
 		? continueRecommendations(sessionReport, lickPractice.plan, lickPracticeSessionLogId, recommendationContext)
 		: undefined);
 	let lickPracticeSessionStartTs = 0;
-	let reportGeneration = 0;
+	let reportGeneration: string | null = null;
 
 	// Inter-lick rest (STANDARD mode only): INTER_LICK_REST_BARS of
 	// backing-only between licks. The rest is split visually: the first

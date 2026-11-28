@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
-import { currentLickReportGeneration, flushLickReports, queueHistoricalLickReports, queueLickReportReset } from '$lib/persistence/lick-report-sync';
+import { currentLickReportGeneration, pendingReportResets } from '$lib/persistence/lick-report-resets';
+import { flushLickReports, queueHistoricalLickReports, queueLickReportReset } from '$lib/persistence/lick-report-sync';
 
 const state = vi.hoisted(() => ({
 	uid: 'player', generation: 1, entries: [] as LickPracticeSessionLogEntry[],
 	values: new Map<string, unknown>(), meta: vi.fn(), ids: new Set<string>()
 }));
 vi.mock('$lib/persistence/storage', () => ({
+	listKeys: () => [...state.values.keys()],
 	load: (key: string) => state.values.get(key) ?? null,
 	save: (key: string, value: unknown) => state.values.set(key, value),
 	remove: (key: string) => state.values.delete(key)
@@ -30,8 +32,10 @@ function session(n: number, progressionType: 'blues' | 'minor-vamp' = 'blues'): 
 				keys: [{ key: 'C', passed: true, score: 1, pitchAccuracy: 1, rhythmAccuracy: 1, sessionId: take }] }] } };
 }
 
-function resetQuery(generation: number) {
-	return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { generation }, error: null }) }) }) };
+function resetQuery(generation: string | null) {
+	const data = generation ? { generation, applied_order: 1 } : null;
+	const limit = () => ({ maybeSingle: async () => ({ data, error: null }) });
+	return { select: () => ({ eq: () => ({ order: () => ({ limit }) }) }) };
 }
 
 beforeEach(() => {
@@ -46,7 +50,7 @@ describe('lick report sync', () => {
 	it('backfills five workouts, combines Daily slices, retries failures and picks up a late recording', async () => {
 		state.entries = [1,2,3,4,5,6].map(n => session(n)).concat(session(6, 'minor-vamp'));
 		const upsert = vi.fn().mockResolvedValue({ error: null }).mockResolvedValueOnce({ error: new Error('offline') });
-		const client = { from: (table: string) => table === 'lick_report_resets' ? resetQuery(0) : { upsert } } as never;
+		const client = { from: (table: string) => table === 'lick_report_resets' ? resetQuery(null) : { upsert } } as never;
 		await expect(flushLickReports(client)).rejects.toThrow('offline');
 		await flushLickReports(client);
 		const rows = upsert.mock.calls[1][0];
@@ -68,32 +72,41 @@ describe('lick report sync', () => {
 	it('retries the pending reset generation before resuming report uploads', async () => {
 		state.entries = [];
 		queueLickReportReset();
-		const reset = state.values.get('lick-report-pending-generation');
+		const reset = pendingReportResets()[0].id;
 		const upsert = vi.fn().mockResolvedValueOnce({ error: new Error('offline') }).mockResolvedValue({ error: null });
-		const from = vi.fn(() => ({ upsert, ...resetQuery(1) }));
+		const from = vi.fn(() => ({ upsert, ...resetQuery(reset) }));
 		const client = { from } as never;
 		await expect(flushLickReports(client)).rejects.toThrow('offline');
-		expect(state.values.get('lick-report-pending-generation')).toBe(reset);
+		expect(pendingReportResets()[0].id).toBe(reset);
 		await flushLickReports(client);
 		expect(from).toHaveBeenLastCalledWith('lick_report_resets');
-		expect(upsert).toHaveBeenLastCalledWith({ user_id: state.uid, generation: reset }, { onConflict: 'user_id' });
-		expect(state.values.has('lick-report-pending-generation')).toBe(false);
-		expect(currentLickReportGeneration()).toBe(1);
+		expect(upsert).toHaveBeenLastCalledWith({ user_id: state.uid, generation: reset }, { onConflict: 'user_id,generation', ignoreDuplicates: true });
+		expect(pendingReportResets()).toHaveLength(0);
+		expect(currentLickReportGeneration()).toBe(reset);
+	});
+
+	it('acknowledges only the reset this flush sent when a second tab requests a fresh reset', async () => {
+		queueLickReportReset();
+		const first = currentLickReportGeneration();
+		const upsert = vi.fn(async () => { queueLickReportReset(); return { error: null }; });
+		await flushLickReports({ from: () => ({ upsert, ...resetQuery(first) }) } as never);
+		expect(pendingReportResets()).toHaveLength(1);
+		expect(currentLickReportGeneration()).not.toBe(first);
 	});
 
 	it('keeps workouts from an unobserved reset local regardless of the device clock', async () => {
-		state.entries = [session(999), { ...session(1), reportGeneration: 2 }];
+		state.entries = [session(999), { ...session(1), reportGeneration: 'remote-reset' }];
 		const upsert = vi.fn().mockResolvedValue({ error: null });
-		const client = { from: (table: string) => table === 'lick_report_resets' ? resetQuery(2) : { upsert } } as never;
+		const client = { from: (table: string) => table === 'lick_report_resets' ? resetQuery('remote-reset') : { upsert } } as never;
 		await flushLickReports(client);
 		expect(upsert.mock.calls[0][0].map((r: { id: string }) => r.id)).toEqual(['workout-1']);
-		expect(currentLickReportGeneration()).toBe(2);
+		expect(currentLickReportGeneration()).toBe('remote-reset');
 		expect(state.entries).toHaveLength(2);
 	});
 
 	it('requeues an interrupted reset on hydration with an empty local log', async () => {
 		const { enqueue } = await import('$lib/persistence/outbox');
-		state.values.set('lick-report-pending-generation', 1);
+		queueLickReportReset();
 		vi.mocked(enqueue).mockClear();
 		queueHistoricalLickReports();
 		expect(enqueue).toHaveBeenCalledWith('lickReports');
@@ -105,7 +118,7 @@ describe('lick report sync', () => {
 		state.ids.add('8-blues');
 		state.meta.mockImplementationOnce(async () => { state.uid = 'other'; return null; });
 		const upsert = vi.fn();
-		const from = (table: string) => table === 'lick_report_resets' ? resetQuery(0) : { upsert };
+		const from = (table: string) => table === 'lick_report_resets' ? resetQuery(null) : { upsert };
 		await flushLickReports({ from } as never);
 		expect(upsert).not.toHaveBeenCalled();
 	});

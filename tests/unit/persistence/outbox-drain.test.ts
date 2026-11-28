@@ -49,6 +49,9 @@ import {
 	setOutboxClient
 } from '$lib/persistence/outbox';
 import { load } from '$lib/persistence/storage';
+import { persistReportReset } from '$lib/persistence/lick-report-resets';
+import { flushLickReports } from '$lib/persistence/lick-report-sync';
+vi.mock('$lib/persistence/lick-report-sync', () => ({ flushLickReports: vi.fn() }));
 import { flushSettingsToCloud } from '$lib/state/settings.svelte';
 import { flushProgressToCloud } from '$lib/state/progress.svelte';
 
@@ -87,6 +90,13 @@ afterEach(() => {
 });
 
 describe('outbox drain — success path', () => {
+	it('discovers a persisted report reset even when the outbox entry was never written', async () => {
+		persistReportReset();
+		expect(outbox()).toEqual({});
+		await drainOutbox(authedAs());
+		expect(flushLickReports).toHaveBeenCalledOnce();
+	});
+
 	it('does not start an auth request on pagehide when there is nothing to sync', async () => {
 		const getUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-a' } } });
 		await flushOnHide({ auth: { getUser } } as never);

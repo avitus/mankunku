@@ -14,7 +14,7 @@ create table public.lick_session_reports (
   attempts integer not null check (attempts > 0),
   minutes integer not null check (minutes >= 0),
   licks jsonb not null check (jsonb_typeof(licks) = 'array'),
-  generation integer not null default 0 check (generation >= 0),
+  generation uuid,
   primary key (user_id, id)
 );
 create index lick_session_reports_recent on public.lick_session_reports(user_id, timestamp desc, id desc);
@@ -25,44 +25,52 @@ create policy "Own practice reports" on public.lick_session_reports for all to a
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
 -- Each workout carries the last reset generation observed when practice began.
--- Device clocks are used for presentation only.
+-- Device timestamps rank the five retained workouts. They never decide reset ordering.
 create table public.lick_report_resets (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  generation integer not null check (generation > 0)
+  user_id uuid not null references auth.users(id) on delete cascade,
+  generation uuid not null,
+  applied_order bigint not null default 0,
+  primary key (user_id, generation),
+  unique (user_id, applied_order)
 );
 alter table public.lick_report_resets enable row level security;
 revoke all on public.lick_report_resets from public, anon, authenticated;
-grant select, insert, update on public.lick_report_resets to authenticated;
+grant select, insert (user_id, generation) on public.lick_report_resets to authenticated;
 grant all on public.lick_report_resets to service_role;
-create policy "Own report reset generation" on public.lick_report_resets for all to authenticated
+create policy "Own report resets" on public.lick_report_resets for all to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
--- Only the next generation advances the account. Concurrent resets of the
--- same observed generation coalesce, including a retry after a lost response.
-create function private.apply_lick_report_reset() returns trigger
+-- Allocate the order under the same lock used by uploads. A lost response can
+-- safely replay the UUID with ON CONFLICT DO NOTHING. Only an inserted request
+-- runs the AFTER trigger, so retries never clear workouts from a later reset.
+create function private.order_lick_report_reset() returns trigger
 language plpgsql set search_path = '' as $$
-declare current_generation integer;
 begin
   perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
-  select generation into current_generation from public.lick_report_resets where user_id = new.user_id;
-  if new.generation <= coalesce(current_generation, 0) then return null; end if;
-  if new.generation <> coalesce(current_generation, 0) + 1 then
-    raise exception 'Invalid report reset generation' using errcode = '23514';
-  end if;
-  delete from public.lick_session_reports where user_id = new.user_id and generation < new.generation;
+  select coalesce(max(applied_order), 0) + 1 into new.applied_order
+  from public.lick_report_resets where user_id = new.user_id;
   return new;
 end;
 $$;
-create trigger apply_lick_report_reset before insert or update on public.lick_report_resets
+create trigger order_lick_report_reset before insert on public.lick_report_resets
+for each row execute function private.order_lick_report_reset();
+
+create function private.apply_lick_report_reset() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  delete from public.lick_session_reports where user_id = new.user_id;
+  return null;
+end;
+$$;
+create trigger apply_lick_report_reset after insert on public.lick_report_resets
 for each row execute function private.apply_lick_report_reset();
 
 create function private.check_lick_report_generation() returns trigger
 language plpgsql set search_path = '' as $$
 begin
   perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
-  if new.generation <> coalesce((select generation from public.lick_report_resets
-                                 where user_id = new.user_id), 0) then
-    -- An upload raced a reset. The outbox must refresh before it can acknowledge it.
+  if new.generation is distinct from (select generation from public.lick_report_resets
+      where user_id = new.user_id order by applied_order desc limit 1) then
     raise exception 'Practice report generation changed' using errcode = '40001';
   end if;
   return new;
@@ -141,3 +149,24 @@ end;
 $$;
 create trigger trim_lick_session_reports after insert on public.lick_session_reports
 referencing new table as inserted_reports for each statement execute function private.trim_lick_session_reports();
+
+-- Match the five ear sessions and five workouts displayed by the admin review.
+create function public.admin_review_recording_allowed(p_user_id uuid, p_take text)
+returns boolean language sql stable security invoker set search_path = '' as $$
+  select exists (
+    select 1 from (
+      select id from public.session_results
+      where user_id = p_user_id and (source is null or source = 'ear-training')
+      order by timestamp desc, id desc limit 5
+    ) ear where ear.id = p_take
+  ) or exists (
+    select 1 from (
+      select licks from public.lick_session_reports where user_id = p_user_id
+      order by timestamp desc, id desc limit 5
+    ) workout
+    where jsonb_path_exists(workout.licks, '$[*].keys[*] ? (@.sessionId == $take)',
+                            jsonb_build_object('take', p_take))
+  )
+$$;
+revoke all on function public.admin_review_recording_allowed(uuid, text) from public, anon, authenticated;
+grant execute on function public.admin_review_recording_allowed(uuid, text) to service_role;

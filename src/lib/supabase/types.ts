@@ -356,16 +356,19 @@ export type Database = {
       /** Per-workout snapshots from the player’s lick-practice log. */
       lick_report_resets: {
         Row: {
+          applied_order: number
           user_id: string
-          generation: number
+          generation: string
         }
         Insert: {
+          applied_order?: number
           user_id: string
-          generation: number
+          generation: string
         }
         Update: {
+          applied_order?: number
           user_id?: string
-          generation?: number
+          generation?: string
         }
         Relationships: []
       }
@@ -376,7 +379,7 @@ export type Database = {
           timestamp: number
           attempts: number
           minutes: number
-          generation: number
+          generation: string | null
           licks: Json
         }
         Insert: {
@@ -385,7 +388,7 @@ export type Database = {
           timestamp: number
           attempts: number
           minutes: number
-          generation?: number
+          generation?: string | null
           licks: Json
         }
         Update: {
@@ -394,7 +397,7 @@ export type Database = {
           timestamp?: number
           attempts?: number
           minutes?: number
-          generation?: number
+          generation?: string | null
           licks?: Json
         }
         Relationships: []
@@ -1238,6 +1241,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_review_recording_allowed: {
+        Args: { p_user_id: string; p_take: string }
+        Returns: boolean
+      }
       admin_ear_scores: {
         Args: { p_users: string[] }
         Returns: { user_id: string; recent: number; prior: number | null; samples: number }[]
