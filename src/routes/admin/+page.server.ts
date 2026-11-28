@@ -85,7 +85,7 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 		selectAllRows((from, to) =>
 			admin
 				.from('daily_summaries')
-				.select('user_id, date, session_count, practice_minutes, practice_time_unavailable')
+				.select('user_id, date, session_count, practice_minutes, practice_time_unavailable, tonal_mastery, ear_training_sessions, lick_practice_sessions')
 				.order('user_id')
 				.order('date')
 				.range(from, to)
@@ -105,7 +105,16 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 		selectAllRows((from, to) => admin.from('user_visit_days').select('*').order('user_id').order('date').range(from, to))
 	]);
 
+	// Keep each response below the Data API row cap.
+	const earScores = [];
+	for (let start = 0; start < authUsers.length; start += 500) {
+		const ids = authUsers.slice(start, start + 500).map(u => u.id);
+		const { data, error } = await admin.rpc('admin_ear_scores', { p_users: ids });
+		if (error) throw error;
+		earScores.push(...data);
+	}
 	const input: AdminStatsInput = {
+		earScores,
 		authUsers,
 		profiles,
 		summaries,

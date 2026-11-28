@@ -353,6 +353,34 @@ export type Database = {
         ]
       }
 
+      /** Per-workout snapshots from the player’s lick-practice log. */
+      lick_session_reports: {
+        Row: {
+          user_id: string
+          id: string
+          timestamp: number
+          attempts: number
+          minutes: number
+          licks: Json
+        }
+        Insert: {
+          user_id: string
+          id: string
+          timestamp: number
+          attempts: number
+          minutes: number
+          licks: Json
+        }
+        Update: {
+          user_id?: string
+          id?: string
+          timestamp?: number
+          attempts?: number
+          minutes?: number
+          licks?: Json
+        }
+        Relationships: []
+      }
       /**
        * Individual practice session results.
        * Mirrors the SessionResult interface from progress.ts.
@@ -1192,6 +1220,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_ear_scores: {
+        Args: { p_users: string[] }
+        Returns: { user_id: string; recent: number; prior: number | null; samples: number }[]
+      }
       admin_begin_user_deletion: {
         Args: { p_actor_id: string; p_user_id: string; p_confirm: string }
         Returns: string

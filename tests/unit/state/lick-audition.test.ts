@@ -48,6 +48,14 @@ beforeEach(() => {
 });
 
 describe('lick preview lifetime (MANKUNKU-1W)', () => {
+	it('uses the reviewed player’s instrument when the admin plays a reference', async () => {
+		const { createLickAudition } = await import('$lib/state/lick-audition.svelte');
+		await createLickAudition().play(firstLick, { instrument: 'vibraphone', tempo: 85 });
+		expect(mocks.loadInstrument).toHaveBeenCalledWith('vibraphone', 0.7);
+		expect(mocks.playPhrase.mock.calls[0][1].tempo).toBe(85);
+		expect(mocks.settings.instrumentId).toBe('tenor-sax');
+	});
+
 	it('does not play after navigation cancels an unfinished instrument load', async () => {
 		const loaded = deferred();
 		const entered = deferred();

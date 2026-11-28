@@ -28,6 +28,7 @@ import { getUserCoalesced } from '$lib/supabase/get-user';
 
 export type OutboxKind =
 	| 'progress'
+	| 'lickReports'
 	| 'lickMeta'
 	| 'settings'
 	| 'dailySummaries'
@@ -119,6 +120,11 @@ async function runKind(kind: OutboxKind, supabase: SupabaseClient<Database>): Pr
 		case 'settings': {
 			const m = await import('$lib/state/settings.svelte');
 			await m.flushSettingsToCloud(supabase);
+			return;
+		}
+		case 'lickReports': {
+			const m = await import('./lick-report-sync');
+			await m.flushLickReports(supabase);
 			return;
 		}
 		case 'lickMeta': {

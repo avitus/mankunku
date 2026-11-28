@@ -76,6 +76,8 @@ function openRawDb(name: string): Promise<IDBDatabase> {
  * reaching back into live session state.
  */
 export interface RecordingMetadata {
+	/** The demonstrated lick in its played register, including its meter and rests. */
+	reference?: Pick<import('$lib/types/music').Phrase, 'notes' | 'timeSignature'>;
 	/** Absent on legacy mixed-only takes. New takes never fall back to scoring the mix. */
 	scoringAudio?: 'microphone' | 'unavailable';
 	/** Whether persisted score/notes came from live detection or the completed replay. */
@@ -429,6 +431,18 @@ export async function getRecording(
 	}
 
 	return null;
+}
+
+/** Read one take's score without allocating replay or scoring blobs. */
+export async function getRecordingMetadata(sessionId: string): Promise<RecordingMetadata | null> {
+	const db = await openDb();
+	try {
+		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
+		const record = await idbReq<StoredRecording | undefined>(store.get(sessionId));
+		return record?.metadata ?? null;
+	} finally {
+		db.close();
+	}
 }
 
 /**

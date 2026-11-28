@@ -1479,6 +1479,7 @@
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
 				bumpStreakForToday(supabase ?? undefined);
+				if (supabase) enqueue('lickReports');
 				if (supabase && summary) enqueue('dailySummaries');
 			} catch (err) {
 				console.warn('[lick-practice] daily-summary update failed:', err);
@@ -1549,6 +1550,7 @@
 						supabase: supabaseForSave ?? undefined,
 						userId: userIdForSave
 					});
+					if (userIdForSave && user?.id === userIdForSave && windowForSave.finalPass) enqueue('lickReports');
 				})
 				.catch((err) => console.warn('lick-practice recording save failed', err))
 				.finally(() => {
@@ -1731,6 +1733,7 @@
 				}
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
+				if (supabase) enqueue('lickReports');
 				if (supabase && summary) enqueue('dailySummaries');
 			} catch (err) {
 				console.warn('[lick-practice] finishSession persistence failed:', err);

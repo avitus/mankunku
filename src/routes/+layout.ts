@@ -142,6 +142,8 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 
 		// Register the client the durable outbox uses to flush queued cloud writes.
 		setOutboxClient(supabase);
+		const { queueHistoricalLickReports } = await import('$lib/persistence/lick-report-sync');
+		queueHistoricalLickReports();
 
 		// recomputeAllDailySummaries runs after the source-of-truth tables
 		// (progress.sessions, lick-practice-sessions) are populated; the cloud

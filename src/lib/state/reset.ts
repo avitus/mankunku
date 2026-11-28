@@ -13,6 +13,7 @@ import type { Database } from '$lib/supabase/types';
 import { resetProgress } from '$lib/state/progress.svelte';
 import { settings, saveSettings } from '$lib/state/settings.svelte';
 import { clearLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
+import { queueLickReportReset } from '$lib/persistence/lick-report-sync';
 import { clearAllRecordings } from '$lib/persistence/audio-store';
 import { deleteAllRecordingsFromCloud } from '$lib/persistence/sync';
 
@@ -22,6 +23,7 @@ export async function resetAllPracticeData(supabase?: SupabaseClient<Database>):
 	// 2. The lick session log — the piece the Settings reset used to miss. Clear
 	//    it BEFORE anything can recompute summaries from it.
 	clearLickPracticeSessions();
+	if (supabase) queueLickReportReset();
 	// 3. Tonality override lives in settings, not progress.
 	settings.tonalityOverride = null;
 	saveSettings(supabase, ['tonalityOverride']);
