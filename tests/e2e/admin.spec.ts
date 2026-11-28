@@ -136,6 +136,8 @@ adminTest.describe('admin — content management', () => {
 		await expect(page.getByText('Last active', { exact: true }).locator('..')).not.toHaveText('Last active —');
 		await page.getByText('About activity', { exact: true }).click();
 		await expect(page.getByText(/including historical practice/)).toBeVisible();
+		await expect(page.getByText(/14 calendar dates through today in UTC, or through the player’s next local date/)).toBeVisible();
+		await expect(page.getByText('Practice days', { exact: true }).locator('..').locator('strong')).toHaveText(/1\s*\/\s*14/);
 		await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('inactive');
 		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
 	});

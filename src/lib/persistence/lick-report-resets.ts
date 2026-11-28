@@ -1,4 +1,4 @@
-import { readable } from 'svelte/store';
+import { createSubscriber } from 'svelte/reactivity';
 import { listKeys, load, remove, save } from './storage';
 
 const PREFIX = 'lick-report-reset/';
@@ -7,19 +7,22 @@ const OBSERVED = 'lick-report-server-generation';
 const resetChanges = new EventTarget();
 
 /** Reflect the durable queue on mount, after a local write and across open tabs. */
-export const reportResetPending = readable(false, set => {
-	const refresh = () => set(listKeys().some(key => key.startsWith(PREFIX)));
+const trackResetChanges = createSubscriber(update => {
 	const onStorage = (event: StorageEvent) => {
-		if (!event.key || event.key.includes(PREFIX) || event.key === 'mankunku:__active') refresh();
+		if (!event.key || event.key.includes(PREFIX) || event.key === 'mankunku:__active') update();
 	};
-	refresh();
-	resetChanges.addEventListener('change', refresh);
-	if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
+	resetChanges.addEventListener('change', update);
+	window.addEventListener('storage', onStorage);
 	return () => {
-		resetChanges.removeEventListener('change', refresh);
-		if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
+		resetChanges.removeEventListener('change', update);
+		window.removeEventListener('storage', onStorage);
 	};
 });
+
+export function reportResetPending(): boolean {
+	if (typeof window !== 'undefined') trackResetChanges();
+	return listKeys().some(key => key.startsWith(PREFIX));
+}
 
 export interface ReportGeneration {
 	generation: string;

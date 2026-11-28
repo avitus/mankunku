@@ -746,6 +746,14 @@ deletion takes effect when the server first receives the request. The server
 retains the request ID so a delayed retry cannot repeat the deletion.
 Historical workouts without a generation belong to the initial generation.
 
+Keep the forward migration on an application rollback. Older clients reset
+practice by deleting the account’s daily summaries directly. The database
+applies a report reset when that request clears the summary table for that
+account, even if it was already empty. Current clients clear summaries through
+an owner-scoped RPC and deliver the report reset separately using its durable
+ID. An offline reset on an older client that never reached the server must be
+repeated while online.
+
 Each cloud report includes at most 256 lick entries, 1,024 key entries and
 1 MiB of uncompressed JSON detail. A workout over any limit keeps its attempt
 count and duration in the admin review. Its per-key history stays on the device.

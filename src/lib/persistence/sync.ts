@@ -650,10 +650,9 @@ export async function deleteDailySummariesFromCloud(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
 
-		const { error } = await supabase
-			.from('daily_summaries')
-			.delete()
-			.eq('user_id', userId);
+		// This client already persisted a separate workout-report reset. Older
+		// clients use the table DELETE, which now also resets their reports.
+		const { error } = await supabase.rpc('clear_daily_practice_summaries', { p_user_id: userId });
 
 		if (error) {
 			console.warn('Failed to delete daily summaries from cloud:', error);

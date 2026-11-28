@@ -1241,6 +1241,10 @@ export type Database = {
       }
     }
     Functions: {
+      clear_daily_practice_summaries: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       admin_review_recording_allowed: {
         Args: { p_user_id: string; p_take: string }
         Returns: boolean

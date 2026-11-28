@@ -114,6 +114,25 @@ test('a failed reset keeps the workout visible and explains the failure', async 
 	await openWorkouts();
 });
 
+test('shows a pending reset until another tab acknowledges it', async ({ page, baseURL }) => {
+	const user = { id: 'aaaaaaaa-0000-4000-8000-000000000abc', email: 'progress@e2e.dev' };
+	const cloud = createStubCloud();
+	cloud.seedRow('user_settings', { user_id: user.id, onboarding_complete: true, tour_state: TOUR_DISMISSED });
+	await installStubCloud(page.context(), cloud, user, baseURL!);
+	await seedStorage(page, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
+	await page.goto('/progress');
+	await expect(page.getByRole('button', { name: 'Reset Progress', exact: true })).toBeVisible();
+	const other = await page.context().newPage();
+	await other.goto('/robots.txt');
+	const key = 'mankunku:u:' + user.id + ':lick-report-reset/9ed57728-3945-414e-b238-83ca0ba96caa';
+	await other.evaluate(key => localStorage.setItem(key, '1'), key);
+	const status = page.getByRole('status').filter({ hasText: 'Cloud workout deletion is pending' });
+	await expect(status).toBeVisible();
+	await other.evaluate(key => localStorage.removeItem(key), key);
+	await expect(status).toHaveCount(0);
+	await other.close();
+});
+
 for (const theme of ['dark', 'light']) {
 	test(`${theme} panels reflow without page overflow or shrinking the calendar`, async ({ page }, testInfo) => {
 		await freezeCalendarDate(page);

@@ -65,6 +65,33 @@ $$;
 create trigger apply_lick_report_reset after insert on public.lick_report_resets
 for each row execute function private.apply_lick_report_reset();
 
+-- Older clients clear daily_summaries directly on an explicit practice reset.
+-- Honor that existing request even when there were no daily summary rows.
+-- Modern clients deliver a durable, idempotent report reset separately.
+create function public.clear_daily_practice_summaries(p_user_id uuid) returns void
+language sql security invoker set search_path = '' as $$
+  delete from public.daily_summaries where user_id = p_user_id and user_id = (select auth.uid())
+$$;
+revoke all on function public.clear_daily_practice_summaries(uuid) from public, anon, authenticated;
+grant execute on function public.clear_daily_practice_summaries(uuid) to authenticated;
+
+create function private.reset_reports_with_legacy_summaries() returns trigger
+language plpgsql set search_path = '' as $$
+declare player uuid := auth.uid();
+begin
+  if current_user = 'authenticated' and player is not null and pg_trigger_depth() = 1
+     -- PostgREST supplies the original HTTP method. The modern RPC uses
+     -- POST; cascades and direct maintenance SQL are not client resets.
+     and current_setting('request.method', true) = 'DELETE'
+     and not exists (select from public.daily_summaries where user_id = player) then
+    insert into public.lick_report_resets(user_id, generation) values (player, gen_random_uuid());
+  end if;
+  return null;
+end;
+$$;
+create trigger reset_reports_with_legacy_summaries after delete on public.daily_summaries
+for each statement execute function private.reset_reports_with_legacy_summaries();
+
 create function private.check_lick_report_generation() returns trigger
 language plpgsql set search_path = '' as $$
 begin

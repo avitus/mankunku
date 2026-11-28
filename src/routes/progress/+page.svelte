@@ -244,7 +244,7 @@
 			: transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 	}
 
-	function sessionReferencePhrase(s: SessionResult): Phrase | null {
+	function sessionReferencePhrase(s: SessionResult, forPlayback = false): Phrase | null {
 		const phrase = findPhraseForSession(s);
 		if (!phrase) return null;
 
@@ -257,6 +257,12 @@
 		if (sounding.length !== targets.length) return phrase;
 		const shift = targets[0] - sounding[0].pitch;
 		if (shift === 0 || shift % 12 !== 0 || !sounding.every((note, i) => note.pitch + shift === targets[i])) return phrase;
+		// Play the saved register only while every pitched note still fits the
+		// current instrument. A scoring export always reconstructs the original.
+		if (forPlayback) {
+			const high = getEffectiveHighestNote();
+			if (phrase.notes.some(n => n.pitch !== null && (n.pitch + shift < instrument.concertRangeLow || n.pitch + shift > high))) return phrase;
+		}
 		return { ...phrase, notes: phrase.notes.map(note => note.pitch === null ? note : { ...note, pitch: note.pitch + shift }) };
 	}
 
@@ -284,7 +290,7 @@
 			if (generation !== replayGeneration) return;
 		}
 
-		const phrase = sessionReferencePhrase(s);
+		const phrase = sessionReferencePhrase(s, true);
 		if (!phrase) return;
 
 		try {
@@ -372,6 +378,7 @@
 	}
 
 	let showResetConfirm = $state(false);
+	const cloudResetPending = $derived(reportResetPending());
 	let expandedSessionId: string | null = $state(null);
 	let expandedLickSessionId: string | null = $state(null);
 	let expandedKeySessionId: string | null = $state(null);
@@ -1019,7 +1026,7 @@
 
 		<!-- Reset -->
 		<div class="progress-footer">
-			{#if $reportResetPending}<p role="status" class="text-sm">Cloud workout deletion is pending. Keep this device online to finish syncing.</p>{/if}
+			{#if cloudResetPending}<p role="status" class="text-sm">Cloud workout deletion is pending. Keep this device online to finish syncing.</p>{/if}
 			{#if showResetConfirm}
 				<p class="mb-2 text-sm text-[var(--color-error-text)]">
 					This will erase all progress. Are you sure?

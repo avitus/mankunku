@@ -71,8 +71,7 @@ describe('lick report sync', () => {
 
 	it('retries the pending reset generation before resuming report uploads', async () => {
 		state.entries = [];
-		const displayed: boolean[] = [];
-		const unsubscribe = reportResetPending.subscribe(value => displayed.push(value));
+		expect(reportResetPending()).toBe(false);
 		queueLickReportReset();
 		const reset = pendingReportResets()[0].id;
 		const upsert = vi.fn().mockResolvedValueOnce({ error: new Error('offline') }).mockResolvedValue({ error: null });
@@ -80,14 +79,13 @@ describe('lick report sync', () => {
 		const client = { from } as never;
 		await expect(flushLickReports(client)).rejects.toThrow('offline');
 		expect(pendingReportResets()[0].id).toBe(reset);
-		expect(displayed).toEqual([false, true]);
+		expect(reportResetPending()).toBe(true);
 		await flushLickReports(client);
 		expect(from).toHaveBeenLastCalledWith('lick_report_resets');
 		expect(upsert).toHaveBeenLastCalledWith({ user_id: state.uid, generation: reset }, { onConflict: 'user_id,generation', ignoreDuplicates: true });
 		expect(pendingReportResets()).toHaveLength(0);
 		expect(currentLickReportGeneration()).toBe(reset);
-		expect(displayed).toEqual([false, true, false]);
-		unsubscribe();
+		expect(reportResetPending()).toBe(false);
 	});
 
 	it('acknowledges only the reset this flush sent when a second tab requests a fresh reset', async () => {

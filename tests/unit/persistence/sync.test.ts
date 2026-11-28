@@ -1891,33 +1891,18 @@ describe('clearTourStateInCloud', () => {
 });
 
 describe('deleteDailySummariesFromCloud', () => {
-	it('issues a delete scoped to the authenticated user', async () => {
-		const eqCalls: [string, string][] = [];
-		const deleteFn = vi.fn(() => ({
-			eq: (col: string, val: string) => {
-				eqCalls.push([col, val]);
-				return Promise.resolve({ error: null });
-			}
-		}));
-		const fromFn = vi.fn(() => ({ delete: deleteFn }));
-		const mock = {
-			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) },
-			from: fromFn
-		};
+	it('clears summaries for the active user without issuing a legacy reset', async () => {
+		const rpc = vi.fn().mockResolvedValue({ error: null });
+		const mock = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) }, rpc };
 		await deleteDailySummariesFromCloud(mock as any);
-		expect(fromFn).toHaveBeenCalledWith('daily_summaries');
-		expect(deleteFn).toHaveBeenCalledTimes(1);
-		expect(eqCalls).toContainEqual(['user_id', 'test-user-id']);
+		expect(rpc).toHaveBeenCalledWith('clear_daily_practice_summaries', { p_user_id: 'test-user-id' });
 	});
 
 	it('skips when unauthenticated', async () => {
-		const fromFn = vi.fn();
-		const mock = {
-			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
-			from: fromFn
-		};
+		const rpc = vi.fn();
+		const mock = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) }, rpc };
 		await deleteDailySummariesFromCloud(mock as any);
-		expect(fromFn).not.toHaveBeenCalled();
+		expect(rpc).not.toHaveBeenCalled();
 	});
 });
 

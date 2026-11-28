@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(32);
 select ok(not has_column_privilege('authenticated','public.user_profiles','is_admin','INSERT')
       and not has_column_privilege('authenticated','public.user_profiles','is_admin','UPDATE')
       and not has_column_privilege('anon','public.user_profiles','is_admin','INSERT')
@@ -93,6 +93,24 @@ select is((select generation from public.lick_report_resets order by applied_ord
 select ok(not has_column_privilege('authenticated','public.lick_report_resets','applied_order','INSERT')
   and not has_table_privilege('authenticated','public.lick_report_resets','UPDATE'),
   'only the server assigns and orders reset generations');
+insert into public.daily_summaries(user_id,date) select id,'2026-11-25' from player;
+insert into public.daily_summaries(user_id,date) select id,'2026-11-26' from player;
+select set_config('request.method','DELETE',true);
+delete from public.daily_summaries where date='2026-11-25';
+select is((select max(applied_order) from public.lick_report_resets),2::bigint,'partial daily-summary deletion preserves reports');
+select set_config('request.method','POST',true);
+select public.clear_daily_practice_summaries((select id from player));
+select ok(not exists(select from public.daily_summaries)
+  and (select max(applied_order) from public.lick_report_resets)=2,'modern summary cleanup does not repeat the queued reset');
+insert into public.lick_session_reports select id,'post-reset',7,1,1,'[]'::jsonb,second_reset from player;
+select set_config('request.method','DELETE',true);
+delete from public.daily_summaries where user_id=(select id from player);
+select ok(not exists(select from public.lick_session_reports)
+  and (select max(applied_order) from public.lick_report_resets)=3,'legacy reset clears reports even with no remaining daily rows');
+select throws_ok($$insert into public.lick_session_reports select id,'stale',8,1,1,'[]'::jsonb,second_reset from player$$,
+  '40001','Practice report generation changed','a modern device cannot reupload a workout cleared by a legacy reset');
+select ok(not has_function_privilege('anon','public.clear_daily_practice_summaries(uuid)','EXECUTE'),
+  'summary cleanup is available only to signed-in owners');
 reset role;
 select * from finish();
 rollback;
