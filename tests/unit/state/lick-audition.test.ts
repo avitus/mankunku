@@ -157,7 +157,7 @@ describe('lick preview lifetime (MANKUNKU-1W)', () => {
 		expect(audition.state.error).toBe('');
 		expect(mocks.playPhrase).toHaveBeenCalledWith(firstLick, {
 			tempo: 100, swing: 0.6, countInBeats: 0, metronomeEnabled: false, metronomeVolume: 0
-		}, false, {});
+		}, false, { tongueRepeats: true });
 	});
 
 	it('does not restart a replacement after navigating away during stop', async () => {
@@ -202,8 +202,8 @@ it('previews a source performance at its own tempo without applying swing twice'
  const audition = createLickAudition();
  await audition.play(firstLick, {tempo: 137, swing: 0.5, performed: true});
  // Measured timing plays as written: no humanized onsets, no articulation (CodeRabbit on #306).
- expect(mocks.playPhrase).toHaveBeenLastCalledWith(firstLick, expect.objectContaining({tempo:137,swing:0.5}), false, {performed: true});
+ expect(mocks.playPhrase).toHaveBeenLastCalledWith(firstLick, expect.objectContaining({tempo:137,swing:0.5}), false, {performed: true, tongueRepeats: true});
  await audition.play(secondLick);
- expect(mocks.playPhrase).toHaveBeenLastCalledWith(secondLick, expect.objectContaining({tempo:100,swing:0.6}), false, {});
+ expect(mocks.playPhrase).toHaveBeenLastCalledWith(secondLick, expect.objectContaining({tempo:100,swing:0.6}), false, { tongueRepeats: true });
  audition.dispose();
 });

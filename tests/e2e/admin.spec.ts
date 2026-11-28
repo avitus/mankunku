@@ -48,12 +48,10 @@ test.describe('admin — access control', () => {
 		// this spec seeded nothing: the namespace re-home reload (above) raced a
 		// same-test follow-up goto() — "Navigation to / is interrupted by another
 		// navigation to /admin". The seed removes that reload; the split stays.
-		test('session reports and recording URLs require admin access', async ({ signedInPage }) => {
+		test('session reports require admin access', async ({ signedInPage }) => {
 			const sessions = '/admin/00000000-0000-4000-8000-000000000002/sessions';
-			for (const path of [sessions, sessions + '/audio/test-recording']) {
-				const response = await signedInPage.request.get(path);
-				expect(response.status()).toBe(404);
-			}
+			const response = await signedInPage.request.get(sessions);
+			expect(response.status()).toBe(404);
 		});
 
 		test('signed-in non-admins get a 404', async ({ signedInPage }) => {

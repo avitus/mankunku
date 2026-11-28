@@ -44,7 +44,7 @@ export function createLickAudition() {
 				countInBeats: 0,
 				metronomeEnabled: false,
 				metronomeVolume: 0
-			}, false, { performed: options.performed, tongueRepeats: options.instrument?.endsWith('-sax') });
+			}, false, { performed: options.performed, tongueRepeats: instrument.endsWith('-sax') });
 		} catch (error) {
 			if (!cancelled()) {
 				captureException(error);

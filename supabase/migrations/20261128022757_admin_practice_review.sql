@@ -18,8 +18,30 @@ create policy "Own practice reports" on public.lick_session_reports for all to a
 -- Tabs can flush snapshots of an in-progress session out of order.
 create function private.keep_complete_lick_report() returns trigger
 language plpgsql set search_path = '' as $$
+declare
+  prior_refs jsonb;
 begin
   if (new.attempts, new.minutes) < (old.attempts, old.minutes) then return null; end if;
+  if new.licks = old.licks then return new; end if;
+
+  -- The originating device may have evicted a recording; other devices may
+  -- never have had it. Preserve its reference from the locked row on upsert.
+  select jsonb_object_agg(k->>'sessionId', k->'reference') into prior_refs
+  from jsonb_path_query(old.licks, '$[*].keys[*]') k
+  where jsonb_typeof(k->'reference') = 'object' and jsonb_typeof(k->'sessionId') = 'string';
+
+  if prior_refs is not null then
+    select coalesce(jsonb_agg(
+      case when jsonb_typeof(lick->'keys') = 'array' then
+        jsonb_set(lick, '{keys}', (select coalesce(jsonb_agg(
+          case when prior_refs ? (k->>'sessionId') and jsonb_typeof(k->'reference') is distinct from 'object'
+               then k || jsonb_build_object('reference', prior_refs->(k->>'sessionId'))
+               else k end order by key_pos), '[]'::jsonb)
+          from jsonb_array_elements(lick->'keys') with ordinality as keys(k, key_pos)))
+      else lick end order by lick_pos), '[]'::jsonb)
+    into new.licks
+    from jsonb_array_elements(new.licks) with ordinality as licks(lick, lick_pos);
+  end if;
   return new;
 end;
 $$;

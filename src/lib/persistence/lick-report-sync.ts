@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Phrase } from '$lib/types/music';
 import type { Database, Json } from '$lib/supabase/types';
 import { load, save, remove } from './storage';
 import { getActiveUidOrNull } from './namespace';
@@ -10,12 +11,14 @@ import { baseSessionId, loadLickPracticeSessions, type LickPracticeSessionLogEnt
 const SYNCED = 'synced-lick-report-revisions';
 const RESET_AT = 'lick-report-reset-at';
 type Revision = { signature: string; recordings: string[] };
+type RecentWorkouts = Map<string, LickPracticeSessionLogEntry[]>;
+type TakeReference = Pick<Phrase, 'notes' | 'timeSignature'> & { tempo: number; swing: number };
 // A long workout appends one key at a time. Keep only its small reference lines
 // across drains so each append doesn't reread every previous recording's PCM.
 let cacheOwner = '';
-const references = new Map<string, Awaited<ReturnType<typeof readReference>>>();
+const references = new Map<string, TakeReference | null>();
 
-export function queueLickReportReset() {
+export function queueLickReportReset(): void {
 	if (!getActiveUidOrNull()) return;
 	save(RESET_AT, Date.now());
 	remove(SYNCED);
@@ -23,7 +26,7 @@ export function queueLickReportReset() {
 }
 
 /** The log can have several progression entries for a single Daily Practice workout. */
-export function recentLickWorkouts(entries: LickPracticeSessionLogEntry[]) {
+export function recentLickWorkouts(entries: LickPracticeSessionLogEntry[]): RecentWorkouts {
 	const sessions = new Map<string, LickPracticeSessionLogEntry[]>();
 	for (const entry of [...entries].sort((a, b) => b.timestamp - a.timestamp || b.id.localeCompare(a.id))) {
 		const id = baseSessionId(entry);
@@ -34,12 +37,12 @@ export function recentLickWorkouts(entries: LickPracticeSessionLogEntry[]) {
 	return sessions;
 }
 
-export function queueHistoricalLickReports() {
+export function queueHistoricalLickReports(): void {
 	if (getActiveUidOrNull() && !load(SYNCED) && loadLickPracticeSessions().length) enqueue('lickReports');
 }
 
 /** Only changed workouts cross the network. Revisions belong to this device and account. */
-export async function flushLickReports(client: SupabaseClient<Database>) {
+export async function flushLickReports(client: SupabaseClient<Database>): Promise<void> {
 	const userId = getActiveUidOrNull();
 	if (!userId) return;
 	const generation = getScopeGeneration();
@@ -109,7 +112,7 @@ export async function flushLickReports(client: SupabaseClient<Database>) {
 }
 
 /** Older recordings retain the scorer's target notes even when the original chart is gone. */
-async function readReference(id: string, key: string) {
+async function readReference(id: string, key: string): Promise<TakeReference | null> {
 	const meta = await getRecordingMetadata(id);
 	if (!meta || meta.source !== 'lick-practice' || meta.key !== key) return null;
 	// A fluency score can use a placeholder realization for a trick. Only the

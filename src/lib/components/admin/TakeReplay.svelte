@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { mixAudio } from '$lib/audio/media-playback';
+	import { mixAudio, pauseMediaPlayback } from '$lib/audio/media-playback';
 	import type { Phrase } from '$lib/types/music';
 	import type { InstrumentId } from '$lib/types/instruments';
 	import { createLickAudition } from '$lib/state/lick-audition.svelte';
@@ -19,7 +19,7 @@
 	<div><span>Reference lick</span>
 		{#if phrase && tempo && instrument}
 			<button class="admin-inspect" onclick={() => {
-				audio?.pause();
+				if (audio) pauseMediaPlayback(audio);
 				if (phrase && tempo && instrument) void audition.play(phrase, { tempo, swing, instrument });
 			}}>{audition.state.playingId ? 'Stop reference' : 'Play reference'}</button>
 		{:else}<small>{!instrument ? 'No saved instrument' : 'Reference unavailable'}</small>{/if}

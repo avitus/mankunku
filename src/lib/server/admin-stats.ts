@@ -136,7 +136,8 @@ export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): Ad
 		}
 	}
 
-	const today = now.toISOString().slice(0, 10);
+	// Daily summaries are player-local dates. UTC+14 has the latest valid label.
+	const latestLocalDate = new Date(now.getTime() + 14 * 3600000).toISOString().slice(0, 10);
 	const cutoff = new Date(now.getTime() - 13 * 86400000).toISOString().slice(0, 10);
 	const earScores = new Map(input.earScores?.map(s => [s.user_id, s]));
 	const recent = new Map<string, { days: number; ear: number; keys: number }>();
@@ -145,7 +146,7 @@ export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): Ad
 		if (s.tonal_mastery != null && s.date > (mastery.get(s.user_id)?.date ?? '')) {
 			mastery.set(s.user_id, { date: s.date, value: s.tonal_mastery });
 		}
-		if (s.date < cutoff || s.date > today || s.session_count <= 0) continue;
+		if (s.date < cutoff || s.date > latestLocalDate || s.session_count <= 0) continue;
 		const stats = recent.get(s.user_id) ?? { days: 0, ear: 0, keys: 0 };
 		stats.days++;
 		stats.ear += s.ear_training_sessions ?? 0;

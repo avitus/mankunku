@@ -28,6 +28,17 @@ function emptyInput(): AdminStatsInput {
 }
 
 describe('buildAdminUserRows', () => {
+	it('includes practice already logged on the next local calendar day', () => {
+		const [row] = buildAdminUserRows({
+			...emptyInput(), authUsers: [{ id: 'player' }],
+			summaries: ['2026-11-29', '2026-11-30'].map(date => ({
+				user_id: 'player', date, session_count: 5, practice_minutes: 10,
+				ear_training_sessions: 2, lick_practice_sessions: 3
+			}))
+		}, new Date('2026-11-28T16:00:00Z'));
+		expect(row).toMatchObject({ practiceDays: 1, recentEarAttempts: 2, recentKeyAttempts: 3 });
+	});
+
 	it('includes historical practice instead of reporting only four recent visit days', () => {
 		const summaries = Array.from({ length: 133 }, (_, index) => ({
 			user_id: 'longtime',

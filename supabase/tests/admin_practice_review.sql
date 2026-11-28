@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(8);
 create temp table player as select gen_random_uuid() as id;
 insert into auth.users(id) select id from player;
 insert into public.session_results (id,user_id,timestamp,phrase_id,phrase_name,category,key,tempo,difficulty_level,
@@ -17,6 +17,15 @@ select is((select count(*) from public.lick_session_reports where user_id=(selec
 select is((select min(timestamp) from public.lick_session_reports where user_id=(select id from player)),3::bigint,'prunes oldest workouts first');
 update public.lick_session_reports set attempts=1 where user_id=(select id from player) and id='w7';
 select is((select attempts from public.lick_session_reports where user_id=(select id from player) and id='w7'),2,'late partial write preserves the fuller report');
+update public.lick_session_reports set licks =
+  '[{"keys":[{"sessionId":"one","reference":{"tempo":90}},{"sessionId":"two","reference":{"tempo":80}}]}]'
+  where user_id=(select id from player) and id='w7';
+update public.lick_session_reports set attempts=3, licks =
+  '[{"keys":[{"sessionId":"two","reference":{"tempo":100}},{"sessionId":"three"}]},{"keys":[{"sessionId":"one"}]}]'
+  where user_id=(select id from player) and id='w7';
+select is((select licks from public.lick_session_reports where user_id=(select id from player) and id='w7'),
+  '[{"keys":[{"sessionId":"two","reference":{"tempo":100}},{"sessionId":"three"}]},{"keys":[{"sessionId":"one","reference":{"tempo":90}}]}]'::jsonb,
+  'changed workouts retain an evicted reference by take ID and accept new attempts and references');
 set local role authenticated;
 select is((select count(*) from public.lick_session_reports),0::bigint,'a different user cannot read the player reports');
 reset role;
