@@ -96,6 +96,7 @@
 	import { prepareScoringCapture } from '$lib/audio/scoring-capture';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
+	import { currentLickReportGeneration } from '$lib/persistence/lick-report-sync';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
 	import {
 		upsertLickPracticeSession,
@@ -290,6 +291,7 @@
 		? continueRecommendations(sessionReport, lickPractice.plan, lickPracticeSessionLogId, recommendationContext)
 		: undefined);
 	let lickPracticeSessionStartTs = 0;
+	let reportGeneration = 0;
 
 	// Inter-lick rest (STANDARD mode only): INTER_LICK_REST_BARS of
 	// backing-only between licks. The rest is split visually: the first
@@ -653,6 +655,7 @@
 		// daily-summary derivation reads from the same log).
 		lickPracticeSessionLogId = `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 		lickPracticeSessionStartTs = Date.now();
+		reportGeneration = currentLickReportGeneration();
 
 		await startLick(lickPractice.currentLickIndex, /* isFirstLick */ true);
 	}
@@ -1471,6 +1474,7 @@
 					upsertLickPracticeSession({
 						id: `${lickPracticeSessionLogId}-${slice.progressionType}`,
 						timestamp: lickPracticeSessionStartTs,
+						reportGeneration,
 						progressionType: slice.progressionType,
 						practiceMode: lickPractice.config.practiceMode,
 						report: slice.report
@@ -1726,6 +1730,7 @@
 					upsertLickPracticeSession({
 						id: `${lickPracticeSessionLogId}-${slice.progressionType}`,
 						timestamp: lickPracticeSessionStartTs,
+						reportGeneration,
 						progressionType: slice.progressionType,
 						practiceMode: lickPractice.config.practiceMode,
 						report: slice.report

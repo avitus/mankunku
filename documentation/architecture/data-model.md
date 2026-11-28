@@ -730,6 +730,19 @@ server-side admin client. Account deletion cascades to device records. Observati
 start after deployment and the user's next signed-in page load; past devices cannot be
 reconstructed. Browser visits do not count as completed practice.
 
+### Recent practice reports and account resets
+
+The admin session review reads the five most recent lick workouts. Each workout
+records the account's current report generation when practice starts. A reset
+persists the next generation on the device before clearing local history. The
+database serializes report uploads and resets for each player. Retrying the
+same reset preserves workouts already started in the new generation.
+
+A device that practiced offline across another device's reset keeps those
+workouts in its local history. It resumes uploads for workouts started after it
+learns the new generation. Device clocks determine the displayed time only.
+Historical workouts without a generation belong to the initial generation.
+
 ### Admin visit days and content removal
 
 `user_visit_days` stores one `(user_id, date)` per UTC date observed signed in.

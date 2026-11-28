@@ -357,15 +357,15 @@ export type Database = {
       lick_report_resets: {
         Row: {
           user_id: string
-          reset_at: number
+          generation: number
         }
         Insert: {
           user_id: string
-          reset_at: number
+          generation: number
         }
         Update: {
           user_id?: string
-          reset_at?: number
+          generation?: number
         }
         Relationships: []
       }
@@ -376,6 +376,7 @@ export type Database = {
           timestamp: number
           attempts: number
           minutes: number
+          generation: number
           licks: Json
         }
         Insert: {
@@ -384,6 +385,7 @@ export type Database = {
           timestamp: number
           attempts: number
           minutes: number
+          generation?: number
           licks: Json
         }
         Update: {
@@ -392,6 +394,7 @@ export type Database = {
           timestamp?: number
           attempts?: number
           minutes?: number
+          generation?: number
           licks?: Json
         }
         Relationships: []

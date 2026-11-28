@@ -9,7 +9,8 @@ import { enqueue } from './outbox';
 import { baseSessionId, loadLickPracticeSessions, type LickPracticeSessionLogEntry } from './lick-practice-sessions';
 
 const SYNCED = 'synced-lick-report-revisions';
-const RESET_AT = 'lick-report-reset-at';
+const PENDING_RESET = 'lick-report-pending-generation';
+const OBSERVED = 'lick-report-observed-generation';
 type Revision = { signature: string; recordings: string[] };
 type RecentWorkouts = Map<string, LickPracticeSessionLogEntry[]>;
 type TakeReference = Pick<Phrase, 'notes' | 'timeSignature'> & { tempo: number; swing: number };
@@ -18,9 +19,16 @@ type TakeReference = Pick<Phrase, 'notes' | 'timeSignature'> & { tempo: number; 
 let cacheOwner = '';
 const references = new Map<string, TakeReference | null>();
 
+/** Snapshot at workout start, including a reset requested locally while offline. */
+export function currentLickReportGeneration(): number {
+	return Math.max(load<number>(PENDING_RESET) ?? 0, load<number>(OBSERVED) ?? 0);
+}
+
 export function queueLickReportReset(): void {
 	if (!getActiveUidOrNull()) return;
-	save(RESET_AT, Date.now());
+	const pending = (load<number>(OBSERVED) ?? 0) + 1;
+	save(PENDING_RESET, pending);
+	if (load<number>(PENDING_RESET) !== pending) throw new Error('Could not persist the practice report reset');
 	remove(SYNCED);
 	enqueue('lickReports');
 }
@@ -38,7 +46,8 @@ export function recentLickWorkouts(entries: LickPracticeSessionLogEntry[]): Rece
 }
 
 export function queueHistoricalLickReports(): void {
-	if (getActiveUidOrNull() && !load(SYNCED) && loadLickPracticeSessions().length) enqueue('lickReports');
+	// Refresh the generation even on a new device, or after a reset emptied the log.
+	if (getActiveUidOrNull()) enqueue('lickReports');
 }
 
 /** Only changed workouts cross the network. Revisions belong to this device and account. */
@@ -51,15 +60,26 @@ export async function flushLickReports(client: SupabaseClient<Database>): Promis
 	const sameAccount = () => getScopeGeneration() === generation && getActiveUidOrNull() === userId;
 	// Serialize reset with uploads in the same outbox worker. Retrying a reset
 	// must preserve workouts begun on another device after the reset.
-	const reset = load<number>(RESET_AT);
+	const reset = load<number>(PENDING_RESET);
 	if (reset !== null) {
 		const { error } = await client.from('lick_report_resets')
-			.upsert({ user_id: userId, reset_at: reset }, { onConflict: 'user_id' });
+			.upsert({ user_id: userId, generation: reset }, { onConflict: 'user_id' });
 		if (error) throw error;
-		if (!sameAccount() || load(RESET_AT) !== reset) return;
-		remove(RESET_AT);
 	}
-	const workouts = recentLickWorkouts(loadLickPracticeSessions());
+	if (!sameAccount() || load(PENDING_RESET) !== reset) return;
+	const { data, error } = await client.from('lick_report_resets')
+		.select('generation').eq('user_id', userId).maybeSingle();
+	if (error) throw error;
+	if (!sameAccount() || load(PENDING_RESET) !== reset) return;
+	const observed = data?.generation ?? 0;
+	if (observed < (load<number>(OBSERVED) ?? 0)) return;
+	if (reset !== null && observed < reset) throw new Error('Practice report reset is still pending');
+	save(OBSERVED, observed);
+	if (load<number>(OBSERVED) !== observed) throw new Error('Could not persist the practice report generation');
+	if (reset !== null) remove(PENDING_RESET);
+	// An offline device cannot order its workouts against an unseen reset.
+	// Keep those sessions local. Only a workout begun in this generation can upload.
+	const workouts = recentLickWorkouts(loadLickPracticeSessions().filter(e => (e.reportGeneration ?? 0) === observed));
 	if (!workouts.size) return;
 	const recordings = await getRecordingIds().catch(() => new Set<string>());
 	if (!sameAccount()) return;
@@ -71,7 +91,7 @@ export async function flushLickReports(client: SupabaseClient<Database>): Promis
 	for (const [id, entries] of workouts) {
 		const licks = entries.flatMap(e => e.report.licks);
 		const row = {
-			user_id: userId, id, timestamp: entries[0].timestamp,
+			user_id: userId, generation: observed, id, timestamp: entries[0].timestamp,
 			attempts: entries.reduce((n, e) => n + e.report.totalAttempts, 0),
 			minutes: Math.max(0, ...entries.map(e => e.report.elapsedMinutes ?? 0)),
 			licks

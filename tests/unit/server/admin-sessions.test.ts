@@ -18,7 +18,7 @@ describe('admin session review', () => {
 
 	it('preserves real per-key recording IDs and gracefully handles reports without references', () => {
 		const result = lickSession({
-			id: 'workout', user_id: 'player', timestamp: 123, attempts: 2, minutes: 4,
+			id: 'workout', user_id: 'player', generation: 0, timestamp: 123, attempts: 2, minutes: 4,
 			licks: [{ lickName: 'Minor turn', tempo: 92, keys: [
 				{ key: 'F', sessionId: 'exact-take', score: 1, passed: true, reference: { notes: [note], timeSignature: [3,4], tempo: 87, swing: 0.62 } },
 				{ key: 'C', score: 0, passed: false }

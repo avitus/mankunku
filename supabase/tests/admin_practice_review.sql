@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(18);
 select ok(not has_column_privilege('authenticated','public.user_profiles','is_admin','INSERT')
       and not has_column_privilege('authenticated','public.user_profiles','is_admin','UPDATE')
       and not has_column_privilege('anon','public.user_profiles','is_admin','INSERT')
@@ -41,18 +41,28 @@ reset role;
 grant select on player to authenticated;
 select set_config('request.jwt.claim.sub',(select id::text from player),true);
 set local role authenticated;
-insert into public.lick_report_resets select id,6 from player
-  on conflict (user_id) do update set reset_at=excluded.reset_at;
-select is((select count(*) from public.lick_session_reports),1::bigint,'reset removes only workouts at or before the cutoff');
-insert into public.lick_session_reports select id,'late',6,1,1,'[]'::jsonb from player;
-select is((select count(*) from public.lick_session_reports where id='late'),0::bigint,'late sync cannot restore a reset workout');
-insert into public.lick_report_resets select id,4 from player
-  on conflict (user_id) do update set reset_at=excluded.reset_at;
-select is((select reset_at from public.lick_report_resets),6::bigint,'an older reset cannot move the cutoff back');
-insert into public.lick_session_reports select id,'newer',8,1,1,'[]'::jsonb from player;
-select is((select count(*) from public.lick_session_reports where timestamp>6),2::bigint,'new workouts sync after a reset');
+insert into public.lick_report_resets select id,1 from player
+  on conflict (user_id) do update set generation=excluded.generation;
+select is((select count(*) from public.lick_session_reports),0::bigint,'reset removes every report from the previous generation');
+select throws_ok($$insert into public.lick_session_reports
+  select id,'late',9999999999999,1,1,'[]'::jsonb,0 from player$$,
+  '40001','Practice report generation changed','a fast clock cannot restore an old-generation workout');
+insert into public.lick_session_reports select id,'newer',1,1,1,'[]'::jsonb,1 from player;
+insert into public.lick_report_resets select id,1 from player
+  on conflict (user_id) do update set generation=excluded.generation;
+select is((select generation from public.lick_report_resets),1,'retry leaves the generation unchanged');
+select is((select count(*) from public.lick_session_reports where id='newer'),1::bigint,'new workout survives retry even with a slow clock');
 select ok(not has_table_privilege('authenticated','public.lick_report_resets','DELETE'),
-  'clients cannot remove the durable cutoff');
+  'clients cannot remove the reset generation');
+insert into public.lick_report_resets select id,2 from player
+  on conflict (user_id) do update set generation=excluded.generation;
+select is((select count(*) from public.lick_session_reports),0::bigint,'a second reset discards the previous generation');
+insert into public.lick_report_resets select id,1 from player
+  on conflict (user_id) do update set generation=excluded.generation;
+select is((select generation from public.lick_report_resets),2,'out-of-order retry cannot undo a subsequent reset');
+select throws_ok($$insert into public.lick_report_resets select id,4 from player
+  on conflict (user_id) do update set generation=excluded.generation$$,
+  '23514','Invalid report reset generation','only the next server generation may be claimed');
 reset role;
 select * from finish();
 rollback;

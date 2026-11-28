@@ -14,6 +14,7 @@ create table public.lick_session_reports (
   attempts integer not null check (attempts > 0),
   minutes integer not null check (minutes >= 0),
   licks jsonb not null check (jsonb_typeof(licks) = 'array'),
+  generation integer not null default 0 check (generation >= 0),
   primary key (user_id, id)
 );
 create index lick_session_reports_recent on public.lick_session_reports(user_id, timestamp desc, id desc);
@@ -23,46 +24,52 @@ grant select, insert, update, delete on public.lick_session_reports to authentic
 create policy "Own practice reports" on public.lick_session_reports for all to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
--- Keep the reset cutoff after deleting the reports. A device can reconnect
--- much later with a local snapshot of a workout the player already cleared.
+-- Each workout carries the last reset generation observed when practice began.
+-- Device clocks are used for presentation only.
 create table public.lick_report_resets (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  reset_at bigint not null check (reset_at >= 0)
+  generation integer not null check (generation > 0)
 );
 alter table public.lick_report_resets enable row level security;
 revoke all on public.lick_report_resets from public, anon, authenticated;
 grant select, insert, update on public.lick_report_resets to authenticated;
 grant all on public.lick_report_resets to service_role;
-create policy "Own report reset cutoff" on public.lick_report_resets for all to authenticated
+create policy "Own report reset generation" on public.lick_report_resets for all to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
--- Both writes take the same lock before inserting. A retry uses the original
--- cutoff, preserving any genuinely newer workouts on another device.
+-- Only the next generation advances the account. Concurrent resets of the
+-- same observed generation coalesce, including a retry after a lost response.
 create function private.apply_lick_report_reset() returns trigger
 language plpgsql set search_path = '' as $$
+declare current_generation integer;
 begin
   perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
-  if tg_op = 'UPDATE' then new.reset_at := greatest(old.reset_at, new.reset_at); end if;
-  delete from public.lick_session_reports where user_id = new.user_id and timestamp <= new.reset_at;
+  select generation into current_generation from public.lick_report_resets where user_id = new.user_id;
+  if new.generation <= coalesce(current_generation, 0) then return null; end if;
+  if new.generation <> coalesce(current_generation, 0) + 1 then
+    raise exception 'Invalid report reset generation' using errcode = '23514';
+  end if;
+  delete from public.lick_session_reports where user_id = new.user_id and generation < new.generation;
   return new;
 end;
 $$;
 create trigger apply_lick_report_reset before insert or update on public.lick_report_resets
 for each row execute function private.apply_lick_report_reset();
 
-create function private.check_lick_report_cutoff() returns trigger
+create function private.check_lick_report_generation() returns trigger
 language plpgsql set search_path = '' as $$
 begin
   perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
-  if exists (select 1 from public.lick_report_resets
-             where user_id = new.user_id and new.timestamp <= reset_at) then
-    return null;
+  if new.generation <> coalesce((select generation from public.lick_report_resets
+                                 where user_id = new.user_id), 0) then
+    -- An upload raced a reset. The outbox must refresh before it can acknowledge it.
+    raise exception 'Practice report generation changed' using errcode = '40001';
   end if;
   return new;
 end;
 $$;
-create trigger check_lick_report_cutoff before insert or update on public.lick_session_reports
-for each row execute function private.check_lick_report_cutoff();
+create trigger check_lick_report_generation before insert or update on public.lick_session_reports
+for each row execute function private.check_lick_report_generation();
 
 -- Tabs can flush snapshots of an in-progress session out of order.
 create function private.keep_complete_lick_report() returns trigger
