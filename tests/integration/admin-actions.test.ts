@@ -211,6 +211,7 @@ async function runLoad(): Promise<AdminLoadResult> {
 describe('/admin load', () => {
 	beforeEach(() => {
 		mockAdmin.from.mockImplementation(() => makeQueryMock([]));
+		mockAdmin.rpc.mockResolvedValue({ data: [], error: null });
 	});
 
 	it('returns joined users and totals when the auth list is complete', async () => {
@@ -230,6 +231,17 @@ describe('/admin load', () => {
 		expect(result.truncated).toBe(false);
 		expect(result.users).toHaveLength(2);
 		expect(result.totals).toMatchObject({ totalUsers: 2 });
+	});
+
+	it('keeps pending deletion recovery available when the score lookup fails', async () => {
+		mockAdminAuth.admin.listUsers.mockResolvedValue({ data: { users: [{ id: 'u1' }] }, error: null });
+		mockAdmin.rpc.mockResolvedValue({ data: null, error: { message: 'score lookup unavailable' } });
+		const action = { id: 'pending', action: 'delete_user', status: 'pending', created_at: '2026-11-27' };
+		mockAdmin.from.mockImplementation(table => makeQueryMock(table === 'admin_actions' ? [action] : []));
+		const result = await runLoad();
+		expect(result.unavailable).toBe(false);
+		expect(result.audit).toEqual([action]);
+		expect(result.users[0].earScore).toBeNull();
 	});
 
 	it('includes browser observations from the paginated admin query', async () => {

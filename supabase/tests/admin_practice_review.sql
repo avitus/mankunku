@@ -1,6 +1,15 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(15);
+select ok(not has_column_privilege('authenticated','public.user_profiles','is_admin','INSERT')
+      and not has_column_privilege('authenticated','public.user_profiles','is_admin','UPDATE')
+      and not has_column_privilege('anon','public.user_profiles','is_admin','INSERT')
+      and not has_column_privilege('anon','public.user_profiles','is_admin','UPDATE'),
+  'client roles cannot assign admin membership');
+select ok(has_column_privilege('authenticated','public.user_profiles','display_name','UPDATE')
+      and has_column_privilege('authenticated','public.user_profiles','updated_at','UPDATE')
+      and has_column_privilege('service_role','public.user_profiles','is_admin','UPDATE'),
+  'profile editing and trusted role administration remain available');
 create temp table player as select gen_random_uuid() as id;
 insert into auth.users(id) select id from player;
 insert into public.session_results (id,user_id,timestamp,phrase_id,phrase_name,category,key,tempo,difficulty_level,
@@ -28,6 +37,22 @@ select is((select licks from public.lick_session_reports where user_id=(select i
   'changed workouts retain an evicted reference by take ID and accept new attempts and references');
 set local role authenticated;
 select is((select count(*) from public.lick_session_reports),0::bigint,'a different user cannot read the player reports');
+reset role;
+grant select on player to authenticated;
+select set_config('request.jwt.claim.sub',(select id::text from player),true);
+set local role authenticated;
+insert into public.lick_report_resets select id,6 from player
+  on conflict (user_id) do update set reset_at=excluded.reset_at;
+select is((select count(*) from public.lick_session_reports),1::bigint,'reset removes only workouts at or before the cutoff');
+insert into public.lick_session_reports select id,'late',6,1,1,'[]'::jsonb from player;
+select is((select count(*) from public.lick_session_reports where id='late'),0::bigint,'late sync cannot restore a reset workout');
+insert into public.lick_report_resets select id,4 from player
+  on conflict (user_id) do update set reset_at=excluded.reset_at;
+select is((select reset_at from public.lick_report_resets),6::bigint,'an older reset cannot move the cutoff back');
+insert into public.lick_session_reports select id,'newer',8,1,1,'[]'::jsonb from player;
+select is((select count(*) from public.lick_session_reports where timestamp>6),2::bigint,'new workouts sync after a reset');
+select ok(not has_table_privilege('authenticated','public.lick_report_resets','DELETE'),
+  'clients cannot remove the durable cutoff');
 reset role;
 select * from finish();
 rollback;

@@ -138,7 +138,7 @@
 
 						<div class="practice-strip">
 							<div><span>Ear-training score</span><strong>{row.earScore ? Math.round(row.earScore.recent * 100) + '%' : '—'}</strong>
-								<small>{row.earScore ? 'Last ' + row.earScore.samples + (row.earScore.samples === 1 ? ' take' : ' takes') : 'No scored takes'}</small>
+								<small>{row.earScore ? 'Last ' + row.earScore.samples + (row.earScore.samples === 1 ? ' take' : ' takes') : 'No score available'}</small>
 								{#if row.earScore?.prior != null}
 									{@const delta = Math.round((row.earScore.recent - row.earScore.prior) * 100)}
 									<small class="score-change">{delta > 0 ? '+' : ''}{delta} pts vs previous 5</small>

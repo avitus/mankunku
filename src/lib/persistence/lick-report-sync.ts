@@ -53,7 +53,8 @@ export async function flushLickReports(client: SupabaseClient<Database>): Promis
 	// must preserve workouts begun on another device after the reset.
 	const reset = load<number>(RESET_AT);
 	if (reset !== null) {
-		const { error } = await client.from('lick_session_reports').delete().eq('user_id', userId).lte('timestamp', reset);
+		const { error } = await client.from('lick_report_resets')
+			.upsert({ user_id: userId, reset_at: reset }, { onConflict: 'user_id' });
 		if (error) throw error;
 		if (!sameAccount() || load(RESET_AT) !== reset) return;
 		remove(RESET_AT);

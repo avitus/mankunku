@@ -354,6 +354,21 @@ export type Database = {
       }
 
       /** Per-workout snapshots from the player’s lick-practice log. */
+      lick_report_resets: {
+        Row: {
+          user_id: string
+          reset_at: number
+        }
+        Insert: {
+          user_id: string
+          reset_at: number
+        }
+        Update: {
+          user_id?: string
+          reset_at?: number
+        }
+        Relationships: []
+      }
       lick_session_reports: {
         Row: {
           user_id: string

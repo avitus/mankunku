@@ -1,3 +1,11 @@
+-- Profile ownership grants access to presentation fields. Only trusted operators
+-- may assign the role the admin session and recording routes rely on.
+revoke insert, update on public.user_profiles from public, anon, authenticated;
+revoke insert (is_admin), update (is_admin) on public.user_profiles from public, anon, authenticated;
+grant insert (id, display_name, avatar_url, created_at, updated_at),
+      update (id, display_name, avatar_url, created_at, updated_at)
+  on public.user_profiles to authenticated;
+
 -- One row per workout, including all progressions in a Daily Practice session.
 create table public.lick_session_reports (
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -14,6 +22,47 @@ revoke all on public.lick_session_reports from public, anon, authenticated;
 grant select, insert, update, delete on public.lick_session_reports to authenticated, service_role;
 create policy "Own practice reports" on public.lick_session_reports for all to authenticated
   using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- Keep the reset cutoff after deleting the reports. A device can reconnect
+-- much later with a local snapshot of a workout the player already cleared.
+create table public.lick_report_resets (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  reset_at bigint not null check (reset_at >= 0)
+);
+alter table public.lick_report_resets enable row level security;
+revoke all on public.lick_report_resets from public, anon, authenticated;
+grant select, insert, update on public.lick_report_resets to authenticated;
+grant all on public.lick_report_resets to service_role;
+create policy "Own report reset cutoff" on public.lick_report_resets for all to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- Both writes take the same lock before inserting. A retry uses the original
+-- cutoff, preserving any genuinely newer workouts on another device.
+create function private.apply_lick_report_reset() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
+  if tg_op = 'UPDATE' then new.reset_at := greatest(old.reset_at, new.reset_at); end if;
+  delete from public.lick_session_reports where user_id = new.user_id and timestamp <= new.reset_at;
+  return new;
+end;
+$$;
+create trigger apply_lick_report_reset before insert or update on public.lick_report_resets
+for each row execute function private.apply_lick_report_reset();
+
+create function private.check_lick_report_cutoff() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended(new.user_id::text, 0));
+  if exists (select 1 from public.lick_report_resets
+             where user_id = new.user_id and new.timestamp <= reset_at) then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+create trigger check_lick_report_cutoff before insert or update on public.lick_session_reports
+for each row execute function private.check_lick_report_cutoff();
 
 -- Tabs can flush snapshots of an in-progress session out of order.
 create function private.keep_complete_lick_report() returns trigger
@@ -74,7 +123,6 @@ language plpgsql set search_path = '' as $$
 declare owner_id uuid;
 begin
   for owner_id in select distinct user_id from inserted_reports order by user_id loop
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(owner_id::text, 0));
     delete from public.lick_session_reports
       where user_id = owner_id and id in (
         select id from public.lick_session_reports where user_id = owner_id

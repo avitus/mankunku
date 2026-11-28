@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
-import { flushLickReports } from '$lib/persistence/lick-report-sync';
+import { flushLickReports, queueLickReportReset } from '$lib/persistence/lick-report-sync';
 
 const state = vi.hoisted(() => ({
 	uid: 'player', generation: 1, entries: [] as LickPracticeSessionLogEntry[],
@@ -51,6 +51,21 @@ describe('lick report sync', () => {
 		state.ids.clear();
 		await flushLickReports(client);
 		expect(upsert).toHaveBeenCalledTimes(3);
+	});
+
+	it('retries the original reset cutoff before resuming report uploads', async () => {
+		state.entries = [];
+		queueLickReportReset();
+		const reset = state.values.get('lick-report-reset-at');
+		const upsert = vi.fn().mockResolvedValueOnce({ error: new Error('offline') }).mockResolvedValue({ error: null });
+		const from = vi.fn(() => ({ upsert }));
+		const client = { from } as never;
+		await expect(flushLickReports(client)).rejects.toThrow('offline');
+		expect(state.values.get('lick-report-reset-at')).toBe(reset);
+		await flushLickReports(client);
+		expect(from).toHaveBeenLastCalledWith('lick_report_resets');
+		expect(upsert).toHaveBeenLastCalledWith({ user_id: state.uid, reset_at: reset }, { onConflict: 'user_id' });
+		expect(state.values.has('lick-report-reset-at')).toBe(false);
 	});
 
 	it('does not upload when the active account changes while a recording is being read', async () => {

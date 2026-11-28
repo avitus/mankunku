@@ -109,9 +109,15 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 	const earScores = [];
 	for (let start = 0; start < authUsers.length; start += 500) {
 		const ids = authUsers.slice(start, start + 500).map(u => u.id);
-		const { data, error } = await admin.rpc('admin_ear_scores', { p_users: ids });
-		if (error) throw error;
-		earScores.push(...data);
+		try {
+			const { data, error } = await admin.rpc('admin_ear_scores', { p_users: ids });
+			if (error) throw error;
+			earScores.push(...data);
+		} catch (error) {
+			// Scores enrich the roster. Audit history and deletion recovery can
+			// still be served if this batch is unavailable.
+			console.warn('Could not load admin ear scores:', error);
+		}
 	}
 	const input: AdminStatsInput = {
 		earScores,
