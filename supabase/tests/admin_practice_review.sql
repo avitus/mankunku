@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(27);
 select ok(not has_column_privilege('authenticated','public.user_profiles','is_admin','INSERT')
       and not has_column_privilege('authenticated','public.user_profiles','is_admin','UPDATE')
       and not has_column_privilege('anon','public.user_profiles','is_admin','INSERT')
@@ -43,6 +43,28 @@ select ok(not public.admin_review_recording_allowed((select id from player),
 select ok(not public.admin_review_recording_allowed(gen_random_uuid(), 'one')
   and not has_function_privilege('authenticated','public.admin_review_recording_allowed(uuid,text)','EXECUTE'),
   'eligibility is account-scoped and service-only');
+update public.lick_session_reports set licks=jsonb_build_array(jsonb_build_object('keys',
+  (select jsonb_agg(i) from generate_series(1,1025) i))) where id='w6';
+select is((select licks from public.lick_session_reports where id='w6'),'[]'::jsonb,'too many key rows retain only the workout summary');
+insert into public.lick_session_reports select id,'large',99,12,4,jsonb_build_array(repeat('x',1048576)) from player;
+select is((select (licks,attempts,minutes)::text from public.lick_session_reports where id='large'),
+  ('[]'::jsonb,12,4)::text,'large compressible details keep the real attempts and minutes');
+update public.lick_session_reports set licks=(select jsonb_agg(i) from generate_series(1,257)i) where id='w6';
+select is((select licks from public.lick_session_reports where id='w6'),
+  '[]'::jsonb,'limits the number of lick headings in a workout');
+-- A valid incoming row can still exceed the budget after missing references
+-- are restored. Exercise both a single large merge and a duplicated take ID.
+update public.lick_session_reports set licks=jsonb_build_array(jsonb_build_object('keys',
+  jsonb_build_array(jsonb_build_object('sessionId','long','reference',jsonb_build_object('text',repeat('x',600000))))))
+where id='w6';
+update public.lick_session_reports set licks=jsonb_build_array(jsonb_build_object('keys',
+  jsonb_build_array(jsonb_build_object('sessionId','long')),'name',repeat('y',600000))) where id='w6';
+select is((select licks from public.lick_session_reports where id='w6'),'[]'::jsonb,'restored references count toward the final byte limit');
+update public.lick_session_reports set licks=jsonb_build_array(jsonb_build_object('keys',
+  jsonb_build_array(jsonb_build_object('sessionId','long','reference',jsonb_build_object('text',repeat('x',600000))))))
+where id='w6';
+update public.lick_session_reports set licks='[{"keys":[{"sessionId":"long"},{"sessionId":"long"}]}]'::jsonb where id='w6';
+select is((select licks from public.lick_session_reports where id='w6'),'[]'::jsonb,'duplicate take IDs cannot multiply a reference beyond the limit');
 set local role authenticated;
 select is((select count(*) from public.lick_session_reports),0::bigint,'a different user cannot read the player reports');
 reset role;

@@ -746,6 +746,10 @@ deletion takes effect when the server first receives the request. The server
 retains the request ID so a delayed retry cannot repeat the deletion.
 Historical workouts without a generation belong to the initial generation.
 
+Each cloud report includes at most 256 lick entries, 1,024 key entries and
+1 MiB of uncompressed JSON detail. A workout over any limit keeps its attempt
+count and duration in the admin review. Its per-key history stays on the device.
+
 ### Admin visit days and content removal
 
 `user_visit_days` stores one `(user_id, date)` per UTC date observed signed in.

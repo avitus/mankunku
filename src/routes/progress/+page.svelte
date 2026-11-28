@@ -1034,6 +1034,8 @@
 								await resetAllPracticeData(supabase ?? undefined);
 							} catch (err) {
 								console.warn('Failed to fully reset progress:', err);
+								alert('Could not finish resetting practice history. Check the available browser storage and try again.');
+								return;
 							}
 							// Reset page-local view state.
 							recordingIds = new Set();

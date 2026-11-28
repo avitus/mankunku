@@ -79,6 +79,27 @@ $$;
 create trigger check_lick_report_generation before insert or update on public.lick_session_reports
 for each row execute function private.check_lick_report_generation();
 
+-- Keep unusually large workouts as summaries. The local practice log remains
+-- complete. Limit uncompressed JSON and the number of rows the admin UI renders.
+create function private.limit_lick_report_details() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if jsonb_typeof(new.licks) = 'array' then
+    if jsonb_array_length(new.licks) > 256 or octet_length(new.licks::text) > 1048576
+       or jsonb_array_length(jsonb_path_query_array(new.licks, '$[*].keys[*]')) > 1024 then
+      new.licks := '[]'::jsonb;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+-- PostgreSQL runs same-kind triggers alphabetically. Bound the input before
+-- merging stored references and the final payload after references are restored.
+create trigger bound_incoming_lick_report before insert or update on public.lick_session_reports
+for each row execute function private.limit_lick_report_details();
+create trigger limit_merged_lick_report before update on public.lick_session_reports
+for each row execute function private.limit_lick_report_details();
+
 -- Tabs can flush snapshots of an in-progress session out of order.
 create function private.keep_complete_lick_report() returns trigger
 language plpgsql set search_path = '' as $$
@@ -86,7 +107,7 @@ declare
   prior_refs jsonb;
 begin
   if (new.attempts, new.minutes) < (old.attempts, old.minutes) then return null; end if;
-  if new.licks = old.licks then return new; end if;
+  if new.licks = '[]'::jsonb or new.licks = old.licks then return new; end if;
 
   -- The originating device may have evicted a recording; other devices may
   -- never have had it. Preserve its reference from the locked row on upsert.
@@ -95,6 +116,17 @@ begin
   where jsonb_typeof(k->'reference') = 'object' and jsonb_typeof(k->'sessionId') = 'string';
 
   if prior_refs is not null then
+    -- A repeated take ID must not expand one reference many times beyond the
+    -- budget while the merge is being built. Measure each old reference once.
+    if (select sum(missing.copies * octet_length((prior_refs->missing.id)::text)) from (
+          select k->>'sessionId' as id, count(*) as copies
+          from jsonb_path_query(new.licks, '$[*].keys[*]') k
+          where jsonb_typeof(k->'reference') is distinct from 'object'
+          group by k->>'sessionId'
+        ) missing) > 1048576 then
+      new.licks := '[]'::jsonb;
+      return new;
+    end if;
     select coalesce(jsonb_agg(
       case when jsonb_typeof(lick->'keys') = 'array' then
         jsonb_set(lick, '{keys}', (select coalesce(jsonb_agg(

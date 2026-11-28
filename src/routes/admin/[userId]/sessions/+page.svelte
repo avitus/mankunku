@@ -54,7 +54,7 @@
 				{@const expanded = openId === undefined ? i === 0 : openId === s.id}
 				<section class="review-row">
 					<button class="review-heading" aria-expanded={expanded} onclick={() => toggle(s.id, expanded)}>
-						<strong>{s.passed}/{s.attempts}</strong><span><b>{s.licks[0]?.name ?? 'Lick practice'}{s.licks.length > 1 ? ' + ' + (s.licks.length - 1) + ' more' : ''}</b><small>{date(s.timestamp)} · Keys passed · {s.minutes} min</small></span><i>{expanded ? '−' : '+'}</i>
+						<strong>{s.licks.length ? s.passed + '/' + s.attempts : s.attempts}</strong><span><b>{s.licks[0]?.name ?? 'Lick practice'}{s.licks.length > 1 ? ' + ' + (s.licks.length - 1) + ' more' : ''}</b><small>{date(s.timestamp)} · {s.licks.length ? 'Keys passed' : 'Attempts'} · {s.minutes} min</small></span><i>{expanded ? '−' : '+'}</i>
 					</button>
 					{#if expanded}<div class="review-body">
 						{#each s.licks as lick, li}
@@ -66,7 +66,7 @@
 								</button>
 								{#if openKey === keyId}<TakeReplay userId={data.userId} take={k.id} phrase={k.phrase} instrument={data.instrument} tempo={k.tempo ?? lick.tempo} swing={k.swing ?? data.swing}/>{/if}
 							{/each}
-						{/each}
+						{:else}<p>Per-key details are unavailable for this workout.</p>{/each}
 					</div>{/if}
 				</section>
 			{:else}<p class="review-empty">No synced lick-practice reports. Older reports can sync when the player returns on the device they used.</p>{/each}
