@@ -28,6 +28,32 @@ function emptyInput(): AdminStatsInput {
 }
 
 describe('buildAdminUserRows', () => {
+	it('includes practice already logged on the next local calendar day', () => {
+		const [row] = buildAdminUserRows({
+			...emptyInput(), authUsers: [{ id: 'player' }],
+			summaries: ['2026-11-29', '2026-11-30'].map(date => ({
+				user_id: 'player', date, session_count: 5, practice_minutes: 10,
+				ear_training_sessions: 2, lick_practice_sessions: 3
+			}))
+		}, new Date('2026-11-28T16:00:00Z'));
+		expect(row).toMatchObject({ practiceDays: 1, recentEarAttempts: 2, recentKeyAttempts: 3 });
+	});
+
+	it('uses exactly fourteen date labels per player across the UTC+14 boundary', () => {
+		const authUsers = [{ id: 'utc' }, { id: 'ahead' }];
+		const summaries = authUsers.flatMap(({ id }) => Array.from({ length: 16 }, (_, i) => {
+			const day = 15 + i;
+			const count = id === 'utc' && day === 29 ? 0 : 1;
+			return {
+				user_id: id, date: `2026-11-${day}`, session_count: count, practice_minutes: count,
+				ear_training_sessions: day === 15 ? 10 : 0, lick_practice_sessions: day === 29 ? 7 : 0
+			};
+		}));
+		const [utc, ahead] = buildAdminUserRows({ ...emptyInput(), authUsers, summaries }, new Date('2026-11-28T16:00:00Z'));
+		expect(utc).toMatchObject({ practiceDays: 14, recentEarAttempts: 10, recentKeyAttempts: 0 });
+		expect(ahead).toMatchObject({ practiceDays: 14, recentEarAttempts: 0, recentKeyAttempts: 7 });
+	});
+
 	it('includes historical practice instead of reporting only four recent visit days', () => {
 		const summaries = Array.from({ length: 133 }, (_, index) => ({
 			user_id: 'longtime',
@@ -90,20 +116,23 @@ describe('buildAdminUserRows', () => {
 				}
 			],
 			profiles: [{ id: 'u1', display_name: 'One', is_admin: true }],
+			earScores: [{ user_id: 'u1', samples: 3, recent: 0, prior: null }],
 			summaries: [
-				{ user_id: 'u1', date: '2026-08-10', session_count: 3, practice_minutes: 25 },
-				{ user_id: 'u1', date: '2026-08-14', session_count: 2, practice_minutes: 10 }
+				{ user_id: 'u1', date: '2026-08-10', session_count: 3, practice_minutes: 25, ear_training_sessions: 3, tonal_mastery: 3 },
+				{ user_id: 'u1', date: '2026-08-14', session_count: 2, practice_minutes: 10, lick_practice_sessions: 2, tonal_mastery: 4 }
 			],
 			lickOwners: ['u1', 'u1', 'u1'],
 			tuneOwners: ['u1'],
 			settings: [{ user_id: 'u1', updated_at: '2026-08-16T08:00:00Z', instrument_id: 'tenor-sax' }]
-		});
+		}, NOW);
 
 		expect(rows).toEqual([
 			{
 				id: 'u1',
 				email: 'one@example.com',
 				displayName: 'One',
+				earScore: { user_id: 'u1', samples: 3, recent: 0, prior: null },
+				practiceDays: 2, recentEarAttempts: 3, recentKeyAttempts: 2, tonalMastery: 4,
 				isAdmin: true,
 				createdAt: '2026-08-01T10:00:00Z',
 				lastSignInAt: '2026-08-15T09:00:00Z',
@@ -134,6 +163,7 @@ describe('buildAdminUserRows', () => {
 				id: 'u2',
 				email: 'two@example.com',
 				displayName: null,
+				earScore: null, practiceDays: 0, recentEarAttempts: 0, recentKeyAttempts: 0, tonalMastery: null,
 				isAdmin: false,
 				createdAt: '2026-08-02T00:00:00Z',
 				lastSignInAt: null,

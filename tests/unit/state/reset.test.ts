@@ -33,6 +33,10 @@ vi.mock('$lib/state/settings.svelte', () => ({
 	})
 }));
 
+vi.mock('$lib/persistence/lick-report-sync', () => ({
+	queueLickReportReset: vi.fn(() => { calls.push('queueLickReportReset'); })
+}));
+
 vi.mock('$lib/persistence/lick-practice-sessions', () => ({
 	clearLickPracticeSessions: vi.fn(() => {
 		calls.push('clearLickPracticeSessions');
@@ -55,6 +59,7 @@ vi.mock('$lib/persistence/sync', () => ({
 	})
 }));
 
+import { queueLickReportReset } from '$lib/persistence/lick-report-sync';
 import { resetAllPracticeData } from '$lib/state/reset';
 import { resetProgress } from '$lib/state/progress.svelte';
 import { saveSettings } from '$lib/state/settings.svelte';
@@ -74,12 +79,19 @@ describe('resetAllPracticeData', () => {
 	it('clears every source log, sources first', async () => {
 		await resetAllPracticeData(supabase);
 		expect(calls).toEqual([
+			'queueLickReportReset',
 			'resetProgress',
 			'clearLickPracticeSessions',
 			'saveSettings',
 			'clearAllRecordings',
 			'deleteAllRecordingsFromCloud'
 		]);
+	});
+
+	it('preserves local history if the cloud reset intent cannot be persisted', async () => {
+		vi.mocked(queueLickReportReset).mockImplementationOnce(() => { throw new Error('Storage full'); });
+		await expect(resetAllPracticeData(supabase)).rejects.toThrow('Storage full');
+		expect(calls).toEqual([]);
 	});
 
 	it('clears the tonality override and persists it', async () => {

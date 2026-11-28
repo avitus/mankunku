@@ -896,6 +896,22 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 	}
 	const recovery = 0.1 + 32 / 60;
 
+	it('retains two separate tongue stops before the envelope regains its initial level', () => {
+		// From 0.40 s to 0.58 s the tone only partially recovers between stops.
+		const envelope = [0.04, 0.055, 0.08, 0.08, 0.08, 0.08, 0.08, 0.05, 0.055, 0.08];
+		const readings: PitchReading[] = Array.from({ length: 50 }, (_, i) => {
+			const stop = i === 20 || i === 27;
+			const next = i === 21 || i === 28;
+			const rms = envelope[i - 20] ?? 0.1;
+			return { midi: 55, midiFloat: i === 20 ? 55.1 : 55, cents: 0, frequency: 196,
+				time: i / 50, clarity: stop ? 0.8 : 0.99, rms, rmsMin: stop || next ? 0.02 : rms };
+		});
+		const onsets = findReArticulations(readings, [0]);
+		expect(onsets).toHaveLength(2);
+		expect(onsets[0]).toBeCloseTo(0.42, 3);
+		expect(onsets[1]).toBeCloseTo(0.54, 3);
+	});
+
 	it('splits a floor dip that recovers when tongue noise corroborates it', () => {
 		const onsets = findReArticulations(dipRun({ hfBurst: true }), [0.1]);
 		expect(onsets).toHaveLength(1);

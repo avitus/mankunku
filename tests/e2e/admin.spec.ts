@@ -48,6 +48,12 @@ test.describe('admin — access control', () => {
 		// this spec seeded nothing: the namespace re-home reload (above) raced a
 		// same-test follow-up goto() — "Navigation to / is interrupted by another
 		// navigation to /admin". The seed removes that reload; the split stays.
+		test('session reports require admin access', async ({ signedInPage }) => {
+			const sessions = '/admin/00000000-0000-4000-8000-000000000002/sessions';
+			const response = await signedInPage.request.get(sessions);
+			expect(response.status()).toBe(404);
+		});
+
 		test('signed-in non-admins get a 404', async ({ signedInPage }) => {
 			await seedOnboardedAnonymous(signedInPage);
 			const response = await signedInPage.goto('/admin');
@@ -105,6 +111,23 @@ adminTest.describe('admin — content management', () => {
 		await seedOnboardedAnonymous(signedInPage);
 		await signedInPage.context().addCookies([{ name: 'e2e-admin-fixture', value: '1', url: baseURL! }]);
 		await signedInPage.goto('/admin');
+		await signedInPage.getByRole('combobox', { name: 'Show', exact: true }).selectOption('all');
+	});
+
+	adminTest('reviews the last five sessions of each activity for the selected player', async ({ signedInPage: page }) => {
+		const row = page.locator('article').filter({ hasText: 'inactive@example.test' });
+		await expect(row.getByText('82%', { exact: true })).toBeVisible();
+		await row.getByRole('link', { name: 'Review recent sessions' }).click();
+		await expect(page.getByRole('heading', { name: 'Recent sessions' })).toBeVisible();
+		await expect(page.locator('.review-row')).toHaveCount(5);
+		await expect(page.getByText('90%', { exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Play reference' })).toBeVisible();
+		await page.getByRole('button', { name: 'Lick practice' }).click();
+		await expect(page.locator('.review-row')).toHaveCount(5);
+		await page.getByRole('button', { name: /90% · Passed/ }).click();
+		await expect(page.getByText('Recording unavailable')).toBeVisible();
+		await page.getByRole('link', { name: 'All players' }).click();
+		await expect(page).toHaveURL(/\/admin$/);
 	});
 
 	adminTest('includes historical practice and keeps recently practicing users out of the inactive filter', async ({ signedInPage: page }) => {
@@ -113,6 +136,8 @@ adminTest.describe('admin — content management', () => {
 		await expect(page.getByText('Last active', { exact: true }).locator('..')).not.toHaveText('Last active —');
 		await page.getByText('About activity', { exact: true }).click();
 		await expect(page.getByText(/including historical practice/)).toBeVisible();
+		await expect(page.getByText(/14 calendar dates through today in UTC, or through the player’s next local date/)).toBeVisible();
+		await expect(page.getByText('Practice days', { exact: true }).locator('..').locator('strong')).toHaveText(/1\s*\/\s*14/);
 		await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('inactive');
 		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
 	});
@@ -191,8 +216,8 @@ for (const viewport of [
 		await page.context().addCookies([{ name: 'e2e-admin-fixture', value: '1', url: baseURL! }]);
 		await page.setViewportSize({ width: viewport.width, height: 1000 });
 		await page.goto('/admin');
-		await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
-		await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('active');
+		await expect(page.getByRole('heading', { name: 'Player progress', exact: true })).toBeVisible();
+		await expect(page.getByRole('combobox', { name: 'Show', exact: true })).toHaveValue('active');
 		await expect(page.getByText('author@example.test', { exact: true })).toBeVisible();
 		await expect(page.getByText('inactive@example.test', { exact: true })).toHaveCount(0);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -138,6 +138,9 @@ export interface PitchReading {
 	 * genuine mid-register note is harmless. Omitted when not flagged.
 	 */
 	octaveUp?: boolean;
+	/** Odd/even harmonic magnitude ratio when the picked fundamental is masked
+	 * but its odd partials are strong enough to retain the lower octave. */
+	maskedOddRank?: number;
 	/**
 	 * True when the frame's spectrum looks like a 3rd-harmonic (twelfth-up)
 	 * lock — under the reported pitch sits the harmonic series of a real
@@ -911,11 +914,18 @@ export function goertzelMagnitude(buffer: Float32Array, frequency: number, sampl
  * unchanged. See the `SUBHARMONIC_*` constants for the rationale.
  */
 export function correctSubharmonic(buffer: Float32Array, frequency: number, sampleRate: number): number {
-	if (frequency <= 0 || frequency > SUBHARMONIC_MAX_FREQUENCY) return frequency;
+	return analyzeSubharmonic(buffer, frequency, sampleRate).frequency;
+}
+
+/** A present fundamental rules out period doubling regardless of the upper partials. */
+function analyzeSubharmonic(
+	buffer: Float32Array, frequency: number, sampleRate: number
+): { frequency: number; maskedOddRank?: number } {
+	if (frequency <= 0 || frequency > SUBHARMONIC_MAX_FREQUENCY) return { frequency };
 	const fundamental = goertzelMagnitude(buffer, frequency, sampleRate);
 	const octaveUp = goertzelMagnitude(buffer, frequency * 2, sampleRate);
 	if (!(octaveUp > 0 && fundamental < octaveUp * SUBHARMONIC_FUNDAMENTAL_RATIO)) {
-		return frequency;
+		return { frequency };
 	}
 	// The fundamental bin is empty — but a genuine low note can mask its own
 	// fundamental too. Stage 2: a real note at `f` still has full-rank odd
@@ -926,10 +936,9 @@ export function correctSubharmonic(buffer: Float32Array, frequency: number, samp
 	const fourth = goertzelMagnitude(buffer, frequency * 4, sampleRate);
 	const fifth = goertzelMagnitude(buffer, frequency * 5, sampleRate);
 	const oddRank = (third + fifth) / (octaveUp + fourth);
-	if (oddRank >= SUBHARMONIC_ODD_HARMONIC_RATIO) {
-		return frequency;
-	}
-	return frequency * 2;
+	return oddRank < SUBHARMONIC_ODD_HARMONIC_RATIO
+		? { frequency: frequency * 2 }
+		: { frequency, maskedOddRank: oddRank };
 }
 
 /**
@@ -1128,7 +1137,7 @@ export function detectFrame(
 	const [rawFrequency, clarity] = detector.findPitch(buffer, opts.sampleRate);
 	// Lift an octave-down subharmonic pick back to the true fundamental before
 	// it ever enters the MIDI stream (see SUBHARMONIC_* above).
-	const frequency = correctSubharmonic(buffer, rawFrequency, opts.sampleRate);
+	const { frequency, maskedOddRank } = analyzeSubharmonic(buffer, rawFrequency, opts.sampleRate);
 
 	let energy = 0;
 	let hfEnergy = 0;
@@ -1254,6 +1263,7 @@ export function detectFrame(
 					: timbre.liftOffsetSeconds;
 		}
 	}
+	if (maskedOddRank !== undefined) reading.maskedOddRank = maskedOddRank;
 	if (stab.warmup) reading.warmup = true;
 	if (octaveUp) reading.octaveUp = true;
 	if (twelfthUp) reading.twelfthUp = true;

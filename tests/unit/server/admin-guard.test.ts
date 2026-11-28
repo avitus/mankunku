@@ -9,6 +9,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import { requireAdmin } from '../../../src/lib/server/admin-guard';
 
+import { GET as getRecording } from '../../../src/routes/admin/[userId]/sessions/audio/[take]/+server';
+
+const storage = vi.hoisted(() => ({
+	eligible: vi.fn(async () => ({ data: true, error: null })),
+	createSignedUrl: vi.fn(async () => ({ data: { signedUrl: 'https://example.test/take' }, error: null }))
+}));
+vi.mock('$lib/supabase/admin', () => ({
+	createAdminClient: () => ({ rpc: storage.eligible, storage: { from: () => storage } })
+}));
+
 function makeLocals(options: {
 	user?: { id: string; email?: string } | null;
 	degraded?: boolean;
@@ -88,4 +98,30 @@ describe('requireAdmin', () => {
 		expect(from).toHaveBeenCalledWith('user_profiles');
 		expect(eq).toHaveBeenCalledWith('id', 'admin-1');
 	});
+});
+
+it('requires admin authorization before signing a player recording', async () => {
+	vi.stubEnv('PLAYWRIGHT', undefined);
+	try {
+		const params = { userId: '00000000-0000-4000-8000-000000000002', take: 'test-recording' };
+		const event = (isAdmin: boolean) => ({
+			params, locals: makeLocals({ user: { id: 'viewer' }, isAdmin }).locals
+		} satisfies Pick<Parameters<typeof getRecording>[0], 'params' | 'locals'>) as unknown as Parameters<typeof getRecording>[0];
+
+		await expect(getRecording(event(false))).rejects.toMatchObject({ status: 404 });
+		expect(storage.createSignedUrl).not.toHaveBeenCalled();
+		expect(storage.eligible).not.toHaveBeenCalled();
+		storage.eligible.mockResolvedValueOnce({ data: false, error: null });
+		await expect(getRecording(event(true))).rejects.toMatchObject({ status: 404 });
+		expect(storage.createSignedUrl).not.toHaveBeenCalled();
+		const response = await getRecording(event(true));
+		expect(storage.eligible).toHaveBeenCalledWith('admin_review_recording_allowed', {
+			p_user_id: params.userId, p_take: params.take
+		});
+		expect(storage.createSignedUrl).toHaveBeenCalledWith(params.userId + '/test-recording.webm', 300);
+		expect(response.status).toBe(307);
+		expect(response.headers.get('location')).toBe('https://example.test/take');
+	} finally {
+		vi.unstubAllEnvs();
+	}
 });

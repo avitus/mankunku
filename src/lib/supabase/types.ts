@@ -353,6 +353,55 @@ export type Database = {
         ]
       }
 
+      /** Per-workout snapshots from the player’s lick-practice log. */
+      lick_report_resets: {
+        Row: {
+          applied_order: number
+          user_id: string
+          generation: string
+        }
+        Insert: {
+          applied_order?: number
+          user_id: string
+          generation: string
+        }
+        Update: {
+          applied_order?: number
+          user_id?: string
+          generation?: string
+        }
+        Relationships: []
+      }
+      lick_session_reports: {
+        Row: {
+          user_id: string
+          id: string
+          timestamp: number
+          attempts: number
+          minutes: number
+          generation: string | null
+          licks: Json
+        }
+        Insert: {
+          user_id: string
+          id: string
+          timestamp: number
+          attempts: number
+          minutes: number
+          generation?: string | null
+          licks: Json
+        }
+        Update: {
+          user_id?: string
+          id?: string
+          timestamp?: number
+          attempts?: number
+          minutes?: number
+          generation?: string | null
+          licks?: Json
+        }
+        Relationships: []
+      }
       /**
        * Individual practice session results.
        * Mirrors the SessionResult interface from progress.ts.
@@ -1192,6 +1241,18 @@ export type Database = {
       }
     }
     Functions: {
+      clear_daily_practice_summaries: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      admin_review_recording_allowed: {
+        Args: { p_user_id: string; p_take: string }
+        Returns: boolean
+      }
+      admin_ear_scores: {
+        Args: { p_users: string[] }
+        Returns: { user_id: string; recent: number; prior: number | null; samples: number }[]
+      }
       admin_begin_user_deletion: {
         Args: { p_actor_id: string; p_user_id: string; p_confirm: string }
         Returns: string

@@ -78,7 +78,8 @@ for (const practice of [false, true]) {
 			offset: Number(element.getAttribute('data-follow-offset')),
 			active: element.querySelector('.tcc-bar.active')?.getAttribute('data-bar')
 		})), { timeout: 8_000, intervals: [25] }).toEqual({ offset: 0, active: '11' });
-		await expect(page.getByText(/Solo 2 of 2/).first()).toBeVisible({ timeout: 12_000 });
+		const secondChorus = practice ? page.getByRole('region', { name: 'Solo chord chart, solo 2 of 2' }) : page.locator('.td-status').getByText(/Solo 2 of 2/);
+		await expect(secondChorus).toBeVisible({ timeout: 12_000 });
 		await expect.poll(async () => Number(await chart.getAttribute('data-follow-offset'))).toBe(0);
 		await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	});
@@ -101,6 +102,13 @@ for (const practice of [false, true]) {
 			await expect(page.locator('.tcc-bar.active')).toHaveCount(1);
 			await expect(page.locator('.tcc-bar .chord-symbol').first()).toContainText('D');
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+			if (practice) {
+				const solo = page.getByRole('region', { name: 'Solo chord chart, solo 1 of 2' });
+				await expect(solo).toBeVisible();
+				await expect(solo.locator('.solo-cues').first()).toHaveCSS('padding-bottom', '8px');
+				await expect(solo.locator('.solo-cues p').first()).toHaveCSS('font-size', width === 1440 ? '14px' : '11px');
+				await expect(page.locator('.practice-session')).not.toContainText(/Solo \d+ of|Your turn|Comping — insertion|\b\d+:\d{2}\b/i);
+			}
 			await page.screenshot({ path: info.outputPath(`solo-${width}.png`), fullPage: true });
 			await expect(page.locator('.td-status, .practice-session').getByText(/Outro/).first()).toBeVisible({ timeout: 20_000 });
 			await expect(page.getByTestId('tune-chord-chart')).toHaveCount(0);

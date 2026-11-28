@@ -300,6 +300,15 @@
 		? anticipatoryFollowPosition(playheadBarF, audioPlan.sheet.timeSignature[0] * 4 / audioPlan.sheet.timeSignature[1], chartBarAt)
 		: playheadBarF);
 	const followBarFraction = $derived(chartBarAt(followPosition));
+	// Keep the sounding chorus available in the chart's accessible name.
+	const soloChartLabel = $derived.by(() => {
+		if (tunePractice.phase !== 'running' || !audioPlan) return undefined;
+		const bars = audioPlan.soloBars ?? (audioPlan.flat.totalBars - audioPlan.practiceStartBar);
+		const index = Math.floor((playheadBarF - audioPlan.leadBars) / Math.max(1, bars));
+		const total = tunePractice.config.choruses;
+		return `Solo chord chart, solo ${Math.min(total, Math.max(1, index + 1))} of ${total}`;
+	});
+
 	// Switch presentation at the early return without advancing audio or scoring.
 	const showSoloChart = $derived(tunePractice.phase === 'running' ||
 		(tunePractice.phase === 'head' && audioPlan !== null && followPosition >= audioPlan.leadBars));
@@ -849,7 +858,7 @@
 
 </script>
 
-<div class="practice-session">
+<div class="practice-session" class:solo-practice={tunePractice.phase === 'running'}>
 	{#if tunePractice.phase === 'setup'}
 		{#if retryUnavailable && retrySpots.length}<p role="alert">Selected spots no longer match these settings. Restore the previous setup or practice all spots.</p>{/if}
 		{#if !isLoading && retrySpots.length && tunePractice.config.mode !== 'freestyle'}
@@ -862,46 +871,23 @@
 		{#if loadError}<p role="alert">Audio setup failed — check your connection and try again.</p>{/if}
 		<TunePracticeSetup {previewSheet} {preview} markers={previewMarkers} {showKeyCenters} disabled={isLoading} />
 	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro'}
-		<div class="flex flex-wrap items-center justify-between gap-3">
-			<div>
-
-				<p class="text-sm text-[var(--color-text-secondary)]">
-					{#if tunePractice.phase === 'running' && audioPlan}<span>Solo {Math.min(tunePractice.config.choruses, 1 + Math.max(0, Math.floor((playheadBarF - audioPlan.leadBars) / Math.max(1, audioPlan.soloBars ?? (audioPlan.flat.totalBars - audioPlan.practiceStartBar)))))} of {tunePractice.config.choruses}</span> · {/if}
-					{#if tunePractice.phase === 'count-in'}
-						Count-in…
-					{:else if tunePractice.phase === 'head'}
-						<span class="tp-listen">Head</span> — melody once
-						through, then it's yours
-					{:else if tunePractice.phase === 'outro'}
-						<span class="tp-listen">Outro</span> — the head again
-					{:else if tunePractice.config.mode === 'freestyle'}
-						<span class="font-medium text-[var(--color-phase-play)]">Your solo</span> —
-						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
-							? ''
-							: 's'} heard
-					{:else if tunePractice.windowOpen}
-						<span class="font-medium text-[var(--color-phase-play)]">Your turn — play the lick!</span>
-					{:else}
-						Comping — insertion {Math.min(tunePractice.currentIndex + 1, tunePractice.plan.length)}
-						of {tunePractice.plan.length} coming up
-					{/if}
-				</p>
-			</div>
-			<div class="flex items-center gap-3">
+		{#if tunePractice.phase !== 'running' || tunePractice.config.mode === 'points'}
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				{#if tunePractice.phase !== 'running'}
+					<p class="text-sm text-[var(--color-text-secondary)]">
+						{#if tunePractice.phase === 'count-in'}Count-in…
+						{:else if tunePractice.phase === 'head'}<span class="tp-listen">Head</span> — melody once through, then it's yours
+						{:else}<span class="tp-listen">Outro</span> — the head again{/if}
+					</p>
+				{/if}
 				{#if tunePractice.config.mode === 'points'}
-					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm font-medium">
+					<span class="ml-auto rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm font-medium">
 						{tunePractice.totalPoints} pts
-						{#if tunePractice.streak > 1}
-							<span class="text-[var(--color-brass)]">&middot; {tunePractice.streak}🔥</span>
-						{/if}
+						{#if tunePractice.streak > 1}<span class="text-[var(--color-brass)]">&middot; {tunePractice.streak}🔥</span>{/if}
 					</span>
 				{/if}
-				<span class="font-mono text-sm text-[var(--color-text-secondary)]">
-					{formatElapsed(tunePractice.elapsedSeconds)}
-				</span>
-
 			</div>
-		</div>
+		{/if}
 
 		{#if tunePractice.config.mode === 'freestyle' && tunePractice.phase === 'running'}
 			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
@@ -916,7 +902,7 @@
 		{/if}
 
 		{#if displayedSheet && showSoloChart}
-			<TuneChordChart solo tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
+			<TuneChordChart solo label={soloChartLabel} tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->

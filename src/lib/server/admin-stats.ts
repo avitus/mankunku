@@ -25,12 +25,15 @@ export interface AdminAuthUser {
 	email_confirmed_at?: string;
 }
 
+type EarScore = Database['public']['Functions']['admin_ear_scores']['Returns'][number];
+
 export interface AdminStatsInput {
+	earScores?: EarScore[];
 	authUsers: AdminAuthUser[];
 	devices?: AdminDevice[];
 	visitDays?: { user_id: string; date: string }[];
 	profiles: { id: string; display_name: string | null; is_admin: boolean }[];
-	summaries: { user_id: string; date: string; session_count: number; practice_minutes: number; practice_time_unavailable?: boolean }[];
+	summaries: { user_id: string; date: string; session_count: number; practice_minutes: number; practice_time_unavailable?: boolean; tonal_mastery?: number | null; ear_training_sessions?: number; lick_practice_sessions?: number }[];
 	/** One entry per live (deleted_at IS NULL) lick row — the query does the filtering. */
 	lickOwners: string[];
 	/** One entry per live tune row. */
@@ -39,6 +42,11 @@ export interface AdminStatsInput {
 }
 
 export interface AdminUserRow {
+	earScore: EarScore | null;
+	practiceDays: number;
+	recentEarAttempts: number;
+	recentKeyAttempts: number;
+	tonalMastery: number | null;
 	id: string;
 	email: string | null;
 	displayName: string | null;
@@ -81,7 +89,7 @@ function countByOwner(owners: string[]): Map<string, number> {
 }
 
 /** Join account activity and browser observations into admin rows, newest devices first. */
-export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
+export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): AdminUserRow[] {
 	const profiles = new Map(input.profiles.map((p) => [p.id, p]));
 	const settings = new Map(input.settings.map((s) => [s.user_id, s]));
 	const devicesByUser = new Map<string, AdminDevice[]>();
@@ -103,6 +111,12 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 		visits.set(visit.user_id, dates);
 	}
 
+	// Anchor the two-week window to UTC today unless the player's own practice
+	// already falls on tomorrow's valid local date (as far east as UTC+14).
+	const today = now.toISOString().slice(0, 10);
+	const latestLocalTime = now.getTime() + 14 * 3600000;
+	const latestLocalDate = new Date(latestLocalTime).toISOString().slice(0, 10);
+	const playersOnNextDay = new Set<string>();
 	const activeDates = new Map([...visits].map(([id, dates]) => [id, new Set(dates)]));
 	const activity = new Map<
 		string,
@@ -112,6 +126,7 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 		// A summary with no attempts is not evidence of practice. Historical
 		// days still count when their practice duration is unavailable.
 		if (s.session_count > 0) {
+			if (s.date === latestLocalDate && s.date > today) playersOnNextDay.add(s.user_id);
 			const dates = activeDates.get(s.user_id) ?? new Set<string>();
 			dates.add(s.date);
 			activeDates.set(s.user_id, dates);
@@ -128,12 +143,36 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 		}
 	}
 
+	const windowSpan = 13 * 86400000;
+	const cutoffToday = new Date(now.getTime() - windowSpan).toISOString().slice(0, 10);
+	const cutoffLatest = new Date(latestLocalTime - windowSpan).toISOString().slice(0, 10);
+	const earScores = new Map(input.earScores?.map(s => [s.user_id, s]));
+	const recent = new Map<string, { days: number; ear: number; keys: number }>();
+	const mastery = new Map<string, { date: string; value: number }>();
+	for (const s of input.summaries) {
+		if (s.tonal_mastery != null && s.date > (mastery.get(s.user_id)?.date ?? '')) {
+			mastery.set(s.user_id, { date: s.date, value: s.tonal_mastery });
+		}
+		const cutoff = playersOnNextDay.has(s.user_id) ? cutoffLatest : cutoffToday;
+		if (s.date < cutoff || s.date > latestLocalDate || s.session_count <= 0) continue;
+		const stats = recent.get(s.user_id) ?? { days: 0, ear: 0, keys: 0 };
+		stats.days++;
+		stats.ear += s.ear_training_sessions ?? 0;
+		stats.keys += s.lick_practice_sessions ?? 0;
+		recent.set(s.user_id, stats);
+	}
+
 	const rows = input.authUsers.map((u): AdminUserRow => {
 		const profile = profiles.get(u.id);
 		const act = activity.get(u.id);
 		const instrumentId = settings.get(u.id)?.instrument_id;
 		return {
 			id: u.id,
+			earScore: earScores.get(u.id) ?? null,
+			practiceDays: recent.get(u.id)?.days ?? 0,
+			recentEarAttempts: recent.get(u.id)?.ear ?? 0,
+			recentKeyAttempts: recent.get(u.id)?.keys ?? 0,
+			tonalMastery: mastery.get(u.id)?.value ?? null,
 			email: u.email ?? null,
 			displayName: profile?.display_name ?? null,
 			isAdmin: profile?.is_admin ?? false,

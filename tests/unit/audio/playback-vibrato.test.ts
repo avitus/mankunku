@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlaybackEvent } from '$lib/audio/playback';
-import { instrumentVoice, vibratoDelaySwingSeconds } from '$lib/audio/instrument-voices';
+import { HORN_VOICES, vibratoDelaySwingSeconds } from '$lib/audio/instrument-voices';
 import { makePhrase } from '../../helpers/lick-builders';
 
 const audio = vi.hoisted(() => {
@@ -68,7 +68,7 @@ vi.mock('$lib/audio/backing-track', () => ({
 afterEach(() => vi.restoreAllMocks());
 
 describe('per-note vibrato playback', () => {
-	it.each(['tenor-sax', 'trumpet'])('selects all four shapes on %s, with one draw per tied sounding note', async (instrumentId) => {
+	it.each(['tenor-sax', 'trumpet'] as const)('selects all four shapes on %s, with one draw per tied sounding note', async (instrumentId) => {
 		const { loadInstrument, playPhrase, stopPlayback } = await import('$lib/audio/playback');
 		await loadInstrument(instrumentId);
 		audio.part = null;
@@ -84,7 +84,7 @@ describe('per-note vibrato playback', () => {
 			const part = audio.part!;
 			expect(part.events).toHaveLength(1);
 			const event = part.events[0];
-			const voice = instrumentVoice(instrumentId).vibrato;
+			const voice = HORN_VOICES[instrumentId].vibrato;
 			const swing = vibratoDelaySwingSeconds(voice.rateHz, voice.depthCents);
 			const random = vi.spyOn(Math, 'random');
 

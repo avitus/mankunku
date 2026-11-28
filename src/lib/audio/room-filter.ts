@@ -31,6 +31,11 @@ export interface RoomTimingCheck {
 	sessionCues?: number;
 	/** Start of the closing window in this capture, when a second fit was attempted. */
 	closingStartSeconds?: number;
+	/** Last gate reached by the closing retry; the main result retains its original meaning. */
+	retryStage?: 'insufficient-samples' | 'ending' | 'alignment' | 'correction-power' | 'opening' | 'verified';
+	retryOffsetDeltaSamples?: number;
+	/** Measurements from the window that rejected the fit. */
+	retryWindow?: Pick<RoomTimingCheck, 'failure' | 'reduction' | 'transientReduction' | 'validationGain'>;
 	/** The saved calibration level verified after the level fitted on Listen failed. */
 	calibratedGain?: true;
 	/** The saved calibration's result before a correction passed independent validation. */
@@ -466,16 +471,38 @@ export function verifyRoom(samples: RoomSamples, filter: RoomFilter, session?: R
 	const closingStartSeconds = split / samples.rate;
 	original.closingStartSeconds = closingStartSeconds;
 	const check = retry.check;
-	if (!check?.accepted || Math.abs(check.offset - original.offset) > samples.rate * 0.001) return full;
+	if (!check) {
+		original.retryStage = 'insufficient-samples';
+		return full;
+	}
+	const offsetDelta = check.offset - original.offset;
+	original.retryOffsetDeltaSamples = offsetDelta;
+	const rejectedWindow = (stage: 'ending' | 'opening', window: RoomTimingCheck): RoomVerification => {
+		const { failure, reduction, transientReduction, validationGain } = window;
+		original.retryStage = stage;
+		original.retryWindow = { failure, reduction, transientReduction, validationGain };
+		return full;
+	};
+	if (!check.accepted) return rejectedWindow('ending', check);
+	if (Math.abs(offsetDelta) > samples.rate * 0.001) {
+		original.retryStage = 'alignment';
+		return full;
+	}
 
 	let combined = predicted;
 	if (retry.correction) {
 		combined = predictRoom(retry.correction, samples.left, samples.right);
 		const first = filter.left.findIndex((v, i) => v !== 0 || filter.right[i] !== 0);
 		addSavedPrediction(combined, predicted, first);
-		if (!correctionWithinRoom(predicted, combined, filter.left.length, samples.rate, check.offset, split)) return full;
+		if (!correctionWithinRoom(predicted, combined, filter.left.length, samples.rate, check.offset, split)) {
+			original.retryStage = 'correction-power';
+			return full;
+		}
 	}
-	if (!validateAlignment(samples, filter, combined, check.broadbandOffset, check.offset, check.gain, split).accepted) return full;
+	const opening = validateAlignment(samples, filter, combined, check.broadbandOffset, check.offset, check.gain, split);
+	if (!opening.accepted) return rejectedWindow('opening', opening);
+	check.retryStage = 'verified';
+	check.retryOffsetDeltaSamples = offsetDelta;
 	check.closingStartSeconds = closingStartSeconds;
 	return retry;
 }

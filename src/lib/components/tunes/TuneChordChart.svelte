@@ -8,8 +8,8 @@
 	import { tuneChordBars } from '$lib/tunes/chord-bars';
 	import { settings } from '$lib/state/settings.svelte';
 	import { soloBarCenters, keyCenterBarSpan } from '$lib/tunes/key-centers';
-	let { tune, instrument, solo = false, currentBar = null, followBar = currentBar, markers = [], playing = true }: {
-		solo?: boolean; tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; playing?: boolean;
+	let { tune, instrument, solo = false, label = 'Solo chord chart', currentBar = null, followBar = currentBar, markers = [], playing = true }: {
+		solo?: boolean; label?: string; tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; playing?: boolean;
 	} = $props();
 	let viewport = $state<HTMLDivElement>();
 	let content = $state<HTMLDivElement>();
@@ -54,7 +54,7 @@
 
 <!-- Keyboard focus lets players scroll the idle chart without a pointer. -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<div class="tune-chord-chart" class:idle={!playing} tabindex={!playing ? 0 : undefined} role="region" data-testid="tune-chord-chart" bind:this={viewport} aria-label="Solo chord chart" data-follow-offset={followOffset}>
+<div class="tune-chord-chart" class:idle={!playing} tabindex={!playing ? 0 : undefined} role="region" data-testid="tune-chord-chart" bind:this={viewport} aria-label={label} data-follow-offset={followOffset}>
 	<div class="tcc-follow-layer" bind:this={content} style:transform={`translateY(${followOffset}px)`}>
 		{#each sections as section}
 			<section>

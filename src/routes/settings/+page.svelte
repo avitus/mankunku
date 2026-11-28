@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportResetPending } from '$lib/persistence/lick-report-resets';
 	import TempoDial from '$lib/components/console/TempoDial.svelte';
 	import {
 		INSTRUMENTS,
@@ -268,6 +269,7 @@
 	}
 
 	let showResetConfirm = $state(false);
+	const cloudResetPending = $derived(reportResetPending());
 	let showDeleteConfirm = $state(false);
 
 	// Display name editor — surfaced publicly on community lick cards.
@@ -770,10 +772,12 @@
 						</summary>
 						<div class="history-body">
 							<p>Clear saved progress, scores, and session history.</p>
+							{#if cloudResetPending}<p role="status" class="text-sm">Cloud workout deletion is pending. Keep this device online to finish syncing.</p>{/if}
 							{#if showResetConfirm}
 								<div use:scrollIntoView>
 									<p class="mb-3 text-sm text-[var(--color-error-text)]">
 										This will erase all progress, scores, and session history. This cannot be undone.
+										{#if page.data.user}When this device syncs, it clears all workout reports then stored for this account, including reports from other devices.{/if}
 									</p>
 									<div class="flex gap-2">
 										<button
@@ -783,6 +787,7 @@
 													await resetAllPracticeData(supabase ?? undefined);
 												} catch (err) {
 													console.warn('Failed to fully reset progress:', err);
+													alert('Could not finish resetting practice history. Check the available browser storage and try again.');
 												} finally {
 													showResetConfirm = false;
 												}

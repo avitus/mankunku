@@ -681,7 +681,7 @@ interface InstrumentConfig {
 | `voice` | Voice | C | 0 | 48–77 | 53 |
 | `concert` | Other C Instrument | C | 0 | 36–96 | 0 |
 
-The C instruments sit behind one **Concert Pitch** choice in onboarding and Settings, followed by "which instrument?" (`CONCERT_INSTRUMENT_IDS`, `isConcertInstrument`); `concert` is that question's "Other" answer and the id every pre-follow-up concert user keeps. They share transposition 0 and differ in range (which octave a lick is pitched in, and the Highest knob's default) and tuning advice. Their ranges stay inside the pitch detector's 80–1200 Hz window (MIDI 40–86), so the bass is clipped to its upper register. Not yet per-instrument: the clef (notation is treble for all), guitar/bass octave transposition, and the playback voice (every C instrument shares `concert`'s entry in `INSTRUMENT_VOICES`, the GM tenor SoundFont).
+The C instruments sit behind one **Concert Pitch** choice in onboarding and Settings, followed by "which instrument?" (`CONCERT_INSTRUMENT_IDS`, `isConcertInstrument`); `concert` is that question's "Other" answer and the id every pre-follow-up concert user keeps. They share transposition 0 and differ in range (which octave a lick is pitched in, and the Highest knob's default) and tuning advice. Their ranges stay inside the pitch detector's 80–1200 Hz window (MIDI 40–86), so the bass is clipped to its upper register. Every melody playback surface uses the selected voice. Notation still uses treble clef for all instruments, and guitar and bass retain concert-octave display.
 
 ## Combinatorial Types (`src/lib/types/combinatorial.ts`)
 
@@ -729,6 +729,34 @@ their own rows. The owner-only admin dashboard reads all devices using its exist
 server-side admin client. Account deletion cascades to device records. Observations
 start after deployment and the user's next signed-in page load; past devices cannot be
 reconstructed. Browser visits do not count as completed practice.
+
+### Recent practice reports and account resets
+
+The admin session review reads the five most recent lick workouts. Each workout
+records the account's current report generation when practice starts. A reset
+persists a unique request ID on the device before clearing local history. The
+database serializes report uploads and resets for each player. Retrying the
+same reset preserves workouts already started in the new generation.
+
+A device that practiced offline across another device's reset keeps those
+workouts in its local history. It resumes uploads for workouts started after it
+learns the new generation. The device timestamp determines display order and
+which five workouts are retained. Local history clears immediately. Cloud report
+deletion takes effect when the server first receives the request. The server
+retains the request ID so a delayed retry cannot repeat the deletion.
+Historical workouts without a generation belong to the initial generation.
+
+Keep the forward migration on an application rollback. Older clients reset
+practice by deleting the account’s daily summaries directly. The database
+applies a report reset when that request clears the summary table for that
+account, even if it was already empty. Current clients clear summaries through
+an owner-scoped RPC and deliver the report reset separately using its durable
+ID. An offline reset on an older client that never reached the server must be
+repeated while online.
+
+Each cloud report includes at most 256 lick entries, 1,024 key entries and
+1 MiB of uncompressed JSON detail. A workout over any limit keeps its attempt
+count and duration in the admin review. Its per-key history stays on the device.
 
 ### Admin visit days and content removal
 

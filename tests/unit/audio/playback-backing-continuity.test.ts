@@ -120,9 +120,9 @@ describe('Concert Pitch calls with backing off', () => {
 		h.Tone.setContext(h.context);
 		const playback = await import('$lib/audio/playback');
 		try {
-			await playback.loadInstrument(id, 1, undefined, 'ear-training');
-			expect(playback.isInstrumentLoaded(id, 'ear-training')).toBe(true);
-			expect(playback.isInstrumentLoaded(id)).toBe(false);
+			await playback.loadInstrument(id, 1);
+			expect(playback.isInstrumentLoaded(id)).toBe(true);
+			expect(playback.isInstrumentLoaded('tenor-sax')).toBe(false);
 			const started = vi.fn();
 			hits.length = 0;
 			const call = playback.playPhrase(phrase, { ...options, backingTrackEnabled: false }, true,

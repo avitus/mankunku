@@ -1,4 +1,5 @@
 import { captureException } from '@sentry/sveltekit';
+import type { InstrumentId } from '$lib/types/instruments';
 import type { Phrase } from '$lib/types/music';
 import { settings } from '$lib/state/settings.svelte';
 import { setMasterVolume } from '$lib/audio/audio-context';
@@ -16,7 +17,7 @@ export function createLickAudition() {
 	 */
 	async function play(
 		phrase: Phrase,
-		options: { tempo?: number; swing?: number; performed?: boolean } = {}
+		options: { tempo?: number; swing?: number; performed?: boolean; instrument?: InstrumentId } = {}
 	): Promise<void> {
 		if (disposed) return;
 		const previous = state.playingId;
@@ -31,8 +32,9 @@ export function createLickAudition() {
 			if (cancelled() || previous === phrase.id) return;
 			player ??= await import('$lib/audio/playback');
 			if (cancelled()) return;
-			if (!player.isInstrumentLoaded(settings.instrumentId)) {
-				await player.loadInstrument(settings.instrumentId, settings.masterVolume);
+			const instrument = options.instrument ?? settings.instrumentId;
+			if (!player.isInstrumentLoaded(instrument)) {
+				await player.loadInstrument(instrument, settings.masterVolume);
 				if (cancelled()) return;
 			}
 			setMasterVolume(settings.masterVolume);
@@ -42,7 +44,7 @@ export function createLickAudition() {
 				countInBeats: 0,
 				metronomeEnabled: false,
 				metronomeVolume: 0
-			}, false, { performed: options.performed });
+			}, false, { performed: options.performed, tongueRepeats: instrument.endsWith('-sax') });
 		} catch (error) {
 			if (!cancelled()) {
 				captureException(error);

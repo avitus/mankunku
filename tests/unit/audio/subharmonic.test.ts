@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { correctSubharmonic, isOctaveUpLock, goertzelMagnitude } from '$lib/audio/pitch-frame';
+import { correctSubharmonic, isOctaveUpLock, goertzelMagnitude, type PitchReading } from '$lib/audio/pitch-frame';
+
+import { midiToFrequency } from '$lib/music/intervals';
+import { resolveRepeatedOctaveAttacks } from '$lib/audio/repeated-octave-attacks';
 
 const SR = 44100;
 const N = 4096;
@@ -162,5 +165,43 @@ describe('isOctaveUpLock', () => {
 			[375, 0.06]
 		]);
 		expect(isOctaveUpLock(buf, 150, SR)).toBe(false);
+	});
+});
+
+describe('repeated octave-low attacks', () => {
+	// Construct two low-to-high runs with the spectrum settling within each
+	// attack. The source pitch, clock, and spectral evidence are independently
+	// variable so a real octave leap can be tested with the same timing.
+	function pair(): PitchReading[] {
+		return [48, 48, 48, 60, 60, 60, 48, 48, 48, 60, 60, 60].map((midi, i) => ({
+			midi, midiFloat: midi + 0.2, cents: 20, rms: 0.2, clarity: 0.98, time: i / 60,
+			frequency: midiToFrequency(midi + 0.2),
+			...(midi === 48 ? { maskedOddRank: [0.8, 0.4, 0.2][i % 3], brightness: -10 } : {})
+		}));
+	}
+
+	it('recovers both attacks without modifying their raw frequency, times, or source frames', () => {
+		const input = pair();
+		const result = resolveRepeatedOctaveAttacks(input);
+		expect(result.map(r => r.midiFloat)).toEqual(input.map(() => 60.2));
+		expect(result.map(r => [r.frequency, r.time])).toEqual(input.map(r => [r.frequency, r.time]));
+		expect(result[0].brightness).toBeUndefined();
+		expect(input[0]).toMatchObject({ midi: 48, brightness: -10 });
+	});
+
+	it('preserves a single octave leap and repeats across a tracking gap', () => {
+		const leap = pair().slice(0, 6);
+		expect(resolveRepeatedOctaveAttacks(leap)).toBe(leap);
+		const separated = pair().map((r, i) => ({ ...r, time: r.time + (i >= 6 ? 0.2 : 0) }));
+		expect(resolveRepeatedOctaveAttacks(separated)).toBe(separated);
+	});
+
+	it('requires a masked, fading lower fundamental on both attacks', () => {
+		const audibleLow = pair();
+		delete audibleLow[7].maskedOddRank;
+		expect(resolveRepeatedOctaveAttacks(audibleLow)).toBe(audibleLow);
+		const steadyOddPartials = pair();
+		steadyOddPartials[8].maskedOddRank = 0.8;
+		expect(resolveRepeatedOctaveAttacks(steadyOddPartials)).toBe(steadyOddPartials);
 	});
 });

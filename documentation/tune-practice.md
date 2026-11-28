@@ -80,7 +80,7 @@ That rewards the thing that's actually hard: not playing one good lick, but comi
 
 ### Freestyle — take a solo
 
-No cues, no windows, no scoring. The rhythm section plays the form and you blow over it. What the app does is **listen for licks it recognises**: whenever something you play matches a line from your book closely enough to be a genuine quote — not "reminiscent of", an actual match — a 👏 card pops up with the lick's name and how close the match was, and the status line keeps count (*Your solo — 3 known licks heard*).
+No cues, no windows, no scoring. The rhythm section plays the form and you blow over it. What the app does is **listen for licks it recognises**: whenever something you play matches a line from your book closely enough to be a genuine quote — not "reminiscent of", an actual match — a 👏 card pops up with the lick's name and how close the match was. The take report lists the licks you quoted.
 
 The recognition pool is deliberately narrow: licks in your practice set, licks you have practice history on, and licks you wrote, recorded, or adopted. It won't celebrate a curated lick you've never seen — that would be noise, not feedback.
 
@@ -103,11 +103,11 @@ On the bleed filter: it's on at every level, which is the forgiving choice if yo
 ## During the session
 
 - **The drummer counts you in.** One bar on the cross-stick, every beat; above 150 BPM, two bars in the jazz count-off rhythm — two clicks on beats 1 and 3, then four on every beat of the second bar (a waltz: the downbeat, then one-two-three). No voice, only the stick. The drum kit loads with the band, so if it hasn't loaded (or failed to), the metronome's count-in bar counts you in instead (if the metronome is on). When the band is playing, the count replaces the metronome's count-in bar; with the band off and the metronome on, the click keeps time underneath the count. When the head opens on a **pickup**, the count runs on through the pickup bar, because the band only comes in after it: Black Orpheus's one-beat pickup gets beats 1 and 3, then every beat of the pickup bar, the pickup note landing on the 4. The playhead waits for the pickup's first printed beat rather than lighting it on beat 1 of its bar.
-- The chart **follows the playhead** teleprompter-style — it slides inside its own frame rather than scrolling the page, so the status line and the pick card stay put — and the current bar is marked on it.
+- The chart **follows the playhead** teleprompter-style — it slides inside its own frame rather than scrolling the page, so the playback controls and the pick card stay put — and the current bar is marked on it.
 - Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it; a single-chord lick's window looks like its chord (Minor, Major, Dominant; a half-diminished slot keeps its cadence's colour and is labelled *Diminished*). A band clears a bar after its window has passed, so the chart ahead of you stays clean; a later pass through the same bars labels it again.
 - **Nothing prompts for a lick while the head or outro plays.** The melody sheet carries only the playhead — no bands, no lick names, no pick card — through the count-in, opening head and closing head; the solo choruses show the chord-bar grid and lick cues. A session without a head shows them from the count-in.
-- The status line under the title tells you where you are: *Count-in…*, *Head — melody once through, then it's yours* (Head in red — you're listening), *Comping — insertion 3 of 6 coming up*, and then **Your turn — play the lick!** in brass when a window opens.
-- The header also keeps the time elapsed and, in Points mode, your score; the **Stop** button stops the take whenever you want.
+- The count-in, head and outro have short cues under the title. During solos, follow the current bar on the chart. With **Lick names** selected, read each name directly beneath its target bars.
+- Points mode shows your score as you play. Press **Stop** to end the take. The report shows the elapsed time.
 
 ### The band plays the full jam
 

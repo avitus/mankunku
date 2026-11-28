@@ -22,12 +22,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { load, save } from './storage';
+import { pendingReportResets } from './lick-report-resets';
 import { getActiveUidOrNull } from './namespace';
 import { getScopeGeneration } from './user-scope';
 import { getUserCoalesced } from '$lib/supabase/get-user';
 
 export type OutboxKind =
 	| 'progress'
+	| 'lickReports'
 	| 'lickMeta'
 	| 'settings'
 	| 'dailySummaries'
@@ -121,6 +123,11 @@ async function runKind(kind: OutboxKind, supabase: SupabaseClient<Database>): Pr
 			await m.flushSettingsToCloud(supabase);
 			return;
 		}
+		case 'lickReports': {
+			const m = await import('./lick-report-sync');
+			await m.flushLickReports(supabase);
+			return;
+		}
 		case 'lickMeta': {
 			const m = await import('./lick-practice-store');
 			await m.flushLickMetadataToCloud(supabase);
@@ -159,6 +166,8 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 	if (_draining) return;
 	// In particular, pagehide must not start an auth fetch for an empty queue:
 	// document teardown aborts it (WebKit reports an access-control page error).
+	const queued = loadOutbox();
+	if (!queued.lickReports && getActiveUidOrNull() && pendingReportResets().length) enqueue('lickReports');
 	if (Object.keys(loadOutbox()).length === 0) return;
 	_draining = true;
 	try {

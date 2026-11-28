@@ -47,14 +47,16 @@ import {
 	splitLoopEvents,
 	type LoopRegion
 } from './phrase-loop';
-import { earTrainingGain, earTrainingVoice, loadEarTrainingVoice } from './ear-training-voices';
+import { loadConcertInstrument } from './concert-instruments';
 import { loadSampleLayer } from './sample-loader';
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
 	instrumentVoice,
+	melodyGainAdjustment,
 	chooseVibratoStyle,
 	vibratoDelaySwingSeconds,
 	vibratoEnvelope,
+	type InstrumentVoice,
 	type VibratoProfile,
 	type VibratoBreakpoint
 } from './instrument-voices';
@@ -97,9 +99,8 @@ export interface PlaybackNoteEvent {
 let tone: ToneModule | null = null;
 /** SoundFont instrument (used when no custom samples available) */
 let instrument: SmplrSoundfont | null = null;
-let concertPlayer: Awaited<ReturnType<typeof loadEarTrainingVoice>> | null = null;
+let concertPlayer: Awaited<ReturnType<typeof loadConcertInstrument>> | null = null;
 let loadedInstrumentId: string | undefined;
-let loadedMode: 'ear-training' | undefined;
 /** Custom sample layers for velocity switching */
 let samplerPiano: SmplrSampler | null = null;
 let samplerForte: SmplrSampler | null = null;
@@ -160,13 +161,11 @@ async function getTone(): Promise<ToneModule> {
  * For custom samples: effects are inserted between the mix node and Melody input.
  * For SoundFont: effects are added as inserts on the instrument's output channel.
  */
-function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void {
+function setupJazzExpression(audioCtx: AudioContext, voice: InstrumentVoice): void {
 	cleanupJazzExpression();
 
 	const hasCustomSamples = mixNode !== null;
 	if (!hasCustomSamples && !instrument) return;
-
-	const voice = instrumentVoice(instrumentId);
 
 	warmthFilter = audioCtx.createBiquadFilter();
 	warmthFilter.type = 'lowpass';
@@ -286,7 +285,6 @@ function cleanupInstruments(): void {
 	concertPlayer?.disconnect();
 	concertPlayer = null;
 	loadedInstrumentId = undefined;
-	loadedMode = undefined;
 	if (samplerPiano) {
 		samplerPiano.disconnect();
 		samplerPiano = null;
@@ -369,11 +367,10 @@ async function loadCustomSamples(
 /**
  * Load a SoundFont instrument (fallback when no custom samples available).
  */
-async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadId: number): Promise<void> {
+async function loadSoundfont(audioCtx: AudioContext, voice: InstrumentVoice, loadId: number): Promise<void> {
 	const { Soundfont } = await import('smplr');
 	if (loadId !== currentLoadId) return;
 
-	const voice = instrumentVoice(instrumentId);
 	const newInstrument = new Soundfont(audioCtx, {
 		...SOUNDFONT_OPTIONS,
 		instrument: voice.soundfont,
@@ -393,16 +390,13 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 }
 
 /**
- * Load an instrument with jazz expression processing.
- *
- * Uses the voice's custom multi-sampled recordings when it has them (the
- * saxes), falling back to its MusyngKite SoundFont otherwise or on load error.
+ * Load the selected melody voice for practice, auditions and session replays.
+ * Horns use their expression chain, with a SoundFont fallback for sax samples.
  */
 export async function loadInstrument(
 	instrumentId: string = 'tenor-sax',
 	masterVolume?: number,
-	backingInstrument?: BackingInstrument,
-	mode?: 'ear-training'
+	backingInstrument?: BackingInstrument
 ): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
@@ -414,41 +408,30 @@ export async function loadInstrument(
 
 	cleanupInstruments();
 
-	// Try custom samples first, fall back to SoundFont
-	const sampleMap = instrumentVoice(instrumentId).samples;
-	const voice = mode === 'ear-training' ? earTrainingVoice(instrumentId) : undefined;
-	if (voice) {
-		const player = await loadEarTrainingVoice(audioCtx, getMelodyGain(), voice);
+	const voice = instrumentVoice(instrumentId);
+	if (typeof voice === 'string') {
+		const player = await loadConcertInstrument(audioCtx, getMelodyGain(), voice);
 		if (loadId !== currentLoadId) {
 			player.disconnect();
 			return;
 		}
+		const trim = audioCtx.createGain();
+		trim.gain.value = melodyGainAdjustment(instrumentId, false);
+		player.output.addInsert(trim);
 		concertPlayer = player;
-	} else if (sampleMap) {
-		const loaded = await loadCustomSamples(audioCtx, sampleMap, loadId);
+	} else {
+		const sampled = voice.samples && await loadCustomSamples(audioCtx, voice.samples, loadId);
 		if (loadId !== currentLoadId) return;
-		if (!loaded) {
-			await loadSoundfont(audioCtx, instrumentId, loadId);
+		if (!sampled) {
+			await loadSoundfont(audioCtx, voice, loadId);
 			if (loadId !== currentLoadId) return;
 		}
-	} else {
-		await loadSoundfont(audioCtx, instrumentId, loadId);
-		if (loadId !== currentLoadId) return;
-	}
-
-	setupJazzExpression(audioCtx, instrumentId);
-	if (mode === 'ear-training') {
-		const gain = earTrainingGain(instrumentId, !!sampleMap && !activeSampleMap);
-		if (concertPlayer) {
-			const trim = audioCtx.createGain();
-			trim.gain.value = gain;
-			concertPlayer.output.addInsert(trim);
-		} else if (melodyTrim) {
-			melodyTrim.gain.value *= gain;
+		setupJazzExpression(audioCtx, voice);
+		if (melodyTrim) {
+			melodyTrim.gain.value *= melodyGainAdjustment(instrumentId, !!voice.samples && !sampled);
 		}
 	}
 	loadedInstrumentId = instrumentId;
-	loadedMode = mode;
 
 	// Load backing track instruments in parallel with metronome warmup
 	// Backing track load is best-effort — failures must not block playback
@@ -465,8 +448,8 @@ export async function loadInstrument(
 /**
  * Check if an instrument is loaded and ready.
  */
-export function isInstrumentLoaded(instrumentId?: string, mode?: 'ear-training'): boolean {
-	if (instrumentId !== undefined && (instrumentId !== loadedInstrumentId || loadedMode !== mode)) return false;
+export function isInstrumentLoaded(instrumentId?: string): boolean {
+	if (instrumentId !== undefined && instrumentId !== loadedInstrumentId) return false;
 	return concertPlayer !== null || instrument !== null || (samplerPiano !== null && samplerForte !== null);
 }
 

@@ -17,7 +17,7 @@
 	let confirmText = $state('');
 	let deleting = $state(false);
 	let search = $state('');
-	let filter = $state('all');
+	let filter = $state('active');
 	let joinedBefore = $state('');
 	const visibleUsers = $derived(data.users.filter(row => {
 		const matchesSearch = `${row.email ?? ''} ${row.displayName ?? ''} ${row.id}`.toLowerCase().includes(search.trim().toLowerCase());
@@ -71,7 +71,7 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<StudioPage eyebrow="Back office / Administration" title="Admin" description="People, libraries, and service health.">
+<StudioPage eyebrow="Back office / Administration" title="Admin" description="Practice activity and recent sessions across the studio.">
 	{#snippet actions()}<div class="admin-owner"><span>ADMIN ACCESS</span><small>Account & content management</small></div>{/snippet}
 <div class="admin-desk">
 
@@ -97,13 +97,13 @@
 	{/if}
 	<div class="admin-layout">
 	<div class="admin-users">
-	<StudioPanel id="admin-users" number="01" title="Users" description="Signups, activity, and content — newest first">
+	<StudioPanel id="admin-users" number="01" title="Player progress" description="Recent accuracy, return practice, and session review">
 		<div class="admin-filters">
 			<label class="admin-search">Find a user<input type="search" bind:value={search} placeholder="Email or name" class="mt-1 block w-full min-w-48 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
 			<label class="admin-activity-filter text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="active">Active Users (past two weeks)</option><option value="inactive">No activity in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
 			<label class="text-xs">Joined on or before<input type="date" bind:value={joinedBefore} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
 		</div>
-		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days active counts distinct recorded dates with practice or a signed-in visit, including historical practice. Older visit-only days may be missing. Practice dates use local time and visit dates use UTC, so totals are approximate around midnight. Practice minutes are not time signed in. Active Users includes accounts whose latest practice, visit, sign-in, or signup was within the past two weeks, including the cutoff day in UTC. Instruments reflect the last synced selection.</p></details></div>
+		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days active counts distinct recorded dates with practice or a signed-in visit, including historical practice. Older visit-only days may be missing. Practice dates use local time and visit dates use UTC, so totals are approximate around midnight. Practice minutes are not time signed in. Active Users includes accounts whose latest practice, visit, sign-in, or signup was within the past two weeks, including the cutoff day in UTC. Practice days and attempts cover 14 calendar dates through today in UTC, or through the player’s next local date if they have already practiced on it. Ear-training score averages up to five recent takes. A change appears after ten scored takes. Instruments reflect the last synced selection.</p></details></div>
 
 		{#if data.unavailable}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
@@ -136,6 +136,18 @@
 							</form>
 						</div>
 
+						<div class="practice-strip">
+							<div><span>Ear-training score</span><strong>{row.earScore ? Math.round(row.earScore.recent * 100) + '%' : '—'}</strong>
+								<small>{row.earScore ? 'Last ' + row.earScore.samples + (row.earScore.samples === 1 ? ' take' : ' takes') : 'No score available'}</small>
+								{#if row.earScore?.prior != null}
+									{@const delta = Math.round((row.earScore.recent - row.earScore.prior) * 100)}
+									<small class="score-change">{delta > 0 ? '+' : ''}{delta} pts vs previous 5</small>
+								{/if}
+							</div>
+							<div><span>Tonal mastery</span><strong>{row.tonalMastery == null ? '—' : Math.round(row.tonalMastery) + '%'}</strong><small>Latest daily snapshot</small></div>
+							<div><span>Practice days</span><strong>{row.practiceDays}<em> / 14</em></strong><small>{row.recentEarAttempts} ear takes · {row.recentKeyAttempts} key attempts</small></div>
+						</div>
+						<a class="review-link" href={'/admin/' + row.id + '/sessions'}>Review recent sessions <span aria-hidden="true">→</span></a>
 						<div class="admin-user-facts">
 							<div><span class="smallcaps">Instrument</span> <span class="tabular-nums">{row.instrumentName ?? 'Not selected'}</span></div>
 							<div><span class="smallcaps">Joined</span> <span class="tabular-nums">{fmtDate(row.createdAt)}</span></div>

@@ -59,6 +59,7 @@ export async function saveLickPracticeRecording(
 	input: SaveLickPracticeRecordingInput
 ): Promise<void> {
 	const metadata: RecordingMetadata = {
+		reference: { notes: input.phrase.notes, timeSignature: input.phrase.timeSignature },
 		scoringAudio: input.scoringBlob ? 'microphone' : 'unavailable',
 		phraseId: input.phrase.id,
 		phraseName: input.phrase.name ?? input.phrase.id,

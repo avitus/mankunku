@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { reportResetPending } from '$lib/persistence/lick-report-resets';
  import { connectMediaPlayback, disconnectMediaPlayback } from '$lib/audio/media-playback';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import { extractSoundingNotes } from '$lib/music/expression';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { lickMode } from '$lib/music/mode';
 	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
@@ -202,7 +204,7 @@
 			const replay = await exporter.replayRecording(full, ctx);
 			const payload = exporter.buildDiagnosticsPayload(full, replay, {
 				instrument: { id: settings.instrumentId, name: instrument.name, key: instrument.key },
-				phrase: phraseForScoringExport(s),
+				phrase: sessionReferencePhrase(s),
 				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
 			});
 			const wav = await exporter.decodeToWav(exporter.scoringRecordingBlob(full));
@@ -242,7 +244,7 @@
 			: transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 	}
 
-	function phraseForScoringExport(s: SessionResult): Phrase | null {
+	function sessionReferencePhrase(s: SessionResult, forPlayback = false): Phrase | null {
 		const phrase = findPhraseForSession(s);
 		if (!phrase) return null;
 
@@ -255,6 +257,12 @@
 		if (sounding.length !== targets.length) return phrase;
 		const shift = targets[0] - sounding[0].pitch;
 		if (shift === 0 || shift % 12 !== 0 || !sounding.every((note, i) => note.pitch + shift === targets[i])) return phrase;
+		// Play the saved register only while every pitched note still fits the
+		// current instrument. A scoring export always reconstructs the original.
+		if (forPlayback) {
+			const high = getEffectiveHighestNote();
+			if (phrase.notes.some(n => n.pitch !== null && (n.pitch + shift < instrument.concertRangeLow || n.pitch + shift > high))) return phrase;
+		}
 		return { ...phrase, notes: phrase.notes.map(note => note.pitch === null ? note : { ...note, pitch: note.pitch + shift }) };
 	}
 
@@ -282,7 +290,7 @@
 			if (generation !== replayGeneration) return;
 		}
 
-		const phrase = findPhraseForSession(s);
+		const phrase = sessionReferencePhrase(s, true);
 		if (!phrase) return;
 
 		try {
@@ -296,11 +304,11 @@
 			playingLickSessionId = s.id;
 			await playbackModule.playPhrase(phrase, {
 				tempo: s.tempo,
-				swing: settings.swing,
+				swing: melodySwingForStyle(settings.swing, settings.backingStyle),
 				countInBeats: 0,
 				metronomeEnabled: false,
 				metronomeVolume: 0
-			});
+			}, false, { tongueRepeats: settings.instrumentId.endsWith('-sax') });
 		} catch (err) {
 			console.error('Failed to play lick:', err);
 		} finally {
@@ -370,6 +378,7 @@
 	}
 
 	let showResetConfirm = $state(false);
+	const cloudResetPending = $derived(reportResetPending());
 	let expandedSessionId: string | null = $state(null);
 	let expandedLickSessionId: string | null = $state(null);
 	let expandedKeySessionId: string | null = $state(null);
@@ -1017,9 +1026,11 @@
 
 		<!-- Reset -->
 		<div class="progress-footer">
+			{#if cloudResetPending}<p role="status" class="text-sm">Cloud workout deletion is pending. Keep this device online to finish syncing.</p>{/if}
 			{#if showResetConfirm}
 				<p class="mb-2 text-sm text-[var(--color-error-text)]">
 					This will erase all progress. Are you sure?
+					{#if page.data.user}When this device syncs, it clears all workout reports then stored for this account, including reports from other devices.{/if}
 				</p>
 				<div class="flex justify-center gap-2">
 					<button
@@ -1033,6 +1044,8 @@
 								await resetAllPracticeData(supabase ?? undefined);
 							} catch (err) {
 								console.warn('Failed to fully reset progress:', err);
+								alert('Could not finish resetting practice history. Check the available browser storage and try again.');
+								return;
 							}
 							// Reset page-local view state.
 							recordingIds = new Set();

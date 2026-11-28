@@ -13,10 +13,13 @@ import type { Database } from '$lib/supabase/types';
 import { resetProgress } from '$lib/state/progress.svelte';
 import { settings, saveSettings } from '$lib/state/settings.svelte';
 import { clearLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
+import { queueLickReportReset } from '$lib/persistence/lick-report-sync';
 import { clearAllRecordings } from '$lib/persistence/audio-store';
 import { deleteAllRecordingsFromCloud } from '$lib/persistence/sync';
 
 export async function resetAllPracticeData(supabase?: SupabaseClient<Database>): Promise<void> {
+	// Persist the cloud reset intent before clearing the local source logs.
+	if (supabase) queueLickReportReset();
 	// 1. Ear-training progress + history + cloud detail rows + daily summaries.
 	resetProgress(supabase);
 	// 2. The lick session log — the piece the Settings reset used to miss. Clear

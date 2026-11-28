@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/test';
+import { createStubCloud, installStubCloud } from './fixtures/stub-cloud';
 import type { Page } from '@playwright/test';
 import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 
@@ -71,6 +72,65 @@ test('overview survives keyboard view changes and cancelling reset preserves his
 	await page.reload();
 	await expect(total).toHaveText(/2h\s+Practice Time/);
 	await expect(page.getByRole('button', { name: 'Major proficiency trend' })).toContainText('Lv 18');
+});
+
+test('a failed reset keeps the workout visible and explains the failure', async ({ page, baseURL }) => {
+	const user = { id: 'aaaaaaaa-0000-4000-8000-000000000abc', email: 'progress@e2e.dev' };
+	const cloud = createStubCloud();
+	cloud.seedRow('user_settings', { user_id: user.id, onboarding_complete: true, tour_state: TOUR_DISMISSED });
+	await installStubCloud(page.context(), cloud, user, baseURL!);
+	await seedStorage(page, {
+		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
+		'lick-practice-sessions': [{
+			id: 'reset-workout', timestamp: Date.now(), progressionType: 'major-vamp', practiceMode: 'call-response',
+			report: { licks: [], overallAverage: 1, totalAttempts: 1, totalPassed: 1, elapsedMinutes: 2 }
+		}]
+	});
+	await page.goto('/progress');
+	const sessions = page.getByRole('tab', { name: 'Sessions', exact: true });
+	const workout = page.getByRole('button', { name: /Call & Response/ });
+	async function openWorkouts() {
+		await sessions.click();
+		await page.getByRole('tab', { name: 'Lick Practice', exact: true }).click();
+		await expect(workout).toBeVisible();
+	}
+	await openWorkouts();
+	await page.getByRole('tab', { name: 'Progress', exact: true }).click();
+	await page.evaluate(() => {
+		const write = Storage.prototype.setItem;
+		Storage.prototype.setItem = function (key, value) {
+			if (key.includes(':lick-report-reset/')) throw new DOMException('Storage full', 'QuotaExceededError');
+			write.call(this, key, value);
+		};
+	});
+	await page.getByRole('button', { name: 'Reset Progress', exact: true }).click();
+	const message = page.waitForEvent('dialog').then(async dialog => {
+		const message = dialog.message();
+		await dialog.accept();
+		return message;
+	});
+	await page.getByRole('button', { name: 'Yes, Reset', exact: true }).click();
+	expect(await message).toContain('Could not finish resetting practice history');
+	await openWorkouts();
+});
+
+test('shows a pending reset until another tab acknowledges it', async ({ page, baseURL }) => {
+	const user = { id: 'aaaaaaaa-0000-4000-8000-000000000abc', email: 'progress@e2e.dev' };
+	const cloud = createStubCloud();
+	cloud.seedRow('user_settings', { user_id: user.id, onboarding_complete: true, tour_state: TOUR_DISMISSED });
+	await installStubCloud(page.context(), cloud, user, baseURL!);
+	await seedStorage(page, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
+	await page.goto('/progress');
+	await expect(page.getByRole('button', { name: 'Reset Progress', exact: true })).toBeVisible();
+	const other = await page.context().newPage();
+	await other.goto('/robots.txt');
+	const key = 'mankunku:u:' + user.id + ':lick-report-reset/9ed57728-3945-414e-b238-83ca0ba96caa';
+	await other.evaluate(key => localStorage.setItem(key, '1'), key);
+	const status = page.getByRole('status').filter({ hasText: 'Cloud workout deletion is pending' });
+	await expect(status).toBeVisible();
+	await other.evaluate(key => localStorage.removeItem(key), key);
+	await expect(status).toHaveCount(0);
+	await other.close();
 });
 
 for (const theme of ['dark', 'light']) {
