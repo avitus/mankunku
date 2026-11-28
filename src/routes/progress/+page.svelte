@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportResetPending } from '$lib/persistence/lick-report-resets';
  import { connectMediaPlayback, disconnectMediaPlayback } from '$lib/audio/media-playback';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import { extractSoundingNotes } from '$lib/music/expression';
@@ -1018,9 +1019,11 @@
 
 		<!-- Reset -->
 		<div class="progress-footer">
+			{#if $reportResetPending}<p role="status" class="text-sm">Cloud workout deletion is pending. Keep this device online to finish syncing.</p>{/if}
 			{#if showResetConfirm}
 				<p class="mb-2 text-sm text-[var(--color-error-text)]">
 					This will erase all progress. Are you sure?
+					{#if page.data.user}When this device syncs, it clears all workout reports then stored for this account, including reports from other devices.{/if}
 				</p>
 				<div class="flex justify-center gap-2">
 					<button

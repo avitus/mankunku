@@ -39,6 +39,21 @@ describe('buildAdminUserRows', () => {
 		expect(row).toMatchObject({ practiceDays: 1, recentEarAttempts: 2, recentKeyAttempts: 3 });
 	});
 
+	it('uses exactly fourteen date labels per player across the UTC+14 boundary', () => {
+		const authUsers = [{ id: 'utc' }, { id: 'ahead' }];
+		const summaries = authUsers.flatMap(({ id }) => Array.from({ length: 16 }, (_, i) => {
+			const day = 15 + i;
+			const count = id === 'utc' && day === 29 ? 0 : 1;
+			return {
+				user_id: id, date: `2026-11-${day}`, session_count: count, practice_minutes: count,
+				ear_training_sessions: day === 15 ? 10 : 0, lick_practice_sessions: day === 29 ? 7 : 0
+			};
+		}));
+		const [utc, ahead] = buildAdminUserRows({ ...emptyInput(), authUsers, summaries }, new Date('2026-11-28T16:00:00Z'));
+		expect(utc).toMatchObject({ practiceDays: 14, recentEarAttempts: 10, recentKeyAttempts: 0 });
+		expect(ahead).toMatchObject({ practiceDays: 14, recentEarAttempts: 0, recentKeyAttempts: 7 });
+	});
+
 	it('includes historical practice instead of reporting only four recent visit days', () => {
 		const summaries = Array.from({ length: 133 }, (_, index) => ({
 			user_id: 'longtime',

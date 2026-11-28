@@ -1,7 +1,25 @@
+import { readable } from 'svelte/store';
 import { listKeys, load, remove, save } from './storage';
 
 const PREFIX = 'lick-report-reset/';
 const OBSERVED = 'lick-report-server-generation';
+
+const resetChanges = new EventTarget();
+
+/** Reflect the durable queue on mount, after a local write and across open tabs. */
+export const reportResetPending = readable(false, set => {
+	const refresh = () => set(listKeys().some(key => key.startsWith(PREFIX)));
+	const onStorage = (event: StorageEvent) => {
+		if (!event.key || event.key.includes(PREFIX) || event.key === 'mankunku:__active') refresh();
+	};
+	refresh();
+	resetChanges.addEventListener('change', refresh);
+	if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
+	return () => {
+		resetChanges.removeEventListener('change', refresh);
+		if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
+	};
+});
 
 export interface ReportGeneration {
 	generation: string;
@@ -20,6 +38,7 @@ export function persistReportReset(): void {
 	const order = (pendingReportResets().at(-1)?.order ?? 0) + 1;
 	save(key, order);
 	if (load<number>(key) !== order) throw new Error('Could not persist the practice report reset');
+	resetChanges.dispatchEvent(new Event('change'));
 }
 
 /** Snapshot once when practice starts. Legacy workouts precede the first reset. */
@@ -37,4 +56,5 @@ export function acknowledgeReportResets(server: ReportGeneration | null, sent: s
 	}
 	if (!server && sent.length) throw new Error('Practice report reset is still pending');
 	for (const id of sent) remove(PREFIX + id);
+	if (sent.length) resetChanges.dispatchEvent(new Event('change'));
 }

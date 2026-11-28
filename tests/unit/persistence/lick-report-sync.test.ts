@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
-import { currentLickReportGeneration, pendingReportResets } from '$lib/persistence/lick-report-resets';
+import { currentLickReportGeneration, pendingReportResets, reportResetPending } from '$lib/persistence/lick-report-resets';
 import { flushLickReports, queueHistoricalLickReports, queueLickReportReset } from '$lib/persistence/lick-report-sync';
 
 const state = vi.hoisted(() => ({
@@ -71,6 +71,8 @@ describe('lick report sync', () => {
 
 	it('retries the pending reset generation before resuming report uploads', async () => {
 		state.entries = [];
+		const displayed: boolean[] = [];
+		const unsubscribe = reportResetPending.subscribe(value => displayed.push(value));
 		queueLickReportReset();
 		const reset = pendingReportResets()[0].id;
 		const upsert = vi.fn().mockResolvedValueOnce({ error: new Error('offline') }).mockResolvedValue({ error: null });
@@ -78,11 +80,14 @@ describe('lick report sync', () => {
 		const client = { from } as never;
 		await expect(flushLickReports(client)).rejects.toThrow('offline');
 		expect(pendingReportResets()[0].id).toBe(reset);
+		expect(displayed).toEqual([false, true]);
 		await flushLickReports(client);
 		expect(from).toHaveBeenLastCalledWith('lick_report_resets');
 		expect(upsert).toHaveBeenLastCalledWith({ user_id: state.uid, generation: reset }, { onConflict: 'user_id,generation', ignoreDuplicates: true });
 		expect(pendingReportResets()).toHaveLength(0);
 		expect(currentLickReportGeneration()).toBe(reset);
+		expect(displayed).toEqual([false, true, false]);
+		unsubscribe();
 	});
 
 	it('acknowledges only the reset this flush sent when a second tab requests a fresh reset', async () => {

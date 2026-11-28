@@ -111,6 +111,12 @@ export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): Ad
 		visits.set(visit.user_id, dates);
 	}
 
+	// Anchor the two-week window to UTC today unless the player's own practice
+	// already falls on tomorrow's valid local date (as far east as UTC+14).
+	const today = now.toISOString().slice(0, 10);
+	const latestLocalTime = now.getTime() + 14 * 3600000;
+	const latestLocalDate = new Date(latestLocalTime).toISOString().slice(0, 10);
+	const playersOnNextDay = new Set<string>();
 	const activeDates = new Map([...visits].map(([id, dates]) => [id, new Set(dates)]));
 	const activity = new Map<
 		string,
@@ -120,6 +126,7 @@ export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): Ad
 		// A summary with no attempts is not evidence of practice. Historical
 		// days still count when their practice duration is unavailable.
 		if (s.session_count > 0) {
+			if (s.date === latestLocalDate && s.date > today) playersOnNextDay.add(s.user_id);
 			const dates = activeDates.get(s.user_id) ?? new Set<string>();
 			dates.add(s.date);
 			activeDates.set(s.user_id, dates);
@@ -136,9 +143,9 @@ export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): Ad
 		}
 	}
 
-	// Daily summaries are player-local dates. UTC+14 has the latest valid label.
-	const latestLocalDate = new Date(now.getTime() + 14 * 3600000).toISOString().slice(0, 10);
-	const cutoff = new Date(now.getTime() - 13 * 86400000).toISOString().slice(0, 10);
+	const windowSpan = 13 * 86400000;
+	const cutoffToday = new Date(now.getTime() - windowSpan).toISOString().slice(0, 10);
+	const cutoffLatest = new Date(latestLocalTime - windowSpan).toISOString().slice(0, 10);
 	const earScores = new Map(input.earScores?.map(s => [s.user_id, s]));
 	const recent = new Map<string, { days: number; ear: number; keys: number }>();
 	const mastery = new Map<string, { date: string; value: number }>();
@@ -146,6 +153,7 @@ export function buildAdminUserRows(input: AdminStatsInput, now = new Date()): Ad
 		if (s.tonal_mastery != null && s.date > (mastery.get(s.user_id)?.date ?? '')) {
 			mastery.set(s.user_id, { date: s.date, value: s.tonal_mastery });
 		}
+		const cutoff = playersOnNextDay.has(s.user_id) ? cutoffLatest : cutoffToday;
 		if (s.date < cutoff || s.date > latestLocalDate || s.session_count <= 0) continue;
 		const stats = recent.get(s.user_id) ?? { days: 0, ear: 0, keys: 0 };
 		stats.days++;
