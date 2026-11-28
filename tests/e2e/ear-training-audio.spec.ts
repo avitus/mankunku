@@ -108,3 +108,30 @@ for (const [instrumentId, bank] of [
 		(window as unknown as { __listeningOutput: { peak: number } }).__listeningOutput.peak
 	), { timeout: 30_000 }).toBeGreaterThan(0.001);
 });
+
+test('Progress replays an ear-training lick on the selected vibraphone', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI && process.env.MANKUNKU_TEST_AUDIO_SINK !== '1', 'Headless Linux Firefox has no audio output device');
+	await seedStorage(page, {
+		settings: { ...SETTINGS_ONBOARDED, instrumentId: 'vibraphone' },
+		'tour-state': TOUR_DISMISSED,
+		progress: { sessions: [{
+			id: 'replay', phraseId: 'pfl-035', phraseName: 'Third Walks Back to Root',
+			timestamp: Date.now(), key: 'C', category: 'pentatonic', tempo: 100,
+			difficultyLevel: 1, source: 'ear-training', grade: 'good', overall: 0.8,
+			pitchAccuracy: 0.8, rhythmAccuracy: 0.8, noteResults: []
+		}] }
+	});
+	await observeListeningOutput(page);
+	await stubCdnInstrumentSamples(page, audibleSample());
+	await page.goto('/progress');
+	await page.getByRole('tab', { name: 'Sessions', exact: true }).click();
+	await page.getByRole('button', { name: /Third Walks Back to Root/ }).click();
+	const [request] = await Promise.all([
+		page.waitForRequest(req => /MusyngKite\/.*-(ogg|mp3)\.js$/.test(req.url())),
+		page.getByRole('button', { name: 'Play Lick', exact: true }).click()
+	]);
+	expect(request.url()).toMatch(/\/vibraphone-(ogg|mp3)\.js$/);
+	await expect.poll(() => page.evaluate(() =>
+		(window as unknown as { __listeningOutput: { peak: number } }).__listeningOutput.peak
+	), { timeout: 15_000 }).toBeGreaterThan(0.001);
+});

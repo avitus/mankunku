@@ -129,6 +129,8 @@ describe('the melody level', () => {
 		audio.backingLoaded = true;
 	});
 
+	const trumpetReference = SOUNDFONT_REFERENCE * 10 ** (-4 / 20);
+
 	/** The trim the loaded voice's chain ends in, by how that voice reaches master. */
 	const trimFor = {
 		'trumpet': () => audio.inserts.at(-1)!.output,
@@ -141,9 +143,9 @@ describe('the melody level', () => {
 		const trim = trimFor[instrumentId]();
 
 		await playTake();
-		expect(trim.gain.value).toBe(instrumentId === 'trumpet' ? SOUNDFONT_REFERENCE : SAMPLE_CHANNEL_REFERENCE);
+		expect(trim.gain.value).toBe(instrumentId === 'trumpet' ? trumpetReference : SAMPLE_CHANNEL_REFERENCE);
 		await playTake();
-		expect(trim.gain.value).toBe(instrumentId === 'trumpet' ? SOUNDFONT_REFERENCE : SAMPLE_CHANNEL_REFERENCE);
+		expect(trim.gain.value).toBe(instrumentId === 'trumpet' ? trumpetReference : SAMPLE_CHANNEL_REFERENCE);
 	});
 
 	it('preserves calibrated melody when the band failed to load', async () => {
@@ -153,6 +155,6 @@ describe('the melody level', () => {
 		audio.backingLoaded = false;
 
 		await playTake();
-		expect(trim.gain.value).toBe(SOUNDFONT_REFERENCE);
+		expect(trim.gain.value).toBe(trumpetReference);
 	});
 });

@@ -2,6 +2,7 @@
  import { connectMediaPlayback, disconnectMediaPlayback } from '$lib/audio/media-playback';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import { extractSoundingNotes } from '$lib/music/expression';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { lickMode } from '$lib/music/mode';
 	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
@@ -202,7 +203,7 @@
 			const replay = await exporter.replayRecording(full, ctx);
 			const payload = exporter.buildDiagnosticsPayload(full, replay, {
 				instrument: { id: settings.instrumentId, name: instrument.name, key: instrument.key },
-				phrase: phraseForScoringExport(s),
+				phrase: sessionReferencePhrase(s),
 				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
 			});
 			const wav = await exporter.decodeToWav(exporter.scoringRecordingBlob(full));
@@ -242,7 +243,7 @@
 			: transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 	}
 
-	function phraseForScoringExport(s: SessionResult): Phrase | null {
+	function sessionReferencePhrase(s: SessionResult): Phrase | null {
 		const phrase = findPhraseForSession(s);
 		if (!phrase) return null;
 
@@ -282,7 +283,7 @@
 			if (generation !== replayGeneration) return;
 		}
 
-		const phrase = findPhraseForSession(s);
+		const phrase = sessionReferencePhrase(s);
 		if (!phrase) return;
 
 		try {
@@ -296,11 +297,11 @@
 			playingLickSessionId = s.id;
 			await playbackModule.playPhrase(phrase, {
 				tempo: s.tempo,
-				swing: settings.swing,
+				swing: melodySwingForStyle(settings.swing, settings.backingStyle),
 				countInBeats: 0,
 				metronomeEnabled: false,
 				metronomeVolume: 0
-			});
+			}, false, { tongueRepeats: settings.instrumentId.endsWith('-sax') });
 		} catch (err) {
 			console.error('Failed to play lick:', err);
 		} finally {

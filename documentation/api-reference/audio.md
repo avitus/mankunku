@@ -94,28 +94,29 @@ Phrase playback using Tone.js Transport plus either custom multi-sampled instrum
 
 ### `loadInstrument(instrumentId?, masterVolume?, backingInstrument?): Promise<void>`
 
-Load the user's instrument. Defaults to `'tenor-sax'`. Everything instrument-specific comes from the instrument's voice, `instrumentVoice(id)` in `instrument-voices.ts`: it loads the voice's custom multi-sampled recordings when it has them (soprano, alto, and tenor sax do); when the voice has none **or** they fail to decode, it falls back to the voice's **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Every call tears down the previous instrument and loads again — the tune, lick and progress pages call it on each Play. Teardown disposes the instruments before the expression nodes: on a SoundFont the warmth filter is an insert that smplr's channel disconnects by destination, and Web Audio throws `InvalidAccessError` for a connection already cut (Sentry MANKUNKU-1T: every second trumpet Play failed). Pinned for both instrument paths by `tests/unit/audio/playback-soundfont-reload.test.ts`.
+Load the selected melody instrument for Ear Training, Progress session replays, lick and trick auditions, and tune playback and practice. The saxes use their own multi-samples with matching SoundFont fallback. Trumpet uses its looped SoundFont. Piano and generic Concert Pitch use grand piano, bass uses pizzicato upright, and the other concert instruments use their matching GM voices. The player applies the same per-instrument Melody calibration across all these surfaces. Each load replaces the previous player. Teardown disposes the instruments before the expression nodes: on a SoundFont the warmth filter is an insert that smplr's channel disconnects by destination, and Web Audio throws `InvalidAccessError` for a connection already cut (Sentry MANKUNKU-1T: every second trumpet Play failed). Pinned for both instrument paths by `tests/unit/audio/playback-soundfont-reload.test.ts`.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `instrumentId` | `string` | `'soprano-sax'` / `'tenor-sax'` / `'alto-sax'` / `'trumpet'` (default `'tenor-sax'`) |
+| `instrumentId` | `string` | Any selected instrument ID (default `'tenor-sax'`) |
 | `masterVolume` | `number?` | When provided, applied via `setMasterVolume` during load |
 | `backingInstrument` | `BackingInstrument?` | If provided, backing-track samples are loaded in parallel (best-effort — failures are logged and non-blocking) |
 
-On load, sets up jazz expression effects from the voice:
-- **Vibrato**: a delay line whose time an LFO modulates, which bends PITCH (`vibratoDelaySwingSeconds` turns the voice's rate + cents into the delay swing). Every sounding note independently draws one of four equally likely shapes; ties count as one note, and notes shorter than 0.6 s always play straight. The shapes are entirely straight; straight for two seconds followed by narrow vibrato (40% of the voice's depth); straight for the first quarter of the note (at least 0.18 s), then gradually widening through its amplitude release; and immediate, narrower vibrato (50%), removed by 65% of the note's duration. A delayed-shape note of two seconds or less stays straight; a slightly longer note only introduces as much of the narrow bloom as fits, without speeding it up. Only the widening shape approaches the previous maximum (saxes 12 cents, trumpet and concert voices 6, all at 4.8 Hz); its cap accounts for the pitch bend caused by the rising delay-depth envelope itself. Every new attack replaces the preceding shape, preserving any interrupted ramp up to that attack. Until 2026-10-11 the LFO drove the warmth filter's detune, so it wobbled tone colour rather than pitch.
-- **Warmth filter**: low-pass `BiquadFilterNode`, Q 0.7, with a per-voice ceiling that follows the sax register so each horn keeps the same number of harmonics: tenor 4500 Hz, alto 6000 Hz (a 4th higher), soprano 9000 Hz (an octave higher), trumpet and the C instruments 6000 Hz. The saxes used to share 4500 Hz, which dulled the soprano most.
+Horns use two jazz expression effects.
+
+- **Vibrato**: a delay line whose time an LFO modulates, which bends PITCH (`vibratoDelaySwingSeconds` turns the voice's rate + cents into the delay swing). Every sounding note independently draws one of four equally likely shapes; ties count as one note, and notes shorter than 0.6 s always play straight. The shapes are entirely straight; straight for two seconds followed by narrow vibrato (40% of the voice's depth); straight for the first quarter of the note (at least 0.18 s), then gradually widening through its amplitude release; and immediate, narrower vibrato (50%), removed by 65% of the note's duration. A delayed-shape note of two seconds or less stays straight; a slightly longer note only introduces as much of the narrow bloom as fits, without speeding it up. Only the widening shape approaches the previous maximum (saxes 12 cents, trumpet 6, all at 4.8 Hz); its cap accounts for the pitch bend caused by the rising delay-depth envelope itself. Every new attack replaces the preceding shape, preserving any interrupted ramp up to that attack. Until 2026-10-11 the LFO drove the warmth filter's detune, so it wobbled tone colour rather than pitch.
+- **Warmth filter**: low-pass `BiquadFilterNode`, Q 0.7, with a per-voice ceiling that follows the sax register so each horn keeps the same number of harmonics: tenor 4500 Hz, alto 6000 Hz (a 4th higher), soprano 9000 Hz (an octave higher), trumpet 6000 Hz. The saxes used to share 4500 Hz, which dulled the soprano most.
 
 ### `instrument-voices.ts`
 
-- **`INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice>`**: one voice per instrument, holding `samples?` (a `SampleMap`), `soundfont` (the GM fallback name), `warmthCutoffHz` and `vibrato` (`VibratoProfile`: rate, depth, and the held-note envelope timings). Because the Record is keyed by `InstrumentId` (types/instruments.ts), a new instrument does not type-check until it has a voice. `playback.ts` has no per-instrument branches. The C instruments behind the Concert Pitch follow-up (piano, guitar, bass, trombone, flute, vibraphone, violin, voice) all share `concert`'s voice — the GM tenor SoundFont — until one gets its own.
+- **`INSTRUMENT_VOICES`** maps every `InstrumentId` to a horn configuration or concert instrument preset. `HORN_VOICES` supplies the custom samples, fallback SoundFont, warmth filter and vibrato for each horn.
 - **`instrumentVoice(id)`** returns the voice, or the tenor's for an unknown id.
 - **`chooseVibratoStyle(random?)`** draws one of `VIBRATO_STYLES` once per sounding attack. Its random source is injectable for tests; playback draws again on a replay.
 - **`vibratoDelaySwingSeconds(rateHz, depthCents)`** and **`vibratoEnvelope(profile, durationSeconds, style, releaseSeconds?)`** are pure and pinned in `tests/unit/audio/instrument-voices.test.ts`. Release is the sampler's amplitude-fade duration, not extra sustain. `tests/unit/audio/playback-vibrato.test.ts` covers selection, ties, release timing and interruption on the custom-sample and SoundFont paths.
 
-### `isInstrumentLoaded(): boolean`
+### `isInstrumentLoaded(instrumentId?): boolean`
 
-Returns `true` if an instrument (custom sampler or SoundFont) is loaded and ready to play.
+Returns `true` when a melody player is ready and matches the requested instrument ID, if supplied.
 
 ### `PhrasePlaybackOpts` interface
 

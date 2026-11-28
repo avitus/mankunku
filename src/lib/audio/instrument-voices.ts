@@ -1,18 +1,11 @@
 /**
- * Per-instrument playback voices: everything that makes the demo horn sound
- * like THIS horn, in one registry.
- *
- * A voice names its sample source (custom multi-samples, else a GM
- * SoundFont), the bus "warmth" lowpass ceiling, and its pitch vibrato.
- * `playback.ts` reads only `instrumentVoice(id)` — it holds no per-instrument
- * branches — so adding an instrument is one `InstrumentId` member, one
- * `INSTRUMENTS` entry and one entry here (the Record type refuses to compile
- * without it).
+ * Melody voice for every selected instrument. Horns carry their samples and
+ * expression settings. Concert instruments name their dedicated player or GM preset.
  *
  * Pure data + pure math: Node-testable, no Web Audio.
  */
 
-import { isInstrumentId, type InstrumentId } from '$lib/types/instruments';
+import { CONCERT_INSTRUMENT_IDS, TRANSPOSING_INSTRUMENT_IDS, isInstrumentId, type InstrumentId } from '$lib/types/instruments';
 import {
 	ALTO_SAX_SAMPLES,
 	SOPRANO_SAX_SAMPLES,
@@ -62,13 +55,20 @@ const HELD_NOTE_VIBRATO = {
 
 const SAX_VIBRATO: VibratoProfile = { ...HELD_NOTE_VIBRATO, rateHz: 4.8, depthCents: 12 };
 
-const CONCERT_VOICE: InstrumentVoice = {
-	soundfont: 'tenor_sax',
-	warmthCutoffHz: 6000,
-	vibrato: { ...HELD_NOTE_VIBRATO, rateHz: 4.8, depthCents: 6 }
-};
+const CONCERT_VOICES = {
+	piano: 'grand',
+	concert: 'grand',
+	bass: 'upright',
+	guitar: 'electric_guitar_jazz',
+	trombone: 'trombone',
+	flute: 'flute',
+	vibraphone: 'vibraphone',
+	violin: 'violin',
+	voice: 'voice_oohs'
+} as const satisfies Record<typeof CONCERT_INSTRUMENT_IDS[number], string>;
+export type ConcertVoice = typeof CONCERT_VOICES[keyof typeof CONCERT_VOICES];
 
-export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
+export const HORN_VOICES: Record<typeof TRANSPOSING_INSTRUMENT_IDS[number], InstrumentVoice> = {
 	'tenor-sax': {
 		samples: TENOR_SAX_SAMPLES,
 		soundfont: 'tenor_sax',
@@ -94,24 +94,31 @@ export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
 		warmthCutoffHz: 6000,
 		// Trumpet vibrato is narrower than a sax's.
 		vibrato: { ...HELD_NOTE_VIBRATO, rateHz: 4.8, depthCents: 6 }
-	},
-	// Concert pitch has always played the GM tenor SoundFont, never the
-	// tenor samples, with the non-sax tone settings.
-	concert: CONCERT_VOICE,
-	// Other playback surfaces share the concert demo voice. Ear Training
-	// selects instrument-specific players in ear-training-voices.ts.
-	piano: CONCERT_VOICE,
-	guitar: CONCERT_VOICE,
-	bass: CONCERT_VOICE,
-	trombone: CONCERT_VOICE,
-	flute: CONCERT_VOICE,
-	vibraphone: CONCERT_VOICE,
-	violin: CONCERT_VOICE,
-	voice: CONCERT_VOICE
+	}
 };
 
+export const INSTRUMENT_VOICES = { ...HORN_VOICES, ...CONCERT_VOICES } satisfies Record<InstrumentId, InstrumentVoice | ConcertVoice>;
+
+// Fixed amplitude trims relative to the recorded tenor sax. Measured by
+// integrated loudness across the four calls in docs/maintenance/audio-mixer/ear-training-levels.md.
+const trimDb = {
+	'tenor-sax': 0, 'alto-sax': -2.5, 'soprano-sax': -6.3, trumpet: -4,
+	piano: -13.4, concert: -13.4, bass: -16.3, guitar: -9.2, trombone: -3,
+	flute: -4.7, vibraphone: -4.4, violin: -10.5, voice: -9.4
+} satisfies Record<InstrumentId, number>;
+
+const fallbackTrimDb = { 'tenor-sax': -8.4, 'alto-sax': -10.1, 'soprano-sax': -6.1 };
+
+/** Linear gain that matches the selected voice to the tenor reference level. */
+export function melodyGainAdjustment(id: string, usingSaxSoundfont: boolean): number {
+	const key = isInstrumentId(id) ? id : 'tenor-sax';
+	const db = usingSaxSoundfont && (key === 'tenor-sax' || key === 'alto-sax' || key === 'soprano-sax')
+		? fallbackTrimDb[key] : trimDb[key];
+	return 10 ** (db / 20);
+}
+
 /** The voice for an instrument id; an unknown id (a stale setting) gets the tenor's. */
-export function instrumentVoice(instrumentId: string): InstrumentVoice {
+export function instrumentVoice(instrumentId: string): InstrumentVoice | ConcertVoice {
 	// The same own-key guard as getInstrument: a bare index would resolve
 	// `constructor` or `toString` to an inherited Object member.
 	return isInstrumentId(instrumentId)

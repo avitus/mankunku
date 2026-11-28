@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import {
+	HORN_VOICES,
 	INSTRUMENT_VOICES,
 	VIBRATO_STYLES,
 	chooseVibratoStyle,
@@ -18,7 +19,7 @@ describe('instrument voices', () => {
 	it('opens the warmth ceiling with the sax register: tenor < alto < soprano', () => {
 		// One shared 4.5 kHz ceiling cut a soprano's upper harmonics far harder
 		// than a tenor's, since its notes sit an octave higher.
-		const cutoff = (id: keyof typeof INSTRUMENT_VOICES) => INSTRUMENT_VOICES[id].warmthCutoffHz;
+		const cutoff = (id: keyof typeof HORN_VOICES) => HORN_VOICES[id].warmthCutoffHz;
 		expect(cutoff('tenor-sax')).toBeLessThan(cutoff('alto-sax'));
 		expect(cutoff('alto-sax')).toBeLessThan(cutoff('soprano-sax'));
 	});
@@ -61,7 +62,7 @@ describe('vibratoDelaySwingSeconds', () => {
 
 	it('stays under the 2 ms resting delay for every voice', () => {
 		// playback.ts clamps to it; a voice that needs the clamp would be silently shallower.
-		for (const [id, voice] of Object.entries(INSTRUMENT_VOICES)) {
+		for (const [id, voice] of Object.entries(HORN_VOICES)) {
 			expect(
 				vibratoDelaySwingSeconds(voice.vibrato.rateHz, voice.vibrato.depthCents),
 				id
@@ -157,7 +158,7 @@ describe('vibratoEnvelope', () => {
 	});
 
 	it('caps the pitch swing including the extra bend caused by ramping delay depth', () => {
-		for (const voice of Object.values(INSTRUMENT_VOICES)) {
+		for (const voice of Object.values(HORN_VOICES)) {
 			for (const duration of [0.6, 1, 2.001, 2.1, 3, 8]) {
 				for (const style of VIBRATO_STYLES) {
 					const envelope = vibratoEnvelope(voice.vibrato, duration, style, 0.35);

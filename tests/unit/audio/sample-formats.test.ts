@@ -9,11 +9,11 @@ import {
 	getTuneCorrection,
 	type SampleMap
 } from '$lib/audio/sample-maps';
-import { INSTRUMENT_VOICES } from '$lib/audio/instrument-voices';
+import { HORN_VOICES } from '$lib/audio/instrument-voices';
 
 /** Every instrument's custom sample map, keyed by instrument id. */
 const SAMPLE_MAPS: Record<string, SampleMap> = Object.fromEntries(
-	Object.entries(INSTRUMENT_VOICES).flatMap(([id, voice]) =>
+	Object.entries(HORN_VOICES).flatMap(([id, voice]) =>
 		voice.samples ? [[id, voice.samples]] : []
 	)
 );

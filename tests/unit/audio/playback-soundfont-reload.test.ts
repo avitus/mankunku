@@ -131,7 +131,7 @@ describe('reloading an instrument (MANKUNKU-1T)', () => {
 describe('the loaded voice shapes the expression chain', () => {
 	it('loads a sustained section of each encoded trumpet note for looping', async () => {
 		const { loadInstrument } = await import('$lib/audio/playback');
-		await loadInstrument('trumpet', undefined, undefined, 'ear-training');
+		await loadInstrument('trumpet');
 		const options = graph.soundfontOptions.mock.lastCall![0];
 		expect(options.loadLoopData).toBe(true);
 		expect(options.loopDataUrl).toMatch(/^\/samples\//);
@@ -146,25 +146,22 @@ describe('the loaded voice shapes the expression chain', () => {
 		}
 	});
 
-	it('reloads the trumpet trim when switching between Ear Training and other players', async () => {
+	it('applies the calibrated trumpet level on the shared melody path', async () => {
 		const { loadInstrument, isInstrumentLoaded } = await import('$lib/audio/playback');
 		const { SOUNDFONT_REFERENCE } = await import('$lib/audio/mixer-policy');
-		for (const mode of ['ear-training', undefined] as const) {
-			const before = graph.nodes.length;
-			await loadInstrument('trumpet', undefined, undefined, mode);
-			expect(isInstrumentLoaded('trumpet', mode)).toBe(true);
-			expect(isInstrumentLoaded('trumpet', mode ? undefined : 'ear-training')).toBe(false);
-			const filter = graph.nodes.slice(before).find(node => 'Q' in node)!;
-			const [trim] = filter.outputs as Set<{ gain: { value: number } }>;
-			expect(trim.gain.value).toBeCloseTo(SOUNDFONT_REFERENCE * (mode ? 10 ** (-4 / 20) : 1));
-		}
+		const before = graph.nodes.length;
+		await loadInstrument('trumpet');
+		expect(isInstrumentLoaded('trumpet')).toBe(true);
+		const filter = graph.nodes.slice(before).find(node => 'Q' in node)!;
+		const [trim] = filter.outputs as Set<{ gain: { value: number } }>;
+		expect(trim.gain.value).toBeCloseTo(SOUNDFONT_REFERENCE * 10 ** (-4 / 20));
 	});
 
-	it.each(['tenor-sax', 'alto-sax', 'soprano-sax', 'trumpet'])(
+	it.each(['tenor-sax', 'alto-sax', 'soprano-sax', 'trumpet'] as const)(
 		'%s gets its own warmth ceiling and a PITCH vibrato',
 		async (instrumentId) => {
 			const { loadInstrument } = await import('$lib/audio/playback');
-			const { instrumentVoice } = await import('$lib/audio/instrument-voices');
+			const { HORN_VOICES } = await import('$lib/audio/instrument-voices');
 			const before = graph.nodes.length;
 			await loadInstrument(instrumentId);
 			const loaded = graph.nodes.slice(before);
@@ -173,7 +170,7 @@ describe('the loaded voice shapes the expression chain', () => {
 				frequency: { value: number };
 				detune: unknown;
 			};
-			expect(filter.frequency.value).toBe(instrumentVoice(instrumentId).warmthCutoffHz);
+			expect(filter.frequency.value).toBe(HORN_VOICES[instrumentId].warmthCutoffHz);
 
 			// The LFO depth drives the delay line's time (pitch), never the
 			// filter's detune (the old wiring wobbled tone colour, not pitch).

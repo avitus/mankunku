@@ -487,10 +487,10 @@
 			if (!currentRun(generation)) return;
 
 			const backing = settings.backingTrackEnabled ? settings.backingInstrument : undefined;
-			if (!playback.isInstrumentLoaded(settings.instrumentId, 'ear-training')) {
+			if (!playback.isInstrumentLoaded(settings.instrumentId)) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing, 'ear-training');
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing);
 				if (!currentRun(generation)) return;
 				session.isLoadingInstrument = false;
 			} else if (backing) {
